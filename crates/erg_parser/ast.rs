@@ -629,44 +629,44 @@ impl ArrayWithLength {
 pub struct ArrayComprehension {
     pub l_sqbr: Token,
     pub r_sqbr: Token,
-    pub elem: Box<Expr>,
+    pub layout: Option<Box<Expr>>,
     pub generators: Vec<(Identifier, Expr)>,
-    pub guards: Vec<Expr>,
+    pub guard: Option<Box<Expr>>,
 }
 
 impl NestedDisplay for ArrayComprehension {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         let mut generators = String::new();
         for (name, gen) in self.generators.iter() {
-            write!(generators, "{name} <- {gen}, ")?;
+            write!(generators, "{name} <- {gen}; ")?;
         }
         write!(
             f,
-            "[{}| {}{}]",
-            self.elem,
+            "[{}{}{}]",
+            fmt_option!(self.layout, post " | "),
             generators,
-            fmt_vec(&self.guards)
+            fmt_option!(pre " | ", &self.guard)
         )
     }
 }
 
 impl_display_from_nested!(ArrayComprehension);
-impl_locational!(ArrayComprehension, l_sqbr, elem, r_sqbr);
+impl_locational!(ArrayComprehension, l_sqbr, r_sqbr);
 
 impl ArrayComprehension {
     pub fn new(
         l_sqbr: Token,
         r_sqbr: Token,
-        elem: Expr,
+        layout: Option<Expr>,
         generators: Vec<(Identifier, Expr)>,
-        guards: Vec<Expr>,
+        guard: Option<Expr>,
     ) -> Self {
         Self {
             l_sqbr,
             r_sqbr,
-            elem: Box::new(elem),
+            layout: layout.map(Box::new),
             generators,
-            guards,
+            guard: guard.map(Box::new),
         }
     }
 }
@@ -779,27 +779,43 @@ impl NormalDict {
 pub struct DictComprehension {
     l_brace: Token,
     r_brace: Token,
-    pub attrs: Args,
-    guards: Vec<Expr>,
+    pub kv: Box<KeyValue>,
+    pub generators: Vec<(Identifier, Expr)>,
+    pub guard: Option<Box<Expr>>,
 }
 
-// TODO:
 impl NestedDisplay for DictComprehension {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "{{{} | {}}}", self.attrs, fmt_vec(&self.guards))
+        let mut generators = String::new();
+        for (name, gen) in self.generators.iter() {
+            write!(generators, "{name} <- {gen}; ")?;
+        }
+        write!(
+            f,
+            "{{{} | {generators}{}}}",
+            self.kv,
+            fmt_option!(pre " | ", &self.guard)
+        )
     }
 }
 
 impl_display_from_nested!(DictComprehension);
-impl_locational!(DictComprehension, l_brace, attrs, r_brace);
+impl_locational!(DictComprehension, l_brace, kv, r_brace);
 
 impl DictComprehension {
-    pub const fn new(l_brace: Token, r_brace: Token, attrs: Args, guards: Vec<Expr>) -> Self {
+    pub fn new(
+        l_brace: Token,
+        r_brace: Token,
+        kv: KeyValue,
+        generators: Vec<(Identifier, Expr)>,
+        guard: Option<Expr>,
+    ) -> Self {
         Self {
             l_brace,
             r_brace,
-            attrs,
-            guards,
+            kv: Box::new(kv),
+            generators,
+            guard: guard.map(Box::new),
         }
     }
 }
@@ -837,6 +853,8 @@ impl_locational_for_enum!(ClassAttr; Def, Decl, Doc);
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ClassAttrs(Vec<ClassAttr>);
 
+impl_stream!(ClassAttrs, ClassAttr);
+
 impl NestedDisplay for ClassAttrs {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         fmt_lines(self.0.iter(), f, level)?;
@@ -853,28 +871,6 @@ impl Locational for ClassAttrs {
 impl From<Vec<ClassAttr>> for ClassAttrs {
     fn from(attrs: Vec<ClassAttr>) -> Self {
         Self(attrs)
-    }
-}
-
-impl ClassAttrs {
-    pub const fn new(attrs: Vec<ClassAttr>) -> Self {
-        Self(attrs)
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = &ClassAttr> {
-        self.0.iter()
-    }
-
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut ClassAttr> {
-        self.0.iter_mut()
-    }
-}
-
-impl IntoIterator for ClassAttrs {
-    type Item = ClassAttr;
-    type IntoIter = <Vec<ClassAttr> as IntoIterator>::IntoIter;
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
     }
 }
 
@@ -1095,18 +1091,22 @@ impl SetWithLength {
 pub struct SetComprehension {
     pub l_brace: Token,
     pub r_brace: Token,
-    pub var: Token,
-    pub op: Token, // <- or :
-    pub iter: Box<Expr>,
-    pub pred: Box<Expr>,
+    pub layout: Option<Box<Expr>>,
+    pub generators: Vec<(Identifier, Expr)>,
+    pub guard: Option<Box<Expr>>,
 }
 
 impl NestedDisplay for SetComprehension {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        let mut generators = String::new();
+        for (name, gen) in self.generators.iter() {
+            write!(generators, "{name} <- {gen}; ")?;
+        }
         write!(
             f,
-            "{{{} {} {} | {}}}",
-            self.var, self.op, self.iter, self.pred
+            "{{{}{generators}{}}}",
+            fmt_option!(self.layout, post " | "),
+            fmt_option!(pre " | ", self.guard)
         )
     }
 }
@@ -1118,18 +1118,16 @@ impl SetComprehension {
     pub fn new(
         l_brace: Token,
         r_brace: Token,
-        var: Token,
-        op: Token,
-        iter: Expr,
-        pred: Expr,
+        layout: Option<Expr>,
+        generators: Vec<(Identifier, Expr)>,
+        guard: Option<Expr>,
     ) -> Self {
         Self {
             l_brace,
             r_brace,
-            var,
-            op,
-            iter: Box::new(iter),
-            pred: Box::new(pred),
+            layout: layout.map(Box::new),
+            generators,
+            guard: guard.map(Box::new),
         }
     }
 }
@@ -1661,41 +1659,43 @@ impl ConstNormalSet {
 pub struct ConstSetComprehension {
     pub l_brace: Token,
     pub r_brace: Token,
-    pub var: Token,
-    pub op: Token,
-    pub iter: Box<ConstExpr>,
-    pub pred: Box<ConstExpr>,
+    pub layout: Option<Box<ConstExpr>>,
+    pub generators: Vec<(ConstIdentifier, ConstExpr)>,
+    pub guard: Option<Box<ConstExpr>>,
 }
 
 impl NestedDisplay for ConstSetComprehension {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        let mut generators = String::new();
+        for (name, gen) in self.generators.iter() {
+            write!(generators, "{name} <- {gen}, ")?;
+        }
         write!(
             f,
-            "{{{} {} {} | {}}}",
-            self.var, self.op, self.iter, self.pred
+            "{{{}{generators}{}}}",
+            fmt_option!(self.layout, post " | "),
+            fmt_option!(pre " | ", self.guard)
         )
     }
 }
 
 impl_display_from_nested!(ConstSetComprehension);
-impl_locational!(ConstSetComprehension, l_brace, var, r_brace);
+impl_locational!(ConstSetComprehension, l_brace, r_brace);
 
 impl ConstSetComprehension {
     pub fn new(
         l_brace: Token,
         r_brace: Token,
-        var: Token,
-        op: Token,
-        iter: ConstExpr,
-        pred: ConstExpr,
+        elem: Option<ConstExpr>,
+        generators: Vec<(ConstIdentifier, ConstExpr)>,
+        guard: Option<ConstExpr>,
     ) -> Self {
         Self {
             l_brace,
             r_brace,
-            var,
-            op,
-            iter: Box::new(iter),
-            pred: Box::new(pred),
+            layout: elem.map(Box::new),
+            generators,
+            guard: guard.map(Box::new),
         }
     }
 
@@ -1703,10 +1703,12 @@ impl ConstSetComprehension {
         SetComprehension::new(
             self.l_brace,
             self.r_brace,
-            self.var,
-            self.op,
-            self.iter.downgrade(),
-            self.pred.downgrade(),
+            self.layout.map(|ex| ex.downgrade()),
+            self.generators
+                .into_iter()
+                .map(|(name, gen)| (name, gen.downgrade()))
+                .collect(),
+            self.guard.map(|ex| ex.downgrade()),
         )
     }
 }
@@ -3051,6 +3053,13 @@ impl Borrow<Str> for VarName {
     }
 }
 
+impl From<&'static str> for VarName {
+    #[inline]
+    fn from(s: &'static str) -> Self {
+        Self::from_static(s)
+    }
+}
+
 impl Locational for VarName {
     #[inline]
     fn loc(&self) -> Location {
@@ -3134,6 +3143,10 @@ impl VarName {
     /// This method is for undoing it (e.g. pylyzer-mode)
     pub fn trim_end_proc_mark(&mut self) {
         self.0.content = Str::rc(self.0.content.trim_end_matches('!'));
+    }
+
+    pub fn rename(&mut self, new: Str) {
+        self.0.content = new;
     }
 }
 
@@ -3368,6 +3381,26 @@ impl Identifier {
 
     pub fn trim_end_proc_mark(&mut self) {
         self.name.trim_end_proc_mark();
+    }
+
+    pub fn call1(self, arg: Expr) -> Call {
+        Call::new(
+            self.into(),
+            None,
+            Args::pos_only(vec![PosArg::new(arg)], None),
+        )
+    }
+
+    pub fn call2(self, arg1: Expr, arg2: Expr) -> Call {
+        Call::new(
+            self.into(),
+            None,
+            Args::pos_only(vec![PosArg::new(arg1), PosArg::new(arg2)], None),
+        )
+    }
+
+    pub fn call(self, args: Args) -> Call {
+        Call::new(self.into(), None, args)
     }
 }
 
@@ -4933,7 +4966,7 @@ impl Module {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AST {
     pub name: Str,
     pub module: Module,

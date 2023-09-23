@@ -55,9 +55,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         self.send_log(format!("signature help requested: {params:?}"))?;
         let uri = NormalizedUrl::new(params.text_document_position_params.text_document.uri);
         let pos = params.text_document_position_params.position;
-        if params.context.as_ref().map(|ctx| &ctx.trigger_kind)
-            == Some(&SignatureHelpTriggerKind::CONTENT_CHANGE)
-        {
+        if matches!(
+            params.context.as_ref().map(|ctx| &ctx.trigger_kind),
+            Some(&SignatureHelpTriggerKind::CONTENT_CHANGE | &SignatureHelpTriggerKind::INVOKED)
+        ) {
             let Some(ctx) = params.context.as_ref() else {
                 return Ok(None);
             };

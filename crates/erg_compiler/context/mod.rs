@@ -17,7 +17,7 @@ pub mod unify;
 use std::fmt;
 use std::mem;
 use std::option::Option; // conflicting to Type::Option
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use erg_common::config::ErgConfig;
 use erg_common::consts::DEBUG_MODE;
@@ -25,6 +25,7 @@ use erg_common::consts::PYTHON_MODE;
 use erg_common::dict::Dict;
 use erg_common::error::Location;
 use erg_common::impl_display_from_debug;
+use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
 use erg_common::{fmt_option, fn_name, get_hash, log};
@@ -1010,7 +1011,7 @@ impl Context {
     }
 
     pub(crate) fn absolutize(&self, loc: Location) -> AbsLocation {
-        AbsLocation::new(Some(PathBuf::from(self.module_path())), loc)
+        AbsLocation::new(Some(NormalizedPathBuf::from(self.module_path())), loc)
     }
 
     #[inline]

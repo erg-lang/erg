@@ -1,0 +1,2 @@
+.setraw!: (fd: FileLike or Nat, when := Nat) => NoneType
+.setcbreak!: (fd: FileLike or Nat, when := Nat) => NoneType

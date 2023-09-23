@@ -174,7 +174,7 @@ impl ErgConfig {
         if let Some(output) = &self.dist_dir {
             PathBuf::from(format!("{output}/{}", self.input.filename()))
         } else {
-            self.input.full_path()
+            self.input.full_path().to_path_buf()
         }
     }
 

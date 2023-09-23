@@ -8,7 +8,7 @@ use std::thread::sleep;
 use std::time::{Duration, SystemTime};
 
 use erg_common::config::ErgMode;
-use erg_common::consts::{ERG_MODE, PYTHON_MODE};
+use erg_common::consts::{ELS, ERG_MODE, PYTHON_MODE};
 use erg_common::dict::Dict;
 use erg_common::env::{is_pystd_main_module, is_std_decl_path};
 use erg_common::erg_util::BUILTIN_ERG_MODS;
@@ -27,6 +27,7 @@ use ast::{
     VarName,
 };
 use erg_parser::ast;
+use erg_parser::parse::SimpleParser;
 
 use crate::ty::constructors::{
     free_var, func, func0, func1, proc, ref_, ref_mut, tp_enum, unknown_len_array_t, v_enum,
@@ -2015,6 +2016,13 @@ impl Context {
         let mod_ctx = ModuleContext::new(self.clone(), dict! {});
         let mut builder = HIRBuilder::new_with_ctx(mod_ctx);
         let src = Input::file(path.to_path_buf()).read();
+        let ast = if ELS {
+            SimpleParser::parse(src.clone())
+                .ok()
+                .map(|artifact| artifact.ast)
+        } else {
+            None
+        };
         let mode = if path.to_string_lossy().ends_with("d.er") {
             "declare"
         } else {
@@ -2031,7 +2039,7 @@ impl Context {
         } else {
             &self.shared().mod_cache
         };
-        cache.register(path.to_path_buf(), hir, ctx);
+        cache.register(path.to_path_buf(), ast, hir, ctx);
     }
 
     /// If the path is like `foo/bar`, check if `bar` is a public module (the definition is in `foo/__init__.er`)
@@ -2105,6 +2113,13 @@ impl Context {
             .input
             .try_read()
             .map_err(|_| self.import_err(line!(), __name__, loc))?;
+        let ast = if ELS {
+            SimpleParser::parse(src.clone())
+                .ok()
+                .map(|artifact| artifact.ast)
+        } else {
+            None
+        };
         let name = __name__.clone();
         let _path = path.clone();
         let shared = self.shared.as_ref().unwrap().inherit(path.clone());
@@ -2114,6 +2129,7 @@ impl Context {
                 Ok(artifact) => {
                     shared.mod_cache.register(
                         _path.clone(),
+                        ast,
                         Some(artifact.object),
                         builder.pop_mod_ctx().unwrap(),
                     );
@@ -2121,9 +2137,12 @@ impl Context {
                 }
                 Err(artifact) => {
                     if let Some(hir) = artifact.object {
-                        shared
-                            .mod_cache
-                            .register(_path, Some(hir), builder.pop_mod_ctx().unwrap());
+                        shared.mod_cache.register(
+                            _path,
+                            ast,
+                            Some(hir),
+                            builder.pop_mod_ctx().unwrap(),
+                        );
                     }
                     shared.warns.extend(artifact.warns);
                     shared.errors.extend(artifact.errors);
@@ -2315,6 +2334,13 @@ impl Context {
             .input
             .try_read()
             .map_err(|_| self.import_err(line!(), __name__, loc))?;
+        let ast = if ELS {
+            SimpleParser::parse(src.clone())
+                .ok()
+                .map(|artifact| artifact.ast)
+        } else {
+            None
+        };
         let mut builder = HIRBuilder::new_with_cache(
             cfg,
             self.mod_name(&path),
@@ -2323,12 +2349,12 @@ impl Context {
         match builder.build(src, "declare") {
             Ok(artifact) => {
                 let ctx = builder.pop_mod_ctx().unwrap();
-                py_mod_cache.register(path.clone(), Some(artifact.object), ctx);
+                py_mod_cache.register(path.clone(), ast, Some(artifact.object), ctx);
                 Ok(path)
             }
             Err(artifact) => {
                 if let Some(hir) = artifact.object {
-                    py_mod_cache.register(path, Some(hir), builder.pop_mod_ctx().unwrap());
+                    py_mod_cache.register(path, ast, Some(hir), builder.pop_mod_ctx().unwrap());
                 }
                 Err(artifact.errors)
             }
@@ -2583,6 +2609,33 @@ impl Context {
                 let mut res = false;
                 for val in rec.attrs.iter() {
                     if self.inc_ref_block(&val.body.block, namespace, tmp_tv_cache) {
+                        res = true;
+                    }
+                }
+                res
+            }
+            ast::Expr::BinOp(bin) => {
+                self.inc_ref_expr(&bin.args[0], namespace, tmp_tv_cache)
+                    || self.inc_ref_expr(&bin.args[1], namespace, tmp_tv_cache)
+            }
+            ast::Expr::Array(ast::Array::Normal(arr)) => {
+                let mut res = false;
+                for val in arr.elems.pos_args().iter() {
+                    if self.inc_ref_expr(&val.expr, namespace, tmp_tv_cache) {
+                        res = true;
+                    }
+                }
+                res
+            }
+            ast::Expr::Set(ast::Set::Comprehension(comp)) => {
+                let mut res = false;
+                for (_, gen) in comp.generators.iter() {
+                    if self.inc_ref_expr(gen, namespace, tmp_tv_cache) {
+                        res = true;
+                    }
+                }
+                if let Some(guard) = &comp.guard {
+                    if self.inc_ref_expr(guard, namespace, tmp_tv_cache) {
                         res = true;
                     }
                 }

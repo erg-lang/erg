@@ -2,7 +2,6 @@ use std::borrow::Borrow;
 use std::fmt;
 use std::hash::Hash;
 use std::path::Path;
-use std::sync::Arc;
 
 use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
@@ -12,6 +11,7 @@ use erg_common::shared::{
     MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLockReadGuard, RwLockWriteGuard, Shared,
 };
 use erg_common::Str;
+use erg_parser::ast::Module;
 
 use crate::context::ModuleContext;
 use crate::hir::HIR;
@@ -34,8 +34,10 @@ impl ModId {
 #[derive(Debug, Clone)]
 pub struct ModuleEntry {
     pub id: ModId, // builtin == 0, __main__ == 1
+    /// mainly for ELS
+    pub ast: Option<Module>,
     pub hir: Option<HIR>,
-    pub module: Arc<ModuleContext>,
+    pub module: ModuleContext,
 }
 
 impl fmt::Display for ModuleEntry {
@@ -49,24 +51,39 @@ impl fmt::Display for ModuleEntry {
 }
 
 impl ModuleEntry {
-    pub fn new(id: ModId, hir: Option<HIR>, ctx: ModuleContext) -> Self {
+    pub fn new(id: ModId, ast: Option<Module>, hir: Option<HIR>, ctx: ModuleContext) -> Self {
         Self {
             id,
+            ast,
             hir,
-            module: Arc::new(ctx),
+            module: ctx,
         }
     }
 
     pub fn builtin(ctx: ModuleContext) -> Self {
         Self {
             id: ModId::builtin(),
+            ast: None,
             hir: None,
-            module: Arc::new(ctx),
+            module: ctx,
         }
     }
 
     pub fn cfg(&self) -> &ErgConfig {
         &self.module.context.cfg
+    }
+}
+
+/// `IRs = ModuleEntry - ModuleContext`
+pub struct IRs {
+    pub id: ModId,
+    pub ast: Option<Module>,
+    pub hir: Option<HIR>,
+}
+
+impl IRs {
+    pub const fn new(id: ModId, ast: Option<Module>, hir: Option<HIR>) -> Self {
+        Self { id, ast, hir }
     }
 }
 
@@ -111,10 +128,16 @@ impl ModuleCache {
         self.cache.get_mut(path)
     }
 
-    pub fn register(&mut self, path: NormalizedPathBuf, hir: Option<HIR>, ctx: ModuleContext) {
+    pub fn register(
+        &mut self,
+        path: NormalizedPathBuf,
+        ast: Option<Module>,
+        hir: Option<HIR>,
+        ctx: ModuleContext,
+    ) {
         self.last_id += 1;
         let id = ModId::new(self.last_id);
-        let entry = ModuleEntry::new(id, hir, ctx);
+        let entry = ModuleEntry::new(id, ast, hir, ctx);
         self.cache.insert(path, entry);
     }
 
@@ -213,13 +236,6 @@ impl SharedModuleCache {
         }
     }
 
-    pub fn get_ctx<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<Arc<ModuleContext>>
-    where
-        NormalizedPathBuf: Borrow<Q>,
-    {
-        self.0.borrow().get(path).map(|entry| entry.module.clone())
-    }
-
     pub fn ref_ctx<Q: Eq + Hash + ?Sized>(
         &self,
         path: &Q,
@@ -229,7 +245,7 @@ impl SharedModuleCache {
     {
         if self.0.borrow().get(path).is_some() {
             Some(RwLockReadGuard::map(self.0.borrow(), |cache| {
-                cache.get(path).unwrap().module.as_ref()
+                &cache.get(path).unwrap().module
             }))
         } else {
             None
@@ -245,16 +261,21 @@ impl SharedModuleCache {
         // If you delete `_ref`, this function returns `None` even if the key exists in rare cases
         let _ref = self.0.borrow();
         let ref_ = unsafe { self.0.as_ptr().as_ref().unwrap() };
-        ref_.get(path).map(|entry| entry.module.as_ref())
+        ref_.get(path).map(|entry| &entry.module)
     }
 
     pub fn register<P: Into<NormalizedPathBuf>>(
         &self,
         path: P,
+        ast: Option<Module>,
         hir: Option<HIR>,
         ctx: ModuleContext,
     ) {
-        self.0.borrow_mut().register(path.into(), hir, ctx);
+        self.0.borrow_mut().register(path.into(), ast, hir, ctx);
+    }
+
+    pub fn insert(&self, path: NormalizedPathBuf, entry: ModuleEntry) {
+        self.0.borrow_mut().cache.insert(path, entry);
     }
 
     pub fn remove<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<ModuleEntry>
@@ -278,7 +299,7 @@ impl SharedModuleCache {
             return;
         };
         self.0.borrow_mut().clear();
-        self.register(builtin_path, None, Arc::try_unwrap(builtin.module).unwrap());
+        self.register(builtin_path, None, None, builtin.module);
     }
 
     pub fn rename_path<P: Into<NormalizedPathBuf>>(&self, path: &Path, new: P) {

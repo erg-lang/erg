@@ -11,20 +11,20 @@ use erg_common::config::ErgConfig;
 use erg_common::consts::PYTHON_MODE;
 use erg_common::dict::Dict;
 use erg_common::env::erg_path;
-use erg_common::shared::{
-    MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLockReadGuard, RwLockWriteGuard, Shared,
-};
-use erg_common::spawn::spawn_new_thread;
+use erg_common::pathutil::NormalizedPathBuf;
+use erg_common::shared::{MappedRwLockReadGuard, Shared};
+use erg_common::spawn::{safe_yield, spawn_new_thread};
 use erg_common::{fn_name, normalize_path};
 
-use erg_compiler::artifact::{BuildRunnable, IncompleteArtifact};
+use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::build_hir::HIRBuilder;
 use erg_compiler::context::{Context, ModuleContext};
 use erg_compiler::erg_parser::ast::Module;
 use erg_compiler::erg_parser::parse::{Parsable, SimpleParser};
+use erg_compiler::error::CompileWarning;
 use erg_compiler::hir::HIR;
 use erg_compiler::lower::ASTLowerer;
-use erg_compiler::module::{SharedCompilerResource, SharedModuleGraph, SharedModuleIndex};
+use erg_compiler::module::{IRs, ModuleEntry, SharedCompilerResource};
 use erg_compiler::ty::HasType;
 
 pub use molc::RedirectableStdout;
@@ -67,7 +67,7 @@ pub type ELSResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 pub type ErgLanguageServer = Server<HIRBuilder>;
 
-pub type Handler<Server, Params, Out> = fn(&mut Server, Params) -> ELSResult<Out>;
+pub type Handler<Server, Params, Out = ()> = fn(&mut Server, Params) -> ELSResult<Out>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DefaultFeatures {
@@ -141,134 +141,7 @@ macro_rules! _log {
     };
 }
 
-#[derive(Debug)]
-pub struct AnalysisResult {
-    pub ast: Module,
-    pub artifact: IncompleteArtifact,
-}
-
-impl AnalysisResult {
-    pub fn new(ast: Module, artifact: IncompleteArtifact) -> Self {
-        Self { ast, artifact }
-    }
-}
-
 pub const TRIGGER_CHARS: [&str; 4] = [".", ":", "(", " "];
-
-#[derive(Debug, Clone, Default)]
-pub struct AnalysisResultCache(Shared<Dict<NormalizedUrl, AnalysisResult>>);
-
-impl AnalysisResultCache {
-    pub fn new() -> Self {
-        Self(Shared::new(Dict::new()))
-    }
-
-    pub fn insert(&self, uri: NormalizedUrl, result: AnalysisResult) {
-        self.0.borrow_mut().insert(uri, result);
-    }
-
-    pub fn get(&self, uri: &NormalizedUrl) -> Option<MappedRwLockReadGuard<AnalysisResult>> {
-        if self.0.borrow().get(uri).is_none() {
-            None
-        } else {
-            Some(RwLockReadGuard::map(self.0.borrow(), |dict| {
-                dict.get(uri).unwrap()
-            }))
-        }
-    }
-
-    pub fn get_mut(&self, uri: &NormalizedUrl) -> Option<MappedRwLockWriteGuard<AnalysisResult>> {
-        if self.0.borrow().get(uri).is_none() {
-            None
-        } else {
-            Some(RwLockWriteGuard::map(self.0.borrow_mut(), |dict| {
-                dict.get_mut(uri).unwrap()
-            }))
-        }
-    }
-
-    pub fn get_ast(&self, uri: &NormalizedUrl) -> Option<MappedRwLockReadGuard<Module>> {
-        self.get(uri)
-            .map(|r| MappedRwLockReadGuard::map(r, |r| &r.ast))
-    }
-
-    pub fn get_mut_hir(&self, uri: &NormalizedUrl) -> Option<MappedRwLockWriteGuard<HIR>> {
-        self.get_mut(uri).and_then(|r| {
-            if r.artifact.object.is_none() {
-                None
-            } else {
-                Some(MappedRwLockWriteGuard::map(r, |r| {
-                    r.artifact.object.as_mut().unwrap()
-                }))
-            }
-        })
-    }
-
-    pub fn get_artifact(
-        &self,
-        uri: &NormalizedUrl,
-    ) -> Option<MappedRwLockReadGuard<IncompleteArtifact>> {
-        self.get(uri)
-            .map(|r| MappedRwLockReadGuard::map(r, |r| &r.artifact))
-    }
-
-    pub fn get_hir(&self, uri: &NormalizedUrl) -> Option<MappedRwLockReadGuard<HIR>> {
-        self.get(uri).and_then(|r| {
-            if r.artifact.object.is_none() {
-                None
-            } else {
-                Some(MappedRwLockReadGuard::map(r, |r| {
-                    r.artifact.object.as_ref().unwrap()
-                }))
-            }
-        })
-    }
-
-    pub fn remove(&self, uri: &NormalizedUrl) -> Option<AnalysisResult> {
-        self.0.borrow_mut().remove(uri)
-    }
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct ModuleCache(Shared<Dict<NormalizedUrl, ModuleContext>>);
-
-impl ModuleCache {
-    pub fn new() -> Self {
-        Self(Shared::new(Dict::new()))
-    }
-
-    pub fn get(&self, uri: &NormalizedUrl) -> Option<&ModuleContext> {
-        let _ref = self.0.borrow();
-        let ref_ = unsafe { self.0.as_ptr().as_ref() };
-        ref_.unwrap().get(uri)
-    }
-
-    pub fn get_mut(&self, uri: &NormalizedUrl) -> Option<&mut ModuleContext> {
-        let _ref = self.0.borrow_mut();
-        let ref_ = unsafe { self.0.as_ptr().as_mut() };
-        ref_.unwrap().get_mut(uri)
-    }
-
-    pub fn insert(&self, uri: NormalizedUrl, module: ModuleContext) {
-        self.0.borrow_mut().insert(uri, module);
-    }
-
-    pub fn remove(&self, uri: &NormalizedUrl) -> Option<ModuleContext> {
-        self.0.borrow_mut().remove(uri)
-    }
-
-    pub fn values(&self) -> std::collections::hash_map::Values<NormalizedUrl, ModuleContext> {
-        let _ref = self.0.borrow();
-        let ref_ = unsafe { self.0.as_ptr().as_ref() };
-        ref_.unwrap().values()
-    }
-
-    pub fn _iter(&self) -> std::collections::hash_map::Iter<NormalizedUrl, ModuleContext> {
-        let _ref = self.0.borrow();
-        let ref_ = unsafe { self.0.as_ptr().as_ref() };
-        ref_.unwrap().iter()
-    }
-}
 
 #[derive(Debug, Clone, Default)]
 pub struct Flags {
@@ -281,7 +154,6 @@ impl Flags {
         self.client_initialized.load(Ordering::Relaxed)
     }
 
-    #[allow(unused)]
     pub fn workspace_checked(&self) -> bool {
         self.workspace_checked.load(Ordering::Relaxed)
     }
@@ -299,10 +171,8 @@ pub struct Server<Checker: BuildRunnable = HIRBuilder, Parser: Parsable = Simple
     pub(crate) opt_features: Vec<OptionalFeatures>,
     pub(crate) file_cache: FileCache,
     pub(crate) comp_cache: CompletionCache,
-    // TODO: remove modules, analysis_result, and add `shared: SharedCompilerResource`
-    pub(crate) modules: ModuleCache,
     pub(crate) flags: Flags,
-    pub(crate) analysis_result: AnalysisResultCache,
+    pub(crate) shared: SharedCompilerResource,
     pub(crate) channels: Option<SendChannels>,
     pub(crate) stdout_redirect: Option<mpsc::Sender<Value>>,
     pub(crate) _parser: std::marker::PhantomData<fn() -> Parser>,
@@ -341,8 +211,7 @@ impl<C: BuildRunnable, P: Parsable> Clone for Server<C, P> {
             opt_features: self.opt_features.clone(),
             file_cache: self.file_cache.clone(),
             comp_cache: self.comp_cache.clone(),
-            modules: self.modules.clone(),
-            analysis_result: self.analysis_result.clone(),
+            shared: self.shared.clone(),
             channels: self.channels.clone(),
             flags: self.flags.clone(),
             stdout_redirect: self.stdout_redirect.clone(),
@@ -356,6 +225,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub fn new(cfg: ErgConfig, stdout_redirect: Option<mpsc::Sender<Value>>) -> Self {
         Self {
             comp_cache: CompletionCache::new(cfg.copy()),
+            shared: SharedCompilerResource::new(cfg.copy()),
             cfg,
             home: normalize_path(std::env::current_dir().unwrap_or_default()),
             erg_path: erg_path().clone(), // already normalized
@@ -364,8 +234,6 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             disabled_features: vec![],
             opt_features: vec![],
             file_cache: FileCache::new(stdout_redirect.clone()),
-            modules: ModuleCache::new(),
-            analysis_result: AnalysisResultCache::new(),
             channels: None,
             flags: Flags::default(),
             stdout_redirect,
@@ -637,9 +505,8 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub(crate) fn restart(&mut self) {
         self.file_cache.clear();
         self.comp_cache.clear();
-        self.modules = ModuleCache::new();
-        self.analysis_result = AnalysisResultCache::new();
         self.channels.as_ref().unwrap().close();
+        self.shared.clear_all();
         self.start_language_services();
         self.start_workspace_diagnostics();
     }
@@ -815,6 +682,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             }
             "exit" => self.exit(),
             "textDocument/didOpen" => {
+                while !self.flags.workspace_checked() {
+                    safe_yield();
+                }
                 let params = DidOpenTextDocumentParams::deserialize(msg["params"].clone())?;
                 let uri = NormalizedUrl::new(params.text_document.uri);
                 self.send_log(format!("{method}: {uri}"))?;
@@ -828,8 +698,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     NormalizedUrl::parse(msg["params"]["textDocument"]["uri"].as_str().unwrap())?;
                 self.send_log(format!("{method}: {uri}"))?;
                 let code = self.file_cache.get_entire_code(&uri)?;
-                self.clear_cache(&uri);
-                self.check_file(uri, code)
+                self.recheck_file(uri, code)
             }
             "textDocument/didChange" => {
                 let params = DidChangeTextDocumentParams::deserialize(msg["params"].clone())?;
@@ -870,48 +739,71 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         Ok(())
     }
 
+    pub(crate) fn get_mod_ctx(
+        &self,
+        uri: &NormalizedUrl,
+    ) -> Option<MappedRwLockReadGuard<ModuleContext>> {
+        let path = uri.to_file_path().ok()?;
+        let ent = self.shared.mod_cache.get(&path)?;
+        Some(MappedRwLockReadGuard::map(ent, |ent| &ent.module))
+    }
+
+    pub(crate) fn raw_get_mod_ctx(&self, uri: &NormalizedUrl) -> Option<&ModuleContext> {
+        let path = uri.to_file_path().ok()?;
+        self.shared.mod_cache.raw_ref_ctx(&path)
+    }
+
     /// TODO: Reuse cache.
     /// Because of the difficulty of caching "transitional types" such as assert casting and mutable dependent types,
     /// the cache is deleted after each analysis.
     pub(crate) fn get_checker(&self, path: PathBuf) -> Checker {
-        if let Some(shared) = self.get_shared() {
-            let shared = shared.clone();
-            shared.clear(&path);
-            Checker::inherit(self.cfg.inherit(path), shared)
-        } else {
-            Checker::new(self.cfg.inherit(path))
-        }
+        let shared = self.shared.clone();
+        shared.clear(&path);
+        Checker::inherit(self.cfg.inherit(path), shared)
     }
 
-    pub(crate) fn steal_lowerer(&mut self, uri: &NormalizedUrl) -> Option<ASTLowerer> {
-        let module = self.modules.remove(uri)?;
-        Some(ASTLowerer::new_with_ctx(module))
+    pub(crate) fn steal_lowerer(&mut self, uri: &NormalizedUrl) -> Option<(ASTLowerer, IRs)> {
+        let path = uri.to_file_path().ok()?;
+        let module = self.shared.mod_cache.remove(&path)?;
+        let lowerer = ASTLowerer::new_with_ctx(module.module);
+        Some((lowerer, IRs::new(module.id, module.ast, module.hir)))
     }
 
-    pub(crate) fn restore_lowerer(&mut self, uri: NormalizedUrl, mut lowerer: ASTLowerer) {
+    pub(crate) fn restore_lowerer(
+        &mut self,
+        uri: NormalizedUrl,
+        mut lowerer: ASTLowerer,
+        irs: IRs,
+    ) {
         let module = lowerer.pop_mod_ctx().unwrap();
-        if let Some(m) = self.modules.get_mut(&uri) {
-            *m = module;
-        } else {
-            self.modules.insert(uri, module);
-        }
+        let entry = ModuleEntry::new(irs.id, irs.ast, irs.hir, module);
+        self.restore_entry(uri, entry);
     }
 
     pub(crate) fn get_visitor(&self, uri: &NormalizedUrl) -> Option<HIRVisitor> {
-        self.analysis_result
-            .get_hir(uri)
-            .map(|hir| HIRVisitor::new(hir, &self.file_cache, uri.clone()))
+        let path = uri.to_file_path().ok()?;
+        let ent = self.shared.mod_cache.get(&path)?;
+        ent.hir.as_ref()?;
+        let hir = MappedRwLockReadGuard::map(ent, |ent| ent.hir.as_ref().unwrap());
+        Some(HIRVisitor::new(hir, &self.file_cache, uri.clone()))
     }
 
     pub(crate) fn get_searcher(&self, uri: &NormalizedUrl, kind: ExprKind) -> Option<HIRVisitor> {
-        self.analysis_result
-            .get_hir(uri)
-            .map(|hir| HIRVisitor::new_searcher(hir, &self.file_cache, uri.clone(), kind))
+        let path = uri.to_file_path().ok()?;
+        let ent = self.shared.mod_cache.get(&path)?;
+        ent.hir.as_ref()?;
+        let hir = MappedRwLockReadGuard::map(ent, |ent| ent.hir.as_ref().unwrap());
+        Some(HIRVisitor::new_searcher(
+            hir,
+            &self.file_cache,
+            uri.clone(),
+            kind,
+        ))
     }
 
     pub(crate) fn get_local_ctx(&self, uri: &NormalizedUrl, pos: Position) -> Vec<&Context> {
         let mut ctxs = vec![];
-        if let Some(mod_ctx) = &self.modules.get(uri) {
+        if let Some(mod_ctx) = self.raw_get_mod_ctx(uri) {
             if let Some(visitor) = self.get_visitor(uri) {
                 // FIXME:
                 let mut ns = visitor.get_namespace(pos);
@@ -932,32 +824,24 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         ctxs
     }
 
-    pub(crate) fn _get_all_ctxs(&self) -> Vec<Arc<ModuleContext>> {
+    pub(crate) fn _get_all_ctxs(&self) -> Vec<&ModuleContext> {
         let mut ctxs = vec![];
-        if let Some(shared) = self.get_shared() {
-            ctxs.extend(shared.mod_cache.raw_values().map(|ent| ent.module.clone()));
-            ctxs.extend(
-                shared
-                    .py_mod_cache
-                    .raw_values()
-                    .map(|ent| ent.module.clone()),
-            );
-        }
+        ctxs.extend(self.shared.mod_cache.raw_values().map(|ent| &ent.module));
+        ctxs.extend(self.shared.py_mod_cache.raw_values().map(|ent| &ent.module));
         ctxs
     }
 
     pub(crate) fn get_workspace_ctxs(&self) -> Vec<&Context> {
         let project_root = project_root_of(&self.home).unwrap_or(self.home.clone());
         let mut ctxs = vec![];
-        if let Some(shared) = self.get_shared() {
-            for (path, ent) in shared
-                .mod_cache
-                .raw_iter()
-                .chain(shared.py_mod_cache.raw_iter())
-            {
-                if path.starts_with(&project_root) {
-                    ctxs.push(&ent.module.context);
-                }
+        for (path, ent) in self
+            .shared
+            .mod_cache
+            .raw_iter()
+            .chain(self.shared.py_mod_cache.raw_iter())
+        {
+            if path.starts_with(&project_root) {
+                ctxs.push(&ent.module.context);
             }
         }
         ctxs
@@ -974,7 +858,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     continue;
                 };
                 let uri = NormalizedUrl::from_file_path(neighbor.path()).unwrap();
-                if let Some(mod_ctx) = &self.modules.get(&uri) {
+                if let Some(mod_ctx) = self.raw_get_mod_ctx(&uri) {
                     ctxs.push(&mod_ctx.context);
                 }
             }
@@ -987,7 +871,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         uri: &NormalizedUrl,
         attr_marker_pos: Position,
     ) -> ELSResult<Vec<&Context>> {
-        let Some(module) = self.modules.get(uri) else {
+        let Some(module) = self.raw_get_mod_ctx(uri) else {
             return Ok(vec![]);
         };
         let maybe_token = self
@@ -1022,39 +906,62 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         }
     }
 
-    pub(crate) fn get_index(&self) -> Option<&SharedModuleIndex> {
-        self.modules
-            .values()
-            .next()
-            .map(|module| module.context.index())
-    }
-
-    pub(crate) fn get_graph(&self) -> Option<&SharedModuleGraph> {
-        self.modules
-            .values()
-            .next()
-            .map(|module| module.context.graph())
-    }
-
-    pub(crate) fn get_shared(&self) -> Option<&SharedCompilerResource> {
-        self.modules
-            .values()
-            .next()
-            .map(|module| module.context.shared())
-    }
-
     pub(crate) fn get_builtin_module(&self) -> Option<&Context> {
-        self.get_shared()
-            .and_then(|mode| mode.mod_cache.raw_ref_ctx(Path::new("<builtins>")))
+        self.shared
+            .mod_cache
+            .raw_ref_ctx(Path::new("<builtins>"))
             .map(|mc| &mc.context)
     }
 
     pub(crate) fn clear_cache(&mut self, uri: &NormalizedUrl) {
-        self.analysis_result.remove(uri);
-        if let Some(module) = self.modules.remove(uri) {
-            let shared = module.context.shared();
-            let path = util::uri_to_path(uri);
-            shared.clear(&path);
-        }
+        let path = util::uri_to_path(uri);
+        self.shared.clear(&path);
+    }
+
+    pub fn remove_module_entry(&mut self, uri: &NormalizedUrl) -> Option<ModuleEntry> {
+        let path = uri.to_file_path().ok()?;
+        self.shared.mod_cache.remove(&path)
+    }
+
+    pub fn insert_module_entry(&mut self, uri: NormalizedUrl, entry: ModuleEntry) {
+        let Ok(path) = uri.to_file_path() else {
+            return;
+        };
+        self.shared.mod_cache.insert(path.into(), entry);
+    }
+
+    pub fn get_hir(&self, uri: &NormalizedUrl) -> Option<MappedRwLockReadGuard<HIR>> {
+        let path = uri.to_file_path().ok()?;
+        let ent = self.shared.mod_cache.get(&path)?;
+        ent.hir.as_ref()?;
+        Some(MappedRwLockReadGuard::map(ent, |ent| {
+            ent.hir.as_ref().unwrap()
+        }))
+    }
+
+    pub fn steal_entry(&self, uri: &NormalizedUrl) -> Option<ModuleEntry> {
+        let path = uri.to_file_path().ok()?;
+        self.shared.mod_cache.remove(&path)
+    }
+
+    pub fn restore_entry(&self, uri: NormalizedUrl, entry: ModuleEntry) {
+        let path = uri.to_file_path().unwrap();
+        self.shared.mod_cache.insert(path.into(), entry);
+    }
+
+    pub fn get_ast(&self, uri: &NormalizedUrl) -> Option<MappedRwLockReadGuard<Module>> {
+        let path = uri.to_file_path().ok()?;
+        let ent = self.shared.mod_cache.get(&path)?;
+        ent.ast.as_ref()?;
+        Some(MappedRwLockReadGuard::map(ent, |ent| {
+            ent.ast.as_ref().unwrap()
+        }))
+    }
+
+    pub fn get_warns(&self, uri: &NormalizedUrl) -> Option<Vec<&CompileWarning>> {
+        let path = NormalizedPathBuf::from(uri.to_file_path().ok()?);
+        let warns = self.shared.warns.raw_iter();
+        let warns = warns.filter(|warn| NormalizedPathBuf::from(warn.input.path()) == path);
+        Some(warns.collect())
     }
 }

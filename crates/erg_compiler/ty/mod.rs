@@ -606,6 +606,17 @@ impl fmt::Display for RefinementType {
     }
 }
 
+impl<'a> TryFrom<&'a Type> for &'a RefinementType {
+    type Error = ();
+    fn try_from(t: &'a Type) -> Result<&'a RefinementType, ()> {
+        match t {
+            Type::FreeVar(fv) if fv.is_linked() => Self::try_from(fv.unsafe_crack()),
+            Type::Refinement(refine) => Ok(refine),
+            _ => Err(()),
+        }
+    }
+}
+
 impl LimitedDisplay for RefinementType {
     fn limited_fmt<W: std::fmt::Write>(&self, f: &mut W, limit: isize) -> std::fmt::Result {
         if limit == 0 {
@@ -2017,6 +2028,15 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_array(),
             Self::Poly { name, .. } => &name[..] == "Array",
             Self::Refinement(refine) => refine.t.is_array(),
+            _ => false,
+        }
+    }
+
+    pub fn is_ref(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_ref(),
+            Self::Ref(_) => true,
+            Self::Refinement(refine) => refine.t.is_ref(),
             _ => false,
         }
     }

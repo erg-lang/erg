@@ -371,6 +371,7 @@ impl PyScriptGenerator {
             .replace("from _erg_result import is_ok", "")
             .replace("from _erg_control import then__", "")
             .replace("from _erg_contains_operator import contains_operator", "")
+            .replace("from _erg_type import is_type, _isinstance", "")
     }
 
     fn load_namedtuple_if_not(&mut self) {
@@ -396,6 +397,7 @@ impl PyScriptGenerator {
         if !self.contains_op_loaded {
             self.prelude += &Self::replace_import(include_str!("lib/std/_erg_result.py"));
             self.prelude += &Self::replace_import(include_str!("lib/std/_erg_range.py"));
+            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_type.py"));
             self.prelude +=
                 &Self::replace_import(include_str!("lib/std/_erg_contains_operator.py"));
             self.contains_op_loaded = true;

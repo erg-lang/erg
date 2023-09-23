@@ -1,5 +1,6 @@
 use std::borrow::Borrow;
 use std::ffi::OsStr;
+use std::fmt;
 use std::ops::Deref;
 use std::path::{Component, Path, PathBuf};
 
@@ -13,9 +14,21 @@ use crate::normalize_path;
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct NormalizedPathBuf(PathBuf);
 
+impl fmt::Display for NormalizedPathBuf {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.display())
+    }
+}
+
 impl<P: Into<PathBuf>> From<P> for NormalizedPathBuf {
     fn from(path: P) -> Self {
         NormalizedPathBuf::new(path.into())
+    }
+}
+
+impl AsRef<Path> for NormalizedPathBuf {
+    fn as_ref(&self) -> &Path {
+        self.0.as_path()
     }
 }
 
@@ -42,6 +55,14 @@ impl Deref for NormalizedPathBuf {
 impl NormalizedPathBuf {
     pub fn new(path: PathBuf) -> Self {
         NormalizedPathBuf(normalize_path(path.canonicalize().unwrap_or(path)))
+    }
+
+    pub fn as_path(&self) -> &Path {
+        self.0.as_path()
+    }
+
+    pub fn to_path_buf(&self) -> PathBuf {
+        self.0.clone()
     }
 }
 

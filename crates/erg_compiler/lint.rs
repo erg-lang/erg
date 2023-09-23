@@ -4,6 +4,7 @@
 
 #[allow(unused_imports)]
 use erg_common::log;
+use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::traits::{Locational, Runnable, Stream};
 use erg_common::Str;
 use erg_parser::ast::AST;
@@ -171,9 +172,9 @@ impl ASTLowerer {
         if mode == "eval" {
             return;
         }
-        let self_path = self.module.context.module_path();
+        let self_path = NormalizedPathBuf::from(self.module.context.module_path());
         for (referee, value) in self.module.context.index().members().iter() {
-            if referee.module.as_deref() != Some(self_path) {
+            if referee.module.as_ref() != Some(&self_path) {
                 continue;
             }
             let name_is_auto = &value.name[..] == "_"

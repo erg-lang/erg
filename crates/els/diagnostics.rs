@@ -27,53 +27,91 @@ use serde_json::json;
 use crate::_log;
 use crate::channels::WorkerMessage;
 use crate::diff::{ASTDiff, HIRDiff};
-use crate::server::{AnalysisResult, DefaultFeatures, ELSResult, RedirectableStdout, Server};
+use crate::server::{DefaultFeatures, ELSResult, RedirectableStdout, Server};
 use crate::server::{ASK_AUTO_SAVE_ID, HEALTH_CHECKER_ID};
 use crate::util::{self, project_root_of, NormalizedUrl};
 
 impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
-    pub(crate) fn get_ast(&self, uri: &NormalizedUrl) -> Option<Module> {
+    pub(crate) fn build_ast(&self, uri: &NormalizedUrl) -> Option<Module> {
         let code = self.file_cache.get_entire_code(uri).ok()?;
         Parser::parse(code).ok().map(|artifact| artifact.ast)
     }
 
-    pub(crate) fn check_file<S: Into<String>>(
+    pub(crate) fn any_changes(&self, uri: &NormalizedUrl) -> bool {
+        let deps = self.dependencies_of(uri);
+        if deps.is_empty() {
+            return true;
+        }
+        for dep in deps {
+            let Some(old) = self.get_ast(&dep) else {
+                return true;
+            };
+            if let Some(new) = self.build_ast(&dep) {
+                if !ASTDiff::diff(old, &new).is_nop() {
+                    return true;
+                }
+            }
+        }
+        _log!(self, "no changes: {uri}");
+        false
+    }
+
+    pub(crate) fn recheck_file(
         &mut self,
         uri: NormalizedUrl,
-        code: S,
+        code: impl Into<String>,
     ) -> ELSResult<()> {
-        self.send_log(format!("checking {uri}"))?;
+        if !self.any_changes(&uri) {
+            _log!(self, "no changes: {uri}");
+            return Ok(());
+        }
+        // self.clear_cache(&uri);
+        self.check_file(uri, code)
+    }
+
+    pub(crate) fn check_file(
+        &mut self,
+        uri: NormalizedUrl,
+        code: impl Into<String>,
+    ) -> ELSResult<()> {
+        _log!(self, "checking {uri}");
+        if self.file_cache.editing.borrow().contains(&uri) {
+            _log!(self, "skipped: {uri}");
+            return Ok(());
+        }
         let path = util::uri_to_path(&uri);
         let mode = if path.to_string_lossy().ends_with(".d.er") {
             "declare"
         } else {
             "exec"
         };
-        if let Some((old, new)) = self.analysis_result.get_ast(&uri).zip(self.get_ast(&uri)) {
-            if ASTDiff::diff(old, &new).is_nop() {
-                crate::_log!(self, "no changes: {uri}");
-                return Ok(());
-            }
-        }
         let mut checker = self.get_checker(path.clone());
         let artifact = match checker.build(code.into(), mode) {
             Ok(artifact) => {
-                self.send_log(format!(
+                _log!(
+                    self,
                     "checking {uri} passed, found warns: {}",
                     artifact.warns.len()
-                ))?;
+                );
+                self.shared.errors.clear();
+                if artifact.warns.is_empty() {
+                    self.shared.warns.clear();
+                }
                 let uri_and_diags = self.make_uri_and_diags(artifact.warns.clone());
                 // clear previous diagnostics
                 self.send_diagnostics(uri.clone().raw(), vec![])?;
                 for (uri, diags) in uri_and_diags.into_iter() {
-                    self.send_log(format!("{uri}, warns: {}", diags.len()))?;
+                    _log!(self, "{uri}, warns: {}", diags.len());
                     self.send_diagnostics(uri, diags)?;
                 }
                 artifact.into()
             }
             Err(artifact) => {
-                self.send_log(format!("found errors: {}", artifact.errors.len()))?;
-                self.send_log(format!("found warns: {}", artifact.warns.len()))?;
+                _log!(self, "found errors: {}", artifact.errors.len());
+                _log!(self, "found warns: {}", artifact.warns.len());
+                if artifact.warns.is_empty() {
+                    self.shared.warns.clear();
+                }
                 let diags = artifact
                     .errors
                     .clone()
@@ -85,35 +123,25 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     self.send_diagnostics(uri.clone().raw(), vec![])?;
                 }
                 for (uri, diags) in uri_and_diags.into_iter() {
-                    self.send_log(format!("{uri}, errs & warns: {}", diags.len()))?;
+                    _log!(self, "{uri}, errs & warns: {}", diags.len());
                     self.send_diagnostics(uri, diags)?;
                 }
                 artifact
             }
         };
-        if let Some(shared) = self.get_shared() {
-            if mode == "declare" {
-                shared.py_mod_cache.register(
-                    path,
-                    artifact.object.clone(),
-                    checker.get_context().unwrap().clone(),
-                );
-            } else {
-                shared.mod_cache.register(
-                    path,
-                    artifact.object.clone(),
-                    checker.get_context().unwrap().clone(),
-                );
-            }
+        let ast = self.build_ast(&uri);
+        let ctx = checker.pop_context().unwrap();
+        if mode == "declare" {
+            self.shared
+                .py_mod_cache
+                .register(path, ast, artifact.object, ctx);
+        } else {
+            self.shared
+                .mod_cache
+                .register(path, ast, artifact.object, ctx);
         }
-        if let Some(module) = self.get_ast(&uri) {
-            self.analysis_result
-                .insert(uri.clone(), AnalysisResult::new(module, artifact));
-        }
-        if let Some(module) = checker.pop_context() {
-            self.send_log(format!("{uri}: {}", module.context.name))?;
-            self.modules.insert(uri.clone(), module);
-        }
+        self.shared.errors.extend(artifact.errors);
+        self.shared.warns.extend(artifact.warns);
         let dependents = self.dependents_of(&uri);
         for dep in dependents {
             // _log!(self, "dep: {dep}");
@@ -124,23 +152,28 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     }
 
     pub(crate) fn quick_check_file(&mut self, uri: NormalizedUrl) -> ELSResult<()> {
-        let Some(old) = self.analysis_result.get_ast(&uri) else {
+        if self.file_cache.editing.borrow().contains(&uri) {
+            _log!(self, "skipped: {uri}");
+            return Ok(());
+        }
+        let Some(old) = self.get_ast(&uri) else {
             crate::_log!(self, "not found");
             return Ok(());
         };
-        let Some(new) = self.get_ast(&uri) else {
+        let Some(new) = self.build_ast(&uri) else {
             crate::_log!(self, "not found");
             return Ok(());
         };
         let ast_diff = ASTDiff::diff(old, &new);
         crate::_log!(self, "diff: {ast_diff}");
-        if let Some(mut lowerer) = self.steal_lowerer(&uri) {
-            let hir = self.analysis_result.get_mut_hir(&uri);
-            if let Some((hir_diff, hir)) = HIRDiff::new(ast_diff, &mut lowerer).zip(hir) {
+        if let Some((mut lowerer, mut irs)) = self.steal_lowerer(&uri) {
+            if let Some((hir_diff, hir)) =
+                HIRDiff::new(ast_diff, &mut lowerer).zip(irs.hir.as_mut())
+            {
                 crate::_log!(self, "hir_diff: {hir_diff}");
                 hir_diff.update(hir);
             }
-            self.restore_lowerer(uri, lowerer);
+            self.restore_lowerer(uri, lowerer, irs);
         }
         // skip checking for dependents
         Ok(())

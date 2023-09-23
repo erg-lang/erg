@@ -321,6 +321,11 @@ impl ASTLowerer {
                 Ok(hir::Signature::Var(sig))
             }
             ast::Signature::Subr(subr) => {
+                let mut decorators = set! {};
+                for decorator in subr.decorators.into_iter() {
+                    let decorator = self.fake_lower_expr(decorator.0)?;
+                    decorators.insert(decorator);
+                }
                 let ident = hir::Identifier::bare(subr.ident);
                 let params = self.fake_lower_params(subr.params)?;
                 let ret_t_spec = if let Some(ts) = subr.return_t_spec {
@@ -330,7 +335,8 @@ impl ASTLowerer {
                 } else {
                     None
                 };
-                let sig = hir::SubrSignature::new(ident, subr.bounds, params, ret_t_spec);
+                let sig =
+                    hir::SubrSignature::new(decorators, ident, subr.bounds, params, ret_t_spec);
                 Ok(hir::Signature::Subr(sig))
             }
         }

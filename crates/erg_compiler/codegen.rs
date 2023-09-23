@@ -22,7 +22,9 @@ use erg_common::option_enum_unwrap;
 use erg_common::python_util::{env_python_version, PythonVersion};
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
-use erg_common::{debug_power_assert, fn_name, fn_name_full, impl_stream, log, switch_unreachable};
+use erg_common::{
+    debug_power_assert, fn_name, fn_name_full, impl_stream, log, set, switch_unreachable,
+};
 use erg_parser::ast::VisModifierSpec;
 use erg_parser::ast::{DefId, DefKind};
 use CommonOpcode::*;
@@ -183,7 +185,11 @@ pub struct PyCodeGenerator {
     module_type_loaded: bool,
     control_loaded: bool,
     convertors_loaded: bool,
+    operators_loaded: bool,
+    union_loaded: bool,
+    fake_generic_loaded: bool,
     abc_loaded: bool,
+    builtins_loaded: bool,
     unit_size: usize,
     units: PyCodeGenStack,
     fresh_gen: SharedFreshNameGenerator,
@@ -202,7 +208,11 @@ impl PyCodeGenerator {
             module_type_loaded: false,
             control_loaded: false,
             convertors_loaded: false,
+            operators_loaded: false,
+            union_loaded: false,
+            fake_generic_loaded: false,
             abc_loaded: false,
+            builtins_loaded: false,
             unit_size: 0,
             units: PyCodeGenStack::empty(),
             fresh_gen: SharedFreshNameGenerator::new("codegen"),
@@ -221,7 +231,11 @@ impl PyCodeGenerator {
             module_type_loaded: false,
             control_loaded: false,
             convertors_loaded: false,
+            operators_loaded: false,
+            union_loaded: false,
+            fake_generic_loaded: false,
             abc_loaded: false,
+            builtins_loaded: false,
             unit_size: 0,
             units: PyCodeGenStack::empty(),
             fresh_gen: self.fresh_gen.clone(),
@@ -240,7 +254,11 @@ impl PyCodeGenerator {
         self.module_type_loaded = false;
         self.control_loaded = false;
         self.convertors_loaded = false;
+        self.operators_loaded = false;
+        self.union_loaded = false;
+        self.fake_generic_loaded = false;
         self.abc_loaded = false;
+        self.builtins_loaded = false;
     }
 
     #[inline]
@@ -728,6 +746,11 @@ impl PyCodeGenerator {
             }
             "int__" | "nat__" | "str__" | "float__" => {
                 self.load_convertors();
+            }
+            "add" | "sub" | "mul" | "truediv" | "floordiv" | "mod" | "pow" | "eq" | "ne" | "lt"
+            | "le" | "gt" | "ge" | "and_" | "or_" | "xor" | "lshift" | "rshift" | "pos" | "neg"
+            | "invert" | "is_" | "is_not" | "call" => {
+                self.load_operators();
             }
             // NoneType is not defined in the global scope, use `type(None)` instead
             "NoneType" => {
@@ -1350,6 +1373,10 @@ impl PyCodeGenerator {
         let code = self.emit_block(body.block, Some(name.clone()), params, flags);
         // code.flags += CodeObjFlags::Optimized as u32;
         self.register_cellvars(&mut make_function_flag);
+        let n_decos = sig.decorators.len();
+        for deco in sig.decorators {
+            self.emit_expr(deco);
+        }
         self.rewrite_captured_fast(&code);
         self.emit_load_const(code);
         if self.py_version.minor < Some(11) {
@@ -1363,6 +1390,15 @@ impl PyCodeGenerator {
         }
         self.write_instr(MAKE_FUNCTION);
         self.write_arg(make_function_flag);
+        for _ in 0..n_decos {
+            let argc = if self.py_version.minor >= Some(11) {
+                0
+            } else {
+                self.stack_dec();
+                1
+            };
+            self.emit_call_instr(argc, Name);
+        }
         // stack_dec: <code obj> + <name> -> <function>
         self.stack_dec();
         if make_function_flag & MakeFunctionFlags::Defaults as usize != 0 {
@@ -1556,6 +1592,16 @@ impl PyCodeGenerator {
             TokenKind::Open => {
                 self.emit_push_null();
                 self.emit_load_name_instr(Identifier::public("OpenRange"));
+            }
+            // From 3.10, `or` can be used for types.
+            // But Erg supports Python 3.7~, so we should use `typing.Union`.
+            TokenKind::OrOp if bin.lhs.ref_t().is_type() => {
+                self.load_union();
+                let args = Args::pos_only(vec![PosArg::new(*bin.lhs), PosArg::new(*bin.rhs)], None);
+                self.emit_push_null();
+                self.emit_load_name_instr(Identifier::private("#UnionType"));
+                self.emit_args_311(args, Name, false);
+                return;
             }
             TokenKind::ContainsOp => {
                 // if no-std, always `x contains y == True`
@@ -2429,9 +2475,22 @@ impl PyCodeGenerator {
                 Some(7) => self.emit_with_instr_307(args),
                 _ => todo!("not supported Python version"),
             },
+            "sum" if self.py_version.minor <= Some(7) && args.get_kw("start").is_some() => {
+                self.load_builtins();
+                self.emit_load_name_instr(Identifier::private("#sum"));
+                self.emit_args_311(args, Name, true);
+            }
             other if local.ref_t().is_poly_type_meta() && other != "classof" => {
-                self.emit_load_name_instr(local);
-                self.emit_index_args(args);
+                if self.py_version.minor <= Some(9) {
+                    self.load_fake_generic();
+                    self.emit_load_name_instr(Identifier::private("#FakeGenericAlias"));
+                    let mut args = args;
+                    args.insert_pos(0, PosArg::new(Expr::Accessor(Accessor::Ident(local))));
+                    self.emit_args_311(args, Name, true);
+                } else {
+                    self.emit_load_name_instr(local);
+                    self.emit_index_args(args);
+                }
             }
             // "pyimport" | "py" are here
             _ => {
@@ -3206,7 +3265,13 @@ impl PyCodeGenerator {
             ("_".into(), Params::single(self_param))
         };
         let bounds = TypeBoundSpecs::empty();
-        let subr_sig = SubrSignature::new(ident, bounds, params, sig.t_spec_with_op().cloned());
+        let subr_sig = SubrSignature::new(
+            set! {},
+            ident,
+            bounds,
+            params,
+            sig.t_spec_with_op().cloned(),
+        );
         let mut attrs = vec![];
         match new_first_param.map(|pt| pt.typ()) {
             // namedtupleは仕様上::xなどの名前を使えない
@@ -3285,7 +3350,13 @@ impl PyCodeGenerator {
             let param = NonDefaultParamSignature::new(raw, vi, None);
             let params = Params::single(param);
             let bounds = TypeBoundSpecs::empty();
-            let sig = SubrSignature::new(ident, bounds, params, sig.t_spec_with_op().cloned());
+            let sig = SubrSignature::new(
+                set! {},
+                ident,
+                bounds,
+                params,
+                sig.t_spec_with_op().cloned(),
+            );
             let arg = PosArg::new(Expr::Accessor(Accessor::private_with_line(
                 param_name, line,
             )));
@@ -3296,7 +3367,13 @@ impl PyCodeGenerator {
         } else {
             let params = Params::empty();
             let bounds = TypeBoundSpecs::empty();
-            let sig = SubrSignature::new(ident, bounds, params, sig.t_spec_with_op().cloned());
+            let sig = SubrSignature::new(
+                set! {},
+                ident,
+                bounds,
+                params,
+                sig.t_spec_with_op().cloned(),
+            );
             let call = class_new.call_expr(Args::empty());
             let block = Block::new(vec![call]);
             let body = DefBody::new(EQUAL, block, DefId(0));
@@ -3450,6 +3527,12 @@ impl PyCodeGenerator {
         self.convertors_loaded = true;
     }
 
+    fn load_operators(&mut self) {
+        let mod_name = Identifier::public("operator");
+        self.emit_import_all_instr(mod_name);
+        self.operators_loaded = true;
+    }
+
     fn load_prelude_py(&mut self) {
         self.emit_global_import_items(
             Identifier::public("sys"),
@@ -3502,6 +3585,26 @@ impl PyCodeGenerator {
         );
     }
 
+    fn load_union(&mut self) {
+        self.emit_global_import_items(
+            Identifier::public("_erg_type"),
+            vec![(
+                Identifier::public("UnionType"),
+                Some(Identifier::private("#UnionType")),
+            )],
+        );
+    }
+
+    fn load_fake_generic(&mut self) {
+        self.emit_global_import_items(
+            Identifier::public("_erg_type"),
+            vec![(
+                Identifier::public("FakeGenericAlias"),
+                Some(Identifier::private("#FakeGenericAlias")),
+            )],
+        );
+    }
+
     fn load_module_type(&mut self) {
         self.emit_global_import_items(
             Identifier::public("types"),
@@ -3509,6 +3612,13 @@ impl PyCodeGenerator {
                 Identifier::public("ModuleType"),
                 Some(Identifier::private("#ModuleType")),
             )],
+        );
+    }
+
+    fn load_builtins(&mut self) {
+        self.emit_global_import_items(
+            Identifier::public("_erg_builtins"),
+            vec![(Identifier::public("sum"), Some(Identifier::private("#sum")))],
         );
     }
 

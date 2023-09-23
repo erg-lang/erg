@@ -1,7 +1,8 @@
 use std::fmt;
-use std::path::PathBuf;
+use std::path::Path;
 
 use erg_common::error::Location;
+use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::set::Set;
 use erg_common::{switch_lang, Str};
 
@@ -125,7 +126,7 @@ impl VarKind {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AbsLocation {
-    pub module: Option<PathBuf>,
+    pub module: Option<NormalizedPathBuf>,
     pub loc: Location,
 }
 
@@ -144,19 +145,27 @@ impl std::str::FromStr for AbsLocation {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut split = s.split('@');
-        let module = split.next().map(PathBuf::from);
+        let module = split.next().map(NormalizedPathBuf::from);
         let loc = split.next().ok_or(())?.parse().map_err(|_| ())?;
         Ok(Self { module, loc })
     }
 }
 
 impl AbsLocation {
-    pub const fn new(module: Option<PathBuf>, loc: Location) -> Self {
+    pub const fn new(module: Option<NormalizedPathBuf>, loc: Location) -> Self {
         Self { module, loc }
     }
 
     pub const fn unknown() -> Self {
         Self::new(None, Location::Unknown)
+    }
+
+    pub fn is_unknown(&self) -> bool {
+        self.module.is_none() && self.loc.is_unknown()
+    }
+
+    pub fn starts_with(&self, path: impl AsRef<Path>) -> bool {
+        self.module.as_ref().is_some_and(|p| p.starts_with(path))
     }
 
     pub fn code(&self) -> Option<String> {

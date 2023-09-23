@@ -980,16 +980,18 @@ impl Context {
                 Ok(TyParam::Set(tp_set))
             }
             ast::ConstExpr::Set(ConstSet::Comprehension(set)) => {
-                if set.op.is(TokenKind::Colon) {
+                if set.layout.is_none() && set.generators.len() == 1 && set.guard.is_some() {
+                    let (ident, expr) = set.generators.get(0).unwrap();
                     let iter = self.instantiate_const_expr(
-                        &set.iter,
+                        expr,
                         erased_idx,
                         tmp_tv_cache,
                         not_found_is_qvar,
                     )?;
-                    let pred = self.instantiate_pred_from_expr(&set.pred, tmp_tv_cache)?;
+                    let pred =
+                        self.instantiate_pred_from_expr(set.guard.as_ref().unwrap(), tmp_tv_cache)?;
                     if let Ok(t) = self.instantiate_tp_as_type(iter, set) {
-                        return Ok(TyParam::t(refinement(set.var.inspect().clone(), t, pred)));
+                        return Ok(TyParam::t(refinement(ident.inspect().clone(), t, pred)));
                     }
                 }
                 type_feature_error!(

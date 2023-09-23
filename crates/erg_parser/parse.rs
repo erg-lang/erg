@@ -116,6 +116,12 @@ impl Parsable for SimpleParser {
     }
 }
 
+impl SimpleParser {
+    pub fn parse(code: String) -> Result<CompleteArtifact, IncompleteArtifact> {
+        <Self as Parsable>::parse(code)
+    }
+}
+
 enum ExprOrOp {
     Expr(Expr),
     Op(Token),
@@ -131,10 +137,24 @@ pub enum ArrayInner {
     Normal(Args),
     WithLength(PosArg, Expr),
     Comprehension {
-        elem: PosArg,
+        layout: Option<Expr>,
         generators: Vec<(Identifier, Expr)>,
-        guards: Vec<Expr>,
+        guard: Option<Expr>,
     },
+}
+
+impl ArrayInner {
+    pub const fn comp(
+        layout: Option<Expr>,
+        generators: Vec<(Identifier, Expr)>,
+        guard: Option<Expr>,
+    ) -> Self {
+        Self::Comprehension {
+            layout,
+            generators,
+            guard,
+        }
+    }
 }
 
 pub enum BraceContainer {
@@ -757,6 +777,29 @@ impl Parser {
         Ok(rest)
     }
 
+    fn try_reduce_ident(&mut self) -> ParseResult<Identifier> {
+        debug_call_info!(self);
+        let ident = match self.peek_kind() {
+            Some(Symbol) => {
+                let symbol = self.lpop();
+                Identifier::private_from_token(symbol)
+            }
+            Some(Dot) => {
+                let dot = self.lpop();
+                let symbol = expect_pop!(self, Symbol);
+                Identifier::public_from_token(dot, symbol)
+            }
+            _ => {
+                let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
+                self.errs.push(err);
+                debug_exit_info!(self);
+                return Err(());
+            }
+        };
+        debug_exit_info!(self);
+        Ok(ident)
+    }
+
     fn try_reduce_acc_lhs(&mut self) -> ParseResult<Accessor> {
         debug_call_info!(self);
         let acc = match self.peek_kind() {
@@ -827,15 +870,61 @@ impl Parser {
                 debug_exit_info!(self);
                 return Ok(ArrayInner::WithLength(elems.remove_pos(0), len));
             }
-            Some(VBar) => {
-                let caused_by = caused_by!();
-                log!(err "error caused by: {caused_by}");
-                let err =
-                    ParseError::feature_error(line!() as usize, self.lpop().loc(), "comprehension");
+            Some(Inclusion) => {
                 self.lpop();
-                self.errs.push(err);
+                let Expr::Accessor(Accessor::Ident(sym)) = elems.remove_pos(0).expr else {
+                    let err = self.skip_and_throw_invalid_seq_err(
+                        caused_by!(),
+                        line!() as usize,
+                        &["identifier"],
+                        Inclusion,
+                    );
+                    self.errs.push(err);
+                    debug_exit_info!(self);
+                    return Err(());
+                };
+                let mut generators = vec![];
+                let expr = self
+                    .try_reduce_expr(false, false, false, false)
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                generators.push((sym, expr));
+                let _ = expect_pop!(self, VBar);
+                let guard = self
+                    .try_reduce_expr(false, false, false, false)
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
                 debug_exit_info!(self);
-                return Err(());
+                return Ok(ArrayInner::comp(None, generators, Some(guard)));
+            }
+            Some(VBar) => {
+                self.lpop();
+                let elem = elems.remove_pos(0).expr;
+                let mut generators = vec![];
+                loop {
+                    let sym = self
+                        .try_reduce_ident()
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                    let _ = expect_pop!(self, Inclusion);
+                    let expr = self
+                        .try_reduce_expr(false, false, false, false)
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                    generators.push((sym, expr));
+                    if !self.cur_is(Semi) {
+                        break;
+                    } else {
+                        self.lpop();
+                    }
+                }
+                let guard = if self.cur_is(VBar) {
+                    self.lpop();
+                    let expr = self
+                        .try_reduce_expr(false, false, false, false)
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                    Some(expr)
+                } else {
+                    None
+                };
+                debug_exit_info!(self);
+                return Ok(ArrayInner::comp(Some(elem), generators, guard));
             }
             Some(RParen | RSqBr | RBrace | Dedent | Comma) => {}
             Some(_) => {
@@ -2663,17 +2752,13 @@ impl Parser {
             ArrayInner::WithLength(elem, len) => {
                 Array::WithLength(ArrayWithLength::new(l_sqbr, r_sqbr, elem, len))
             }
-            ArrayInner::Comprehension { .. } => {
-                let caused_by = caused_by!();
-                log!(err "error caused by: {caused_by}");
-                self.errs.push(ParseError::feature_error(
-                    line!() as usize,
-                    Location::concat(&l_sqbr, &r_sqbr),
-                    "array comprehension",
-                ));
-                debug_exit_info!(self);
-                return Err(());
-            }
+            ArrayInner::Comprehension {
+                layout,
+                generators,
+                guard,
+            } => Array::Comprehension(ArrayComprehension::new(
+                l_sqbr, r_sqbr, layout, generators, guard,
+            )),
         };
         debug_exit_info!(self);
         Ok(arr)
@@ -2821,18 +2906,79 @@ impl Parser {
                 debug_exit_info!(self);
                 Ok(BraceContainer::Record(record))
             }
-            other if self.cur_is(Colon) => {
-                let res = self
-                    .try_reduce_normal_dict_or_set_comp(l_brace, other)
-                    .map_err(|_| self.stack_dec(fn_name!()))?;
-                debug_exit_info!(self);
-                Ok(res)
-            }
             other => {
-                match self.peek() {
-                    Some(r_brace) if r_brace.is(RBrace) => {
+                match self.peek_kind() {
+                    Some(Colon) => {
+                        let res = self
+                            .try_reduce_normal_dict_or_refine_type(l_brace, other)
+                            .map_err(|_| self.stack_dec(fn_name!()))?;
+                        debug_exit_info!(self);
+                        return Ok(res);
+                    }
+                    Some(Inclusion) => {
+                        self.skip();
+                        let mut generators = vec![];
+                        let Expr::Accessor(Accessor::Ident(ident)) = other else {
+                            let caused_by = caused_by!();
+                            log!(err "error caused by: {caused_by}");
+                            let err = ParseError::invalid_record_element_err(
+                                line!() as usize,
+                                other.loc(),
+                            );
+                            self.errs.push(err);
+                            self.next_expr();
+                            debug_exit_info!(self);
+                            return Err(());
+                        };
+                        let expr = self
+                            .try_reduce_expr(false, false, false, false)
+                            .map_err(|_| self.stack_dec(fn_name!()))?;
+                        generators.push((ident, expr));
+                        let _ = expect_pop!(self, VBar);
+                        let guard = self
+                            .try_reduce_expr(false, false, false, false)
+                            .map_err(|_| self.stack_dec(fn_name!()))?;
+                        let r_brace = expect_pop!(self, fail_next RBrace);
+                        debug_exit_info!(self);
+                        let comp =
+                            SetComprehension::new(l_brace, r_brace, None, generators, Some(guard));
+                        return Ok(BraceContainer::Set(Set::Comprehension(comp)));
+                    }
+                    Some(VBar) => {
+                        self.skip();
+                        let mut generators = vec![];
+                        loop {
+                            let ident = self.try_reduce_ident()?;
+                            let _ = expect_pop!(self, fail_next Inclusion);
+                            let expr = self
+                                .try_reduce_expr(false, false, false, false)
+                                .map_err(|_| self.stack_dec(fn_name!()))?;
+                            generators.push((ident, expr));
+                            if self.cur_is(Semi) {
+                                self.skip();
+                            } else {
+                                break;
+                            }
+                        }
+                        let guard = if self.cur_is(VBar) {
+                            self.skip();
+                            let expr = self
+                                .try_reduce_expr(false, false, false, false)
+                                .map_err(|_| self.stack_dec(fn_name!()))?;
+                            Some(expr)
+                        } else {
+                            None
+                        };
+                        let r_brace = expect_pop!(self, fail_next RBrace);
+                        debug_exit_info!(self);
+                        let comp =
+                            SetComprehension::new(l_brace, r_brace, Some(other), generators, guard);
+                        return Ok(BraceContainer::Set(Set::Comprehension(comp)));
+                    }
+                    Some(RBrace) => {
                         let arg = Args::new(vec![PosArg::new(other)], None, vec![], None);
                         let r_brace = self.lpop();
+                        debug_exit_info!(self);
                         return Ok(BraceContainer::Set(Set::Normal(NormalSet::new(
                             l_brace, r_brace, arg,
                         ))));
@@ -2959,13 +3105,13 @@ impl Parser {
         }
     }
 
-    fn try_reduce_normal_dict_or_set_comp(
+    fn try_reduce_normal_dict_or_refine_type(
         &mut self,
         l_brace: Token,
         lhs: Expr,
     ) -> ParseResult<BraceContainer> {
         debug_call_info!(self);
-        let colon = expect_pop!(self, fail_next Colon);
+        let _colon = expect_pop!(self, fail_next Colon);
         let rhs = self
             .try_reduce_expr(false, true, false, false)
             .map_err(|_| self.stack_dec(fn_name!()))?;
@@ -2977,12 +3123,12 @@ impl Parser {
                 debug_exit_info!(self);
                 return Err(());
             };
-            let pred = self
+            let generators = vec![(var, rhs)];
+            let guard = self
                 .try_reduce_chunk(false, false)
                 .map_err(|_| self.stack_dec(fn_name!()))?;
             let r_brace = expect_pop!(self, fail_next RBrace);
-            let set_comp =
-                SetComprehension::new(l_brace, r_brace, var.name.into_token(), colon, rhs, pred);
+            let set_comp = SetComprehension::new(l_brace, r_brace, None, generators, Some(guard));
             debug_exit_info!(self);
             Ok(BraceContainer::Set(Set::Comprehension(set_comp)))
         } else {

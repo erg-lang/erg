@@ -82,3 +82,9 @@ main!()
 This time it works.
 
 If you get Erg-specific errors, you can suspect the side-effects of mangling, etc.
+
+## All Python APIs used from Erg have type declarations based on the latest Python version, does this mean that older versions of Python are not supported?
+
+No. Erg is compatible with Python versions from 3.7 to the latest.
+Erg uses its own code generator and libraries to absorb the differences between versions of the Python API.
+If it does not, it is a bug and please report it to [issues](https://github.com/erg-lang/erg/issues/new) on GitHub.

@@ -199,7 +199,7 @@ fn exec_repl_invalid_def_after_the_at_sign() -> Result<(), ()> {
 #[ignore]
 fn exec_repl_server_mock_test() -> Result<(), ()> {
     assert_eq!(
-        exec_py("src/scripts/repl_server_test.py")
+        exec_py("src/scripts/repl_server_test.py", &[])
             .ok()
             .and_then(|s| s.code()),
         Some(0)

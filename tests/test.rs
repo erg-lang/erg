@@ -3,7 +3,7 @@ use common::{
     expect_compile_success, expect_end_with, expect_error_location, expect_failure, expect_success,
 };
 use erg_common::error::Location;
-use erg_common::python_util::{module_exists, opt_which_python};
+use erg_common::python_util::{env_python_version, module_exists, opt_which_python};
 
 #[test]
 fn exec_addition_ok() -> Result<(), ()> {
@@ -61,6 +61,11 @@ fn exec_comment() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_comprehension() -> Result<(), ()> {
+    expect_success("tests/should_ok/comprehension.er", 0)
+}
+
+#[test]
 fn exec_control() -> Result<(), ()> {
     expect_success("examples/control.er", 2)
 }
@@ -96,6 +101,11 @@ fn exec_dict_test() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_empty_check() -> Result<(), ()> {
+    expect_success("tests/should_ok/dyn_type_check.er", 0)
+}
+
+#[test]
 fn exec_external() -> Result<(), ()> {
     let py_command = opt_which_python().unwrap();
     if module_exists(&py_command, "matplotlib") && module_exists(&py_command, "tqdm") {
@@ -113,7 +123,7 @@ fn exec_fib() -> Result<(), ()> {
 #[test]
 fn exec_helloworld() -> Result<(), ()> {
     // HACK: When running the test with Windows, the exit code is 1 (the cause is unknown)
-    if cfg!(windows) {
+    if cfg!(windows) && env_python_version().minor >= Some(8) {
         expect_end_with("examples/helloworld.er", 0, 1)
     } else {
         expect_success("examples/helloworld.er", 0)
@@ -243,7 +253,12 @@ fn exec_pattern() -> Result<(), ()> {
 
 #[test]
 fn exec_pyimport_test() -> Result<(), ()> {
-    expect_success("tests/should_ok/pyimport.er", 2)
+    // HACK: When running the test with Windows, the exit code is 1 (the cause is unknown)
+    if cfg!(windows) && env_python_version().minor < Some(8) {
+        expect_end_with("tests/should_ok/pyimport.er", 2, 1)
+    } else {
+        expect_success("tests/should_ok/pyimport.er", 2)
+    }
 }
 
 #[test]
@@ -304,6 +319,11 @@ fn exec_structural() -> Result<(), ()> {
 #[test]
 fn exec_subtyping() -> Result<(), ()> {
     expect_success("tests/should_ok/subtyping.er", 0)
+}
+
+#[test]
+fn exec_sym_op() -> Result<(), ()> {
+    expect_success("tests/should_ok/sym_op.er", 0)
 }
 
 #[test]

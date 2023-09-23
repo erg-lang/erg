@@ -1,7 +1,8 @@
 use erg::DummyVM;
 use erg_common::config::ErgConfig;
 use erg_common::error::MultiErrorDisplay;
-use erg_common::python_util::exec_py_code_with_output;
+use erg_common::fn_name;
+use erg_common::python_util::{env_python_version, exec_py_code_with_output};
 use erg_compiler::artifact::Buildable;
 use erg_compiler::module::SharedCompilerResource;
 use erg_compiler::HIRBuilder;
@@ -42,11 +43,7 @@ fn test_transpiler_embedding2() -> Result<(), ()> {
     let res = trans
         .transpile(
             "
-print!(0, end:=\"\")
-i = match [1, 2]:
-    [2, 1] -> 0
-    [1, 2] -> 1
-print!(i, end:=\"\")
+print!(1, end:=\"\")
 j = if False:
     do: 1
     do: 2
@@ -66,7 +63,34 @@ while! do! c < 7, do!:
         })?;
     let res = exec_py_code_with_output(res.object.code(), &[]).map_err(|_| ())?;
     assert!(res.status.success());
-    assert_eq!(res.stdout, b"0123456");
+    assert_eq!(res.stdout, b"123456");
+    Ok(())
+}
+
+#[test]
+fn test_transpiler_embedding3() -> Result<(), ()> {
+    if env_python_version().minor < Some(10) {
+        println!("skipped: {}", fn_name!());
+        return Ok(());
+    }
+    let mut trans = Transpiler::default();
+    let res = trans
+        .transpile(
+            "
+i = match [1, 2]:
+    [2, 1] -> 0
+    [1, 2] -> 1
+print!(i, end:=\"\")
+"
+            .into(),
+            "exec",
+        )
+        .map_err(|es| {
+            es.errors.write_all_stderr();
+        })?;
+    let res = exec_py_code_with_output(res.object.code(), &[]).map_err(|_| ())?;
+    assert!(res.status.success());
+    assert_eq!(res.stdout, b"1");
     Ok(())
 }
 

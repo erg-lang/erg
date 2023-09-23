@@ -580,7 +580,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             .then(|| self.get_min_expr(&uri, pos, -2))
             .flatten()
             .map(|(_, expr)| expr.t());
-        let Some(mod_ctx) = self.modules.get(&uri).map(|m| &m.context) else {
+        let Some(mod_ctx) = self.get_mod_ctx(&uri) else {
             return Ok(None);
         };
         for (name, vi) in contexts.into_iter().flat_map(|ctx| ctx.local_dir()) {
@@ -590,7 +590,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             // only show static methods, if the receiver is a type
             if vi.t.is_method()
                 && receiver_t.as_ref().map_or(true, |t| {
-                    !mod_ctx.subtype_of(t, vi.t.self_t().unwrap_or(Type::OBJ))
+                    !mod_ctx
+                        .context
+                        .subtype_of(t, vi.t.self_t().unwrap_or(Type::OBJ))
                 })
             {
                 continue;
@@ -605,14 +607,14 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             }
             let label = label.trim_end_matches('\0').to_string();
             // don't show future defined items
-            if vi.def_loc.module.as_ref() == Some(&path)
+            if vi.def_loc.module.as_deref() == Some(&path)
                 && name.ln_begin().unwrap_or(0) > pos.line + 1
             {
                 continue;
             }
-            let readable_t = mod_ctx.readable_type(vi.t.clone());
+            let readable_t = mod_ctx.context.readable_type(vi.t.clone());
             let mut item = CompletionItem::new_simple(label, readable_t.to_string());
-            CompletionOrderSetter::new(vi, arg_pt.as_ref(), mod_ctx, item.label.clone())
+            CompletionOrderSetter::new(vi, arg_pt.as_ref(), &mod_ctx.context, item.label.clone())
                 .set(&mut item);
             item.kind = Some(comp_item_kind(vi));
             item.data = Some(Value::String(vi.def_loc.to_string()));

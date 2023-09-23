@@ -63,15 +63,25 @@ impl Parser {
                     Ok(ConstExpr::Set(ConstSet::Normal(const_set)))
                 }
                 Set::Comprehension(set) => {
-                    let iter = Self::validate_const_expr(*set.iter)?;
-                    let pred = Self::validate_const_expr(*set.pred)?;
+                    let elem = set
+                        .layout
+                        .map(|ex| Self::validate_const_expr(*ex))
+                        .transpose()?;
+                    let mut generators = vec![];
+                    for (name, gen) in set.generators.into_iter() {
+                        let pred = Self::validate_const_expr(gen)?;
+                        generators.push((name, pred));
+                    }
+                    let guard = set
+                        .guard
+                        .map(|ex| Self::validate_const_expr(*ex))
+                        .transpose()?;
                     let const_set_comp = ConstSetComprehension::new(
                         set.l_brace,
                         set.r_brace,
-                        set.var,
-                        set.op,
-                        iter,
-                        pred,
+                        elem,
+                        generators,
+                        guard,
                     );
                     Ok(ConstExpr::Set(ConstSet::Comprehension(const_set_comp)))
                 }
@@ -368,10 +378,11 @@ impl Parser {
                 Ok(TypeSpec::SetWithLen(SetWithLenTypeSpec::new(t_spec, len)))
             }
             Set::Comprehension(set) => {
-                if set.op.is(TokenKind::Colon) {
-                    let typ = Self::expr_to_type_spec(*set.iter)?;
-                    let pred = Self::validate_const_expr(*set.pred)?;
-                    let refine = RefinementTypeSpec::new(set.var, typ, pred);
+                if set.layout.is_none() && set.generators.len() == 1 && set.guard.is_some() {
+                    let (ident, expr) = set.generators.into_iter().next().unwrap();
+                    let typ = Self::expr_to_type_spec(expr)?;
+                    let pred = Self::validate_const_expr(*set.guard.unwrap())?;
+                    let refine = RefinementTypeSpec::new(ident.name.into_token(), typ, pred);
                     Ok(TypeSpec::Refinement(refine))
                 } else {
                     Err(ParseError::simple_syntax_error(line!() as usize, set.loc()))

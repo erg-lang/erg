@@ -33,7 +33,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
 
     pub(crate) fn get_refs_from_abs_loc(&self, referee: &AbsLocation) -> Vec<lsp_types::Location> {
         let mut refs = vec![];
-        if let Some(value) = self.get_index().and_then(|ind| ind.get_refs(referee)) {
+        if let Some(value) = self.shared.index.get_refs(referee) {
             if value.vi.def_loc == AbsLocation::unknown() {
                 return vec![];
             }

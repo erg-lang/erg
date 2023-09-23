@@ -1,0 +1,18 @@
+.Shlex! = 'shlex': ClassType
+.Shlex!.
+    commenters: Str
+    wordchars: Str
+    whitespace: Str
+    escape: Str
+    quotes: Str
+    escapedquotes: Str
+    whitespace_split: Bool
+    infile: Str
+    __call__: (instream := Str, posix := Bool, punctuation_chars := Bool) -> .Shlex!
+    get_token!: (self: RefMut(.Shlex!)) => Str
+    push_token!: (self: RefMut(.Shlex!), token: Str) => NoneType
+    read_token!: (self: RefMut(.Shlex!)) => Str
+
+.split: (s: Str, comments := Bool, posix := Bool) -> [Str; _]
+.join: (split_command: Iterable(Str)) -> Str
+.quote: (s: Str) -> Str

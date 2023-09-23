@@ -1,0 +1,13 @@
+.TestResults: ClassType
+.TestResults.
+    attempted: Nat
+    count: Nat
+    failed: Nat
+    index: Nat
+
+.testfile!: (
+    filename := PathLike,
+) => .TestResults
+.testmod!: (
+    m := GenericModule,
+) => NoneType

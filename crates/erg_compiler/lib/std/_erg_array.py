@@ -7,7 +7,7 @@ from _erg_contains_operator import contains_operator
 class Array(list):
     def try_new(arr):  # -> Result[Array]
         if isinstance(arr, list):
-            return Array(a)
+            return Array(arr)
         else:
             return Error("not a list")
 
@@ -51,14 +51,19 @@ class Array(list):
         else:
             return list.__getitem__(self, index_or_slice)
 
+    def __hash__(self):
+        return hash(tuple(self))
+
     def type_check(self, t: type) -> bool:
         if isinstance(t, list):
-            if len(t) != len(self):
+            if len(t) < len(self):
                 return False
             for (inner_t, elem) in zip(t, self):
                 if not contains_operator(inner_t, elem):
                     return False
             return True
+        elif isinstance(t, set):
+            return self in t
         elif not hasattr(t, "__args__"):
             return isinstance(self, t)
         elem_t = t.__args__[0]

@@ -6,7 +6,7 @@ use erg_common::log;
 use crate::ty::constructors::*;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
-use crate::ty::{Type, Visibility};
+use crate::ty::{IntervalOp, Type, Visibility};
 use ParamSpec as PS;
 use Type::*;
 
@@ -278,7 +278,7 @@ impl Context {
         let mut float_show = Self::builtin_methods(Some(mono(SHOW)), 1);
         let t = fn0_met(Float, Str);
         float_show.register_builtin_py_impl(
-            TO_STR,
+            FUNDAMENTAL_STR,
             t,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
@@ -405,7 +405,12 @@ impl Context {
         ratio.register_trait(Ratio, ratio_mutizable);
         let mut ratio_show = Self::builtin_methods(Some(mono(SHOW)), 1);
         let t = fn0_met(Ratio, Str);
-        ratio_show.register_builtin_erg_impl(TO_STR, t, Immutable, Visibility::BUILTIN_PUBLIC);
+        ratio_show.register_builtin_erg_impl(
+            FUNDAMENTAL_STR,
+            t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
         ratio.register_trait(Ratio, ratio_show);
 
         /* Int */
@@ -569,7 +574,7 @@ impl Context {
         let mut int_show = Self::builtin_methods(Some(mono(SHOW)), 1);
         let t = fn0_met(Int, Str);
         int_show.register_builtin_py_impl(
-            TO_STR,
+            FUNDAMENTAL_STR,
             t,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
@@ -725,7 +730,7 @@ impl Context {
         bool_.register_trait(Bool, bool_mutizable);
         let mut bool_show = Self::builtin_methods(Some(mono(SHOW)), 1);
         bool_show.register_builtin_erg_impl(
-            TO_STR,
+            FUNDAMENTAL_STR,
             fn0_met(Bool, Str),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
@@ -1087,7 +1092,7 @@ impl Context {
         str_.register_trait(Str, str_mutizable);
         let mut str_show = Self::builtin_methods(Some(mono(SHOW)), 1);
         str_show.register_builtin_erg_impl(
-            TO_STR,
+            FUNDAMENTAL_STR,
             fn0_met(Str, Str),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
@@ -1129,7 +1134,7 @@ impl Context {
         nonetype.register_marker_trait(self, mono(EQ_HASH)).unwrap();
         let mut nonetype_show = Self::builtin_methods(Some(mono(SHOW)), 1);
         nonetype_show.register_builtin_erg_impl(
-            TO_STR,
+            FUNDAMENTAL_STR,
             fn0_met(NoneType, Str),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
@@ -1354,6 +1359,14 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
+        let mut array_hash = Self::builtin_methods(Some(mono(HASH)), 1);
+        array_hash.register_builtin_erg_impl(
+            OP_HASH,
+            fn0_met(mono(GENERIC_ARRAY), Int),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        generic_array.register_trait(mono(GENERIC_ARRAY), array_hash);
         /* Array */
         let mut array_ =
             Self::builtin_poly_class(ARRAY, vec![PS::t_nd(TY_T), PS::default(TY_N, Nat)], 10);
@@ -1498,7 +1511,7 @@ impl Context {
         array_.unregister_trait(&poly(INDEXABLE, vec![ty_tp(Nat), ty_tp(T.clone())]));
         let mut array_show = Self::builtin_methods(Some(mono(SHOW)), 1);
         array_show.register_builtin_py_impl(
-            TO_STR,
+            FUNDAMENTAL_STR,
             fn0_met(arr_t.clone(), Str).quantify(),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
@@ -1636,7 +1649,7 @@ impl Context {
             .unwrap();
         let mut set_show = Self::builtin_methods(Some(mono(SHOW)), 1);
         set_show.register_builtin_erg_impl(
-            TO_STR,
+            FUNDAMENTAL_STR,
             fn0_met(set_t.clone(), Str).quantify(),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
@@ -2463,6 +2476,8 @@ impl Context {
         )
         .quantify();
         array_mut_.register_py_builtin(PROC_PUSH, t, Some(FUNC_APPEND), 15);
+        let t_copy = pr0_met(ref_(array_mut_t.clone()), array_mut_t.clone()).quantify();
+        array_mut_.register_py_builtin(FUNC_COPY, t_copy, Some(FUNC_COPY), 116);
         let t_extend = pr_met(
             ref_mut(
                 array_mut_t.clone(),
@@ -2584,6 +2599,87 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         array_mut_.register_trait(array_mut_t.clone(), array_mut_mutable);
+        /* ByteArray! */
+        let bytearray_mut_t = mono(BYTEARRAY);
+        let mut bytearray_mut = Self::builtin_mono_class(BYTEARRAY, 2);
+        let t_append = pr_met(
+            ref_mut(bytearray_mut_t.clone(), None),
+            vec![kw(KW_ELEM, int_interval(IntervalOp::Closed, 0, 255))],
+            None,
+            vec![],
+            NoneType,
+        );
+        bytearray_mut.register_builtin_py_impl(
+            PROC_PUSH,
+            t_append,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_APPEND),
+        );
+        let t_copy = pr0_met(bytearray_mut_t.clone(), bytearray_mut_t.clone());
+        bytearray_mut.register_builtin_py_impl(
+            FUNC_COPY,
+            t_copy,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_COPY),
+        );
+        let t_extend = pr_met(
+            ref_mut(bytearray_mut_t.clone(), None),
+            vec![kw(
+                KW_ITERABLE,
+                poly(
+                    ITERABLE,
+                    vec![ty_tp(int_interval(IntervalOp::Closed, 0, 255))],
+                ),
+            )],
+            None,
+            vec![],
+            NoneType,
+        );
+        bytearray_mut.register_builtin_py_impl(
+            PROC_EXTEND,
+            t_extend,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_EXTEND),
+        );
+        let t_insert = pr_met(
+            ref_mut(bytearray_mut_t.clone(), None),
+            vec![
+                kw(KW_INDEX, Nat),
+                kw(KW_ELEM, int_interval(IntervalOp::Closed, 0, 255)),
+            ],
+            None,
+            vec![],
+            NoneType,
+        );
+        bytearray_mut.register_builtin_py_impl(
+            PROC_INSERT,
+            t_insert,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_INSERT),
+        );
+        let t_pop = pr0_met(
+            ref_mut(bytearray_mut_t.clone(), None),
+            int_interval(IntervalOp::Closed, 0, 255),
+        );
+        bytearray_mut.register_builtin_py_impl(
+            PROC_POP,
+            t_pop,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_POP),
+        );
+        let t_reverse = pr0_met(ref_mut(bytearray_mut_t.clone(), None), NoneType);
+        bytearray_mut.register_builtin_py_impl(
+            PROC_REVERSE,
+            t_reverse,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_REVERSE),
+        );
         /* Dict! */
         let dict_mut_t = poly(MUT_DICT, vec![D.clone()]);
         let mut dict_mut =
@@ -2918,6 +3014,13 @@ impl Context {
         );
         self.register_builtin_type(mono(MUT_FILE), file_mut, vis.clone(), Const, Some(FILE));
         self.register_builtin_type(array_mut_t, array_mut_, vis.clone(), Const, Some(ARRAY));
+        self.register_builtin_type(
+            bytearray_mut_t,
+            bytearray_mut,
+            vis.clone(),
+            Const,
+            Some(BYTEARRAY),
+        );
         self.register_builtin_type(dict_mut_t, dict_mut, vis.clone(), Const, Some(DICT));
         self.register_builtin_type(set_mut_t, set_mut_, vis.clone(), Const, Some(SET));
         self.register_builtin_type(

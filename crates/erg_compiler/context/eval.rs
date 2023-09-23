@@ -456,9 +456,28 @@ impl Context {
         }
     }
 
+    fn get_value_from_tv_cache(&self, ident: &Identifier) -> Option<ValueObj> {
+        if let Some(val) = self.tv_cache.as_ref().and_then(|tv| {
+            tv.get_tyvar(ident.inspect())
+                .map(|t| ValueObj::builtin_type(t.clone()))
+        }) {
+            Some(val)
+        } else if let Some(TyParam::Value(val)) = self
+            .tv_cache
+            .as_ref()
+            .and_then(|tv| tv.get_typaram(ident.inspect()))
+        {
+            Some(val.clone())
+        } else {
+            None
+        }
+    }
+
     fn eval_const_ident(&self, ident: &Identifier) -> EvalResult<ValueObj> {
         if let Some(val) = self.rec_get_const_obj(ident.inspect()) {
             Ok(val.clone())
+        } else if let Some(val) = self.get_value_from_tv_cache(ident) {
+            Ok(val)
         } else if self.kind.is_subr() {
             feature_error!(self, ident.loc(), "const parameters")
         } else if ident.is_const() {

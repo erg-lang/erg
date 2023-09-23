@@ -37,6 +37,13 @@ impl Context {
             Bool,
         );
         let t_ascii = nd_func(vec![kw(KW_OBJECT, Obj)], None, Str);
+        let t_array = func(
+            vec![],
+            None,
+            vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
+            array_t(T.clone(), TyParam::erased(Nat)),
+        )
+        .quantify();
         let t_assert = func(
             vec![kw(KW_TEST, Bool)],
             None,
@@ -45,16 +52,25 @@ impl Context {
         );
         let t_bin = nd_func(vec![kw(KW_N, Int)], None, Str);
         // TODO: overload: Iterable(Int) -> Bytes
-        let t_bytes = nd_func(
-            vec![kw(KW_STR, Str), kw(KW_ENCODING, Str)],
+        let t_bytes = func(
+            vec![],
             None,
+            vec![kw(KW_STR, Str), kw(KW_ENCODING, Str)],
             mono(BYTES),
+        );
+        let t_bytes_array = func(
+            vec![],
+            None,
+            vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(Int)]))],
+            mono(BYTEARRAY),
         );
         let t_chr = nd_func(
             vec![kw(KW_I, Type::from(value(0usize)..=value(1_114_111usize)))],
             None,
             Str,
         );
+        let F = mono_q(TY_F, instanceof(mono(GENERIC_CALLABLE)));
+        let t_classmethod = nd_func(vec![kw(KW_FUNC, F.clone())], None, F.clone()).quantify();
         let t_classof = nd_func(vec![kw(KW_OLD, Obj)], None, ClassType);
         let t_compile = nd_func(vec![kw(KW_SRC, Str)], None, Code);
         let t_cond = nd_func(
@@ -65,6 +81,16 @@ impl Context {
             ],
             None,
             T.clone(),
+        )
+        .quantify();
+        let t_dict = func(
+            vec![],
+            None,
+            vec![kw(
+                KW_ITERABLE,
+                poly(ITERABLE, vec![ty_tp(tuple_t(vec![T.clone(), U.clone()]))]),
+            )],
+            dict! { T.clone() => U.clone() }.into(),
         )
         .quantify();
         let t_discard = nd_func(vec![kw(KW_OBJ, Obj)], None, NoneType);
@@ -115,7 +141,7 @@ impl Context {
         let t_isinstance = nd_func(
             vec![
                 kw(KW_OBJECT, Obj),
-                kw(KW_CLASSINFO, ClassType), // TODO: => ClassInfo
+                kw(KW_CLASSINFO, ClassType | unknown_len_array_t(ClassType)), // TODO: => ClassInfo
             ],
             None,
             Bool,
@@ -123,7 +149,7 @@ impl Context {
         let t_issubclass = nd_func(
             vec![
                 kw(KW_SUBCLASS, ClassType),
-                kw(KW_CLASSINFO, ClassType), // TODO: => ClassInfo
+                kw(KW_CLASSINFO, ClassType | unknown_len_array_t(ClassType)), // TODO: => ClassInfo
             ],
             None,
             Bool,
@@ -184,7 +210,7 @@ impl Context {
             O,
         )
         .quantify();
-        let t_nat = nd_func(vec![kw(KW_OBJ, Obj)], None, or(Nat, NoneType));
+        let t_nat = nd_func(vec![kw(KW_OBJ, Obj)], None, Nat);
         // e.g. not(b: Bool!): Bool!
         let B = mono_q(TY_B, subtypeof(Bool));
         let t_not = nd_func(vec![kw(KW_B, B.clone())], None, B).quantify();
@@ -221,6 +247,13 @@ impl Context {
         )
         .quantify();
         let t_round = nd_func(vec![kw(KW_NUMBER, Float)], None, Int);
+        let t_set = func(
+            vec![],
+            None,
+            vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
+            set_t(T.clone(), TyParam::erased(Nat)),
+        )
+        .quantify();
         let t_slice = func(
             vec![kw(KW_START, Int)],
             None,
@@ -233,6 +266,7 @@ impl Context {
             array_t(T.clone(), TyParam::erased(Nat)),
         )
         .quantify();
+        let t_staticmethod = nd_func(vec![kw(KW_FUNC, F.clone())], None, F.clone()).quantify();
         let t_str = nd_func(vec![kw(KW_OBJECT, Obj)], None, Str);
         let A = mono_q(TY_A, Constraint::Uninited);
         let A = mono_q(TY_A, subtypeof(poly(ADD, vec![ty_tp(A)])));
@@ -256,6 +290,7 @@ impl Context {
         self.register_py_builtin(FUNC_ABS, t_abs, Some(FUNC_ABS), 11);
         self.register_py_builtin(FUNC_ALL, t_all, Some(FUNC_ALL), 22);
         self.register_py_builtin(FUNC_ANY, t_any, Some(FUNC_ANY), 33);
+        self.register_py_builtin(FUNC_ARRAY, t_array, Some(FUNC_LIST), 215);
         self.register_py_builtin(FUNC_ASCII, t_ascii, Some(FUNC_ASCII), 53);
         // Leave as `Const`, as it may negatively affect assert casting.
         self.register_builtin_erg_impl(FUNC_ASSERT, t_assert, Const, vis.clone());
@@ -267,7 +302,21 @@ impl Context {
             vis.clone(),
             Some(FUNC_BYTES),
         );
+        self.register_builtin_py_impl(
+            FUNC_BYTEARRAY,
+            t_bytes_array,
+            Immutable,
+            vis.clone(),
+            Some(FUNC_BYTEARRAY),
+        );
         self.register_builtin_py_impl(FUNC_CHR, t_chr, Immutable, vis.clone(), Some(FUNC_CHR));
+        self.register_builtin_py_impl(
+            FUNC_CLASSMETHOD,
+            t_classmethod,
+            Immutable,
+            vis.clone(),
+            Some(FUNC_CLASSMETHOD),
+        );
         self.register_builtin_py_impl(
             FUNC_CLASSOF,
             t_classof,
@@ -283,6 +332,7 @@ impl Context {
             Some(FUNC_COMPILE),
         );
         self.register_builtin_erg_impl(KW_COND, t_cond, Immutable, vis.clone());
+        self.register_py_builtin(FUNC_DICT, t_dict, Some(FUNC_DICT), 224);
         self.register_builtin_py_impl(
             FUNC_ENUMERATE,
             t_enumerate,
@@ -401,6 +451,7 @@ impl Context {
             vis.clone(),
             Some(FUNC_ROUND),
         );
+        self.register_py_builtin(FUNC_SET, t_set, Some(FUNC_SET), 233);
         self.register_builtin_py_impl(
             FUNC_SLICE,
             t_slice,
@@ -414,6 +465,13 @@ impl Context {
             Immutable,
             vis.clone(),
             Some(FUNC_SORTED),
+        );
+        self.register_builtin_py_impl(
+            FUNC_STATICMETHOD,
+            t_staticmethod,
+            Immutable,
+            vis.clone(),
+            Some(FUNC_STATICMETHOD),
         );
         self.register_builtin_py_impl(FUNC_STR, t_str, Immutable, vis.clone(), Some(FUNC_STR__));
         self.register_builtin_py_impl(FUNC_SUM, t_sum, Immutable, vis.clone(), Some(FUNC_SUM));
@@ -489,31 +547,6 @@ impl Context {
                 Some(FUNC_EXIT),
             );
         } else {
-            let t_list = func(
-                vec![],
-                None,
-                vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
-                poly(ARRAY, vec![ty_tp(T.clone()), TyParam::erased(Nat)]),
-            )
-            .quantify();
-            self.register_builtin_py_impl(
-                FUNC_LIST,
-                t_list,
-                Immutable,
-                vis.clone(),
-                Some(FUNC_LIST),
-            );
-            let t_dict = func(
-                vec![],
-                None,
-                vec![kw(
-                    KW_ITERABLE,
-                    poly(ITERABLE, vec![ty_tp(tuple_t(vec![T.clone(), U.clone()]))]),
-                )],
-                dict! { T => U }.into(),
-            )
-            .quantify();
-            self.register_builtin_py_impl(FUNC_DICT, t_dict, Immutable, vis, Some(FUNC_DICT));
             self.register_builtin_py_impl(
                 PYIMPORT,
                 t_pyimport,
@@ -588,6 +621,15 @@ impl Context {
             None,
         ));
         self.register_builtin_const(INHERITABLE, vis.clone(), ValueObj::Subr(inheritable));
+        let F = mono_q(TY_F, instanceof(mono(GENERIC_CALLABLE)));
+        let override_t = func1(F.clone(), F).quantify();
+        let override_ = ConstSubr::Builtin(BuiltinConstSubr::new(
+            OVERRIDE,
+            override_func,
+            override_t,
+            None,
+        ));
+        self.register_builtin_const(OVERRIDE, vis.clone(), ValueObj::Subr(override_));
         // TODO: register Del function object
         let t_del = nd_func(vec![kw(KW_OBJ, Obj)], None, NoneType);
         self.register_builtin_erg_impl(DEL, t_del, Immutable, vis.clone());
@@ -664,41 +706,119 @@ impl Context {
             proj(L, OUTPUT),
         )
         .quantify();
-        self.register_builtin_erg_impl(OP_ADD, op_t, Const, Visibility::BUILTIN_PRIVATE);
+        self.register_builtin_py_impl(
+            OP_ADD,
+            op_t,
+            Const,
+            Visibility::BUILTIN_PRIVATE,
+            Some("add"),
+        );
         let L = mono_q(TY_L, subtypeof(poly(SUB, params.clone())));
         let op_t = bin_op(L.clone(), R.clone(), proj(L, OUTPUT)).quantify();
-        self.register_builtin_erg_impl(OP_SUB, op_t, Const, Visibility::BUILTIN_PRIVATE);
+        self.register_builtin_py_impl(
+            OP_SUB,
+            op_t,
+            Const,
+            Visibility::BUILTIN_PRIVATE,
+            Some("sub"),
+        );
         let L = mono_q(TY_L, subtypeof(poly(MUL, params.clone())));
         let op_t = bin_op(L.clone(), R.clone(), proj(L, OUTPUT)).quantify();
-        self.register_builtin_erg_impl(OP_MUL, op_t, Const, Visibility::BUILTIN_PRIVATE);
+        self.register_builtin_py_impl(
+            OP_MUL,
+            op_t,
+            Const,
+            Visibility::BUILTIN_PRIVATE,
+            Some("mul"),
+        );
         let L = mono_q(TY_L, subtypeof(poly(DIV, params.clone())));
         let op_t = bin_op(L.clone(), R.clone(), proj(L, OUTPUT)).quantify();
-        self.register_builtin_erg_impl(OP_DIV, op_t, Const, Visibility::BUILTIN_PRIVATE);
+        self.register_builtin_py_impl(
+            OP_DIV,
+            op_t,
+            Const,
+            Visibility::BUILTIN_PRIVATE,
+            Some("truediv"),
+        );
         let L = mono_q(TY_L, subtypeof(poly(FLOOR_DIV, params)));
         let op_t = bin_op(L.clone(), R, proj(L, OUTPUT)).quantify();
-        self.register_builtin_erg_impl(OP_FLOOR_DIV, op_t, Const, Visibility::BUILTIN_PRIVATE);
+        self.register_builtin_py_impl(
+            OP_FLOOR_DIV,
+            op_t,
+            Const,
+            Visibility::BUILTIN_PRIVATE,
+            Some("floordiv"),
+        );
         let P = mono_q(TY_P, Constraint::Uninited);
         let P = mono_q(TY_P, subtypeof(poly(MUL, vec![ty_tp(P)])));
         let op_t = bin_op(P.clone(), P.clone(), proj(P, POW_OUTPUT)).quantify();
         // TODO: add bound: M == M.Output
-        self.register_builtin_erg_impl(OP_POW, op_t, Const, Visibility::BUILTIN_PRIVATE);
+        self.register_builtin_py_impl(
+            OP_POW,
+            op_t,
+            Const,
+            Visibility::BUILTIN_PRIVATE,
+            Some("pow"),
+        );
         let M = mono_q(TY_M, Constraint::Uninited);
         let M = mono_q(TY_M, subtypeof(poly(DIV, vec![ty_tp(M)])));
         let op_t = bin_op(M.clone(), M.clone(), proj(M, MOD_OUTPUT)).quantify();
-        self.register_builtin_erg_impl(OP_MOD, op_t, Const, Visibility::BUILTIN_PRIVATE);
+        self.register_builtin_py_impl(
+            OP_MOD,
+            op_t,
+            Const,
+            Visibility::BUILTIN_PRIVATE,
+            Some("mod"),
+        );
         let op_t = nd_proc(vec![kw(KW_LHS, Obj), kw(KW_RHS, Obj)], None, Bool);
-        self.register_builtin_erg_impl(OP_IS, op_t.clone(), Const, Visibility::BUILTIN_PRIVATE);
-        self.register_builtin_erg_impl(OP_IS_NOT, op_t, Const, Visibility::BUILTIN_PRIVATE);
+        self.register_builtin_py_impl(
+            OP_IS,
+            op_t.clone(),
+            Const,
+            Visibility::BUILTIN_PRIVATE,
+            Some("is_"),
+        );
+        self.register_builtin_py_impl(
+            OP_IS_NOT,
+            op_t,
+            Const,
+            Visibility::BUILTIN_PRIVATE,
+            Some("is_not"),
+        );
         let E = mono_q(TY_E, subtypeof(mono(EQ)));
         let op_t = bin_op(E.clone(), E, Bool).quantify();
-        self.register_builtin_erg_impl(OP_EQ, op_t.clone(), Const, Visibility::BUILTIN_PRIVATE);
-        self.register_builtin_erg_impl(OP_NE, op_t, Const, Visibility::BUILTIN_PRIVATE);
+        self.register_builtin_py_impl(
+            OP_EQ,
+            op_t.clone(),
+            Const,
+            Visibility::BUILTIN_PRIVATE,
+            Some("eq"),
+        );
+        self.register_builtin_py_impl(OP_NE, op_t, Const, Visibility::BUILTIN_PRIVATE, Some("ne"));
         let O = mono_q(TY_O, subtypeof(mono(PARTIAL_ORD)));
         let op_t = bin_op(O.clone(), O.clone(), Bool).quantify();
-        self.register_builtin_erg_impl(OP_LT, op_t.clone(), Const, Visibility::BUILTIN_PRIVATE);
-        self.register_builtin_erg_impl(OP_LE, op_t.clone(), Const, Visibility::BUILTIN_PRIVATE);
-        self.register_builtin_erg_impl(OP_GT, op_t.clone(), Const, Visibility::BUILTIN_PRIVATE);
-        self.register_builtin_erg_impl(OP_GE, op_t, Const, Visibility::BUILTIN_PRIVATE);
+        self.register_builtin_py_impl(
+            OP_LT,
+            op_t.clone(),
+            Const,
+            Visibility::BUILTIN_PRIVATE,
+            Some("lt"),
+        );
+        self.register_builtin_py_impl(
+            OP_LE,
+            op_t.clone(),
+            Const,
+            Visibility::BUILTIN_PRIVATE,
+            Some("le"),
+        );
+        self.register_builtin_py_impl(
+            OP_GT,
+            op_t.clone(),
+            Const,
+            Visibility::BUILTIN_PRIVATE,
+            Some("gt"),
+        );
+        self.register_builtin_py_impl(OP_GE, op_t, Const, Visibility::BUILTIN_PRIVATE, Some("ge"));
         let T = type_q(TY_T);
         let U = type_q(TY_U);
         let or_t = bin_op(Bool, Bool, Bool)
@@ -708,7 +828,7 @@ impl Context {
                 tp_enum(Type, set! { ty_tp(T.clone() | U.clone()) }),
             )
             .quantify();
-        self.register_builtin_erg_impl(OP_OR, or_t, Const, Visibility::BUILTIN_PRIVATE);
+        self.register_builtin_py_impl(OP_OR, or_t, Const, Visibility::BUILTIN_PRIVATE, Some("or_"));
         let and_t = bin_op(Bool, Bool, Bool)
             & bin_op(
                 tp_enum(Type, set! { ty_tp(T.clone()) }),
@@ -716,7 +836,36 @@ impl Context {
                 tp_enum(Type, set! { ty_tp(T & U) }),
             )
             .quantify();
-        self.register_builtin_erg_impl(OP_AND, and_t, Const, Visibility::BUILTIN_PRIVATE);
+        self.register_builtin_py_impl(
+            OP_AND,
+            and_t,
+            Const,
+            Visibility::BUILTIN_PRIVATE,
+            Some("and_"),
+        );
+        let xor_t = bin_op(Bool, Bool, Bool);
+        self.register_builtin_py_impl(
+            OP_XOR,
+            xor_t,
+            Const,
+            Visibility::BUILTIN_PRIVATE,
+            Some("xor"),
+        );
+        let shift_t = bin_op(Int, Nat, Int);
+        self.register_builtin_py_impl(
+            OP_LSHIFT,
+            shift_t.clone(),
+            Const,
+            Visibility::BUILTIN_PRIVATE,
+            Some("lshift"),
+        );
+        self.register_builtin_py_impl(
+            OP_RSHIFT,
+            shift_t,
+            Const,
+            Visibility::BUILTIN_PRIVATE,
+            Some("rshift"),
+        );
         let op_t = bin_op(O.clone(), O.clone(), range(O)).quantify();
         self.register_builtin_erg_decl(OP_RNG, op_t.clone(), Visibility::BUILTIN_PRIVATE);
         self.register_builtin_erg_decl(OP_LORNG, op_t.clone(), Visibility::BUILTIN_PRIVATE);
@@ -740,10 +889,30 @@ impl Context {
         self.register_builtin_erg_impl(OP_MUTATE, op_t, Const, Visibility::BUILTIN_PRIVATE);
         let P = mono_q(TY_N, subtypeof(mono(POS)));
         let op_t = func1(P.clone(), proj(P, OUTPUT)).quantify();
-        self.register_builtin_erg_decl(OP_POS, op_t, Visibility::BUILTIN_PRIVATE);
+        self.register_builtin_py_impl(
+            OP_POS,
+            op_t,
+            Const,
+            Visibility::BUILTIN_PRIVATE,
+            Some("__pos__"),
+        );
         let N = mono_q(TY_N, subtypeof(mono(NEG)));
         let op_t = func1(N.clone(), proj(N, OUTPUT)).quantify();
-        self.register_builtin_erg_decl(OP_NEG, op_t, Visibility::BUILTIN_PRIVATE);
+        self.register_builtin_py_impl(
+            OP_NEG,
+            op_t,
+            Const,
+            Visibility::BUILTIN_PRIVATE,
+            Some("__neg__"),
+        );
+        let invert_t = func1(Int, Int);
+        self.register_builtin_py_impl(
+            OP_INVERT,
+            invert_t,
+            Const,
+            Visibility::BUILTIN_PRIVATE,
+            Some("__invert__"),
+        );
     }
 
     pub(super) fn init_py_compat_builtin_operators(&mut self) {
@@ -860,9 +1029,33 @@ impl Context {
                 dict! { Field::public("__or__".into()) => fn1_met(Never, R.clone(), O.clone()) },
             )
             .structuralize();
-            bin_op(S, R.clone(), O).quantify()
+            bin_op(S, R.clone(), O.clone()).quantify()
         };
         self.register_builtin_erg_impl(OP_OR, op_t, Const, Visibility::BUILTIN_PRIVATE);
+        let op_t = {
+            let S = Type::from(
+                dict! { Field::public("__xor__".into()) => fn1_met(Never, R.clone(), O.clone()) },
+            )
+            .structuralize();
+            bin_op(S, R.clone(), O.clone()).quantify()
+        };
+        self.register_builtin_erg_impl(OP_XOR, op_t, Const, Visibility::BUILTIN_PRIVATE);
+        let op_t = {
+            let S = Type::from(
+                dict! { Field::public("__lshift__".into()) => fn1_met(Never, R.clone(), O.clone()) },
+            )
+            .structuralize();
+            bin_op(S, R.clone(), O.clone()).quantify()
+        };
+        self.register_builtin_erg_impl(OP_LSHIFT, op_t, Const, Visibility::BUILTIN_PRIVATE);
+        let op_t = {
+            let S = Type::from(
+                dict! { Field::public("__rshift__".into()) => fn1_met(Never, R.clone(), O.clone()) },
+            )
+            .structuralize();
+            bin_op(S, R.clone(), O).quantify()
+        };
+        self.register_builtin_erg_impl(OP_RSHIFT, op_t, Const, Visibility::BUILTIN_PRIVATE);
         let T = mono_q(TY_T, instanceof(Type));
         let C = mono_q(TY_C, subtypeof(poly(CONTAINER, vec![ty_tp(T.clone())])));
         let op_t = bin_op(C, T, Bool).quantify();
@@ -887,8 +1080,16 @@ impl Context {
             let S =
                 Type::from(dict! { Field::public("__neg__".into()) => fn0_met(Never, R.clone()) })
                     .structuralize();
-            func1(S, R).quantify()
+            func1(S, R.clone()).quantify()
         };
         self.register_builtin_erg_decl(OP_NEG, op_t, Visibility::BUILTIN_PRIVATE);
+        let op_t = {
+            let S = Type::from(
+                dict! { Field::public("__invert__".into()) => fn0_met(Never, R.clone()) },
+            )
+            .structuralize();
+            func1(S, R).quantify()
+        };
+        self.register_builtin_erg_decl(OP_INVERT, op_t, Visibility::BUILTIN_PRIVATE);
     }
 }

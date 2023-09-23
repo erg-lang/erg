@@ -2,12 +2,12 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/29_comprehension.md%26commit_hash%3De959b3e54bfa8cee4929743b0193a129e7525c61)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/29_comprehension.md&commit_hash=e959b3e54bfa8cee4929743b0193a129e7525c61)
 
-`[expr | (name <- iterable)+ (predicate)*]`で配列、
-`{expr | (name <- iterable)+ (predicate)*}`でセット、
-`{key: value | (name <- iterable)+ (predicate)*}`でDictが作れます。
+`[expr | (name <- iterable)+ | (predicate)*]`で配列、
+`{expr | (name <- iterable)+ | (predicate)*}`でセット、
+`{key: value | (name <- iterable)+ | (predicate)*}`でDictが作れます。
 
-`|`で区切られた節のうち最初の部分をレイアウト節(配置節)といい、2番目の部分をバインド節(束縛節)、3番目の部分をガード節(条件節)という。
-ガード節は省略可能ですがバインド節は省略できず、バインド節より先にガード節を置くことはできません。
+`|`で区切られた節のうち最初の部分をレイアウト節(配置節)といい、2番目の部分をバインド節(束縛節)、3番目の部分をガード節(条件節)といいます。
+ガード節かレイアウト節のどちらかは省略可能ですがバインド節は省略できず、またこれらの順番を入れ替えることはできません。
 
 内包表記の例
 
@@ -16,6 +16,10 @@
 # バインド節はi <- [0, 1, 2]
 assert [i | i <- [0, 1, 2]] == [0, 1, 2]
 
+# フィルタリングだけしたい場合は、レイアウト節を省略できる
+# これは[0, 1, 2].iter().filter(i -> i % 2 == 0).into_array()と同じ
+assert [i <- [0, 1, 2] | i % 2 == 0] == [0, 2]
+
 # レイアウト節はi / 2
 # バインド節はi <- 0..2
 assert [i / 2 | i <- 0..2] == [0.0, 0.5, 1.0]
@@ -23,31 +27,10 @@ assert [i / 2 | i <- 0..2] == [0.0, 0.5, 1.0]
 # レイアウト節は(i, j)
 # バインド節はi <- 0..2, j <- 0..2
 # ガード節は(i + j) % 2 == 0
-assert [(i, j) | i <- 0..2; j <- 0..2; (i + j) % 2 == 0] == [(0, 0), (0, 2), (1, 1), (2, 0), (2, 2)]
+assert [(i, j) | i <- 0..2; j <- 0..2 | (i + j) % 2 == 0] == [(0, 0), (0, 2), (1, 1), (2, 0), (2, 2)]
 
 assert {i % 2 | i <- 0..9} == {0, 1}
 assert {k: v | k <- ["a", "b"]; v <- [1, 2]} == {"a": 1, "b": 2}
-```
-
-Ergの内包表記はHaskellに影響を受けていますが、若干の違いがあります。
-Haskellのリスト内包表記の場合、変数の順番は結果に違いをもたらしますが、Ergでは関係がありません。
-
-```haskell
--- Haskell
-[(i, j) | i <- [1..3], j <- [3..5]] == [(1,3),(1,4),(1,5),(2,3),(2,4),(2,5),(3,3),(3,4),(3,5)]
-[(i, j) | j <- [3..5], i <- [1..3]] == [(1,3),(2,3),(3,3),(1,4),(2,4),(3,4),(1,5),(2,5),(3,5)]
-```
-
-```python
-# Erg
-assert [(i, j) | i <- 1..<3; j <- 3..<5] == [(i, j) | j <- 3..<5; i <- 1..<3]
-```
-
-この仕様はPythonのものと同じです。
-
-```python
-# Python
-assert [(i, j) for i in range(1, 3) for j in range(3, 5)] == [(i, j) for j in range(3, 5) for i in range(1, 3)]
 ```
 
 ## 篩型

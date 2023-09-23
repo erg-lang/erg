@@ -731,7 +731,10 @@ impl ASTLowerer {
                     &self.cfg.input,
                     &self.module.context,
                 ) {
-                    Triple::Ok(vi) => vi,
+                    Triple::Ok(vi) => {
+                        self.inc_ref(attr.ident.inspect(), &vi, &attr.ident.name);
+                        vi
+                    }
                     Triple::Err(errs) => {
                         self.errs.push(errs);
                         VarInfo::ILLEGAL
@@ -757,7 +760,6 @@ impl ASTLowerer {
                         VarInfo::ILLEGAL
                     }
                 };
-                self.inc_ref(attr.ident.inspect(), &vi, &attr.ident.name);
                 let ident = hir::Identifier::new(attr.ident, None, vi);
                 let acc = hir::Accessor::Attr(hir::Attribute::new(obj, ident));
                 Ok(acc)
@@ -1718,6 +1720,21 @@ impl ASTLowerer {
             .get_current_scope_var(&sig.ident.name)
             .map(|vi| vi.t.clone())
             .unwrap_or(Type::Failure);
+        let mut decorators = set! {};
+        for deco in sig.decorators.iter() {
+            // exclude comptime decorators
+            if self.module.context.eval_const_expr(&deco.0).is_ok() {
+                continue;
+            }
+            let deco = match self.lower_expr(deco.0.clone(), Some(&mono("GenericCallable"))) {
+                Ok(deco) => deco,
+                Err(es) => {
+                    self.errs.extend(es);
+                    continue;
+                }
+            };
+            decorators.insert(deco);
+        }
         match registered_t {
             Type::Subr(subr_t) => {
                 let mut params = self.lower_params(sig.params.clone())?;
@@ -1750,7 +1767,9 @@ impl ASTLowerer {
                         } else {
                             None
                         };
-                        let sig = hir::SubrSignature::new(ident, sig.bounds, params, ret_t_spec);
+                        let sig = hir::SubrSignature::new(
+                            decorators, ident, sig.bounds, params, ret_t_spec,
+                        );
                         let body = hir::DefBody::new(body.op, block, body.id);
                         Ok(hir::Def::new(hir::Signature::Subr(sig), body))
                     }
@@ -1776,7 +1795,9 @@ impl ASTLowerer {
                         } else {
                             None
                         };
-                        let sig = hir::SubrSignature::new(ident, sig.bounds, params, ret_t_spec);
+                        let sig = hir::SubrSignature::new(
+                            decorators, ident, sig.bounds, params, ret_t_spec,
+                        );
                         let block =
                             hir::Block::new(vec![hir::Expr::Dummy(hir::Dummy::new(vec![]))]);
                         let body = hir::DefBody::new(body.op, block, body.id);
@@ -1807,7 +1828,8 @@ impl ASTLowerer {
                 } else {
                     None
                 };
-                let sig = hir::SubrSignature::new(ident, sig.bounds, params, ret_t_spec);
+                let sig =
+                    hir::SubrSignature::new(decorators, ident, sig.bounds, params, ret_t_spec);
                 let body = hir::DefBody::new(body.op, block, body.id);
                 Ok(hir::Def::new(hir::Signature::Subr(sig), body))
             }
@@ -2338,6 +2360,10 @@ impl ASTLowerer {
                     .replace(impl_trait, class);
                 unverified_names.remove(name);
                 if !self.module.context.supertype_of(&replaced_decl_t, def_t) {
+                    let hint = self
+                        .module
+                        .context
+                        .get_simple_type_mismatch_hint(&replaced_decl_t, def_t);
                     errors.push(LowerError::trait_member_type_error(
                         self.cfg.input.clone(),
                         line!() as usize,
@@ -2347,7 +2373,7 @@ impl ASTLowerer {
                         impl_trait,
                         &decl_vi.t,
                         &vi.t,
-                        None,
+                        hint,
                     ));
                 }
             } else {

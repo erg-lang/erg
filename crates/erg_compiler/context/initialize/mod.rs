@@ -101,7 +101,6 @@ const HASH: &str = "Hash";
 const EQ_HASH: &str = "EqHash";
 const PARTIAL_ORD: &str = "PartialOrd";
 const ORD: &str = "Ord";
-const TO_STR: &str = "to_str";
 const ORDERING: &str = "Ordering";
 const SEQUENCE: &str = "Sequence";
 const MUTABLE_SEQUENCE: &str = "Sequence!";
@@ -285,6 +284,7 @@ const FUNC_REMOVE: &str = "remove";
 const PROC_REMOVE: &str = "remove!";
 const FUNC_POP: &str = "pop";
 const PROC_POP: &str = "pop!";
+const FUNC_COPY: &str = "copy";
 const FUNC_CLEAR: &str = "clear";
 const PROC_CLEAR: &str = "clear!";
 const FUNC_SORT: &str = "sort";
@@ -341,11 +341,14 @@ const GENERATOR: &str = "Generator";
 const FUNC_RANGE: &str = "range";
 const FUNC_ALL: &str = "all";
 const FUNC_ANY: &str = "any";
+const FUNC_ARRAY: &str = "array";
 const FUNC_ASCII: &str = "ascii";
 const FUNC_ASSERT: &str = "assert";
 const FUNC_BIN: &str = "bin";
 const FUNC_BYTES: &str = "bytes";
+const FUNC_BYTEARRAY: &str = "bytearray";
 const FUNC_CHR: &str = "chr";
+const FUNC_CLASSMETHOD: &str = "classmethod";
 const FUNC_CLASSOF: &str = "classof";
 const FUNC_COMPILE: &str = "compile";
 const FUNC_EXIT: &str = "exit";
@@ -360,8 +363,10 @@ const FUNC_POW: &str = "pow";
 const FUNC_QUIT: &str = "quit";
 const FUNC_REPR: &str = "repr";
 const FUNC_ROUND: &str = "round";
+const FUNC_SET: &str = "set";
 const FUNC_SLICE: &str = "slice";
 const FUNC_SORTED: &str = "sorted";
+const FUNC_STATICMETHOD: &str = "staticmethod";
 const FUNC_SUM: &str = "sum";
 const FUNC_IF: &str = "if";
 const FUNC_IF__: &str = "if__";
@@ -378,6 +383,7 @@ const FUNC_TODO: &str = "todo";
 const SUBSUME: &str = "Subsume";
 const INHERIT: &str = "Inherit";
 const INHERITABLE: &str = "Inheritable";
+const OVERRIDE: &str = "Override";
 const DEL: &str = "Del";
 const PATCH: &str = "Patch";
 const STRUCTURAL: &str = "Structural";
@@ -412,6 +418,9 @@ const OP_ABS: &str = "__abs__";
 const OP_PARTIAL_CMP: &str = "__partial_cmp__";
 const OP_AND: &str = "__and__";
 const OP_OR: &str = "__or__";
+const OP_XOR: &str = "__xor__";
+const OP_LSHIFT: &str = "__lshift__";
+const OP_RSHIFT: &str = "__rshift__";
 const OP_POW: &str = "__pow__";
 const OP_MOD: &str = "__mod__";
 const OP_IS: &str = "__is__!";
@@ -423,6 +432,7 @@ const OP_ORNG: &str = "__orng__";
 const OP_MUTATE: &str = "__mutate__";
 const OP_POS: &str = "__pos__";
 const OP_NEG: &str = "__neg__";
+const OP_INVERT: &str = "__invert__";
 
 const FUNDAMENTAL_ARGS: &str = "__args__";
 const FUNDAMENTAL_LEN: &str = "__len__";
@@ -468,6 +478,7 @@ const TY_B: &str = "B";
 const TY_C: &str = "C";
 const TY_D: &str = "D";
 const TY_E: &str = "E";
+const TY_F: &str = "F";
 const TY_T: &str = "T";
 const TY_TS: &str = "Ts";
 const TY_I: &str = "I";
@@ -701,7 +712,7 @@ impl Context {
         } else {
             erg_std_decl_path().join(format!("{}.d.er", self.name))
         };
-        let abs_loc = AbsLocation::new(Some(module), loc);
+        let abs_loc = AbsLocation::new(Some(module.into()), loc);
         self.register_builtin_impl(name, t, muty, vis, py_name, abs_loc);
     }
 
@@ -1125,7 +1136,7 @@ impl Context {
         let module = ModuleContext::new(ctx, dict! {});
         shared
             .mod_cache
-            .register(PathBuf::from("<builtins>"), None, module);
+            .register(PathBuf::from("<builtins>"), None, None, module);
     }
 
     pub fn new_module<S: Into<Str>>(

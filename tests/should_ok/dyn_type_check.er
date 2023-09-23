@@ -1,0 +1,21 @@
+assert 1 in (Int or Str)
+assert 1.2 notin (Int or Str)
+
+dic = {:}
+assert dic in {:}
+assert dic in {Str: Int}
+assert dic in {Str: Str}
+dic2 = {"a": 1}
+assert dic2 in {Str or Int: Int}
+assert dic2 in {Str: Int or Str}
+assert dic2 notin {Int: Int}
+
+tup = ()
+assert tup in ()
+assert tup in (Int, Int)
+assert tup in (Int, Str)
+
+arr = []
+assert arr in []
+assert arr in [Int]
+assert arr in [Str]

@@ -4,10 +4,11 @@
 //! e.g. Literal parameters, Multi assignment
 //! 型チェックなどによる検証は行わない
 
+use erg_common::consts::PYTHON_MODE;
 use erg_common::error::Location;
 use erg_common::fresh::FreshNameGenerator;
 use erg_common::traits::{Locational, Stream};
-use erg_common::Str;
+use erg_common::{debug_power_assert, Str};
 use erg_common::{enum_unwrap, get_hash, log, set};
 
 use crate::ast::{
@@ -22,6 +23,36 @@ use crate::ast::{
     VarRecordAttr, VarSignature, VisModifierSpec,
 };
 use crate::token::{Token, TokenKind, COLON, DOT};
+
+pub fn symop_to_dname(op: &str) -> Option<&'static str> {
+    match op {
+        "`_+_`" => Some("__add__"),
+        "`_-_`" => Some("__sub__"),
+        "`*`" | "`cross`" => Some("__mul__"),
+        "`/`" => Some("__div__"),
+        "`//`" => Some("__floordiv__"),
+        "`**`" => Some("__pow__"),
+        "`%`" => Some("__mod__"),
+        "`@`" | "`dot`" => Some("__matmul__"),
+        "`&&`" => Some("__and__"),
+        "`||`" => Some("__or__"),
+        "`^`" => Some("__xor__"),
+        "`==`" => Some("__eq__"),
+        "`!=`" => Some("__ne__"),
+        "`<`" => Some("__lt__"),
+        "`<=`" => Some("__le__"),
+        "`>`" => Some("__gt__"),
+        "`>=`" => Some("__ge__"),
+        "`<<`" => Some("__lshift__"),
+        "`>>`" => Some("__rshift__"),
+        "`+_`" => Some("__pos__"),
+        "`-_`" => Some("__neg__"),
+        "`~`" => Some("__invert__"),
+        "`!`" => Some("__mutate__"),
+        "`...`" => Some("__spread__"),
+        _ => None,
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum BufIndex<'i> {
@@ -51,6 +82,7 @@ impl Desugarer {
         let module = Self::desugar_shortened_record(module);
         let module = Self::desugar_acc(module);
         let module = Self::desugar_operator(module);
+        let module = Self::desugar_comprehension(module);
         log!(info "AST (desugared):\n{module}");
         log!(info "the desugaring process has completed.");
         module
@@ -173,15 +205,15 @@ impl Desugarer {
                     Expr::Array(Array::WithLength(arr))
                 }
                 Array::Comprehension(arr) => {
-                    let elem = desugar(*arr.elem);
+                    let layout = arr.layout.map(|ex| desugar(*ex));
                     let generators = arr
                         .generators
                         .into_iter()
                         .map(|(ident, gen)| (ident, desugar(gen)))
                         .collect();
-                    let guards = arr.guards.into_iter().map(desugar).collect();
+                    let guard = arr.guard.map(|ex| desugar(*ex));
                     let arr =
-                        ArrayComprehension::new(arr.l_sqbr, arr.r_sqbr, elem, generators, guards);
+                        ArrayComprehension::new(arr.l_sqbr, arr.r_sqbr, layout, generators, guard);
                     Expr::Array(Array::Comprehension(arr))
                 }
             },
@@ -215,15 +247,18 @@ impl Desugarer {
                     Expr::Set(astSet::WithLength(set))
                 }
                 astSet::Comprehension(set) => {
-                    let iter = desugar(*set.iter);
-                    let pred = desugar(*set.pred);
+                    let elem = set.layout.map(|ex| desugar(*ex));
+                    let mut new_generators = vec![];
+                    for (ident, gen) in set.generators.into_iter() {
+                        new_generators.push((ident, desugar(gen)));
+                    }
+                    let new_guard = set.guard.map(|ex| desugar(*ex));
                     let set = SetComprehension::new(
                         set.l_brace,
                         set.r_brace,
-                        set.var,
-                        set.op,
-                        iter,
-                        pred,
+                        elem,
+                        new_generators,
+                        new_guard,
                     );
                     Expr::Set(astSet::Comprehension(set))
                 }
@@ -623,6 +658,107 @@ impl Desugarer {
         Block::new(self.desugar_pattern(block.into_iter()))
     }
 
+    fn desugar_def_pattern(&mut self, def: Def, new: &mut Vec<Expr>) {
+        match def {
+            Def {
+                sig: Signature::Var(mut v),
+                body,
+            } => match &v.pat {
+                VarPattern::Tuple(tup) => {
+                    let (buf_name, buf_sig) = self.gen_buf_name_and_sig(v.loc(), v.t_spec);
+                    let block = body
+                        .block
+                        .into_iter()
+                        .map(|ex| self.rec_desugar_lambda_pattern(ex))
+                        .collect();
+                    let block = self.desugar_pattern_in_block(block);
+                    let buf_def = Def::new(buf_sig, DefBody::new(body.op, block, body.id));
+                    new.push(Expr::Def(buf_def));
+                    for (n, elem) in tup.elems.iter().enumerate() {
+                        self.desugar_nested_var_pattern(new, elem, &buf_name, BufIndex::Tuple(n));
+                    }
+                }
+                VarPattern::Array(arr) => {
+                    let (buf_name, buf_sig) = self.gen_buf_name_and_sig(v.loc(), v.t_spec);
+                    let block = body
+                        .block
+                        .into_iter()
+                        .map(|ex| self.rec_desugar_lambda_pattern(ex))
+                        .collect();
+                    let block = self.desugar_pattern_in_block(block);
+                    let buf_def = Def::new(buf_sig, DefBody::new(body.op, block, body.id));
+                    new.push(Expr::Def(buf_def));
+                    for (n, elem) in arr.elems.iter().enumerate() {
+                        self.desugar_nested_var_pattern(new, elem, &buf_name, BufIndex::Array(n));
+                    }
+                }
+                VarPattern::Record(rec) => {
+                    let (buf_name, buf_sig) = self.gen_buf_name_and_sig(v.loc(), v.t_spec);
+                    let block = body
+                        .block
+                        .into_iter()
+                        .map(|ex| self.rec_desugar_lambda_pattern(ex))
+                        .collect();
+                    let block = self.desugar_pattern_in_block(block);
+                    let buf_def = Def::new(buf_sig, DefBody::new(body.op, block, body.id));
+                    new.push(Expr::Def(buf_def));
+                    for VarRecordAttr { lhs, rhs } in rec.attrs.iter() {
+                        self.desugar_nested_var_pattern(new, rhs, &buf_name, BufIndex::Record(lhs));
+                    }
+                }
+                VarPattern::DataPack(pack) => {
+                    let t_spec =
+                        TypeSpecWithOp::new(COLON, pack.class.clone(), *pack.class_as_expr.clone());
+                    let (buf_name, buf_sig) = self.gen_buf_name_and_sig(
+                        v.loc(),
+                        Some(t_spec), // TODO: これだとvの型指定の意味がなくなる
+                    );
+                    let block = body
+                        .block
+                        .into_iter()
+                        .map(|ex| self.rec_desugar_lambda_pattern(ex))
+                        .collect();
+                    let block = self.desugar_pattern_in_block(block);
+                    let buf_def = Def::new(buf_sig, DefBody::new(body.op, block, body.id));
+                    new.push(Expr::Def(buf_def));
+                    for VarRecordAttr { lhs, rhs } in pack.args.attrs.iter() {
+                        self.desugar_nested_var_pattern(new, rhs, &buf_name, BufIndex::Record(lhs));
+                    }
+                }
+                VarPattern::Ident(_) | VarPattern::Discard(_) => {
+                    if let VarPattern::Ident(ident) = v.pat {
+                        v.pat = VarPattern::Ident(Self::desugar_ident(ident));
+                    }
+                    let block = body
+                        .block
+                        .into_iter()
+                        .map(|ex| self.rec_desugar_lambda_pattern(ex))
+                        .collect();
+                    let block = self.desugar_pattern_in_block(block);
+                    let body = DefBody::new(body.op, block, body.id);
+                    let def = Def::new(Signature::Var(v), body);
+                    new.push(Expr::Def(def));
+                }
+            },
+            Def {
+                sig: Signature::Subr(mut subr),
+                mut body,
+            } => {
+                subr.ident = Self::desugar_ident(subr.ident);
+                self.desugar_params_patterns(&mut subr.params, &mut body.block);
+                let block = body
+                    .block
+                    .into_iter()
+                    .map(|ex| self.rec_desugar_lambda_pattern(ex))
+                    .collect();
+                let block = self.desugar_pattern_in_block(block);
+                let body = DefBody::new(body.op, block, body.id);
+                let def = Def::new(Signature::Subr(subr), body);
+                new.push(Expr::Def(def));
+            }
+        }
+    }
+
     // TODO: nested function pattern
     /// `[i, j] = [1, 2]` -> `i = 1; j = 2`
     /// `[i, j] = l` -> `i = l[0]; j = l[1]`
@@ -636,120 +772,33 @@ impl Desugarer {
         let mut new = Vec::with_capacity(chunks.len());
         for chunk in chunks.into_iter() {
             match chunk {
-                Expr::Def(Def {
-                    sig: Signature::Var(v),
-                    body,
-                }) => match &v.pat {
-                    VarPattern::Tuple(tup) => {
-                        let (buf_name, buf_sig) = self.gen_buf_name_and_sig(v.loc(), v.t_spec);
-                        let block = body
-                            .block
-                            .into_iter()
-                            .map(|ex| self.rec_desugar_lambda_pattern(ex))
-                            .collect();
-                        let block = self.desugar_pattern_in_block(block);
-                        let buf_def = Def::new(buf_sig, DefBody::new(body.op, block, body.id));
-                        new.push(Expr::Def(buf_def));
-                        for (n, elem) in tup.elems.iter().enumerate() {
-                            self.desugar_nested_var_pattern(
-                                &mut new,
-                                elem,
-                                &buf_name,
-                                BufIndex::Tuple(n),
-                            );
+                Expr::Def(def) => {
+                    self.desugar_def_pattern(def, &mut new);
+                }
+                Expr::Methods(methods) => {
+                    let mut new_attrs = Vec::with_capacity(methods.attrs.len());
+                    for attr in methods.attrs.into_iter() {
+                        match attr {
+                            ClassAttr::Def(def) => {
+                                let mut new = vec![];
+                                self.desugar_def_pattern(def, &mut new);
+                                let Expr::Def(def) = new.remove(0) else {
+                                    todo!("{new:?}")
+                                };
+                                new_attrs.push(ClassAttr::Def(def));
+                            }
+                            _ => {
+                                new_attrs.push(attr);
+                            }
                         }
                     }
-                    VarPattern::Array(arr) => {
-                        let (buf_name, buf_sig) = self.gen_buf_name_and_sig(v.loc(), v.t_spec);
-                        let block = body
-                            .block
-                            .into_iter()
-                            .map(|ex| self.rec_desugar_lambda_pattern(ex))
-                            .collect();
-                        let block = self.desugar_pattern_in_block(block);
-                        let buf_def = Def::new(buf_sig, DefBody::new(body.op, block, body.id));
-                        new.push(Expr::Def(buf_def));
-                        for (n, elem) in arr.elems.iter().enumerate() {
-                            self.desugar_nested_var_pattern(
-                                &mut new,
-                                elem,
-                                &buf_name,
-                                BufIndex::Array(n),
-                            );
-                        }
-                    }
-                    VarPattern::Record(rec) => {
-                        let (buf_name, buf_sig) = self.gen_buf_name_and_sig(v.loc(), v.t_spec);
-                        let block = body
-                            .block
-                            .into_iter()
-                            .map(|ex| self.rec_desugar_lambda_pattern(ex))
-                            .collect();
-                        let block = self.desugar_pattern_in_block(block);
-                        let buf_def = Def::new(buf_sig, DefBody::new(body.op, block, body.id));
-                        new.push(Expr::Def(buf_def));
-                        for VarRecordAttr { lhs, rhs } in rec.attrs.iter() {
-                            self.desugar_nested_var_pattern(
-                                &mut new,
-                                rhs,
-                                &buf_name,
-                                BufIndex::Record(lhs),
-                            );
-                        }
-                    }
-                    VarPattern::DataPack(pack) => {
-                        let t_spec = TypeSpecWithOp::new(
-                            COLON,
-                            pack.class.clone(),
-                            *pack.class_as_expr.clone(),
-                        );
-                        let (buf_name, buf_sig) = self.gen_buf_name_and_sig(
-                            v.loc(),
-                            Some(t_spec), // TODO: これだとvの型指定の意味がなくなる
-                        );
-                        let block = body
-                            .block
-                            .into_iter()
-                            .map(|ex| self.rec_desugar_lambda_pattern(ex))
-                            .collect();
-                        let block = self.desugar_pattern_in_block(block);
-                        let buf_def = Def::new(buf_sig, DefBody::new(body.op, block, body.id));
-                        new.push(Expr::Def(buf_def));
-                        for VarRecordAttr { lhs, rhs } in pack.args.attrs.iter() {
-                            self.desugar_nested_var_pattern(
-                                &mut new,
-                                rhs,
-                                &buf_name,
-                                BufIndex::Record(lhs),
-                            );
-                        }
-                    }
-                    VarPattern::Ident(_) | VarPattern::Discard(_) => {
-                        let block = body
-                            .block
-                            .into_iter()
-                            .map(|ex| self.rec_desugar_lambda_pattern(ex))
-                            .collect();
-                        let block = self.desugar_pattern_in_block(block);
-                        let body = DefBody::new(body.op, block, body.id);
-                        let def = Def::new(Signature::Var(v), body);
-                        new.push(Expr::Def(def));
-                    }
-                },
-                Expr::Def(Def {
-                    sig: Signature::Subr(mut subr),
-                    mut body,
-                }) => {
-                    self.desugar_params_patterns(&mut subr.params, &mut body.block);
-                    let block = body
-                        .block
-                        .into_iter()
-                        .map(|ex| self.rec_desugar_lambda_pattern(ex))
-                        .collect();
-                    let block = self.desugar_pattern_in_block(block);
-                    let body = DefBody::new(body.op, block, body.id);
-                    let def = Def::new(Signature::Subr(subr), body);
-                    new.push(Expr::Def(def));
+                    let methods = Methods::new(
+                        methods.class,
+                        *methods.class_as_expr,
+                        methods.vis,
+                        ClassAttrs::from(new_attrs),
+                    );
+                    new.push(Expr::Methods(methods));
                 }
                 Expr::Dummy(dummy) => {
                     let loc = dummy.loc;
@@ -1450,6 +1499,8 @@ impl Desugarer {
 
     /// x[y] => x.__getitem__(y)
     /// x.0 => x.__Tuple_getitem__(0)
+    /// `==`(x, y) => __eq__(x, y)
+    /// x.`==` y => x.__eq__ y
     fn desugar_acc(module: Module) -> Module {
         Self::desugar_all_chunks(module, Self::rec_desugar_acc)
     }
@@ -1500,10 +1551,18 @@ impl Desugarer {
             }
             Accessor::Attr(mut attr) => {
                 attr.obj = Box::new(Self::rec_desugar_acc(*attr.obj));
+                attr.ident = Self::desugar_ident(attr.ident);
                 Expr::Accessor(Accessor::Attr(attr))
             }
-            other => Expr::Accessor(other),
+            Accessor::Ident(ident) => Expr::Accessor(Accessor::Ident(Self::desugar_ident(ident))),
         }
+    }
+
+    fn desugar_ident(mut ident: Identifier) -> Identifier {
+        if let Some(name) = symop_to_dname(ident.inspect()) {
+            ident.name.rename(name.into());
+        }
+        ident
     }
 
     // TODO: pipeline desugaring (move from `Parser`)
@@ -1530,6 +1589,97 @@ impl Desugarer {
                 Expr::Accessor(Accessor::Ident(not)).call1(bin)
             }
             expr => Self::perform_desugar(Self::rec_desugar_operator, expr),
+        }
+    }
+
+    fn desugar_comprehension(module: Module) -> Module {
+        Self::desugar_all_chunks(module, Self::rec_desugar_comprehension)
+    }
+
+    /// ```erg
+    /// [y | x <- xs] ==> array(map(x -> y, xs))
+    /// [(a, b) | x <- xs; y <- ys] ==> array(map(((x, y),) -> (a, b), itertools.product(xs, ys)))
+    /// {k: v | x <- xs} ==> dict(map(x -> (k, v), xs))
+    /// {y | x <- xs} ==> set(map(x -> y, xs))
+    /// {x <- xs | x <= 10} ==> set(filter(x -> x <= 10, xs))
+    /// {x + 1 | x <- xs | x <= 10} ==> set(map(x -> x + 1, filter(x -> x <= 10, xs)))
+    /// ```
+    fn rec_desugar_comprehension(expr: Expr) -> Expr {
+        match expr {
+            Expr::Array(Array::Comprehension(mut comp)) => {
+                debug_power_assert!(comp.generators.len(), >, 0);
+                if comp.generators.len() != 1 {
+                    return Expr::Array(Array::Comprehension(comp));
+                }
+                let (ident, iter) = comp.generators.remove(0);
+                let iterator = Self::desugar_layout_and_guard(ident, iter, comp.layout, comp.guard);
+                let array = if PYTHON_MODE { "list" } else { "array" };
+                Identifier::auto(array.into()).call1(iterator.into()).into()
+            }
+            Expr::Dict(Dict::Comprehension(mut comp)) => {
+                debug_power_assert!(comp.generators.len(), >, 0);
+                if comp.generators.len() != 1 {
+                    return Expr::Dict(Dict::Comprehension(comp));
+                }
+                let (ident, iter) = comp.generators.remove(0);
+                let params = Params::single(NonDefaultParamSignature::new(
+                    ParamPattern::VarName(ident.name),
+                    None,
+                ));
+                let sig = LambdaSignature::new(params, None, TypeBoundSpecs::empty());
+                let tuple = Tuple::Normal(NormalTuple::new(Args::pos_only(
+                    vec![PosArg::new(comp.kv.key), PosArg::new(comp.kv.value)],
+                    None,
+                )));
+                let body = Block::new(vec![tuple.into()]);
+                let lambda = Lambda::new(sig, Token::DUMMY, body, DefId(0));
+                let map = Identifier::private("map".into()).call2(lambda.into(), iter);
+                Identifier::auto("dict".into()).call1(map.into()).into()
+            }
+            Expr::Set(astSet::Comprehension(mut comp)) => {
+                debug_power_assert!(comp.generators.len(), >, 0);
+                if comp.generators.len() != 1 {
+                    return Expr::Set(astSet::Comprehension(comp));
+                }
+                let (ident, iter) = comp.generators.remove(0);
+                let iterator = Self::desugar_layout_and_guard(ident, iter, comp.layout, comp.guard);
+                Identifier::auto("set".into()).call1(iterator.into()).into()
+            }
+            expr => Self::perform_desugar(Self::rec_desugar_comprehension, expr),
+        }
+    }
+
+    fn desugar_layout_and_guard(
+        ident: Identifier,
+        iter: Expr,
+        layout: Option<Box<Expr>>,
+        guard: Option<Box<Expr>>,
+    ) -> Call {
+        let params = Params::single(NonDefaultParamSignature::new(
+            ParamPattern::VarName(ident.name),
+            None,
+        ));
+        let sig = LambdaSignature::new(params, None, TypeBoundSpecs::empty());
+        match (layout, guard) {
+            (Some(elem), Some(guard)) => {
+                let f_body = Block::new(vec![*guard]);
+                let f_lambda = Lambda::new(sig.clone(), Token::DUMMY, f_body, DefId(0));
+                let filter = Identifier::auto("filter".into()).call2(f_lambda.into(), iter);
+                let m_body = Block::new(vec![*elem]);
+                let m_lambda = Lambda::new(sig, Token::DUMMY, m_body, DefId(0));
+                Identifier::auto("map".into()).call2(m_lambda.into(), filter.into())
+            }
+            (Some(elem), None) => {
+                let body = Block::new(vec![*elem]);
+                let lambda = Lambda::new(sig, Token::DUMMY, body, DefId(0));
+                Identifier::auto("map".into()).call2(lambda.into(), iter)
+            }
+            (None, Some(guard)) => {
+                let body = Block::new(vec![*guard]);
+                let lambda = Lambda::new(sig, Token::DUMMY, body, DefId(0));
+                Identifier::auto("filter".into()).call2(lambda.into(), iter)
+            }
+            (None, None) => todo!(),
         }
     }
 }

@@ -34,7 +34,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
 
     fn fold_imports(&self, uri: &NormalizedUrl) -> Vec<FoldingRange> {
         let mut res = vec![];
-        if let Some(module) = self.get_ast(uri) {
+        if let Some(module) = self.build_ast(uri) {
             let mut ranges = vec![];
             for chunk in module.into_iter() {
                 match chunk {

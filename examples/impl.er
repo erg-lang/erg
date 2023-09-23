@@ -4,14 +4,15 @@ Point.
     norm self = self::x**2 + self::y**2
 Point|<: Add(Point)|.
     Output = Point
-    __add__ self, other: Point =
+    # This is same as `__add__ self, other: Point = ...`
+    `_+_` self, other: Point =
         Point.new(self::x + other::x, self::y + other::y)
 Point|<: Mul(Point)|.
     Output = Int
-    __mul__ self, other: Point =
+    `*` self, other: Point =
         self::x * other::x + self::y * other::y
 Point|<: Eq|.
-    __eq__ self, other: Point =
+    `==` self, other: Point =
         self::x == other::x and self::y == other::y
 
 p = Point.new 1, 2

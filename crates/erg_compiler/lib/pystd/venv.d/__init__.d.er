@@ -1,0 +1,24 @@
+
+.EnvBuilder!: ClassType
+.EnvBuilder!.
+    __call__: (
+        system_site_packages := Bool,
+        clear := Bool,
+        symlinks := Bool,
+        upgrade := Bool,
+        with_pip := Bool,
+        prompt := Str,
+        upgrade_deps := Bool,
+    ) -> .EnvBuilder!
+    create!: (self: .EnvBuilder!, env_dir: PathLike) => NoneType
+
+.create!: (
+    env_dir: PathLike,
+    system_site_packages := Bool,
+    clear := Bool,
+    symlinks := Bool,
+    upgrade := Bool,
+    with_pip := Bool,
+    prompt := Str,
+    upgrade_deps := Bool
+) => NoneType

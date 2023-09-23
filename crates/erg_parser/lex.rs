@@ -277,18 +277,17 @@ impl Lexer /*<'a>*/ {
         matches!(
             s,
             "+_" | "_+_"
-                | "-"
+                | "-_"
+                | "_-_"
                 | "*"
                 | "/"
                 | "//"
                 | "**"
                 | "%"
-                | ".."
-                | "..="
                 | "~"
                 | "&&"
                 | "||"
-                | "^^"
+                | "^"
                 | ">>"
                 | "<<"
                 | "=="
@@ -1095,6 +1094,7 @@ impl Lexer /*<'a>*/ {
                         }
                         Interpolation::SingleLine => {
                             self.interpol_stack.pop();
+                            s.push(c);
                             let token = self.emit_token(StrInterpRight, &s);
                             return Ok(token);
                         }
@@ -1544,12 +1544,14 @@ impl Iterator for Lexer /*<'a>*/ {
                 }
             }
             // Symbolized operators (シンボル化された演算子)
-            // e.g. `-`(l, r) = l + (-r)
+            // e.g. `-`(l, r) == __sub__(1, r) == l - r
             Some('`') => {
                 let mut op = "".to_string();
                 while let Some(c) = self.consume() {
                     if c == '`' {
                         if Self::is_definable_operator(&op[..]) {
+                            op.insert(0, '`');
+                            op.push('`');
                             return self.accept(Symbol, &op);
                         } else {
                             let token = self.emit_token(Illegal, &op);
@@ -1569,10 +1571,10 @@ impl Iterator for Lexer /*<'a>*/ {
                                 line!() as usize,
                                 token.loc(),
                                 switch_lang!(
-                                    "japanese" => format!("`{}`はユーザー定義できません", &token.content),
-                                    "simplified_chinese" => format!("`{}`不能由用户定义", &token.content),
-                                    "traditional_chinese" => format!("`{}`不能由用戶定義", &token.content),
-                                    "english" => format!("`{}` cannot be defined by user", &token.content),
+                                    "japanese" => format!("`{}`は存在しないか、ユーザー定義できません", &token.content),
+                                    "simplified_chinese" => format!("`{}`不存在或不能由用户定义", &token.content),
+                                    "traditional_chinese" => format!("`{}`不存在或不能由用戶定義", &token.content),
+                                    "english" => format!("`{}` does not exist or cannot be defined by user", &token.content),
                                 ),
                                 hint,
                             )));
