@@ -26,6 +26,7 @@ pub enum ErgMode {
     Transpile,
     Execute,
     LanguageServer,
+    Format,
     Read,
 }
 
@@ -42,6 +43,7 @@ impl TryFrom<&str> for ErgMode {
             "trans" | "transpile" | "transpiler" => Ok(Self::Transpile),
             "run" | "execute" => Ok(Self::Execute),
             "server" | "language-server" => Ok(Self::LanguageServer),
+            "format" | "fmt" | "formatter" => Ok(Self::Format),
             "byteread" | "read" | "reader" | "dis" => Ok(Self::Read),
             _ => Err(()),
         }
@@ -60,6 +62,7 @@ impl From<ErgMode> for &str {
             ErgMode::Transpile => "transpile",
             ErgMode::Execute => "execute",
             ErgMode::LanguageServer => "language-server",
+            ErgMode::Format => "format",
             ErgMode::Read => "read",
         }
     }

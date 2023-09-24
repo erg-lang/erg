@@ -68,6 +68,7 @@ experimental = ["erg_common/experimental", "erg_parser/experimental", "erg_compi
 [workspace.dependencies]
 erg_common = { version = "0.6.21-nightly.4", path = "./crates/erg_common" }
 erg_parser = { version = "0.6.21-nightly.4", path = "./crates/erg_parser" }
+erg_formatter = { version = "0.6.21-nightly.4", path = "./crates/erg_formatter" }
 erg_compiler = { version = "0.6.21-nightly.4", path = "./crates/erg_compiler" }
 els = { version = "0.1.33-nightly.4", path = "./crates/els" }
 erg_proc_macros = { version = "0.6.21-nightly.4", path = "./crates/erg_proc_macros" }
@@ -75,6 +76,7 @@ erg_proc_macros = { version = "0.6.21-nightly.4", path = "./crates/erg_proc_macr
 [dependencies]
 erg_common = { workspace = true }
 erg_parser = { workspace = true }
+erg_formatter = { workspace = true }
 erg_compiler = { workspace = true }
 els = { workspace = true, optional = true }
 

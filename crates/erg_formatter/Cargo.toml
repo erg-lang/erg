@@ -12,3 +12,10 @@ homepage.workspace = true
 [dependencies]
 erg_common = { workspace = true }
 erg_parser = { workspace = true }
+
+[[bin]]
+name = "ergfmt"
+path = "src/main.rs"
+
+[lib]
+path = "src/lib.rs"

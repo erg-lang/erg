@@ -614,6 +614,12 @@ pub struct ParserRunnerErrors(Vec<ParserRunnerError>);
 
 impl std::error::Error for ParserRunnerErrors {}
 
+impl From<IncompleteArtifact<Module, ParserRunnerErrors>> for ParserRunnerErrors {
+    fn from(value: IncompleteArtifact<Module, ParserRunnerErrors>) -> Self {
+        Self(value.warns.into_iter().chain(value.errors).collect())
+    }
+}
+
 impl_stream!(ParserRunnerErrors, ParserRunnerError);
 
 impl MultiErrorDisplay<ParserRunnerError> for ParserRunnerErrors {}

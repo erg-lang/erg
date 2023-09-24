@@ -10,6 +10,8 @@ use erg_parser::build_ast::ASTBuilder;
 use erg_parser::lex::LexerRunner;
 use erg_parser::ParserRunner;
 
+use erg_formatter::Formatter;
+
 use erg_compiler::build_hir::HIRBuilder;
 use erg_compiler::lower::ASTLowerer;
 use erg_compiler::transpile::Transpiler;
@@ -30,6 +32,7 @@ fn run() {
         Transpile => Transpiler::run(cfg),
         Execute => DummyVM::run(cfg),
         Read => Deserializer::run(cfg),
+        Format => Formatter::run(cfg),
         LanguageServer => {
             #[cfg(feature = "els")]
             {
