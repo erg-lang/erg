@@ -2,7 +2,7 @@ use erg_common::traits::{DequeStream, LimitedDisplay, Locational, NoTypeDisplay}
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::erg_parser::parse::Parsable;
 use erg_compiler::erg_parser::token::{Token, TokenCategory, TokenKind};
-use erg_compiler::hir::{Call, Expr};
+use erg_compiler::hir::{Call, Expr, GetExprKind};
 use erg_compiler::ty::{HasType, ParamTy};
 
 use lsp_types::{
@@ -10,7 +10,6 @@ use lsp_types::{
     SignatureHelpParams, SignatureHelpTriggerKind, SignatureInformation,
 };
 
-use crate::hir_visitor::GetExprKind;
 use crate::server::{ELSResult, RedirectableStdout, Server};
 use crate::util::{loc_to_pos, pos_to_loc, NormalizedUrl};
 

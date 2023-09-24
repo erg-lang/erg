@@ -269,26 +269,26 @@ impl TokenKind {
 
     pub const fn precedence(&self) -> Option<usize> {
         let prec = match self {
-            Dot | DblColon => 200,                                    // .
-            Pow => 190,                                               // **
-            PrePlus | PreMinus | PreBitNot | RefOp | RefMutOp => 180, // (unary) + - * ~ ref ref!
-            Star | Slash | FloorDiv | Mod | CrossOp | DotOp => 170,   // * / // % cross dot
-            Plus | Minus => 160,                                      // + -
-            Shl | Shr => 150,                                         // << >>
-            BitAnd => 140,                                            // &&
-            BitXor => 130,                                            // ^^
-            BitOr => 120,                                             // ||
-            Closed | LeftOpen | RightOpen | Open => 100,              // range operators
+            Dot | DblColon => 200,                                             // .
+            Pow => 190,                                                        // **
+            PrePlus | PreMinus | PreBitNot | RefOp | RefMutOp | Mutate => 180, // (unary) + - * ~ ref ref! !
+            Star | Slash | FloorDiv | Mod | CrossOp | DotOp => 170,            // * / // % cross dot
+            Plus | Minus => 160,                                               // + -
+            Shl | Shr => 150,                                                  // << >>
+            BitAnd => 140,                                                     // &&
+            BitXor => 130,                                                     // ^^
+            BitOr => 120,                                                      // ||
+            Closed | LeftOpen | RightOpen | Open => 100,                       // range operators
             Less | Gre | LessEq | GreEq | DblEq | NotEq | InOp | NotInOp | ContainsOp | IsOp
             | IsNotOp => 90, // < > <= >= == != in notin contains is isnot
-            AndOp => 80,                                              // and
-            OrOp => 70,                                               // or
-            FuncArrow | ProcArrow | Inclusion => 60,                  // -> => <-
-            Colon | SupertypeOf | SubtypeOf | As => 50,               // : :> <: as
-            Comma => 40,                                              // ,
-            Assign | Walrus => 20,                                    // = :=
-            Newline | Semi => 10,                                     // \n ;
-            LParen | LBrace | LSqBr | Indent => 0,                    // ( { [ Indent
+            AndOp => 80,                                                       // and
+            OrOp => 70,                                                        // or
+            FuncArrow | ProcArrow | Inclusion => 60,                           // -> => <-
+            Colon | SupertypeOf | SubtypeOf | As => 50,                        // : :> <: as
+            Comma => 40,                                                       // ,
+            Assign | Walrus => 20,                                             // = :=
+            Newline | Semi => 10,                                              // \n ;
+            LParen | LBrace | LSqBr | Indent => 0,                             // ( { [ Indent
             _ => return None,
         };
         Some(prec)

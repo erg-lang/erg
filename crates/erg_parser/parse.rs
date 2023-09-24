@@ -7,12 +7,11 @@ use std::mem;
 use erg_common::config::ErgConfig;
 use erg_common::error::Location;
 use erg_common::io::{Input, InputKind};
-use erg_common::set::Set as HashSet;
 use erg_common::str::Str;
 use erg_common::traits::{DequeStream, ExitStatus, Locational, Runnable, Stream};
 use erg_common::{
     caused_by, debug_power_assert, enum_unwrap, fn_name, impl_display_for_enum,
-    impl_locational_for_enum, log, set, switch_lang, switch_unreachable,
+    impl_locational_for_enum, log, switch_lang, switch_unreachable,
 };
 
 use crate::ast::*;
@@ -688,14 +687,14 @@ impl Parser {
     }
 
     #[inline]
-    fn opt_reduce_decorators(&mut self) -> ParseResult<HashSet<Decorator>> {
+    fn opt_reduce_decorators(&mut self) -> ParseResult<Vec<Decorator>> {
         debug_call_info!(self);
-        let mut decs = set![];
+        let mut decs = vec![];
         while let Some(deco) = self
             .opt_reduce_decorator()
             .map_err(|_| self.stack_dec(fn_name!()))?
         {
-            decs.insert(deco);
+            decs.push(deco);
             expect_pop!(self, fail_next Newline);
         }
         debug_exit_info!(self);
@@ -1625,8 +1624,8 @@ impl Parser {
         let do_symbol = self.lpop();
         let sig = LambdaSignature::do_sig(&do_symbol);
         let op = match &do_symbol.inspect()[..] {
-            "do" => Token::from_str(FuncArrow, "->"),
-            "do!" => Token::from_str(ProcArrow, "=>"),
+            "do" => Token::from_str(FuncArrow, "do"),
+            "do!" => Token::from_str(ProcArrow, "do!"),
             _ => unreachable!(),
         };
         if self.cur_is(Colon) {

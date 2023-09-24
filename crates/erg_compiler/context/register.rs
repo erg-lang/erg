@@ -889,7 +889,7 @@ impl Context {
     pub(crate) fn fake_subr_assign(
         &mut self,
         ident: &Identifier,
-        decorators: &Set<Decorator>,
+        decorators: &[Decorator],
         failure_t: Type,
     ) -> TyCheckResult<()> {
         // already defined as const

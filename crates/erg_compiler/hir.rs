@@ -2754,3 +2754,70 @@ impl HIR {
         Self { name, module }
     }
 }
+
+pub trait GetExprKind {
+    const KIND: ExprKind;
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum ExprKind {
+    Literal,
+    Accessor,
+    Array,
+    Tuple,
+    Dict,
+    Set,
+    Record,
+    BinOp,
+    UnaryOp,
+    Call,
+    Lambda,
+    TypeAscription,
+    Def,
+    Methods,
+    ClassDef,
+    PatchDef,
+    ReDef,
+    Expr,
+}
+
+impl ExprKind {
+    pub const fn matches(&self, expr: &Expr) -> bool {
+        match (self, expr) {
+            (ExprKind::Call, Expr::Call(_)) | (ExprKind::Expr, _) => true,
+            (ExprKind::Def, Expr::Def(_)) => true,
+            // (ExprKind::Def, Expr::Def(def)) => def.sig.is_subr(),
+            _ => false,
+        }
+    }
+}
+
+macro_rules! impl_get_expr_kind {
+    ($($ty:ident,)*) => {
+        $(
+            impl GetExprKind for $ty {
+                const KIND: ExprKind = ExprKind::$ty;
+            }
+        )*
+    };
+}
+impl_get_expr_kind!(
+    Literal,
+    Accessor,
+    Array,
+    Tuple,
+    Dict,
+    Set,
+    Record,
+    BinOp,
+    UnaryOp,
+    Call,
+    Lambda,
+    TypeAscription,
+    Def,
+    Methods,
+    ClassDef,
+    PatchDef,
+    ReDef,
+    Expr,
+);

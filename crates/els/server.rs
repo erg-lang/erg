@@ -22,7 +22,7 @@ use erg_compiler::context::{Context, ModuleContext};
 use erg_compiler::erg_parser::ast::Module;
 use erg_compiler::erg_parser::parse::{Parsable, SimpleParser};
 use erg_compiler::error::CompileWarning;
-use erg_compiler::hir::HIR;
+use erg_compiler::hir::{ExprKind, HIR};
 use erg_compiler::lower::ASTLowerer;
 use erg_compiler::module::{IRs, ModuleEntry, SharedCompilerResource};
 use erg_compiler::ty::HasType;
@@ -56,7 +56,7 @@ use serde_json::Value;
 use crate::channels::{SendChannels, Sendable, WorkerMessage};
 use crate::completion::CompletionCache;
 use crate::file_cache::FileCache;
-use crate::hir_visitor::{ExprKind, HIRVisitor};
+use crate::hir_visitor::HIRVisitor;
 use crate::message::{ErrorMessage, LSPResult};
 use crate::util::{self, loc_to_pos, project_root_of, NormalizedUrl};
 

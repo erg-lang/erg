@@ -1,5 +1,5 @@
 use erg_common::traits::{Locational, Stream};
-use erg_common::{fn_name, log, set};
+use erg_common::{fn_name, log};
 
 use crate::ast::*;
 use crate::debug_call_info;
@@ -281,7 +281,7 @@ impl Parser {
         let params = self
             .convert_args_to_params(call.args)
             .map_err(|_| self.stack_dec(fn_name!()))?;
-        let sig = SubrSignature::new(set! {}, ident, bounds, params, None);
+        let sig = SubrSignature::new(vec![], ident, bounds, params, None);
         debug_exit_info!(self);
         Ok(sig)
     }

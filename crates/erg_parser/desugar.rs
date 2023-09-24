@@ -9,7 +9,7 @@ use erg_common::error::Location;
 use erg_common::fresh::FreshNameGenerator;
 use erg_common::traits::{Locational, Stream};
 use erg_common::{debug_power_assert, Str};
-use erg_common::{enum_unwrap, get_hash, log, set};
+use erg_common::{enum_unwrap, get_hash, log};
 
 use crate::ast::{
     Accessor, Args, Array, ArrayComprehension, ArrayTypeSpec, ArrayWithLength, BinOp, Block, Call,
@@ -504,7 +504,7 @@ impl Desugarer {
                                 _ => unreachable!(),
                             };
                             let sig = Signature::Subr(SubrSignature::new(
-                                set! {},
+                                vec![],
                                 name,
                                 TypeBoundSpecs::empty(),
                                 params,

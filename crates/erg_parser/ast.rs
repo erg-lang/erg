@@ -5,8 +5,6 @@ use std::fmt::Write as _;
 
 use erg_common::consts::ERG_MODE;
 use erg_common::error::Location;
-use erg_common::set::Set as HashSet;
-// use erg_common::dict::Dict as HashMap;
 use erg_common::traits::{Locational, NestedDisplay, Stream};
 use erg_common::{
     fmt_option, fmt_vec, impl_display_for_enum, impl_display_for_single_struct,
@@ -3407,7 +3405,7 @@ impl Identifier {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VarArrayPattern {
     l_sqbr: Token,
-    pub(crate) elems: Vars,
+    pub elems: Vars,
     r_sqbr: Token,
 }
 
@@ -3446,8 +3444,8 @@ impl VarArrayPattern {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VarTuplePattern {
-    pub(crate) paren: Option<(Token, Token)>,
-    pub(crate) elems: Vars,
+    pub paren: Option<(Token, Token)>,
+    pub elems: Vars,
 }
 
 impl fmt::Display for VarTuplePattern {
@@ -3534,7 +3532,7 @@ impl VarRecordAttrs {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VarRecordPattern {
     l_brace: Token,
-    pub(crate) attrs: VarRecordAttrs,
+    pub attrs: VarRecordAttrs,
     r_brace: Token,
 }
 
@@ -3702,7 +3700,7 @@ impl VarSignature {
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Vars {
-    pub(crate) elems: Vec<VarSignature>,
+    pub elems: Vec<VarSignature>,
 }
 
 impl NestedDisplay for Vars {
@@ -4166,7 +4164,7 @@ impl Params {
 /// 引数を取るならTypeでもSubr扱い
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SubrSignature {
-    pub decorators: HashSet<Decorator>,
+    pub decorators: Vec<Decorator>,
     pub ident: Identifier,
     pub bounds: TypeBoundSpecs,
     pub params: Params,
@@ -4212,7 +4210,7 @@ impl Locational for SubrSignature {
 
 impl SubrSignature {
     pub const fn new(
-        decorators: HashSet<Decorator>,
+        decorators: Vec<Decorator>,
         ident: Identifier,
         bounds: TypeBoundSpecs,
         params: Params,
@@ -4365,7 +4363,7 @@ impl Signature {
 
     pub fn new_subr(ident: Identifier, params: Params) -> Self {
         Self::Subr(SubrSignature::new(
-            HashSet::new(),
+            Vec::new(),
             ident,
             TypeBoundSpecs::empty(),
             params,
@@ -4406,7 +4404,7 @@ impl Signature {
         }
     }
 
-    pub fn decorators(&self) -> Option<&HashSet<Decorator>> {
+    pub fn decorators(&self) -> Option<&Vec<Decorator>> {
         match self {
             Self::Var(_) => None,
             Self::Subr(subr) => Some(&subr.decorators),
@@ -4981,5 +4979,92 @@ impl AST {
 
     pub fn is_empty(&self) -> bool {
         self.module.is_empty()
+    }
+}
+
+pub trait GetExprKind {
+    const KIND: ExprKind;
+    fn detailed_expr_kind(&self) -> ExprKind {
+        Self::KIND
+    }
+}
+
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq)]
+pub enum ExprKind {
+    Literal,
+    Accessor,
+    Array,
+    Tuple,
+    Dict,
+    Set,
+    Record,
+    BinOp,
+    UnaryOp,
+    Call,
+    DataPack,
+    Lambda,
+    TypeAscription,
+    Def,
+    VarDef,
+    SubrDef,
+    Methods,
+    ClassDef,
+    PatchDef,
+    ReDef,
+    #[default]
+    Expr,
+}
+
+impl ExprKind {
+    pub const fn matches(&self, expr: &Expr) -> bool {
+        match (self, expr) {
+            (ExprKind::Call, Expr::Call(_)) | (ExprKind::Expr, _) => true,
+            (ExprKind::VarDef, Expr::Def(def)) => !def.sig.is_subr(),
+            (ExprKind::SubrDef, Expr::Def(def)) => def.sig.is_subr(),
+            (ExprKind::Def, Expr::Def(_)) => true,
+            // (ExprKind::Def, Expr::Def(def)) => def.sig.is_subr(),
+            _ => false,
+        }
+    }
+}
+
+macro_rules! impl_get_expr_kind {
+    ($($ty:ident,)*) => {
+        $(
+            impl GetExprKind for $ty {
+                const KIND: ExprKind = ExprKind::$ty;
+            }
+        )*
+    };
+}
+impl_get_expr_kind!(
+    Literal,
+    Accessor,
+    Array,
+    Tuple,
+    Dict,
+    Set,
+    Record,
+    BinOp,
+    UnaryOp,
+    Call,
+    DataPack,
+    Lambda,
+    TypeAscription,
+    Methods,
+    ClassDef,
+    PatchDef,
+    ReDef,
+    Expr,
+);
+
+impl GetExprKind for Def {
+    const KIND: ExprKind = ExprKind::Def;
+    fn detailed_expr_kind(&self) -> ExprKind {
+        if self.sig.is_subr() {
+            ExprKind::SubrDef
+        } else {
+            ExprKind::VarDef
+        }
     }
 }
