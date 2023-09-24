@@ -1,3 +1,7 @@
+arr = [
+    1,
+    2
+]
 dict = {
     "a": 1,
     "b": 2
@@ -10,7 +14,37 @@ tuple = (
     1,
     2
 )
+rec = {
+    .a = 1;
+    .b = 2;
+    .c = 3
+}
 
-print! dict
-print! set
-print! tuple
+print! arr, dict, set, tuple, rec
+
+arr2 = [
+    1,
+    2,
+]
+
+dict2 = {
+    "a": 1,
+    "b": 2,
+}
+
+set2 = {
+    1,
+    2,
+}
+
+tuple2 = (
+    1,
+    2,
+)
+
+rec2 = {
+    .foo = 1;
+    .bar = 2;
+}
+
+print! arr2, dict2, set2, tuple2, rec2

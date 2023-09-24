@@ -4,12 +4,12 @@
 
 .is_dataclass: (obj: Obj) -> Bool
 
-_MISSING_TYPE: ClassType
-.MISSING: _MISSING_TYPE
+._MISSING_TYPE: ClassType
+.MISSING: ._MISSING_TYPE
 
-_KW_ONLY_TYPE: ClassType
+._KW_ONLY_TYPE: ClassType
 .KW_ONLY: _KW_ONLY_TYPE
 
-.field: (default := _MISSING_TYPE, default_factory := _MISSING_TYPE, init := Bool, repr := Bool, hash := Bool, compare := Bool, metadata := GenericDict, kw_only := _MISSING_TYPE) -> (Obj -> Obj)
+.field: (default := ._MISSING_TYPE, default_factory := ._MISSING_TYPE, init := Bool, repr := Bool, hash := Bool, compare := Bool, metadata := GenericDict, kw_only := ._MISSING_TYPE) -> (Obj -> Obj)
 
 .Field: ClassType

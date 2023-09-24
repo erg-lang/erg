@@ -1,7 +1,7 @@
 # Record is a feature similar to object (literal notation) in JS
 # `.` means the field is public
 john = {
-    .name = "John Smith"
+    .name = "John Smith";
     .age = !27
 }
 
@@ -15,7 +15,7 @@ assert john.age == 27
 
 # A record whose values are all types will also behave as a type
 Person! = {
-    .name = Str
+    .name = Str;
     .age = Nat!
 }
 
