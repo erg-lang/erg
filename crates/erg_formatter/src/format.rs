@@ -4,8 +4,8 @@ use std::io::Write;
 use erg_common::config::ErgConfig;
 use erg_common::traits::{ExitStatus, Runnable, Stream};
 use erg_parser::ast::{
-    Accessor, Args, BinOp, Block, Call, Def, Expr, ExprKind, GetExprKind, Lambda, Literal, Module,
-    Params, Signature, SubrSignature, UnaryOp, VarPattern, VarSignature,
+    Accessor, Args, Array, BinOp, Block, Call, Def, Expr, ExprKind, GetExprKind, Lambda, Literal,
+    Module, NormalArray, Params, Signature, SubrSignature, UnaryOp, VarPattern, VarSignature,
 };
 use erg_parser::error::{ParserRunnerError, ParserRunnerErrors};
 use erg_parser::token::TokenKind;
@@ -13,13 +13,19 @@ use erg_parser::ParserRunner;
 
 use crate::transform::ASTTransformer;
 
+const INDENT: &str = "    ";
+const MAX_LINE_LENGTH: usize = 80;
+
 #[derive(Debug, Default, Clone)]
 pub struct Formatter {
     cfg: ErgConfig,
-    level: usize,
+    block_level: usize,
+    expr_level: usize,
     column: usize,
     outer_precedence: usize,
     previous_expr: ExprKind,
+    use_buffer: bool,
+    buffer: Vec<String>,
     result: String,
 }
 
@@ -78,10 +84,13 @@ impl Formatter {
     pub fn new(cfg: ErgConfig) -> Self {
         Self {
             cfg,
-            level: 0,
+            block_level: 0,
+            expr_level: 0,
             column: 0,
             outer_precedence: 0,
             previous_expr: ExprKind::Expr,
+            use_buffer: false,
+            buffer: Vec::new(),
             result: String::new(),
         }
     }
@@ -106,8 +115,48 @@ impl Formatter {
 
     #[inline]
     fn push(&mut self, s: &str) {
-        self.result.push_str(s);
+        if self.use_buffer {
+            self.buffer.push(s.to_string());
+        } else {
+            self.result.push_str(s);
+        }
         self.column += s.chars().count();
+    }
+
+    fn flush(&mut self) {
+        self.use_buffer = false;
+        if self.expr_level == 0 && self.column >= MAX_LINE_LENGTH {
+            let fst = self.buffer.remove(0);
+            match &fst[..] {
+                "(" | "[" | "{" => {
+                    self.result.push_str(&fst);
+                    self.result.push('\n');
+                }
+                " " => {
+                    self.result.push_str("(\n");
+                }
+                _ => unreachable!(),
+            }
+            for s in self.buffer.drain(..) {
+                if &s == ", " {
+                    self.result.push_str(&s);
+                    self.result.pop();
+                    self.result.push('\n');
+                } else {
+                    self.result.push_str(&INDENT.repeat(self.block_level + 1));
+                    self.result.push_str(&s);
+                }
+            }
+            self.column = 0;
+            if &fst == " " {
+                self.result.push('\n');
+                self.push(")");
+            }
+        } else {
+            for s in self.buffer.drain(..) {
+                self.result.push_str(&s);
+            }
+        }
     }
 
     fn emit_expr(&mut self, expr: Expr) {
@@ -117,8 +166,9 @@ impl Formatter {
             Expr::Call(call) => self.emit_call(call),
             Expr::UnaryOp(unary) => self.emit_unary(unary),
             Expr::BinOp(bin) => self.emit_binop(bin),
-            Expr::Def(def) => self.emit_def(def),
+            Expr::Array(Array::Normal(array)) => self.emit_normal_array(array),
             Expr::Lambda(lambda) => self.emit_lambda(lambda),
+            Expr::Def(def) => self.emit_def(def),
             other => todo!("{other}"),
         }
     }
@@ -138,17 +188,23 @@ impl Formatter {
                 self.push(ident.inspect());
             }
             Accessor::Attr(attr) => {
+                let lev = self.expr_level;
+                self.expr_level += 1;
                 let outer_precedence = self.outer_precedence;
                 self.outer_precedence = TokenKind::Dot.precedence().unwrap();
                 self.emit_expr(*attr.obj);
                 self.push(&attr.ident.to_string());
                 self.outer_precedence = outer_precedence;
+                self.expr_level = lev;
             }
             other => todo!("{other}"),
         }
     }
 
     fn emit_args(&mut self, args: Args) {
+        let lev = self.expr_level;
+        self.expr_level += 1;
+        self.use_buffer = true;
         if args.paren.is_some() {
             self.push("(");
         } else {
@@ -181,6 +237,8 @@ impl Formatter {
         if paren.is_some() {
             self.push(")");
         }
+        self.expr_level = lev;
+        self.flush();
     }
 
     fn emit_call(&mut self, call: Call) {
@@ -195,14 +253,19 @@ impl Formatter {
     }
 
     fn emit_unary(&mut self, unary: UnaryOp) {
+        let lev = self.expr_level;
+        self.expr_level += 1;
         let outer_precedence = self.outer_precedence;
         self.outer_precedence = unary.op.kind.precedence().unwrap();
         self.push(&unary.op.content);
         self.emit_expr(*unary.args.into_iter().next().unwrap());
         self.outer_precedence = outer_precedence;
+        self.expr_level = lev;
     }
 
     fn emit_binop(&mut self, bin: BinOp) {
+        let lev = self.expr_level;
+        self.expr_level += 1;
         if self.outer_precedence > bin.op.kind.precedence().unwrap() {
             self.push("(");
         }
@@ -218,6 +281,24 @@ impl Formatter {
         if self.outer_precedence > bin.op.kind.precedence().unwrap() {
             self.push(")");
         }
+        self.expr_level = lev;
+    }
+
+    fn emit_normal_array(&mut self, array: NormalArray) {
+        let lev = self.expr_level;
+        self.expr_level += 1;
+        self.use_buffer = true;
+        self.push("[");
+        let (pos, ..) = array.elems.deconstruct();
+        for (i, pos) in pos.into_iter().enumerate() {
+            if i > 0 {
+                self.push(", ");
+            }
+            self.emit_expr(pos.expr);
+        }
+        self.expr_level = lev;
+        self.push("]");
+        self.flush();
     }
 
     fn emit_params(&mut self, params: Params) {
@@ -336,21 +417,24 @@ impl Formatter {
     }
 
     fn emit_block(&mut self, block: Block) {
-        let lev = self.level;
+        let block_lev = self.block_level;
         if block.len() == 1 {
             self.push(" ");
         } else {
             self.push("\n");
             self.column = 0;
-            self.level += 1;
+            self.block_level += 1;
         }
+        let expr_lev = self.block_level;
+        self.expr_level = 0;
         for chunk in block.into_iter() {
-            self.push("    ".repeat(self.level).as_str());
+            self.push(INDENT.repeat(self.block_level).as_str());
             self.emit_expr(chunk);
             self.push("\n");
             self.column = 0;
         }
-        self.level = lev;
+        self.block_level = block_lev;
+        self.expr_level = expr_lev;
     }
 
     fn emit_lambda(&mut self, lambda: Lambda) {

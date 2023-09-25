@@ -9,6 +9,9 @@ homepage.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+debug = ["erg_common/debug", "erg_parser/debug"]
+
 [dependencies]
 erg_common = { workspace = true }
 erg_parser = { workspace = true }

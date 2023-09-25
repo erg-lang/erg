@@ -31,7 +31,7 @@ homepage = "https://erg-lang.org/"
 
 [features]
 # when "debug" feature is turned on, that of the following crates will also be turned on.
-debug = ["erg_common/debug", "erg_parser/debug", "erg_compiler/debug"] # "els/debug"
+debug = ["erg_common/debug", "erg_parser/debug", "erg_compiler/debug", "erg_formatter/debug"] # "els/debug"
 backtrace = ["erg_common/backtrace"]
 japanese = [
     "erg_common/japanese",
