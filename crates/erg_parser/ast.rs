@@ -3894,7 +3894,7 @@ impl ParamRecordAttrs {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ParamRecordPattern {
     pub(crate) l_brace: Token,
-    pub(crate) elems: ParamRecordAttrs,
+    pub elems: ParamRecordAttrs,
     pub(crate) r_brace: Token,
 }
 
@@ -5055,7 +5055,6 @@ impl_get_expr_kind!(
     ClassDef,
     PatchDef,
     ReDef,
-    Expr,
 );
 
 impl GetExprKind for Def {
@@ -5065,6 +5064,32 @@ impl GetExprKind for Def {
             ExprKind::SubrDef
         } else {
             ExprKind::VarDef
+        }
+    }
+}
+impl GetExprKind for Expr {
+    const KIND: ExprKind = ExprKind::Expr;
+    fn detailed_expr_kind(&self) -> ExprKind {
+        match self {
+            Expr::Def(def) => def.detailed_expr_kind(),
+            Expr::Literal(_) => ExprKind::Literal,
+            Expr::Accessor(_) => ExprKind::Accessor,
+            Expr::Array(_) => ExprKind::Array,
+            Expr::Tuple(_) => ExprKind::Tuple,
+            Expr::Dict(_) => ExprKind::Dict,
+            Expr::Set(_) => ExprKind::Set,
+            Expr::Record(_) => ExprKind::Record,
+            Expr::BinOp(_) => ExprKind::BinOp,
+            Expr::UnaryOp(_) => ExprKind::UnaryOp,
+            Expr::Call(_) => ExprKind::Call,
+            Expr::DataPack(_) => ExprKind::DataPack,
+            Expr::Lambda(_) => ExprKind::Lambda,
+            Expr::TypeAscription(_) => ExprKind::TypeAscription,
+            Expr::Methods(_) => ExprKind::Methods,
+            Expr::ClassDef(_) => ExprKind::ClassDef,
+            Expr::PatchDef(_) => ExprKind::PatchDef,
+            Expr::ReDef(_) => ExprKind::ReDef,
+            _ => ExprKind::Expr,
         }
     }
 }

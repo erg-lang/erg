@@ -2,10 +2,13 @@ use std::fs::File;
 use std::io::Write;
 
 use erg_common::config::ErgConfig;
+#[allow(unused)]
+use erg_common::log;
 use erg_common::traits::{ExitStatus, Runnable, Stream};
 use erg_parser::ast::{
     Accessor, Args, Array, BinOp, Block, Call, Def, Expr, ExprKind, GetExprKind, Lambda, Literal,
-    Module, NormalArray, Params, Signature, SubrSignature, UnaryOp, VarPattern, VarSignature,
+    Module, NonDefaultParamSignature, NormalArray, ParamPattern, Params, Signature, SubrSignature,
+    UnaryOp, VarPattern, VarSignature,
 };
 use erg_parser::error::{ParserRunnerError, ParserRunnerErrors};
 use erg_parser::token::TokenKind;
@@ -24,8 +27,7 @@ pub struct Formatter {
     column: usize,
     outer_precedence: usize,
     previous_expr: ExprKind,
-    use_buffer: bool,
-    buffer: Vec<String>,
+    buffer: Vec<Vec<String>>,
     result: String,
 }
 
@@ -89,7 +91,6 @@ impl Formatter {
             column: 0,
             outer_precedence: 0,
             previous_expr: ExprKind::Expr,
-            use_buffer: false,
             buffer: Vec::new(),
             result: String::new(),
         }
@@ -113,48 +114,155 @@ impl Formatter {
         std::mem::take(&mut self.result)
     }
 
+    fn new_buffer(&mut self) {
+        self.buffer.push(vec!["".to_string()]);
+    }
+
+    fn current_buffer(&mut self) -> &mut Vec<String> {
+        self.buffer.last_mut().unwrap()
+    }
+
+    fn pop_buffer(&mut self) -> Vec<String> {
+        self.buffer.pop().unwrap()
+    }
+
     #[inline]
     fn push(&mut self, s: &str) {
-        if self.use_buffer {
-            self.buffer.push(s.to_string());
+        if self.buffer.last().is_some() {
+            self.current_buffer().last_mut().unwrap().push_str(s);
         } else {
             self.result.push_str(s);
         }
         self.column += s.chars().count();
     }
 
-    fn flush(&mut self) {
-        self.use_buffer = false;
-        if self.expr_level == 0 && self.column >= MAX_LINE_LENGTH {
-            let fst = self.buffer.remove(0);
-            match &fst[..] {
-                "(" | "[" | "{" => {
-                    self.result.push_str(&fst);
-                    self.result.push('\n');
-                }
-                " " => {
-                    self.result.push_str("(\n");
-                }
-                _ => unreachable!(),
+    fn split(&mut self) {
+        self.current_buffer().push("".to_string());
+    }
+
+    /// last is lambda, no others
+    /// ```erg
+    /// for xs, x ->
+    ///     ...
+    /// ```
+    fn for_style_fold(&mut self) {
+        let l_enc = self.current_buffer().remove(0);
+        match &l_enc[..] {
+            "(" | " " => {
+                self.result.push(' ');
             }
-            for s in self.buffer.drain(..) {
-                if &s == ", " {
-                    self.result.push_str(&s);
-                    self.result.pop();
-                    self.result.push('\n');
-                } else {
-                    self.result.push_str(&INDENT.repeat(self.block_level + 1));
-                    self.result.push_str(&s);
-                }
-            }
-            self.column = 0;
-            if &fst == " " {
-                self.result.push('\n');
-                self.push(")");
-            }
-        } else {
-            for s in self.buffer.drain(..) {
+            _ => unreachable!(),
+        }
+        let last_lambda = self
+            .current_buffer()
+            .iter()
+            .rfind(|&s| s != ", " && s != ")")
+            .unwrap()
+            .clone();
+        for s in self.pop_buffer() {
+            if s == last_lambda {
+                let indented = s.replace("->", "->\n").replace("\n    ", "\n        ");
+                self.result.push_str(&indented);
+            } else if s == ")" {
+                // self.result.push('\n');
+                break;
+            } else {
                 self.result.push_str(&s);
+            }
+        }
+    }
+
+    /// last is lambda, others exist
+    /// ```erg
+    /// match x:
+    ///     x -> ...
+    ///     y -> ...
+    /// ```
+    fn match_style_fold(&mut self) {
+        let l_enc = self.current_buffer().remove(0);
+        match &l_enc[..] {
+            "(" | " " => {
+                self.result.push(' ');
+            }
+            _ => unreachable!(),
+        }
+        let fst = self.current_buffer().remove(0);
+        self.result.push_str(&fst);
+        self.result.push_str(":\n");
+        for s in self.pop_buffer() {
+            if s == ")" {
+                self.result.push('\n');
+                break;
+            } else if s.trim().is_empty() || s == ", " {
+                continue;
+            } else {
+                self.result.push_str(&INDENT.repeat(self.block_level + 1));
+                let indented = s.replace("\n    ", "\n        ");
+                self.result.push_str(&indented);
+            }
+            if !s.ends_with('\n') {
+                self.result.push('\n');
+            }
+        }
+    }
+
+    fn normal_style_fold(&mut self) {
+        let fst = self.current_buffer().remove(0);
+        match &fst[..] {
+            "(" | "[" | "{" => {
+                self.result.push_str(&fst);
+                self.result.push('\n');
+            }
+            " " => {
+                self.result.push_str("(\n");
+            }
+            _ => unreachable!(),
+        }
+        for s in self.pop_buffer() {
+            if s.trim().is_empty() {
+                continue;
+            } else if &s == ", " {
+                self.result.push_str(&s);
+                self.result.pop();
+                self.result.push('\n');
+            } else {
+                self.result.push_str(&INDENT.repeat(self.block_level + 1));
+                self.result.push_str(&s);
+            }
+        }
+        self.column = 0;
+        if &fst == " " {
+            self.result.push('\n');
+            self.push(")");
+        }
+    }
+
+    fn fold(&mut self, last_is_lambda: bool, has_lambdas: bool) {
+        match (last_is_lambda, has_lambdas) {
+            (true, true) => self.match_style_fold(),
+            (true, false) => self.for_style_fold(),
+            _ => self.normal_style_fold(),
+        }
+    }
+
+    fn flush(&mut self, arg_kinds: Option<Vec<ExprKind>>) {
+        let last_is_lambda = arg_kinds
+            .as_ref()
+            .is_some_and(|kinds| kinds.last().is_some_and(|last| last == &ExprKind::Lambda));
+        let has_lambdas = arg_kinds.as_ref().is_some_and(|kinds| {
+            kinds
+                .iter()
+                .filter(|&kind| kind == &ExprKind::Lambda)
+                .count()
+                >= 2
+        });
+        if self.expr_level == 0 && self.column >= MAX_LINE_LENGTH {
+            self.fold(last_is_lambda, has_lambdas);
+        } else if self.expr_level == 0 && has_lambdas {
+            self.match_style_fold();
+        } else {
+            for s in self.pop_buffer() {
+                self.push(&s);
             }
         }
     }
@@ -176,7 +284,7 @@ impl Formatter {
     fn emit_literal(&mut self, lit: Literal) {
         let s = lit.to_string();
         self.column += s.chars().count();
-        self.result.push_str(&s);
+        self.push(&s);
     }
 
     fn emit_acc(&mut self, acc: Accessor) {
@@ -204,41 +312,53 @@ impl Formatter {
     fn emit_args(&mut self, args: Args) {
         let lev = self.expr_level;
         self.expr_level += 1;
-        self.use_buffer = true;
+        self.new_buffer();
         if args.paren.is_some() {
             self.push("(");
         } else {
             self.push(" ");
         }
+        self.split();
         let (pos, var, kw, paren) = args.deconstruct();
         let has_pos = !pos.is_empty();
         let has_var = var.is_some();
+        let mut kinds = vec![];
         for (i, pos) in pos.into_iter().enumerate() {
+            kinds.push(pos.expr.detailed_expr_kind());
             if i > 0 {
                 self.push(", ");
+                self.split();
             }
             self.emit_expr(pos.expr);
+            self.split();
         }
         if let Some(var) = var {
+            kinds.push(var.expr.detailed_expr_kind());
             if has_pos {
                 self.push(", ");
+                self.split();
             }
             self.push("*");
             self.emit_expr(var.expr);
+            self.split();
         }
         for (i, kw) in kw.into_iter().enumerate() {
+            kinds.push(kw.expr.detailed_expr_kind());
             if i > 0 || has_pos || has_var {
                 self.push(", ");
+                self.split();
             }
             self.push(&kw.keyword.content);
             self.push(":=");
             self.emit_expr(kw.expr);
+            self.split();
         }
         if paren.is_some() {
             self.push(")");
+            self.split();
         }
         self.expr_level = lev;
-        self.flush();
+        self.flush(Some(kinds));
     }
 
     fn emit_call(&mut self, call: Call) {
@@ -287,45 +407,92 @@ impl Formatter {
     fn emit_normal_array(&mut self, array: NormalArray) {
         let lev = self.expr_level;
         self.expr_level += 1;
-        self.use_buffer = true;
+        self.new_buffer();
         self.push("[");
+        self.split();
         let (pos, ..) = array.elems.deconstruct();
         for (i, pos) in pos.into_iter().enumerate() {
             if i > 0 {
                 self.push(", ");
+                self.split();
             }
             self.emit_expr(pos.expr);
+            self.split();
         }
         self.expr_level = lev;
         self.push("]");
-        self.flush();
+        self.split();
+        self.flush(None);
+    }
+
+    fn emit_nd_param(&mut self, param: NonDefaultParamSignature) {
+        self.emit_param_pat(param.pat);
+        if let Some(t_spec) = param.t_spec {
+            self.push(": ");
+            self.push(&t_spec.t_spec.to_string());
+        }
+    }
+
+    fn emit_param_pat(&mut self, pat: ParamPattern) {
+        match pat {
+            ParamPattern::VarName(ident) => {
+                self.push(ident.inspect());
+            }
+            ParamPattern::Discard(_) => self.push("_"),
+            ParamPattern::Array(array) => {
+                self.push("[");
+                self.emit_params(array.elems);
+                self.push("]");
+            }
+            ParamPattern::Tuple(tuple) => {
+                self.emit_params(tuple.elems);
+            }
+            ParamPattern::Record(record) => {
+                self.push("{");
+                for (i, attr) in record.elems.into_iter().enumerate() {
+                    if i > 0 {
+                        self.push("; ");
+                    }
+                    if attr.lhs.vis.is_public() {
+                        self.push(".");
+                    }
+                    self.push(attr.lhs.inspect());
+                    self.push(" = ");
+                    self.emit_nd_param(attr.rhs);
+                }
+                self.push("}");
+            }
+            other => todo!("{other}"),
+        }
     }
 
     fn emit_params(&mut self, params: Params) {
         if params.parens.is_some() {
             self.push("(");
         } else {
-            self.push(" ");
+            // self.push(" ");
         }
         let has_non_defaults = !params.non_defaults.is_empty();
         for (i, nd) in params.non_defaults.into_iter().enumerate() {
             if i > 0 {
                 self.push(", ");
             }
-            self.push(&nd.to_string());
+            self.emit_nd_param(nd);
         }
         let has_var_params = params.var_params.is_some();
         if let Some(rest) = params.var_params {
             if has_non_defaults {
                 self.push(", ");
             }
-            self.push(&rest.to_string());
+            self.emit_nd_param(*rest);
         }
         for (i, default) in params.defaults.into_iter().enumerate() {
             if i > 0 || has_non_defaults || has_var_params {
                 self.push(", ");
             }
-            self.push(&default.to_string());
+            self.emit_nd_param(default.sig);
+            self.push(" := ");
+            self.emit_expr(default.default_val);
         }
         if params.parens.is_some() {
             self.push(")");
@@ -396,7 +563,7 @@ impl Formatter {
 
     fn emit_subr_sig(&mut self, subr: SubrSignature) {
         for deco in subr.decorators {
-            self.result.push('@');
+            self.push("@");
             let s = deco.0.to_string();
             self.push(&s);
             self.push("\n");
@@ -406,6 +573,9 @@ impl Formatter {
             self.push(".");
         }
         self.push(subr.ident.inspect());
+        if subr.params.parens.is_none() {
+            self.push(" ");
+        }
         self.emit_params(subr.params);
     }
 
@@ -418,28 +588,39 @@ impl Formatter {
 
     fn emit_block(&mut self, block: Block) {
         let block_lev = self.block_level;
-        if block.len() == 1 {
+        let single_block = block.len() == 1;
+        if single_block {
             self.push(" ");
         } else {
             self.push("\n");
             self.column = 0;
             self.block_level += 1;
         }
-        let expr_lev = self.block_level;
+        let expr_lev = self.expr_level;
         self.expr_level = 0;
         for chunk in block.into_iter() {
-            self.push(INDENT.repeat(self.block_level).as_str());
+            if !single_block {
+                self.push(INDENT.repeat(self.block_level).as_str());
+            }
             self.emit_expr(chunk);
-            self.push("\n");
-            self.column = 0;
+            if !single_block {
+                self.push("\n");
+                self.column = 0;
+            }
         }
         self.block_level = block_lev;
         self.expr_level = expr_lev;
     }
 
-    fn emit_lambda(&mut self, lambda: Lambda) {
+    fn emit_lambda(&mut self, mut lambda: Lambda) {
+        let op_is_do = &lambda.op.content == "do" || &lambda.op.content == "do!";
+        if op_is_do {
+            lambda.sig.params.parens = None;
+        }
         self.emit_params(lambda.sig.params);
-        self.push(" ");
+        if !op_is_do {
+            self.push(" ");
+        }
         self.push(lambda.op.inspect());
         self.emit_block(lambda.body);
     }
