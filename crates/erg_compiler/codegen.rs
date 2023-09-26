@@ -4,9 +4,6 @@
 use std::fmt;
 use std::process;
 
-use crate::hir::Set;
-use crate::ty::codeobj::{CodeObj, CodeObjFlags, MakeFunctionFlags};
-use crate::ty::value::GenTypeObj;
 use erg_common::cache::CacheSet;
 use erg_common::config::ErgConfig;
 use erg_common::env::erg_std_path;
@@ -42,7 +39,8 @@ use crate::hir::{
     Literal, NonDefaultParamSignature, Params, PatchDef, PosArg, ReDef, Record, Signature,
     SubrSignature, Tuple, UnaryOp, VarSignature, HIR,
 };
-use crate::ty::value::ValueObj;
+use crate::ty::codeobj::{CodeObj, CodeObjFlags, MakeFunctionFlags};
+use crate::ty::value::{GenTypeObj, ValueObj};
 use crate::ty::{HasType, Type, TypeCode, TypePair, VisibilityModifier};
 use crate::varinfo::VarInfo;
 use AccessKind::*;
@@ -2121,40 +2119,6 @@ impl PyCodeGenerator {
         let mut pop_jump_point = None;
         // If it's the last arm, there's no need to inspect it
         match param.t_spec_as_expr {
-            // _: {0, 1} => case 0 | 1
-            Some(Expr::Set(Set::Normal(set))) if !is_last_arm => {
-                let last = set.elems.pos_args.len().saturating_sub(1);
-                for (i, elem) in set.elems.pos_args.into_iter().enumerate() {
-                    if i != 0 {
-                        self.rot2();
-                    }
-                    self.emit_expr(elem.expr);
-                    self.emit_binop_instr(
-                        Token::from_str(TokenKind::DblEq, "=="),
-                        TypePair::Others,
-                    );
-                    if i != 0 {
-                        self.stack_inc();
-                        self.emit_binop_instr(
-                            Token::from_str(TokenKind::OrOp, "or"),
-                            TypePair::Others,
-                        );
-                    }
-                    if i == last {
-                        pop_jump_point = Some(self.lasti());
-                        // HACK: match branches often jump very far (beyond the u8 range),
-                        // so the jump destination should be reserved as the u16 range.
-                        // Other jump instructions may need to be replaced by this way.
-                        self.write_instr(EXTENDED_ARG);
-                        self.write_arg(0);
-                        // in 3.11, POP_JUMP_IF_FALSE is replaced with POP_JUMP_FORWARD_IF_FALSE
-                        // but the numbers are the same, only the way the jumping points are calculated is different.
-                        self.write_instr(Opcode310::POP_JUMP_IF_FALSE); // jump to the next case
-                        self.write_arg(0);
-                    }
-                }
-                // self.stack_dec();
-            }
             Some(t_spec) if !is_last_arm => {
                 // < v3.11:
                 // arg
