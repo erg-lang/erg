@@ -112,12 +112,7 @@ impl ASTLowerer {
             None
         };
         let sig = hir::VarSignature::new(ident, t_spec);
-        let body = hir::DefBody::new(
-            body.op,
-            hir::Block::empty(),
-            hir::Block::new(vec![chunk]),
-            body.id,
-        );
+        let body = hir::DefBody::new(body.op, hir::Block::new(vec![chunk]), body.id);
         Ok(hir::Def::new(hir::Signature::Var(sig), body))
     }
 
@@ -360,9 +355,8 @@ impl ASTLowerer {
 
     fn fake_lower_def(&self, def: ast::Def) -> LowerResult<hir::Def> {
         let sig = self.fake_lower_signature(def.sig)?;
-        let pre_block = self.fake_lower_block(def.body.pre_block)?;
         let block = self.fake_lower_block(def.body.block)?;
-        let body = hir::DefBody::new(def.body.op, pre_block, block, def.body.id);
+        let body = hir::DefBody::new(def.body.op, block, def.body.id);
         Ok(hir::Def::new(sig, body))
     }
 
@@ -493,7 +487,12 @@ impl ASTLowerer {
         }
         let mut guards = vec![];
         for guard in guards_.into_iter() {
-            let guard = self.fake_lower_expr(guard)?;
+            let guard = match guard {
+                ast::GuardClause::Condition(cond) => {
+                    hir::GuardClause::Condition(self.fake_lower_expr(cond)?)
+                }
+                ast::GuardClause::Bind(bind) => hir::GuardClause::Bind(self.fake_lower_def(bind)?),
+            };
             guards.push(guard);
         }
         Ok(hir::Params::new(
@@ -516,13 +515,11 @@ impl ASTLowerer {
 
     fn fake_lower_lambda(&self, lambda: ast::Lambda) -> LowerResult<hir::Lambda> {
         let params = self.fake_lower_params(lambda.sig.params)?;
-        let pre_block = self.fake_lower_block(lambda.pre_block)?;
         let body = self.fake_lower_block(lambda.body)?;
         Ok(hir::Lambda::new(
             lambda.id.0,
             params,
             lambda.op,
-            pre_block,
             body,
             Type::Failure,
         ))
@@ -548,6 +545,15 @@ impl ASTLowerer {
         Ok(hir::TypeAscription::new(expr, spec))
     }
 
+    fn fake_lower_compound(&self, compound: ast::Compound) -> LowerResult<hir::Block> {
+        let mut chunks = vec![];
+        for chunk in compound.into_iter() {
+            let chunk = self.fake_lower_expr(chunk)?;
+            chunks.push(chunk);
+        }
+        Ok(hir::Block::new(chunks))
+    }
+
     pub(crate) fn fake_lower_expr(&self, expr: ast::Expr) -> LowerResult<hir::Expr> {
         match expr {
             ast::Expr::Literal(lit) => Ok(hir::Expr::Literal(self.fake_lower_literal(lit)?)),
@@ -562,6 +568,9 @@ impl ASTLowerer {
             ast::Expr::Accessor(acc) => Ok(hir::Expr::Accessor(self.fake_lower_acc(acc)?)),
             ast::Expr::Call(call) => Ok(hir::Expr::Call(self.fake_lower_call(call)?)),
             ast::Expr::Lambda(lambda) => Ok(hir::Expr::Lambda(self.fake_lower_lambda(lambda)?)),
+            ast::Expr::Compound(compound) => {
+                Ok(hir::Expr::Compound(self.fake_lower_compound(compound)?))
+            }
             ast::Expr::Dummy(dummy) => Ok(hir::Expr::Dummy(self.fake_lower_dummy(dummy)?)),
             ast::Expr::TypeAscription(tasc) => {
                 Ok(hir::Expr::TypeAsc(self.fake_lower_type_asc(tasc)?))

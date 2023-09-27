@@ -201,7 +201,7 @@ impl Parser {
 
     fn validate_const_def(def: Def) -> Result<ConstDef, ParseError> {
         let block = Self::validate_const_block(def.body.block)?;
-        let body = ConstDefBody::new(def.body.op, ConstBlock::empty(), block, def.body.id);
+        let body = ConstDefBody::new(def.body.op, block, def.body.id);
         Ok(ConstDef::new(def.sig.ident().unwrap().clone(), body))
     }
 

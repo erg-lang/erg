@@ -413,7 +413,7 @@ impl<'a> HIRLinker<'a> {
             let block = Block::new(vec![module_type.call_expr(args)]);
             let mod_def = Expr::Def(Def::new(
                 Signature::Var(VarSignature::global(tmp, None)),
-                DefBody::new(EQUAL, Block::empty(), block, DefId(0)),
+                DefBody::new(EQUAL, block, DefId(0)),
             ));
             self.removed_mods
                 .borrow_mut()

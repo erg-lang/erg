@@ -23,6 +23,11 @@ b = match { .x = [1, 2]; }:
     { x; y; } -> 200 + x + y
     { x = [1, y]; } -> y
 assert b == 2
+c = match [[1, 2], [3, 4]]:
+    [x, [3, 5]] -> x + 100
+    [x, y, z] => 200 + x + y + z
+    [[1, x], [3, y]] -> x + y
+assert c == 6
 
 #[
 and: [Bool; 2] -> Bool

@@ -13,14 +13,14 @@ use erg_common::{enum_unwrap, get_hash, log, set};
 
 use crate::ast::{
     Accessor, Args, Array, ArrayComprehension, ArrayTypeSpec, ArrayWithLength, BinOp, Block, Call,
-    ClassAttr, ClassAttrs, ClassDef, ConstExpr, DataPack, Def, DefBody, DefId,
-    DefaultParamSignature, Dict, Dummy, Expr, Identifier, KeyValue, KwArg, Lambda, LambdaSignature,
-    Literal, Methods, MixedRecord, Module, NonDefaultParamSignature, NormalArray, NormalDict,
-    NormalRecord, NormalSet, NormalTuple, ParamPattern, ParamRecordAttr, ParamTuplePattern, Params,
-    PatchDef, PosArg, ReDef, Record, RecordAttrOrIdent, RecordAttrs, RecordTypeSpec, Set as astSet,
-    SetComprehension, SetWithLength, Signature, SubrSignature, Tuple, TupleTypeSpec, TypeAppArgs,
-    TypeAppArgsKind, TypeBoundSpecs, TypeSpec, TypeSpecWithOp, UnaryOp, VarName, VarPattern,
-    VarRecordAttr, VarSignature, VisModifierSpec,
+    ClassAttr, ClassAttrs, ClassDef, Compound, ConstExpr, DataPack, Def, DefBody, DefId,
+    DefaultParamSignature, Dict, Dummy, Expr, GuardClause, Identifier, KeyValue, KwArg, Lambda,
+    LambdaSignature, Literal, Methods, MixedRecord, Module, NonDefaultParamSignature, NormalArray,
+    NormalDict, NormalRecord, NormalSet, NormalTuple, ParamPattern, ParamRecordAttr,
+    ParamTuplePattern, Params, PatchDef, PosArg, ReDef, Record, RecordAttrOrIdent, RecordAttrs,
+    RecordTypeSpec, Set as astSet, SetComprehension, SetWithLength, Signature, SubrSignature,
+    Tuple, TupleTypeSpec, TypeAppArgs, TypeAppArgsKind, TypeBoundSpecs, TypeSpec, TypeSpecWithOp,
+    UnaryOp, VarName, VarPattern, VarRecordAttr, VarSignature, VisModifierSpec,
 };
 use crate::token::{Token, TokenKind, COLON, DOT};
 
@@ -296,10 +296,6 @@ impl Desugarer {
                 Expr::Call(Call::new(obj, call.attr_name, args))
             }
             Expr::Def(mut def) => {
-                let mut pre_chunks = vec![];
-                for chunk in def.body.pre_block.into_iter() {
-                    pre_chunks.push(desugar(chunk));
-                }
                 let mut chunks = vec![];
                 for chunk in def.body.block.into_iter() {
                     chunks.push(desugar(chunk));
@@ -311,12 +307,7 @@ impl Desugarer {
                     subr.params = Self::perform_desugar_params(desugar, subr.params);
                     def.sig = Signature::Subr(subr);
                 }
-                let body = DefBody::with_pre_block(
-                    def.body.op,
-                    Block::new(pre_chunks),
-                    Block::new(chunks),
-                    def.body.id,
-                );
+                let body = DefBody::new(def.body.op, Block::new(chunks), def.body.id);
                 Expr::Def(Def::new(def.sig, body))
             }
             Expr::ClassDef(class_def) => {
@@ -347,10 +338,6 @@ impl Desugarer {
                 Expr::ReDef(ReDef::new(attr, expr))
             }
             Expr::Lambda(mut lambda) => {
-                let mut pre_chunks = vec![];
-                for chunk in lambda.pre_block.into_iter() {
-                    pre_chunks.push(desugar(chunk));
-                }
                 let mut chunks = vec![];
                 for chunk in lambda.body.into_iter() {
                     chunks.push(desugar(chunk));
@@ -359,11 +346,8 @@ impl Desugarer {
                     *t_op.t_spec_as_expr = desugar(*t_op.t_spec_as_expr.clone());
                 }
                 lambda.sig.params = Self::perform_desugar_params(desugar, lambda.sig.params);
-                let pre_block = Block::new(pre_chunks);
                 let body = Block::new(chunks);
-                Expr::Lambda(Lambda::with_pre_block(
-                    lambda.sig, lambda.op, pre_block, body, lambda.id,
-                ))
+                Expr::Lambda(Lambda::new(lambda.sig, lambda.op, body, lambda.id))
             }
             Expr::TypeAscription(tasc) => {
                 let expr = desugar(*tasc.expr);
@@ -377,20 +361,11 @@ impl Desugarer {
                 for attr in method_defs.attrs.into_iter() {
                     match attr {
                         ClassAttr::Def(def) => {
-                            let mut pre_chunks = vec![];
-                            for chunk in def.body.pre_block.into_iter() {
-                                pre_chunks.push(desugar(chunk));
-                            }
                             let mut chunks = vec![];
                             for chunk in def.body.block.into_iter() {
                                 chunks.push(desugar(chunk));
                             }
-                            let body = DefBody::with_pre_block(
-                                def.body.op,
-                                Block::new(pre_chunks),
-                                Block::new(chunks),
-                                def.body.id,
-                            );
+                            let body = DefBody::new(def.body.op, Block::new(chunks), def.body.id);
                             new_attrs.push(ClassAttr::Def(Def::new(def.sig, body)));
                         }
                         ClassAttr::Decl(decl) => {
@@ -417,6 +392,13 @@ impl Desugarer {
                 ))
             }
             Expr::Accessor(acc) => Expr::Accessor(Self::perform_desugar_acc(desugar, acc)),
+            Expr::Compound(exprs) => {
+                let mut chunks = vec![];
+                for chunk in exprs.into_iter() {
+                    chunks.push(desugar(chunk));
+                }
+                Expr::Compound(Compound::new(chunks))
+            }
             Expr::Dummy(exprs) => {
                 let loc = exprs.loc;
                 let mut chunks = vec![];
@@ -455,7 +437,15 @@ impl Desugarer {
         }
         let mut guards = vec![];
         for guard in params.guards.into_iter() {
-            guards.push(desugar(guard));
+            let guard = match guard {
+                GuardClause::Condition(cond) => GuardClause::Condition(desugar(cond)),
+                GuardClause::Bind(bind) => {
+                    let bind = Expr::Def(bind);
+                    let bind = enum_unwrap!(desugar(bind), Expr::Def);
+                    GuardClause::Bind(bind)
+                }
+            };
+            guards.push(guard);
         }
         params.non_defaults = non_defaults;
         params.defaults = defaults;
@@ -587,8 +577,7 @@ impl Desugarer {
             Params::single(NonDefaultParamSignature::new(pat, None))
         };
         let sig = LambdaSignature::new(params, return_t_spec.clone(), sig.bounds);
-        let body = def.body.pre_block.concat(def.body.block);
-        let new_branch = Lambda::new(sig, op, body, def.body.id);
+        let new_branch = Lambda::new(sig, op, def.body.block, def.body.id);
         call.args.push_pos(PosArg::new(Expr::Lambda(new_branch)));
         (call, return_t_spec)
     }
@@ -608,8 +597,7 @@ impl Desugarer {
         };
         let match_symbol = Expr::static_local("match");
         let sig = LambdaSignature::new(params, prev_sig.return_t_spec, prev_sig.bounds);
-        let body = previous.body.pre_block.concat(previous.body.block);
-        let first_branch = Lambda::new(sig, op.clone(), body, previous.body.id);
+        let first_branch = Lambda::new(sig, op.clone(), previous.body.block, previous.body.id);
         let Signature::Subr(sig) = def.sig else {
             unreachable!()
         };
@@ -621,8 +609,7 @@ impl Desugarer {
         };
         let return_t_spec = sig.return_t_spec;
         let sig = LambdaSignature::new(params, return_t_spec.clone(), sig.bounds);
-        let body = def.body.pre_block.concat(def.body.block);
-        let second_branch = Lambda::new(sig, op, body, def.body.id);
+        let second_branch = Lambda::new(sig, op, def.body.block, def.body.id);
         let first_arg = if params_len == 1 {
             Expr::dummy_local(&self.var_gen.fresh_varname())
         } else {
@@ -672,8 +659,7 @@ impl Desugarer {
     fn rec_desugar_lambda_pattern(&mut self, expr: Expr) -> Expr {
         match expr {
             Expr::Lambda(mut lambda) => {
-                self.desugar_params_patterns(&mut lambda.sig.params, &mut lambda.pre_block);
-                lambda.pre_block = self.desugar_pattern_in_block(lambda.pre_block);
+                self.desugar_params_patterns(&mut lambda.sig.params);
                 lambda.body = self.desugar_pattern_in_block(lambda.body);
                 Expr::Lambda(lambda)
             }
@@ -693,19 +679,13 @@ impl Desugarer {
     }
 
     fn desugar_pattern_in_body(&mut self, body: DefBody) -> DefBody {
-        let pre_block = body
-            .pre_block
-            .into_iter()
-            .map(|ex| self.rec_desugar_lambda_pattern(ex))
-            .collect();
         let block = body
             .block
             .into_iter()
             .map(|ex| self.rec_desugar_lambda_pattern(ex))
             .collect();
-        let pre_block = self.desugar_pattern_in_block(pre_block);
         let block = self.desugar_pattern_in_block(block);
-        DefBody::with_pre_block(body.op, pre_block, block, body.id)
+        DefBody::new(body.op, block, body.id)
     }
 
     fn desugar_def_pattern(&mut self, def: Def, new: &mut Vec<Expr>) {
@@ -766,10 +746,10 @@ impl Desugarer {
             },
             Def {
                 sig: Signature::Subr(mut subr),
-                mut body,
+                body,
             } => {
                 subr.ident = Self::desugar_ident(subr.ident);
-                self.desugar_params_patterns(&mut subr.params, &mut body.pre_block);
+                self.desugar_params_patterns(&mut subr.params);
                 let body = self.desugar_pattern_in_body(body);
                 let def = Def::new(Signature::Subr(subr), body);
                 new.push(Expr::Def(def));
@@ -831,16 +811,16 @@ impl Desugarer {
         new
     }
 
-    fn desugar_params_patterns(&mut self, params: &mut Params, pre_block: &mut Block) {
+    fn desugar_params_patterns(&mut self, params: &mut Params) {
         let mut guards = vec![];
         for param in params.non_defaults.iter_mut() {
-            guards.extend(self.desugar_nd_param(param, pre_block));
+            guards.extend(self.desugar_nd_param(param));
         }
         if let Some(var_params) = params.var_params.as_mut() {
-            guards.extend(self.desugar_nd_param(var_params, pre_block));
+            guards.extend(self.desugar_nd_param(var_params));
         }
         for param in params.defaults.iter_mut() {
-            guards.extend(self.desugar_nd_param(&mut param.sig, pre_block));
+            guards.extend(self.desugar_nd_param(&mut param.sig));
         }
         params.extend_guards(guards);
     }
@@ -1031,7 +1011,7 @@ impl Desugarer {
         Expr::from(NormalSet::new(l_brace, r_brace, args))
     }
 
-    fn len_guard(param_name: Str, n: usize, loc: &impl Locational) -> Expr {
+    fn len_guard(param_name: Str, n: usize, loc: &impl Locational) -> GuardClause {
         let name = VarName::new(Token::new_fake(
             TokenKind::Symbol,
             param_name.clone(),
@@ -1041,19 +1021,19 @@ impl Desugarer {
         ));
         let eq = Token::from_str(TokenKind::DblEq, "==");
         let len = Literal::nat(n, loc.ln_begin().unwrap_or(0));
-        Expr::from(
+        let bin = Expr::from(
             Identifier::private("len".into())
                 .call1(Expr::from(Identifier::private_from_varname(name))),
         )
-        .bin_op(eq, len.into())
-        .into()
+        .bin_op(eq, len.into());
+        GuardClause::Condition(bin.into())
     }
 
     fn hasattr_guard<'i>(
         param_name: Str,
         mut keys: impl Iterator<Item = &'i Identifier>,
         loc: &impl Locational,
-    ) -> Option<Expr> {
+    ) -> Option<GuardClause> {
         let name = VarName::new(Token::new_fake(
             TokenKind::Symbol,
             param_name.clone(),
@@ -1079,10 +1059,10 @@ impl Desugarer {
             acc.bin_op(Token::from_str(TokenKind::AndOp, "and"), hasattr.into())
                 .into()
         });
-        Some(res)
+        Some(GuardClause::Condition(res))
     }
 
-    fn type_guard(param_name: Str, class: &Expr, loc: &impl Locational) -> Option<Expr> {
+    fn type_guard(param_name: Str, class: &Expr, loc: &impl Locational) -> Option<GuardClause> {
         let name = VarName::new(Token::new_fake(
             TokenKind::Symbol,
             param_name.clone(),
@@ -1094,7 +1074,7 @@ impl Desugarer {
             Token::dummy(TokenKind::ContainsOp, "contains"),
             Identifier::private_from_varname(name).into(),
         );
-        Some(in_op.into())
+        Some(GuardClause::Condition(in_op.into()))
     }
 
     /// ```erg
@@ -1129,11 +1109,7 @@ impl Desugarer {
     /// ```erg
     /// f _: {1}, _: {2} = ...
     /// ```
-    fn desugar_nd_param(
-        &mut self,
-        param: &mut NonDefaultParamSignature,
-        pre_block: &mut Block,
-    ) -> Vec<Expr> {
+    fn desugar_nd_param(&mut self, param: &mut NonDefaultParamSignature) -> Vec<GuardClause> {
         let mut guards = vec![];
         let line = param.ln_begin().unwrap_or(1);
         match &mut param.pat {
@@ -1159,7 +1135,7 @@ impl Desugarer {
                 let eq = Token::from_str(TokenKind::DblEq, "==");
                 let guard = Expr::from(Identifier::private_from_varname(name.clone()))
                     .bin_op(eq, Expr::from(lit.clone()));
-                guards.push(guard.into());
+                guards.push(GuardClause::Condition(guard.into()));
                 param.pat = ParamPattern::VarName(name);
                 let l_brace = Token {
                     content: "{".into(),
@@ -1184,12 +1160,7 @@ impl Desugarer {
                 let mut ty_exprs = vec![];
                 guards.push(Self::len_guard(buf_name.clone(), tup.elems.len(), tup));
                 for (n, elem) in tup.elems.non_defaults.iter_mut().enumerate() {
-                    let gs = self.desugar_nested_param_pattern(
-                        pre_block,
-                        elem,
-                        &buf_name,
-                        BufIndex::Tuple(n),
-                    );
+                    let gs = self.desugar_nested_param_pattern(elem, &buf_name, BufIndex::Tuple(n));
                     guards.extend(gs);
                     let infer = Token::new_fake(TokenKind::Try, "?", line, 0, 0);
                     let ty_expr = elem
@@ -1245,12 +1216,7 @@ impl Desugarer {
                 let (buf_name, buf_param) = self.gen_buf_nd_param(arr.loc());
                 guards.push(Self::len_guard(buf_name.clone(), arr.elems.len(), arr));
                 for (n, elem) in arr.elems.non_defaults.iter_mut().enumerate() {
-                    let gs = self.desugar_nested_param_pattern(
-                        pre_block,
-                        elem,
-                        &buf_name,
-                        BufIndex::Array(n),
-                    );
+                    let gs = self.desugar_nested_param_pattern(elem, &buf_name, BufIndex::Array(n));
                     guards.extend(gs);
                 }
                 if param.t_spec.is_none() {
@@ -1292,12 +1258,8 @@ impl Desugarer {
                 let (buf_name, buf_param) = self.gen_buf_nd_param(rec.loc());
                 guards.extend(Self::hasattr_guard(buf_name.clone(), rec.elems.keys(), rec));
                 for ParamRecordAttr { lhs, rhs } in rec.elems.iter_mut() {
-                    let gs = self.desugar_nested_param_pattern(
-                        pre_block,
-                        rhs,
-                        &buf_name,
-                        BufIndex::Record(lhs),
-                    );
+                    let gs =
+                        self.desugar_nested_param_pattern(rhs, &buf_name, BufIndex::Record(lhs));
                     guards.extend(gs);
                 }
                 if param.t_spec.is_none() {
@@ -1367,11 +1329,10 @@ impl Desugarer {
 
     fn desugar_nested_param_pattern(
         &mut self,
-        pre_block: &mut Block,
         sig: &mut NonDefaultParamSignature,
         buf_name: &str,
         buf_index: BufIndex,
-    ) -> Vec<Expr> {
+    ) -> Vec<GuardClause> {
         let mut guards = vec![];
         let obj = Expr::local(
             buf_name,
@@ -1407,23 +1368,19 @@ impl Desugarer {
             ParamPattern::Tuple(tup) => {
                 let (buf_name, buf_sig) = self.gen_buf_nd_param(tup.loc());
                 let ident = Identifier::private(Str::from(&buf_name));
-                pre_block.push(Expr::Def(Def::new(
+                let def = Def::new(
                     Signature::Var(VarSignature::new(
                         VarPattern::Ident(ident),
                         sig.t_spec.clone(),
                     )),
                     body,
-                )));
+                );
+                guards.push(GuardClause::Bind(def));
                 guards.push(Self::len_guard(buf_name.clone(), tup.elems.len(), tup));
                 let mut ty_exprs = vec![];
                 let mut tys = vec![];
                 for (n, elem) in tup.elems.non_defaults.iter_mut().enumerate() {
-                    let gs = self.desugar_nested_param_pattern(
-                        pre_block,
-                        elem,
-                        &buf_name,
-                        BufIndex::Tuple(n),
-                    );
+                    let gs = self.desugar_nested_param_pattern(elem, &buf_name, BufIndex::Tuple(n));
                     guards.extend(gs);
                     let infer = Token::new_fake(TokenKind::Try, "?", line, 0, 0);
                     let ty_expr = elem
@@ -1458,21 +1415,17 @@ impl Desugarer {
             }
             ParamPattern::Array(arr) => {
                 let (buf_name, buf_sig) = self.gen_buf_nd_param(arr.loc());
-                pre_block.push(Expr::Def(Def::new(
+                let def = Def::new(
                     Signature::Var(VarSignature::new(
                         VarPattern::Ident(Identifier::private(Str::from(&buf_name))),
                         sig.t_spec.clone(),
                     )),
                     body,
-                )));
+                );
+                guards.push(GuardClause::Bind(def));
                 guards.push(Self::len_guard(buf_name.clone(), arr.elems.len(), arr));
                 for (n, elem) in arr.elems.non_defaults.iter_mut().enumerate() {
-                    let gs = self.desugar_nested_param_pattern(
-                        pre_block,
-                        elem,
-                        &buf_name,
-                        BufIndex::Array(n),
-                    );
+                    let gs = self.desugar_nested_param_pattern(elem, &buf_name, BufIndex::Array(n));
                     guards.extend(gs);
                 }
                 if sig.t_spec.is_none() {
@@ -1502,13 +1455,14 @@ impl Desugarer {
             }
             ParamPattern::Record(rec) => {
                 let (buf_name, buf_sig) = self.gen_buf_nd_param(rec.loc());
-                pre_block.push(Expr::Def(Def::new(
+                let def = Def::new(
                     Signature::Var(VarSignature::new(
                         VarPattern::Ident(Identifier::private(Str::from(&buf_name))),
                         sig.t_spec.clone(),
                     )),
                     body,
-                )));
+                );
+                guards.push(GuardClause::Bind(def));
                 guards.extend(Self::hasattr_guard(buf_name.clone(), rec.elems.keys(), rec));
                 let mut attrs = RecordAttrs::new(vec![]);
                 let mut tys = vec![];
@@ -1517,12 +1471,8 @@ impl Desugarer {
                         vis: VisModifierSpec::Public(Token::DUMMY),
                         ..lhs.clone()
                     };
-                    let gs = self.desugar_nested_param_pattern(
-                        pre_block,
-                        rhs,
-                        &buf_name,
-                        BufIndex::Record(&lhs),
-                    );
+                    let gs =
+                        self.desugar_nested_param_pattern(rhs, &buf_name, BufIndex::Record(&lhs));
                     guards.extend(gs);
                     let infer = Token::new_fake(TokenKind::Try, "?", line, 0, 0);
                     let expr = rhs
@@ -1588,7 +1538,7 @@ impl Desugarer {
                 let ident = Identifier::new(VisModifierSpec::Private, name.clone());
                 let v = VarSignature::new(VarPattern::Ident(ident), sig.t_spec.clone());
                 let def = Def::new(Signature::Var(v), body);
-                pre_block.push(Expr::Def(def));
+                guards.push(GuardClause::Bind(def));
                 guards
             }
             ParamPattern::Lit(l) => {
@@ -1596,7 +1546,7 @@ impl Desugarer {
                 let rhs = Expr::Literal(l.clone());
                 let eq = Token::new_fake(TokenKind::DblEq, "==", l.ln_begin().unwrap_or(0), 0, 0);
                 let guard = Expr::BinOp(lhs.bin_op(eq, rhs));
-                guards.push(guard);
+                guards.push(GuardClause::Condition(guard));
                 let lit = l.clone();
                 sig.pat = ParamPattern::VarName(VarName::new(Token::new_fake(
                     TokenKind::Symbol,

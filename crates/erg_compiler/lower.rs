@@ -1355,7 +1355,14 @@ impl ASTLowerer {
             self.errs.extend(errs);
         }
         for guard in params.guards.into_iter() {
-            match self.fake_lower_expr(guard) {
+            let lowered = match guard {
+                ast::GuardClause::Bind(bind) => self.lower_def(bind).map(hir::GuardClause::Bind),
+                // TODO: no fake
+                ast::GuardClause::Condition(cond) => {
+                    self.fake_lower_expr(cond).map(hir::GuardClause::Condition)
+                }
+            };
+            match lowered {
                 Ok(guard) => {
                     if hir_params.guards.contains(&guard) {
                         log!(err "duplicate guard: {guard}");
@@ -1425,18 +1432,9 @@ impl ASTLowerer {
             }
             overwritten
         };
-        if let Err(errs) = self.module.context.register_const(&lambda.pre_block) {
-            self.errs.extend(errs);
-        }
         if let Err(errs) = self.module.context.register_const(&lambda.body) {
             self.errs.extend(errs);
         }
-        let pre_block = self.lower_block(lambda.pre_block, None).map_err(|errs| {
-            if !in_statement {
-                self.pop_append_errs();
-            }
-            errs
-        })?;
         let body = self.lower_block(lambda.body, None).map_err(|errs| {
             if !in_statement {
                 self.pop_append_errs();
@@ -1563,7 +1561,7 @@ impl ASTLowerer {
             )
         };
         let t = if ty.has_qvar() { ty.quantify() } else { ty };
-        Ok(hir::Lambda::new(id, params, lambda.op, pre_block, body, t))
+        Ok(hir::Lambda::new(id, params, lambda.op, body, t))
     }
 
     fn lower_def(&mut self, def: ast::Def) -> LowerResult<hir::Def> {
@@ -1657,13 +1655,9 @@ impl ASTLowerer {
         body: ast::DefBody,
     ) -> LowerResult<hir::Def> {
         log!(info "entered {}({sig})", fn_name!());
-        if let Err(errs) = self.module.context.register_const(&body.pre_block) {
-            self.errs.extend(errs);
-        }
         if let Err(errs) = self.module.context.register_const(&body.block) {
             self.errs.extend(errs);
         }
-        let pre_block = self.lower_block(body.pre_block, None)?;
         match self.lower_block(body.block, None) {
             Ok(block) => {
                 let found_body_t = block.ref_t();
@@ -1721,7 +1715,7 @@ impl ASTLowerer {
                     None
                 };
                 let sig = hir::VarSignature::new(ident, t_spec);
-                let body = hir::DefBody::new(body.op, pre_block, block, body.id);
+                let body = hir::DefBody::new(body.op, block, body.id);
                 Ok(hir::Def::new(hir::Signature::Var(sig), body))
             }
             Err(errs) => {
@@ -1771,13 +1765,9 @@ impl ASTLowerer {
         match registered_t {
             Type::Subr(subr_t) => {
                 let params = self.lower_params(sig.params.clone(), Some(&subr_t))?;
-                if let Err(errs) = self.module.context.register_const(&body.pre_block) {
-                    self.errs.extend(errs);
-                }
                 if let Err(errs) = self.module.context.register_const(&body.block) {
                     self.errs.extend(errs);
                 }
-                let pre_block = self.lower_block(body.pre_block, None)?;
                 match self.lower_block(body.block, None) {
                     Ok(block) => {
                         let found_body_t = self.module.context.squash_tyvar(block.t());
@@ -1804,7 +1794,7 @@ impl ASTLowerer {
                         let sig = hir::SubrSignature::new(
                             decorators, ident, sig.bounds, params, ret_t_spec,
                         );
-                        let body = hir::DefBody::new(body.op, pre_block, block, body.id);
+                        let body = hir::DefBody::new(body.op, block, body.id);
                         Ok(hir::Def::new(hir::Signature::Subr(sig), body))
                     }
                     Err(errs) => {
@@ -1834,16 +1824,13 @@ impl ASTLowerer {
                         );
                         let block =
                             hir::Block::new(vec![hir::Expr::Dummy(hir::Dummy::new(vec![]))]);
-                        let body = hir::DefBody::new(body.op, pre_block, block, body.id);
+                        let body = hir::DefBody::new(body.op, block, body.id);
                         Ok(hir::Def::new(hir::Signature::Subr(sig), body))
                     }
                 }
             }
             Type::Failure => {
                 let params = self.lower_params(sig.params, None)?;
-                if let Err(errs) = self.module.context.register_const(&body.pre_block) {
-                    self.errs.extend(errs);
-                }
                 if let Err(errs) = self.module.context.register_const(&body.block) {
                     self.errs.extend(errs);
                 }
@@ -1853,7 +1840,6 @@ impl ASTLowerer {
                     .as_mut()
                     .unwrap()
                     .fake_subr_assign(&sig.ident, &sig.decorators, Type::Failure)?;
-                let pre_block = self.lower_block(body.pre_block, None)?;
                 let block = self.lower_block(body.block, None)?;
                 let ident = hir::Identifier::bare(sig.ident);
                 let ret_t_spec = if let Some(ts) = sig.return_t_spec {
@@ -1865,7 +1851,7 @@ impl ASTLowerer {
                 };
                 let sig =
                     hir::SubrSignature::new(decorators, ident, sig.bounds, params, ret_t_spec);
-                let body = hir::DefBody::new(body.op, pre_block, block, body.id);
+                let body = hir::DefBody::new(body.op, block, body.id);
                 Ok(hir::Def::new(hir::Signature::Subr(sig), body))
             }
             _ => unreachable_error!(LowerErrors, LowerError, self),
@@ -2688,6 +2674,7 @@ impl ASTLowerer {
             ast::Expr::TypeAscription(tasc) => {
                 hir::Expr::TypeAsc(self.lower_type_asc(tasc, expect)?)
             }
+            ast::Expr::Compound(comp) => hir::Expr::Compound(self.lower_compound(comp, expect)?),
             // Checking is also performed for expressions in Dummy. However, it has no meaning in code generation
             ast::Expr::Dummy(dummy) => hir::Expr::Dummy(self.lower_dummy(dummy, expect)?),
             other => {
@@ -2741,6 +2728,22 @@ impl ASTLowerer {
                     hir::Expr::Dummy(hir::Dummy::new(vec![]))
                 }
             };
+            hir_block.push(chunk);
+        }
+        Ok(hir::Block::new(hir_block))
+    }
+
+    fn lower_compound(
+        &mut self,
+        compound: ast::Compound,
+        expect: Option<&Type>,
+    ) -> LowerResult<hir::Block> {
+        log!(info "entered {}", fn_name!());
+        let mut hir_block = Vec::with_capacity(compound.len());
+        let last = compound.len().saturating_sub(1);
+        for (i, chunk) in compound.into_iter().enumerate() {
+            let expect = if i == last { expect } else { None };
+            let chunk = self.lower_chunk(chunk, expect)?;
             hir_block.push(chunk);
         }
         Ok(hir::Block::new(hir_block))

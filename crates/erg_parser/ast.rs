@@ -99,6 +99,12 @@ impl Literal {
         Self { token }
     }
 
+    pub fn bool(b: bool, line: u32) -> Self {
+        let b = if b { "True" } else { "False" };
+        let token = Token::new_fake(TokenKind::BoolLit, b, line, 0, 0);
+        Self { token }
+    }
+
     #[inline]
     pub fn is(&self, kind: TokenKind) -> bool {
         self.token.is(kind)
@@ -1874,7 +1880,6 @@ impl ConstBlock {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstDefBody {
     pub op: Token,
-    pub pre_block: ConstBlock,
     pub block: ConstBlock,
     pub id: DefId,
 }
@@ -1882,22 +1887,12 @@ pub struct ConstDefBody {
 impl_locational!(ConstDefBody, lossy op, block);
 
 impl ConstDefBody {
-    pub const fn new(op: Token, pre_block: ConstBlock, block: ConstBlock, id: DefId) -> Self {
-        Self {
-            op,
-            pre_block,
-            block,
-            id,
-        }
+    pub const fn new(op: Token, block: ConstBlock, id: DefId) -> Self {
+        Self { op, block, id }
     }
 
     pub fn downgrade(self) -> DefBody {
-        DefBody::with_pre_block(
-            self.op,
-            self.pre_block.downgrade(),
-            self.block.downgrade(),
-            self.id,
-        )
+        DefBody::new(self.op, self.block.downgrade(), self.id)
     }
 }
 
@@ -1930,7 +1925,6 @@ impl ConstDef {
 pub struct ConstLambda {
     pub sig: Box<LambdaSignature>,
     pub op: Token,
-    pub pre_block: ConstBlock,
     pub body: ConstBlock,
     pub id: DefId,
 }
@@ -1949,20 +1943,13 @@ impl ConstLambda {
         Self {
             sig: Box::new(sig),
             op,
-            pre_block: ConstBlock::empty(),
             body,
             id,
         }
     }
 
     pub fn downgrade(self) -> Lambda {
-        Lambda::with_pre_block(
-            *self.sig,
-            self.op,
-            self.pre_block.downgrade(),
-            self.body.downgrade(),
-            self.id,
-        )
+        Lambda::new(*self.sig, self.op, self.body.downgrade(), self.id)
     }
 }
 
@@ -4129,12 +4116,38 @@ impl DefaultParamSignature {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum GuardClause {
+    Condition(Expr),
+    Bind(Def),
+}
+
+impl NestedDisplay for GuardClause {
+    fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
+        match self {
+            Self::Condition(cond) => write!(f, "{}", cond),
+            Self::Bind(def) => write!(f, "{}", def),
+        }
+    }
+}
+
+impl_display_from_nested!(GuardClause);
+
+impl Locational for GuardClause {
+    fn loc(&self) -> Location {
+        match self {
+            Self::Condition(cond) => cond.loc(),
+            Self::Bind(def) => def.loc(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Params {
     pub non_defaults: Vec<NonDefaultParamSignature>,
     pub var_params: Option<Box<NonDefaultParamSignature>>,
     pub defaults: Vec<DefaultParamSignature>,
     /// match conditions
-    pub guards: Vec<Expr>,
+    pub guards: Vec<GuardClause>,
     pub parens: Option<(Token, Token)>,
 }
 
@@ -4188,7 +4201,7 @@ type RawParams = (
     Vec<NonDefaultParamSignature>,
     Option<Box<NonDefaultParamSignature>>,
     Vec<DefaultParamSignature>,
-    Vec<Expr>,
+    Vec<GuardClause>,
     Option<(Token, Token)>,
 );
 
@@ -4232,11 +4245,11 @@ impl Params {
         self.len() == 0
     }
 
-    pub fn add_guard(&mut self, guard: Expr) {
+    pub fn add_guard(&mut self, guard: GuardClause) {
         self.guards.push(guard);
     }
 
-    pub fn extend_guards(&mut self, guards: Vec<Expr>) {
+    pub fn extend_guards(&mut self, guards: Vec<GuardClause>) {
         self.guards.extend(guards);
     }
 }
@@ -4393,7 +4406,6 @@ pub struct Lambda {
     pub sig: LambdaSignature,
     /// for detecting func/proc
     pub op: Token,
-    pub pre_block: Block,
     pub body: Block,
     pub id: DefId,
 }
@@ -4401,11 +4413,6 @@ pub struct Lambda {
 impl NestedDisplay for Lambda {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         writeln!(f, "{} {}", self.sig, self.op.content)?;
-        if !self.pre_block.is_empty() {
-            writeln!(f, "(")?;
-            self.pre_block.fmt_nest(f, level + 1)?;
-            writeln!(f, ")")?;
-        }
         self.body.fmt_nest(f, level + 1)
     }
 }
@@ -4414,29 +4421,7 @@ impl_display_from_nested!(Lambda);
 
 impl Lambda {
     pub const fn new(sig: LambdaSignature, op: Token, body: Block, id: DefId) -> Self {
-        Self {
-            sig,
-            op,
-            pre_block: Block::empty(),
-            body,
-            id,
-        }
-    }
-
-    pub const fn with_pre_block(
-        sig: LambdaSignature,
-        op: Token,
-        pre_block: Block,
-        body: Block,
-        id: DefId,
-    ) -> Self {
-        Self {
-            sig,
-            op,
-            pre_block,
-            body,
-            id,
-        }
+        Self { sig, op, body, id }
     }
 
     pub fn is_procedural(&self) -> bool {
@@ -4644,8 +4629,6 @@ impl DefKind {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DefBody {
     pub op: Token,
-    /// generated by pattern match desugaring
-    pub pre_block: Block,
     pub block: Block,
     pub id: DefId,
 }
@@ -4654,21 +4637,7 @@ impl_locational!(DefBody, lossy op, block);
 
 impl DefBody {
     pub const fn new(op: Token, block: Block, id: DefId) -> Self {
-        Self {
-            op,
-            pre_block: Block::empty(),
-            block,
-            id,
-        }
-    }
-
-    pub const fn with_pre_block(op: Token, pre_block: Block, block: Block, id: DefId) -> Self {
-        Self {
-            op,
-            pre_block,
-            block,
-            id,
-        }
+        Self { op, block, id }
     }
 
     pub fn new_single(expr: Expr) -> Self {
@@ -4866,6 +4835,39 @@ impl PatchDef {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Compound {
+    pub exprs: Vec<Expr>,
+}
+
+impl_stream!(Compound, Expr, exprs);
+
+impl NestedDisplay for Compound {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "{}", fmt_vec(&self.exprs))
+    }
+}
+
+impl Locational for Compound {
+    fn loc(&self) -> Location {
+        if let Some(expr) = self.exprs.first() {
+            if let Some(last) = self.exprs.last() {
+                Location::concat(expr, last)
+            } else {
+                expr.loc()
+            }
+        } else {
+            Location::Unknown
+        }
+    }
+}
+
+impl Compound {
+    pub const fn new(exprs: Vec<Expr>) -> Self {
+        Self { exprs }
+    }
+}
+
 /// Expression(式)
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expr {
@@ -4887,14 +4889,15 @@ pub enum Expr {
     ClassDef(ClassDef),
     PatchDef(PatchDef),
     ReDef(ReDef),
+    Compound(Compound),
     /// for mapping to Python AST
     Dummy(Dummy),
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Dummy);
-impl_from_trait_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Dummy);
+impl_nested_display_for_chunk_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, Dummy);
+impl_from_trait_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, Dummy);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Dummy);
+impl_locational_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, Dummy);
 
 impl Expr {
     pub fn is_match_call(&self) -> bool {
@@ -4932,6 +4935,7 @@ impl Expr {
             Self::ClassDef(_) => "class definition",
             Self::PatchDef(_) => "patch definition",
             Self::ReDef(_) => "re-definition",
+            Self::Compound(_) => "compound",
             Self::Dummy(_) => "dummy",
         }
     }

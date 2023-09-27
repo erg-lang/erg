@@ -9,9 +9,10 @@ use erg_common::log;
 use erg_common::set::Set as HashSet;
 use erg_common::traits::{Locational, NestedDisplay, NoTypeDisplay, Stream};
 use erg_common::{
-    enum_unwrap, fmt_option, fmt_vec, impl_display_for_enum, impl_display_from_nested,
-    impl_locational, impl_locational_for_enum, impl_nested_display_for_chunk_enum,
-    impl_nested_display_for_enum, impl_no_type_display_for_enum, impl_stream,
+    enum_unwrap, fmt_option, fmt_vec, fmt_vec_split_with, impl_display_for_enum,
+    impl_display_from_nested, impl_locational, impl_locational_for_enum,
+    impl_nested_display_for_chunk_enum, impl_nested_display_for_enum,
+    impl_no_type_display_for_enum, impl_stream,
 };
 use erg_common::{impl_from_trait_for_enum, impl_try_from_trait_for_enum, Str};
 
@@ -1220,11 +1221,12 @@ pub struct BinOp {
 }
 
 impl NestedDisplay for BinOp {
-    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        writeln!(f, "`{}`(: {}):", self.op.content, self.info.t)?;
-        self.lhs.fmt_nest(f, level + 1)?;
-        writeln!(f)?;
-        self.rhs.fmt_nest(f, level + 1)
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(
+            f,
+            "`{}`(: {})({}, {})",
+            self.op.content, self.info.t, self.lhs, self.rhs
+        )
     }
 }
 
@@ -1735,11 +1737,37 @@ impl DefaultParamSignature {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum GuardClause {
+    Condition(Expr),
+    Bind(Def),
+}
+
+impl NestedDisplay for GuardClause {
+    fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
+        match self {
+            GuardClause::Condition(cond) => write!(f, "{}", cond),
+            GuardClause::Bind(bind) => write!(f, "{}", bind),
+        }
+    }
+}
+
+impl NoTypeDisplay for GuardClause {
+    fn to_string_notype(&self) -> String {
+        match self {
+            GuardClause::Condition(cond) => cond.to_string_notype(),
+            GuardClause::Bind(bind) => bind.to_string_notype(),
+        }
+    }
+}
+
+impl_display_from_nested!(GuardClause);
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Params {
     pub non_defaults: Vec<NonDefaultParamSignature>,
     pub var_params: Option<Box<NonDefaultParamSignature>>,
     pub defaults: Vec<DefaultParamSignature>,
-    pub guards: Vec<Expr>,
+    pub guards: Vec<GuardClause>,
     pub parens: Option<(Token, Token)>,
 }
 
@@ -1750,8 +1778,13 @@ impl fmt::Display for Params {
             "({}, {}, {})",
             fmt_vec(&self.non_defaults),
             fmt_option!(pre "*", &self.var_params),
-            fmt_vec(&self.defaults)
-        )
+            fmt_vec(&self.defaults),
+        )?;
+        if !self.guards.is_empty() {
+            write!(f, " if {}", fmt_vec_split_with(&self.guards, " and "))
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -1812,7 +1845,7 @@ impl Params {
         non_defaults: Vec<NonDefaultParamSignature>,
         var_params: Option<Box<NonDefaultParamSignature>>,
         defaults: Vec<DefaultParamSignature>,
-        guards: Vec<Expr>,
+        guards: Vec<GuardClause>,
         parens: Option<(Token, Token)>,
     ) -> Self {
         Self {
@@ -1946,7 +1979,6 @@ impl SubrSignature {
 pub struct Lambda {
     pub params: Params,
     pub op: Token,
-    pub pre_block: Block,
     pub body: Block,
     pub id: usize,
     pub t: Type,
@@ -1975,19 +2007,11 @@ impl_locational!(Lambda, params, body);
 impl_t!(Lambda);
 
 impl Lambda {
-    pub const fn new(
-        id: usize,
-        params: Params,
-        op: Token,
-        pre_block: Block,
-        body: Block,
-        t: Type,
-    ) -> Self {
+    pub const fn new(id: usize, params: Params, op: Token, body: Block, t: Type) -> Self {
         Self {
             id,
             params,
             op,
-            pre_block,
             body,
             t,
         }
@@ -2099,7 +2123,6 @@ impl Signature {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DefBody {
     pub op: Token,
-    pub pre_block: Block,
     pub block: Block,
     pub id: DefId,
 }
@@ -2108,13 +2131,8 @@ impl_locational!(DefBody, lossy op, block);
 impl_t!(DefBody, delegate block);
 
 impl DefBody {
-    pub const fn new(op: Token, pre_block: Block, block: Block, id: DefId) -> Self {
-        Self {
-            op,
-            pre_block,
-            block,
-            id,
-        }
+    pub const fn new(op: Token, block: Block, id: DefId) -> Self {
+        Self { op, block, id }
     }
 }
 
