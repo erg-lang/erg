@@ -116,6 +116,14 @@ impl Context {
             poly(FROZENSET, vec![ty_tp(T.clone())]),
         )
         .quantify();
+        let getattr_t = func(
+            vec![kw(KW_OBJ, Obj), kw(KW_NAME, Str)],
+            None,
+            vec![kw_default(KW_DEFAULT, T.clone(), Obj)],
+            T.clone(),
+        )
+        .quantify();
+        let hasattr_t = func(vec![kw(KW_OBJ, Obj), kw(KW_NAME, Str)], None, vec![], Bool);
         let t_hash = func1(mono(HASH), Int);
         let t_if = func(
             vec![
@@ -349,6 +357,20 @@ impl Context {
             Some(FUNC_FILTER),
         );
         self.register_builtin_py_impl(FUNC_FROZENSET, t_frozenset, Immutable, vis.clone(), None);
+        self.register_builtin_py_impl(
+            FUNC_GETATTR,
+            getattr_t,
+            Immutable,
+            vis.clone(),
+            Some(FUNC_GETATTR),
+        );
+        self.register_builtin_py_impl(
+            FUNC_HASATTR,
+            hasattr_t,
+            Immutable,
+            vis.clone(),
+            Some(FUNC_HASATTR),
+        );
         self.register_builtin_py_impl(FUNC_HASH, t_hash, Immutable, vis.clone(), Some(FUNC_HASH));
         self.register_builtin_py_impl(
             FUNC_ISINSTANCE,
@@ -644,29 +666,6 @@ impl Context {
     }
 
     pub(super) fn init_builtin_py_specific_funcs(&mut self) {
-        let hasattr_t = func(vec![kw(KW_OBJ, Obj), kw(KW_NAME, Str)], None, vec![], Bool);
-        self.register_builtin_py_impl(
-            FUNC_HASATTR,
-            hasattr_t,
-            Immutable,
-            Visibility::BUILTIN_PUBLIC,
-            None,
-        );
-        let T = type_q("T");
-        let getattr_t = func(
-            vec![kw(KW_OBJ, Obj), kw(KW_NAME, Str)],
-            None,
-            vec![kw_default(KW_DEFAULT, T.clone(), Obj)],
-            T,
-        )
-        .quantify();
-        self.register_builtin_py_impl(
-            FUNC_GETATTR,
-            getattr_t,
-            Immutable,
-            Visibility::BUILTIN_PUBLIC,
-            None,
-        );
         let setattr_t = func(
             vec![kw(KW_OBJ, Obj), kw(KW_NAME, Str), kw(KW_VALUE, Obj)],
             None,

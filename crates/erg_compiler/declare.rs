@@ -241,8 +241,19 @@ impl ASTLowerer {
         Ok(args)
     }
 
-    fn fake_lower_call(&self, call: ast::Call) -> LowerResult<hir::Call> {
+    fn fake_lower_call(&self, mut call: ast::Call) -> LowerResult<hir::Call> {
         let obj = self.fake_lower_expr(*call.obj)?;
+        if call
+            .attr_name
+            .as_ref()
+            .is_some_and(|attr| attr.inspect() == "__Tuple_getitem__")
+        {
+            call.attr_name
+                .as_mut()
+                .unwrap()
+                .name
+                .rename("__getitem__".into());
+        }
         let attr_name = call.attr_name.map(hir::Identifier::bare);
         let args = self.fake_lower_args(call.args)?;
         Ok(hir::Call::new(obj, attr_name, args))
@@ -434,7 +445,7 @@ impl ASTLowerer {
     }
 
     fn fake_lower_params(&self, params: ast::Params) -> LowerResult<hir::Params> {
-        let (non_defaults_, var_params_, defaults_, parens) = params.deconstruct();
+        let (non_defaults_, var_params_, defaults_, guards_, parens) = params.deconstruct();
         let mut non_defaults = vec![];
         for non_default_ in non_defaults_.into_iter() {
             let t_spec_as_expr = non_default_
@@ -480,7 +491,18 @@ impl ASTLowerer {
             let default = hir::DefaultParamSignature::new(sig, default_val);
             defaults.push(default);
         }
-        Ok(hir::Params::new(non_defaults, var_params, defaults, parens))
+        let mut guards = vec![];
+        for guard in guards_.into_iter() {
+            let guard = self.fake_lower_expr(guard)?;
+            guards.push(guard);
+        }
+        Ok(hir::Params::new(
+            non_defaults,
+            var_params,
+            defaults,
+            guards,
+            parens,
+        ))
     }
 
     fn fake_lower_block(&self, block: ast::Block) -> LowerResult<hir::Block> {

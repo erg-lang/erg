@@ -94,6 +94,11 @@ impl Literal {
         Self { token }
     }
 
+    pub fn str(s: impl Into<Str>, line: u32) -> Self {
+        let token = Token::new_fake(TokenKind::StrLit, s, line, 0, 0);
+        Self { token }
+    }
+
     #[inline]
     pub fn is(&self, kind: TokenKind) -> bool {
         self.token.is(kind)
@@ -3165,6 +3170,10 @@ impl VarName {
         self.0.content.starts_with('\'')
     }
 
+    pub fn is_generated(&self) -> bool {
+        self.0.content.starts_with('%')
+    }
+
     pub const fn token(&self) -> &Token {
         &self.0
     }
@@ -3999,7 +4008,9 @@ impl TryFrom<&ParamPattern> for Expr {
     fn try_from(value: &ParamPattern) -> Result<Self, Self::Error> {
         match value {
             // ParamPattern::Discard(token) => Ok(Expr::Accessor(Accessor::local(token.clone()))),
-            ParamPattern::VarName(name) => Ok(Expr::Accessor(Accessor::local(name.0.clone()))),
+            ParamPattern::VarName(name) if name.inspect() != "_" => {
+                Ok(Expr::Accessor(Accessor::local(name.0.clone())))
+            }
             ParamPattern::Lit(lit) => Ok(Expr::Literal(lit.clone())),
             ParamPattern::Array(array) => Expr::try_from(array),
             ParamPattern::Tuple(tuple) => Expr::try_from(tuple),
@@ -4122,6 +4133,8 @@ pub struct Params {
     pub non_defaults: Vec<NonDefaultParamSignature>,
     pub var_params: Option<Box<NonDefaultParamSignature>>,
     pub defaults: Vec<DefaultParamSignature>,
+    /// match conditions
+    pub guards: Vec<Expr>,
     pub parens: Option<(Token, Token)>,
 }
 
@@ -4133,6 +4146,15 @@ impl fmt::Display for Params {
         }
         if !self.defaults.is_empty() {
             write!(f, ", {}", fmt_vec(&self.defaults))?;
+        }
+        if !self.guards.is_empty() {
+            write!(f, " if ")?;
+        }
+        for (i, guard) in self.guards.iter().enumerate() {
+            if i > 0 {
+                write!(f, " and ")?;
+            }
+            write!(f, "{guard}")?;
         }
         write!(f, ")")
     }
@@ -4166,6 +4188,7 @@ type RawParams = (
     Vec<NonDefaultParamSignature>,
     Option<Box<NonDefaultParamSignature>>,
     Vec<DefaultParamSignature>,
+    Vec<Expr>,
     Option<(Token, Token)>,
 );
 
@@ -4180,6 +4203,7 @@ impl Params {
             non_defaults,
             var_params: var_params.map(Box::new),
             defaults,
+            guards: Vec::new(),
             parens,
         }
     }
@@ -4193,6 +4217,7 @@ impl Params {
             self.non_defaults,
             self.var_params,
             self.defaults,
+            self.guards,
             self.parens,
         )
     }
@@ -4205,6 +4230,14 @@ impl Params {
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    pub fn add_guard(&mut self, guard: Expr) {
+        self.guards.push(guard);
+    }
+
+    pub fn extend_guards(&mut self, guards: Vec<Expr>) {
+        self.guards.extend(guards);
     }
 }
 

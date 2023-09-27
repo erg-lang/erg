@@ -84,6 +84,7 @@ fn escape_name(name: &str, vis: &VisibilityModifier, def_line: u32, def_col: u32
         };
         Str::from(format!("::{name}{line_mangling}"))
     } else {
+        // For public APIs, mangling is not performed because `hasattr`, etc. cannot be used.
         Str::from(name)
     }
 }
@@ -349,6 +350,7 @@ impl PyCodeGenerator {
     }
 
     /// swap TOS and TOS1
+    #[allow(unused)]
     fn rot2(&mut self) {
         if self.py_version.minor >= Some(11) {
             self.write_instr(Opcode311::SWAP);
@@ -359,6 +361,7 @@ impl PyCodeGenerator {
         }
     }
 
+    #[allow(unused)]
     fn dup_top(&mut self) {
         if self.py_version.minor >= Some(11) {
             self.write_instr(Opcode311::COPY);
@@ -2102,80 +2105,12 @@ impl PyCodeGenerator {
         pre_block: Block,
         is_last_arm: bool,
     ) -> Option<usize> {
-        log!(info "entered {}", fn_name!());
         let param = params.non_defaults.remove(0);
+        log!(info "entered {}({param})", fn_name!());
         // for pre_block
         match &param.raw.pat {
             ParamPattern::VarName(name) => {
                 let ident = erg_parser::ast::Identifier::private_from_varname(name.clone());
-                let ident = Identifier::new(ident, None, param.vi.clone());
-                self.emit_store_instr(ident.clone(), AccessKind::Name);
-                self.emit_load_name_instr(ident);
-            }
-            ParamPattern::Discard(_) => {}
-            _other => unreachable!(),
-        }
-        self.emit_frameless_block(pre_block, vec![]);
-        let mut pop_jump_point = None;
-        // If it's the last arm, there's no need to inspect it
-        match param.t_spec_as_expr {
-            Some(t_spec) if !is_last_arm => {
-                // < v3.11:
-                // arg
-                // ↓ LOAD_NAME(contains_operator)
-                // arg contains_operator
-                // ↓ ROT_TWO
-                // contains_operator arg
-                // ↓ load expr
-                // contains_operator arg expr
-                //
-                // in v3.11:
-                // arg null
-                // ↓ SWAP 1
-                // null arg
-                // ↓ LOAD_NAME(contains_operator)
-                // null arg contains_operator
-                // ↓ SWAP 1
-                // null contains_operator arg
-                // ↓ load expr
-                // null contains_operator arg expr
-                // ↓ SWAP 1
-                // null contains_operator expr arg
-                if self.py_version.minor >= Some(11) {
-                    self.emit_push_null();
-                    self.rot2();
-                }
-                if !self.contains_op_loaded {
-                    self.load_contains_op();
-                }
-                self.emit_load_name_instr(Identifier::private("#contains_operator"));
-                self.rot2();
-                self.emit_expr(t_spec);
-                self.rot2();
-                if self.py_version.minor >= Some(11) {
-                    self.emit_precall_and_call(2);
-                } else {
-                    self.write_instr(Opcode310::CALL_FUNCTION);
-                    self.write_arg(2);
-                }
-                self.stack_dec();
-                pop_jump_point = Some(self.lasti());
-                // HACK: match branches often jump very far (beyond the u8 range),
-                // so the jump destination should be reserved as the u16 range.
-                // Other jump instructions may need to be replaced by this way.
-                self.write_instr(EXTENDED_ARG);
-                self.write_arg(0);
-                // in 3.11, POP_JUMP_IF_FALSE is replaced with POP_JUMP_FORWARD_IF_FALSE
-                // but the numbers are the same, only the way the jumping points are calculated is different.
-                self.write_instr(Opcode310::POP_JUMP_IF_FALSE); // jump to the next case
-                self.write_arg(0);
-                self.stack_dec();
-            }
-            _ => {}
-        }
-        match param.raw.pat {
-            ParamPattern::VarName(name) => {
-                let ident = erg_parser::ast::Identifier::private_from_varname(name);
                 let ident = Identifier::new(ident, None, param.vi);
                 self.emit_store_instr(ident, AccessKind::Name);
             }
@@ -2183,6 +2118,48 @@ impl PyCodeGenerator {
                 self.emit_pop_top();
             }
             _other => unreachable!(),
+        }
+        self.emit_frameless_block(pre_block, vec![]);
+        let mut pop_jump_point = None;
+        if !is_last_arm {
+            let last = params.guards.len().saturating_sub(1);
+            for (i, mut guard) in params.guards.into_iter().enumerate() {
+                if let Expr::BinOp(BinOp {
+                    op:
+                        Token {
+                            kind: TokenKind::ContainsOp,
+                            ..
+                        },
+                    lhs: _,
+                    rhs,
+                    ..
+                }) = &mut guard
+                {
+                    // *lhs.ref_mut_t().unwrap() = Type::Obj;
+                    *rhs.ref_mut_t().unwrap() = Type::Obj;
+                }
+                self.emit_expr(guard);
+                if i != 0 {
+                    self.emit_binop_instr(
+                        Token::from_str(TokenKind::AndOp, "and"),
+                        TypePair::Others,
+                    );
+                }
+                if i == last {
+                    pop_jump_point = Some(self.lasti());
+                    // HACK: match branches often jump very far (beyond the u8 range),
+                    // so the jump destination should be reserved as the u16 range.
+                    // Other jump instructions may need to be replaced by this way.
+                    self.write_instr(EXTENDED_ARG);
+                    self.write_arg(0);
+                    // in 3.11, POP_JUMP_IF_FALSE is replaced with POP_JUMP_FORWARD_IF_FALSE
+                    // but the numbers are the same, only the way the jumping points are calculated is different.
+                    self.write_instr(Opcode310::POP_JUMP_IF_FALSE); // jump to the next case
+                    self.write_arg(0);
+                    // if matched, pop original
+                    self.emit_pop_top(); // self.stack_dec();
+                }
+            }
         }
         pop_jump_point
     }
@@ -3123,12 +3100,12 @@ impl PyCodeGenerator {
     /// forブロックなどで使う
     fn emit_frameless_block(&mut self, block: Block, params: Vec<Str>) {
         log!(info "entered {}", fn_name!());
-        if block.is_empty() {
-            return;
-        }
         let line = block.ln_begin().unwrap_or(0);
         for param in params {
             self.emit_store_instr(Identifier::public_with_line(DOT, param, line), Name);
+        }
+        if block.is_empty() {
+            return;
         }
         let init_stack_len = self.stack_len();
         for chunk in block.into_iter() {
@@ -3253,7 +3230,7 @@ impl PyCodeGenerator {
                 "?".into(),
             );
             let param = NonDefaultParamSignature::new(raw, vi, None);
-            let params = Params::new(vec![self_param, param], None, vec![], None);
+            let params = Params::new(vec![self_param, param], None, vec![], vec![], None);
             (param_name, params)
         } else {
             ("_".into(), Params::single(self_param))

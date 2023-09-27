@@ -572,3 +572,8 @@ fn exec_err_loc() -> Result<(), ()> {
         ],
     )
 }
+
+#[test]
+fn test_semver() -> Result<(), ()> {
+    expect_success("crates/erg_compiler/lib/std/semver.er", 0)
+}

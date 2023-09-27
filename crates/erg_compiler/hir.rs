@@ -1739,6 +1739,7 @@ pub struct Params {
     pub non_defaults: Vec<NonDefaultParamSignature>,
     pub var_params: Option<Box<NonDefaultParamSignature>>,
     pub defaults: Vec<DefaultParamSignature>,
+    pub guards: Vec<Expr>,
     pub parens: Option<(Token, Token)>,
 }
 
@@ -1811,22 +1812,24 @@ impl Params {
         non_defaults: Vec<NonDefaultParamSignature>,
         var_params: Option<Box<NonDefaultParamSignature>>,
         defaults: Vec<DefaultParamSignature>,
+        guards: Vec<Expr>,
         parens: Option<(Token, Token)>,
     ) -> Self {
         Self {
             non_defaults,
             var_params,
             defaults,
+            guards,
             parens,
         }
     }
 
     pub fn empty() -> Self {
-        Self::new(vec![], None, vec![], None)
+        Self::new(vec![], None, vec![], vec![], None)
     }
 
     pub fn single(sig: NonDefaultParamSignature) -> Self {
-        Self::new(vec![sig], None, vec![], None)
+        Self::new(vec![sig], None, vec![], vec![], None)
     }
 
     pub const fn ref_deconstruct(&self) -> RefRawParams {

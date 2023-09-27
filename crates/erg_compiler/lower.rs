@@ -1344,6 +1344,7 @@ impl ASTLowerer {
             hir_non_defaults,
             hir_var_params,
             hir_defaults,
+            vec![],
             params.parens,
         );
         if let Err(errs) = self
@@ -1352,6 +1353,18 @@ impl ASTLowerer {
             .assign_params(&mut hir_params, expect.cloned())
         {
             self.errs.extend(errs);
+        }
+        for guard in params.guards.into_iter() {
+            match self.fake_lower_expr(guard) {
+                Ok(guard) => {
+                    if hir_params.guards.contains(&guard) {
+                        log!(err "duplicate guard: {guard}");
+                        continue;
+                    }
+                    hir_params.guards.push(guard)
+                }
+                Err(es) => self.errs.extend(es),
+            }
         }
         if !errs.is_empty() {
             Err(errs)
