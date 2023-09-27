@@ -259,6 +259,11 @@ pub trait Stream<T>: Sized {
     fn retain(&mut self, f: impl FnMut(&T) -> bool) {
         self.ref_mut_payload().retain(f);
     }
+
+    fn concat(mut self, other: Self) -> Self {
+        self.extend(other.payload());
+        self
+    }
 }
 
 #[macro_export]

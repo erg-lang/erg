@@ -4,9 +4,6 @@
 use std::fmt;
 use std::process;
 
-use crate::hir::Set;
-use crate::ty::codeobj::{CodeObj, CodeObjFlags, MakeFunctionFlags};
-use crate::ty::value::GenTypeObj;
 use erg_common::cache::CacheSet;
 use erg_common::config::ErgConfig;
 use erg_common::env::erg_std_path;
@@ -23,7 +20,8 @@ use erg_common::python_util::{env_python_version, PythonVersion};
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
 use erg_common::{
-    debug_power_assert, fn_name, fn_name_full, impl_stream, log, set, switch_unreachable,
+    debug_power_assert, fmt_option, fn_name, fn_name_full, impl_stream, log, set,
+    switch_unreachable,
 };
 use erg_parser::ast::VisModifierSpec;
 use erg_parser::ast::{DefId, DefKind};
@@ -37,11 +35,12 @@ use erg_parser::token::{Token, TokenKind};
 use crate::compile::{AccessKind, Name, StoreLoadKind};
 use crate::error::CompileError;
 use crate::hir::{
-    Accessor, Args, Array, BinOp, Block, Call, ClassDef, Def, DefBody, Expr, Identifier, Lambda,
-    Literal, NonDefaultParamSignature, Params, PatchDef, PosArg, ReDef, Record, Signature,
-    SubrSignature, Tuple, UnaryOp, VarSignature, HIR,
+    Accessor, Args, Array, BinOp, Block, Call, ClassDef, Def, DefBody, Expr, GuardClause,
+    Identifier, Lambda, Literal, NonDefaultParamSignature, Params, PatchDef, PosArg, ReDef, Record,
+    Signature, SubrSignature, Tuple, UnaryOp, VarSignature, HIR,
 };
-use crate::ty::value::ValueObj;
+use crate::ty::codeobj::{CodeObj, CodeObjFlags, MakeFunctionFlags};
+use crate::ty::value::{GenTypeObj, ValueObj};
 use crate::ty::{HasType, Type, TypeCode, TypePair, VisibilityModifier};
 use crate::varinfo::VarInfo;
 use AccessKind::*;
@@ -76,7 +75,9 @@ fn debind(ident: &Identifier) -> Option<Str> {
 fn escape_name(name: &str, vis: &VisibilityModifier, def_line: u32, def_col: u32) -> Str {
     let name = name.replace('!', "__erg_proc__");
     let name = name.replace('$', "__erg_shared__");
-    if vis.is_private() {
+    // For public APIs, mangling is not performed because `hasattr`, etc. cannot be used.
+    // For automatically generated variables, there is no possibility of conflict.
+    if vis.is_private() && !name.starts_with('%') {
         let line_mangling = match (def_line, def_col) {
             (0, 0) => "".to_string(),
             (0, _) => format!("_C{def_col}"),
@@ -335,7 +336,7 @@ impl PyCodeGenerator {
     }
 
     /// shut down the interpreter
-    #[allow(dead_code)]
+    #[allow(unused)]
     fn terminate(&mut self) {
         self.emit_push_null();
         self.emit_load_name_instr(Identifier::public("exit"));
@@ -350,6 +351,7 @@ impl PyCodeGenerator {
     }
 
     /// swap TOS and TOS1
+    #[allow(unused)]
     fn rot2(&mut self) {
         if self.py_version.minor >= Some(11) {
             self.write_instr(Opcode311::SWAP);
@@ -360,6 +362,7 @@ impl PyCodeGenerator {
         }
     }
 
+    #[allow(unused)]
     fn dup_top(&mut self) {
         if self.py_version.minor >= Some(11) {
             self.write_instr(Opcode311::COPY);
@@ -1101,7 +1104,8 @@ impl PyCodeGenerator {
         self.write_instr(LOAD_BUILD_CLASS);
         self.write_arg(0);
         self.stack_inc();
-        let code = self.emit_trait_block(def.def_kind(), &def.sig, def.body.block);
+        let kind = def.def_kind();
+        let code = self.emit_trait_block(kind, &def.sig, def.body.block);
         self.emit_load_const(code);
         if self.py_version.minor < Some(11) {
             self.emit_load_const(def.sig.ident().inspect().clone());
@@ -1318,7 +1322,7 @@ impl PyCodeGenerator {
 
     /// Y = Inherit X => class Y(X): ...
     fn emit_require_type(&mut self, obj: GenTypeObj, require_or_sup: Option<Expr>) -> usize {
-        log!(info "entered {} ({obj}, {require_or_sup:?})", fn_name!());
+        log!(info "entered {} ({obj}, {})", fn_name!(), fmt_option!(require_or_sup));
         match obj {
             GenTypeObj::Class(_) => 0,
             GenTypeObj::Subclass(_) => {
@@ -1331,7 +1335,7 @@ impl PyCodeGenerator {
 
     fn emit_redef(&mut self, redef: ReDef) {
         log!(info "entered {} ({redef})", fn_name!());
-        self.emit_frameless_block(redef.block, vec![]);
+        self.emit_simple_block(redef.block);
         self.store_acc(redef.attr);
     }
 
@@ -1340,7 +1344,7 @@ impl PyCodeGenerator {
         if body.block.len() == 1 {
             self.emit_expr(body.block.remove(0));
         } else {
-            self.emit_frameless_block(body.block, vec![]);
+            self.emit_simple_block(body.block);
         }
         if sig.global {
             self.emit_store_global_instr(sig.ident);
@@ -1370,7 +1374,13 @@ impl PyCodeGenerator {
         } else {
             0
         };
-        let code = self.emit_block(body.block, Some(name.clone()), params, flags);
+        let code = self.emit_block(
+            body.block,
+            sig.params.guards,
+            Some(name.clone()),
+            params,
+            flags,
+        );
         // code.flags += CodeObjFlags::Optimized as u32;
         self.register_cellvars(&mut make_function_flag);
         let n_decos = sig.decorators.len();
@@ -1430,6 +1440,7 @@ impl PyCodeGenerator {
         };
         let code = self.emit_block(
             lambda.body,
+            lambda.params.guards,
             Some(format!("<lambda_{}>", lambda.id).into()),
             params,
             flags,
@@ -1874,7 +1885,7 @@ impl PyCodeGenerator {
             // then block
             Expr::Lambda(lambda) => {
                 // let params = self.gen_param_names(&lambda.params);
-                self.emit_frameless_block(lambda.body, vec![]);
+                self.emit_simple_block(lambda.body);
             }
             other => {
                 self.emit_expr(other);
@@ -1896,7 +1907,7 @@ impl PyCodeGenerator {
             match args.remove(0) {
                 Expr::Lambda(lambda) => {
                     // let params = self.gen_param_names(&lambda.params);
-                    self.emit_frameless_block(lambda.body, vec![]);
+                    self.emit_simple_block(lambda.body);
                 }
                 other => {
                     self.emit_expr(other);
@@ -1954,9 +1965,8 @@ impl PyCodeGenerator {
         };
         // If there is nothing on the stack at the start, init_stack_len == 2 (an iterator and the first iterator value)
         let init_stack_len = self.stack_len();
-        let params = self.gen_param_names(&lambda.params);
         // store the iterator value, stack_len == 1 or 2 in the end
-        self.emit_frameless_block(lambda.body, params);
+        self.emit_control_block(lambda.body, lambda.params);
         if self.stack_len() > init_stack_len - 1 {
             self.emit_pop_top();
         }
@@ -2009,8 +2019,7 @@ impl PyCodeGenerator {
             unreachable!()
         };
         let init_stack_len = self.stack_len();
-        let params = self.gen_param_names(&lambda.params);
-        self.emit_frameless_block(lambda.body, params);
+        self.emit_control_block(lambda.body, lambda.params);
         if self.stack_len() > init_stack_len {
             self.emit_pop_top();
         }
@@ -2051,32 +2060,31 @@ impl PyCodeGenerator {
                 self.dup_top();
             }
             // compilerで型チェック済み(可読性が下がるため、matchでNamedは使えない)
-            let Expr::Lambda(mut lambda) = expr else {
+            let Expr::Lambda(lambda) = expr else {
                 unreachable!()
             };
             debug_power_assert!(lambda.params.len(), ==, 1);
             if !lambda.params.defaults.is_empty() {
                 todo!("default values in match expression are not supported yet")
             }
-            let param = lambda.params.non_defaults.remove(0);
-            let pop_jump_point = self.emit_match_pattern(param, args.is_empty());
-            self.emit_frameless_block(lambda.body, Vec::new());
+            let pop_jump_points = self.emit_match_pattern(lambda.params, args.is_empty());
+            self.emit_simple_block(lambda.body);
             // If we move on to the next arm, the stack size will increase
             // so `self.stack_dec();` for now (+1 at the end).
             self.stack_dec();
-            if let Some(pop_jump_point) = pop_jump_point {
+            for pop_jump_point in pop_jump_points {
                 let idx = match self.py_version.minor {
                     Some(11) => self.lasti() - pop_jump_point,
                     Some(10) => self.lasti() + 4,
                     _ => self.lasti() + 4,
                 };
                 self.fill_jump(pop_jump_point + 1, idx); // jump to POP_TOP
-                jump_forward_points.push(self.lasti());
-                self.write_instr(EXTENDED_ARG);
-                self.write_arg(0);
-                self.write_instr(Opcode308::JUMP_FORWARD); // jump to the end
-                self.write_arg(0);
             }
+            jump_forward_points.push(self.lasti());
+            self.write_instr(EXTENDED_ARG);
+            self.write_arg(0);
+            self.write_instr(Opcode308::JUMP_FORWARD); // jump to the end
+            self.write_arg(0);
         }
         let lasti = self.lasti();
         for jump_point in jump_forward_points.into_iter() {
@@ -2091,36 +2099,55 @@ impl PyCodeGenerator {
     }
 
     /// return `None` if the arm is the last one
-    fn emit_match_pattern(
-        &mut self,
-        param: NonDefaultParamSignature,
-        is_last_arm: bool,
-    ) -> Option<usize> {
-        log!(info "entered {}", fn_name!());
-        let mut pop_jump_point = None;
-        // If it's the last arm, there's no need to inspect it
-        match param.t_spec_as_expr {
-            // _: {0, 1} => case 0 | 1
-            Some(Expr::Set(Set::Normal(set))) if !is_last_arm => {
-                let last = set.elems.pos_args.len().saturating_sub(1);
-                for (i, elem) in set.elems.pos_args.into_iter().enumerate() {
-                    if i != 0 {
-                        self.rot2();
-                    }
-                    self.emit_expr(elem.expr);
-                    self.emit_binop_instr(
-                        Token::from_str(TokenKind::DblEq, "=="),
-                        TypePair::Others,
-                    );
-                    if i != 0 {
-                        self.stack_inc();
-                        self.emit_binop_instr(
-                            Token::from_str(TokenKind::OrOp, "or"),
-                            TypePair::Others,
-                        );
-                    }
-                    if i == last {
-                        pop_jump_point = Some(self.lasti());
+    fn emit_match_pattern(&mut self, mut params: Params, is_last_arm: bool) -> Vec<usize> {
+        let param = params.non_defaults.remove(0);
+        log!(info "entered {}({param})", fn_name!());
+        match &param.raw.pat {
+            ParamPattern::VarName(name) => {
+                let ident = erg_parser::ast::Identifier::private_from_varname(name.clone());
+                let ident = Identifier::new(ident, None, param.vi);
+                self.emit_store_instr(ident, AccessKind::Name);
+            }
+            ParamPattern::Discard(_) => {
+                self.emit_pop_top();
+            }
+            _other => unreachable!(),
+        }
+        let mut pop_jump_points = vec![];
+        let last = params.guards.len().saturating_sub(1);
+        for (i, mut guard) in params.guards.into_iter().enumerate() {
+            if let GuardClause::Condition(Expr::BinOp(BinOp {
+                op:
+                    Token {
+                        kind: TokenKind::ContainsOp,
+                        ..
+                    },
+                lhs,
+                rhs,
+                ..
+            })) = &mut guard
+            {
+                // Guards have not been checked.
+                // Therefore, an invalid guard may be generated.
+                if lhs.var_info().is_some_and(|vi| vi == &VarInfo::ILLEGAL) {
+                    continue;
+                }
+                if rhs.var_info().is_some_and(|vi| vi == &VarInfo::ILLEGAL) {
+                    continue;
+                }
+                // *lhs.ref_mut_t().unwrap() = Type::Obj;
+                *rhs.ref_mut_t().unwrap() = Type::Obj;
+            }
+            match guard {
+                GuardClause::Bind(def) => {
+                    self.emit_def(def);
+                }
+                GuardClause::Condition(cond) => {
+                    self.emit_expr(cond);
+                    if is_last_arm {
+                        self.emit_pop_top();
+                    } else {
+                        pop_jump_points.push(self.lasti());
                         // HACK: match branches often jump very far (beyond the u8 range),
                         // so the jump destination should be reserved as the u16 range.
                         // Other jump instructions may need to be replaced by this way.
@@ -2130,76 +2157,17 @@ impl PyCodeGenerator {
                         // but the numbers are the same, only the way the jumping points are calculated is different.
                         self.write_instr(Opcode310::POP_JUMP_IF_FALSE); // jump to the next case
                         self.write_arg(0);
+                        // if matched, pop original
+                        if i == last {
+                            self.emit_pop_top();
+                        } else {
+                            self.stack_dec();
+                        }
                     }
                 }
-                // self.stack_dec();
             }
-            Some(t_spec) if !is_last_arm => {
-                // < v3.11:
-                // arg
-                // ↓ LOAD_NAME(contains_operator)
-                // arg contains_operator
-                // ↓ ROT_TWO
-                // contains_operator arg
-                // ↓ load expr
-                // contains_operator arg expr
-                //
-                // in v3.11:
-                // arg null
-                // ↓ SWAP 1
-                // null arg
-                // ↓ LOAD_NAME(contains_operator)
-                // null arg contains_operator
-                // ↓ SWAP 1
-                // null contains_operator arg
-                // ↓ load expr
-                // null contains_operator arg expr
-                // ↓ SWAP 1
-                // null contains_operator expr arg
-                if self.py_version.minor >= Some(11) {
-                    self.emit_push_null();
-                    self.rot2();
-                }
-                if !self.contains_op_loaded {
-                    self.load_contains_op();
-                }
-                self.emit_load_name_instr(Identifier::private("#contains_operator"));
-                self.rot2();
-                self.emit_expr(t_spec);
-                self.rot2();
-                if self.py_version.minor >= Some(11) {
-                    self.emit_precall_and_call(2);
-                } else {
-                    self.write_instr(Opcode310::CALL_FUNCTION);
-                    self.write_arg(2);
-                }
-                self.stack_dec();
-                pop_jump_point = Some(self.lasti());
-                // HACK: match branches often jump very far (beyond the u8 range),
-                // so the jump destination should be reserved as the u16 range.
-                // Other jump instructions may need to be replaced by this way.
-                self.write_instr(EXTENDED_ARG);
-                self.write_arg(0);
-                // in 3.11, POP_JUMP_IF_FALSE is replaced with POP_JUMP_FORWARD_IF_FALSE
-                // but the numbers are the same, only the way the jumping points are calculated is different.
-                self.write_instr(Opcode310::POP_JUMP_IF_FALSE); // jump to the next case
-                self.write_arg(0);
-                self.stack_dec();
-            }
-            _ => {}
         }
-        match param.raw.pat {
-            ParamPattern::VarName(name) => {
-                let ident = erg_parser::ast::Identifier::private_from_varname(name);
-                let ident = Identifier::new(ident, None, param.vi);
-                self.emit_store_instr(ident, AccessKind::Name);
-            }
-            ParamPattern::Discard(_) => {
-                self.emit_pop_top();
-            }
-            _other => unreachable!(),
-        }
-        pop_jump_point
+        pop_jump_points
     }
 
     fn emit_with_instr_311(&mut self, mut args: Args) {
@@ -2896,7 +2864,7 @@ impl PyCodeGenerator {
         self.emit_push_null();
         self.emit_load_name_instr(ident);
         for field in rec.attrs.into_iter() {
-            self.emit_frameless_block(field.body.block, vec![]);
+            self.emit_simple_block(field.body.block);
         }
         self.emit_call_instr(attrs_len, Name);
         // (1 (subroutine) + argc + kwsc) input objects -> 1 return object
@@ -2907,7 +2875,7 @@ impl PyCodeGenerator {
     /// Emits independent code blocks (e.g., linked other modules)
     fn emit_code(&mut self, code: Block) {
         let mut gen = self.inherit();
-        let code = gen.emit_block(code, None, vec![], 0);
+        let code = gen.emit_block(code, vec![], None, vec![], 0);
         self.emit_load_const(code);
     }
 
@@ -3130,11 +3098,35 @@ impl PyCodeGenerator {
     }
 
     /// forブロックなどで使う
-    fn emit_frameless_block(&mut self, block: Block, params: Vec<Str>) {
+    fn emit_control_block(&mut self, block: Block, params: Params) {
         log!(info "entered {}", fn_name!());
+        let param_names = self.gen_param_names(&params);
         let line = block.ln_begin().unwrap_or(0);
-        for param in params {
+        for param in param_names {
             self.emit_store_instr(Identifier::public_with_line(DOT, param, line), Name);
+        }
+        for guard in params.guards {
+            if let GuardClause::Bind(bind) = guard {
+                self.emit_def(bind);
+            }
+        }
+        if block.is_empty() {
+            return;
+        }
+        let init_stack_len = self.stack_len();
+        for chunk in block.into_iter() {
+            self.emit_chunk(chunk);
+            if self.stack_len() > init_stack_len {
+                self.emit_pop_top();
+            }
+        }
+        self.cancel_if_pop_top();
+    }
+
+    fn emit_simple_block(&mut self, block: Block) {
+        log!(info "entered {}", fn_name!());
+        if block.is_empty() {
+            return;
         }
         let init_stack_len = self.stack_len();
         for chunk in block.into_iter() {
@@ -3191,7 +3183,7 @@ impl PyCodeGenerator {
             self.emit_new_func(&class.sig, class.__new__);
         }
         if !class.methods.is_empty() {
-            self.emit_frameless_block(class.methods, vec![]);
+            self.emit_simple_block(class.methods);
         }
         if self.stack_len() == init_stack_len {
             self.emit_load_const(ValueObj::None);
@@ -3259,7 +3251,7 @@ impl PyCodeGenerator {
                 "?".into(),
             );
             let param = NonDefaultParamSignature::new(raw, vi, None);
-            let params = Params::new(vec![self_param, param], None, vec![], None);
+            let params = Params::new(vec![self_param, param], None, vec![], vec![], None);
             (param_name, params)
         } else {
             ("_".into(), Params::single(self_param))
@@ -3384,6 +3376,7 @@ impl PyCodeGenerator {
     fn emit_block(
         &mut self,
         block: Block,
+        guards: Vec<GuardClause>,
         opt_name: Option<Str>,
         params: Vec<Str>,
         flags: u32,
@@ -3419,6 +3412,11 @@ impl PyCodeGenerator {
             0
         };
         let init_stack_len = self.stack_len();
+        for guard in guards {
+            if let GuardClause::Bind(bind) = guard {
+                self.emit_def(bind);
+            }
+        }
         for chunk in block.into_iter() {
             self.emit_chunk(chunk);
             // NOTE: 各行のトップレベルでは0個または1個のオブジェクトが残っている

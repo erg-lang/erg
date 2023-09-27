@@ -9,6 +9,26 @@ g 10
 h _: Int, _: Int = None
 h 10, 20
 
+y = match [1, 2]:
+    [1, 2, 3] -> 6
+    [x, 2] -> x
+assert y == 1
+a = match { .x = 1 }:
+    { y; } -> y + 100
+    { x; y } -> 200 + x + y
+    { x; } -> x
+assert a == 1
+b = match { .x = [1, 2]; }:
+    { y; } -> y + 100
+    { x; y; } -> 200 + x + y
+    { x = [1, y]; } -> y
+assert b == 2
+c = match [[1, 2], [3, 4]]:
+    [x, [3, 5]] -> x + 100
+    [x, y, z] => 200 + x + y + z
+    [[1, x], [3, y]] -> x + y
+assert c == 6
+
 #[
 and: [Bool; 2] -> Bool
 and [True, t] = t

@@ -1,13 +1,35 @@
 # e.g. `nightly.0`
 .Identifier = Class { .name = Str; .num = Nat }
+.Identifier|<: Show|.
+    __str__ ref self = "\{self.name}.\{self.num}"
 .Identifier|.Identifier <: Eq|.
     __eq__ self, other: .Identifier =
         self.name == other.name and self.num == other.num
+.Identifier.
+    from_str s: Str =
+        match s.split("."):
+            [name, num] ->
+                num_ = nat(num)
+                assert num_ in Nat
+                .Identifier::__new__ { .name; .num = num_ }
+            _ -> panic "invalid identifier string: \{s}"
 
-.Version = Class { .major = Nat; .minor = Nat; .patch = Nat; .pre = .Identifier or NoneType }
-.Version.
+.SemVer = Class { .major = Nat; .minor = Nat; .patch = Nat; .pre = .Identifier or NoneType }
+.SemVer|<: Show|.
+    __str__ ref self =
+        if self.pre != None:
+            do: "SemVer(\{self.major}.\{self.minor}.\{self.patch}-\{self.pre})"
+            do: "SemVer(\{self.major}.\{self.minor}.\{self.patch})"
+.SemVer.
     new major, minor, patch, pre := None =
-        .Version::__new__ { .major = major; .minor = minor; .patch = patch; .pre = pre }
+        .SemVer::__new__ { .major; .minor; .patch; .pre }
+    from_str s: Str =
+        match s.split("."):
+            [major, minor, patch] ->
+                .SemVer.new(nat(major), nat(minor), nat(patch))
+            [major, minor, patch, pre] ->
+                .SemVer.new(nat(major), nat(minor), nat(patch), .Identifier.from_str(pre))
+            _ -> panic "invalid semver string: \{s}"
 #[
     greater self, other: .Version =
         match [self.major > other.major, self.major >= other.major, self.minor > other.minor, self.minor >= other.minor, self.patch > other.patch]:
@@ -16,12 +38,14 @@
             [_, True, _, True, True] -> True
             _ -> False
 ]#
-.Version|.Version <: Eq|.
-    __eq__ self, other: .Version =
+.SemVer|<: Eq|.
+    __eq__ self, other: .SemVer =
         self.major == other.major and self.minor == other.minor and self.patch == other.patch and self.pre == other.pre
 
 if! __name__ == "__main__", do!:
-    v = .Version.new(0, 0, 1)
+    v = .SemVer.new(0, 0, 1)
     assert v.minor == 0
     assert v.pre == None
-    assert v != .Version.new(0, 0, 2)
+    assert v != .SemVer.new(0, 0, 2)
+    v2 = .SemVer.from_str("0.0.1")
+    assert v == v2

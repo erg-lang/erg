@@ -94,6 +94,17 @@ impl Literal {
         Self { token }
     }
 
+    pub fn str(s: impl Into<Str>, line: u32) -> Self {
+        let token = Token::new_fake(TokenKind::StrLit, s, line, 0, 0);
+        Self { token }
+    }
+
+    pub fn bool(b: bool, line: u32) -> Self {
+        let b = if b { "True" } else { "False" };
+        let token = Token::new_fake(TokenKind::BoolLit, b, line, 0, 0);
+        Self { token }
+    }
+
     #[inline]
     pub fn is(&self, kind: TokenKind) -> bool {
         self.token.is(kind)
@@ -1150,11 +1161,12 @@ pub struct BinOp {
 }
 
 impl NestedDisplay for BinOp {
-    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        writeln!(f, "`{}`:", self.op.content)?;
-        self.args[0].fmt_nest(f, level + 1)?;
-        writeln!(f)?;
-        self.args[1].fmt_nest(f, level + 1)
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(
+            f,
+            "`{}`({}, {})",
+            self.op.content, self.args[0], self.args[1]
+        )
     }
 }
 
@@ -1234,6 +1246,27 @@ impl NestedDisplay for Call {
         }
         if self.args.is_empty() {
             write!(f, "()")
+        } else if self.args.len() < 6 {
+            write!(f, "(")?;
+            for (i, arg) in self.args.pos_args().iter().enumerate() {
+                if i != 0 {
+                    write!(f, ", ")?;
+                }
+                write!(f, "{}", arg)?;
+            }
+            if let Some(rest) = self.args.var_args.as_ref() {
+                if !self.args.pos_args().is_empty() {
+                    write!(f, ", ")?;
+                }
+                write!(f, "*{}", rest)?;
+            }
+            for (i, kw_arg) in self.args.kw_args().iter().enumerate() {
+                if i != 0 || !self.args.pos_args().is_empty() || self.args.var_args.is_some() {
+                    write!(f, ", ")?;
+                }
+                write!(f, "{}", kw_arg)?;
+            }
+            write!(f, ")")
         } else {
             writeln!(f, ":")?;
             self.args.fmt_nest(f, level + 1)
@@ -3124,6 +3157,10 @@ impl VarName {
         self.0.content.starts_with('\'')
     }
 
+    pub fn is_generated(&self) -> bool {
+        self.0.content.starts_with('%')
+    }
+
     pub const fn token(&self) -> &Token {
         &self.0
     }
@@ -3891,6 +3928,10 @@ impl ParamRecordAttrs {
     pub const fn empty() -> Self {
         Self::new(vec![])
     }
+
+    pub fn keys(&self) -> impl Iterator<Item = &Identifier> {
+        self.elems.iter().map(|attr| &attr.lhs)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -3954,7 +3995,9 @@ impl TryFrom<&ParamPattern> for Expr {
     fn try_from(value: &ParamPattern) -> Result<Self, Self::Error> {
         match value {
             // ParamPattern::Discard(token) => Ok(Expr::Accessor(Accessor::local(token.clone()))),
-            ParamPattern::VarName(name) => Ok(Expr::Accessor(Accessor::local(name.0.clone()))),
+            ParamPattern::VarName(name) if name.inspect() != "_" => {
+                Ok(Expr::Accessor(Accessor::local(name.0.clone())))
+            }
             ParamPattern::Lit(lit) => Ok(Expr::Literal(lit.clone())),
             ParamPattern::Array(array) => Expr::try_from(array),
             ParamPattern::Tuple(tuple) => Expr::try_from(tuple),
@@ -4073,10 +4116,38 @@ impl DefaultParamSignature {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum GuardClause {
+    Condition(Expr),
+    Bind(Def),
+}
+
+impl NestedDisplay for GuardClause {
+    fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
+        match self {
+            Self::Condition(cond) => write!(f, "{}", cond),
+            Self::Bind(def) => write!(f, "{}", def),
+        }
+    }
+}
+
+impl_display_from_nested!(GuardClause);
+
+impl Locational for GuardClause {
+    fn loc(&self) -> Location {
+        match self {
+            Self::Condition(cond) => cond.loc(),
+            Self::Bind(def) => def.loc(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Params {
     pub non_defaults: Vec<NonDefaultParamSignature>,
     pub var_params: Option<Box<NonDefaultParamSignature>>,
     pub defaults: Vec<DefaultParamSignature>,
+    /// match conditions
+    pub guards: Vec<GuardClause>,
     pub parens: Option<(Token, Token)>,
 }
 
@@ -4088,6 +4159,15 @@ impl fmt::Display for Params {
         }
         if !self.defaults.is_empty() {
             write!(f, ", {}", fmt_vec(&self.defaults))?;
+        }
+        if !self.guards.is_empty() {
+            write!(f, " if ")?;
+        }
+        for (i, guard) in self.guards.iter().enumerate() {
+            if i > 0 {
+                write!(f, " and ")?;
+            }
+            write!(f, "{guard}")?;
         }
         write!(f, ")")
     }
@@ -4121,6 +4201,7 @@ type RawParams = (
     Vec<NonDefaultParamSignature>,
     Option<Box<NonDefaultParamSignature>>,
     Vec<DefaultParamSignature>,
+    Vec<GuardClause>,
     Option<(Token, Token)>,
 );
 
@@ -4135,6 +4216,7 @@ impl Params {
             non_defaults,
             var_params: var_params.map(Box::new),
             defaults,
+            guards: Vec::new(),
             parens,
         }
     }
@@ -4148,6 +4230,7 @@ impl Params {
             self.non_defaults,
             self.var_params,
             self.defaults,
+            self.guards,
             self.parens,
         )
     }
@@ -4160,6 +4243,14 @@ impl Params {
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    pub fn add_guard(&mut self, guard: GuardClause) {
+        self.guards.push(guard);
+    }
+
+    pub fn extend_guards(&mut self, guards: Vec<GuardClause>) {
+        self.guards.extend(guards);
     }
 }
 
@@ -4744,6 +4835,39 @@ impl PatchDef {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Compound {
+    pub exprs: Vec<Expr>,
+}
+
+impl_stream!(Compound, Expr, exprs);
+
+impl NestedDisplay for Compound {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "{}", fmt_vec(&self.exprs))
+    }
+}
+
+impl Locational for Compound {
+    fn loc(&self) -> Location {
+        if let Some(expr) = self.exprs.first() {
+            if let Some(last) = self.exprs.last() {
+                Location::concat(expr, last)
+            } else {
+                expr.loc()
+            }
+        } else {
+            Location::Unknown
+        }
+    }
+}
+
+impl Compound {
+    pub const fn new(exprs: Vec<Expr>) -> Self {
+        Self { exprs }
+    }
+}
+
 /// Expression(式)
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expr {
@@ -4765,14 +4889,15 @@ pub enum Expr {
     ClassDef(ClassDef),
     PatchDef(PatchDef),
     ReDef(ReDef),
+    Compound(Compound),
     /// for mapping to Python AST
     Dummy(Dummy),
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Dummy);
-impl_from_trait_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Dummy);
+impl_nested_display_for_chunk_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, Dummy);
+impl_from_trait_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, Dummy);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Dummy);
+impl_locational_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, Dummy);
 
 impl Expr {
     pub fn is_match_call(&self) -> bool {
@@ -4810,6 +4935,7 @@ impl Expr {
             Self::ClassDef(_) => "class definition",
             Self::PatchDef(_) => "patch definition",
             Self::ReDef(_) => "re-definition",
+            Self::Compound(_) => "compound",
             Self::Dummy(_) => "dummy",
         }
     }
@@ -4904,6 +5030,14 @@ impl Expr {
 
     pub fn type_asc_expr(self, t_spec: TypeSpecWithOp) -> Self {
         Self::TypeAscription(self.type_asc(t_spec))
+    }
+
+    pub fn bin_op(self, op: Token, rhs: Expr) -> BinOp {
+        BinOp::new(op, self, rhs)
+    }
+
+    pub fn unary_op(self, op: Token) -> UnaryOp {
+        UnaryOp::new(op, self)
     }
 }
 

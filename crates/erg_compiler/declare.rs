@@ -236,8 +236,19 @@ impl ASTLowerer {
         Ok(args)
     }
 
-    fn fake_lower_call(&self, call: ast::Call) -> LowerResult<hir::Call> {
+    fn fake_lower_call(&self, mut call: ast::Call) -> LowerResult<hir::Call> {
         let obj = self.fake_lower_expr(*call.obj)?;
+        if call
+            .attr_name
+            .as_ref()
+            .is_some_and(|attr| attr.inspect() == "__Tuple_getitem__")
+        {
+            call.attr_name
+                .as_mut()
+                .unwrap()
+                .name
+                .rename("__getitem__".into());
+        }
         let attr_name = call.attr_name.map(hir::Identifier::bare);
         let args = self.fake_lower_args(call.args)?;
         Ok(hir::Call::new(obj, attr_name, args))
@@ -428,7 +439,7 @@ impl ASTLowerer {
     }
 
     fn fake_lower_params(&self, params: ast::Params) -> LowerResult<hir::Params> {
-        let (non_defaults_, var_params_, defaults_, parens) = params.deconstruct();
+        let (non_defaults_, var_params_, defaults_, guards_, parens) = params.deconstruct();
         let mut non_defaults = vec![];
         for non_default_ in non_defaults_.into_iter() {
             let t_spec_as_expr = non_default_
@@ -474,7 +485,23 @@ impl ASTLowerer {
             let default = hir::DefaultParamSignature::new(sig, default_val);
             defaults.push(default);
         }
-        Ok(hir::Params::new(non_defaults, var_params, defaults, parens))
+        let mut guards = vec![];
+        for guard in guards_.into_iter() {
+            let guard = match guard {
+                ast::GuardClause::Condition(cond) => {
+                    hir::GuardClause::Condition(self.fake_lower_expr(cond)?)
+                }
+                ast::GuardClause::Bind(bind) => hir::GuardClause::Bind(self.fake_lower_def(bind)?),
+            };
+            guards.push(guard);
+        }
+        Ok(hir::Params::new(
+            non_defaults,
+            var_params,
+            defaults,
+            guards,
+            parens,
+        ))
     }
 
     fn fake_lower_block(&self, block: ast::Block) -> LowerResult<hir::Block> {
@@ -518,6 +545,15 @@ impl ASTLowerer {
         Ok(hir::TypeAscription::new(expr, spec))
     }
 
+    fn fake_lower_compound(&self, compound: ast::Compound) -> LowerResult<hir::Block> {
+        let mut chunks = vec![];
+        for chunk in compound.into_iter() {
+            let chunk = self.fake_lower_expr(chunk)?;
+            chunks.push(chunk);
+        }
+        Ok(hir::Block::new(chunks))
+    }
+
     pub(crate) fn fake_lower_expr(&self, expr: ast::Expr) -> LowerResult<hir::Expr> {
         match expr {
             ast::Expr::Literal(lit) => Ok(hir::Expr::Literal(self.fake_lower_literal(lit)?)),
@@ -532,6 +568,9 @@ impl ASTLowerer {
             ast::Expr::Accessor(acc) => Ok(hir::Expr::Accessor(self.fake_lower_acc(acc)?)),
             ast::Expr::Call(call) => Ok(hir::Expr::Call(self.fake_lower_call(call)?)),
             ast::Expr::Lambda(lambda) => Ok(hir::Expr::Lambda(self.fake_lower_lambda(lambda)?)),
+            ast::Expr::Compound(compound) => {
+                Ok(hir::Expr::Compound(self.fake_lower_compound(compound)?))
+            }
             ast::Expr::Dummy(dummy) => Ok(hir::Expr::Dummy(self.fake_lower_dummy(dummy)?)),
             ast::Expr::TypeAscription(tasc) => {
                 Ok(hir::Expr::TypeAsc(self.fake_lower_type_asc(tasc)?))

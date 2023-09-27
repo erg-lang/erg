@@ -565,13 +565,7 @@ impl Parser {
         };
         assert_eq!(attr.body.block.len(), 1);
         let first = attr.body.block.remove(0);
-        let Expr::Accessor(rhs) = first else {
-            let err = ParseError::simple_syntax_error(line!() as usize, first.loc());
-            self.errs.push(err);
-            debug_exit_info!(self);
-            return Err(());
-        };
-        let rhs = self.convert_accessor_to_param_sig(rhs)?;
+        let rhs = self.convert_rhs_to_param(first, false)?;
         Ok(ParamRecordAttr::new(lhs, rhs))
     }
 

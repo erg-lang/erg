@@ -1305,7 +1305,12 @@ impl ASTLowerer {
         Ok(hir::TypeSpecWithOp::new(type_spec_with_op, expr, spec_t))
     }
 
-    fn lower_params(&mut self, params: ast::Params) -> LowerResult<hir::Params> {
+    /// lower and assign params
+    fn lower_params(
+        &mut self,
+        params: ast::Params,
+        expect: Option<&SubrType>,
+    ) -> LowerResult<hir::Params> {
         log!(info "entered {}({})", fn_name!(), params);
         let mut errs = LowerErrors::empty();
         let mut hir_non_defaults = vec![];
@@ -1335,15 +1340,42 @@ impl ASTLowerer {
                 Err(es) => errs.extend(es),
             }
         }
+        let mut hir_params = hir::Params::new(
+            hir_non_defaults,
+            hir_var_params,
+            hir_defaults,
+            vec![],
+            params.parens,
+        );
+        if let Err(errs) = self
+            .module
+            .context
+            .assign_params(&mut hir_params, expect.cloned())
+        {
+            self.errs.extend(errs);
+        }
+        for guard in params.guards.into_iter() {
+            let lowered = match guard {
+                ast::GuardClause::Bind(bind) => self.lower_def(bind).map(hir::GuardClause::Bind),
+                // TODO: no fake
+                ast::GuardClause::Condition(cond) => {
+                    self.fake_lower_expr(cond).map(hir::GuardClause::Condition)
+                }
+            };
+            match lowered {
+                Ok(guard) => {
+                    if hir_params.guards.contains(&guard) {
+                        log!(err "duplicate guard: {guard}");
+                        continue;
+                    }
+                    hir_params.guards.push(guard)
+                }
+                Err(es) => self.errs.extend(es),
+            }
+        }
         if !errs.is_empty() {
             Err(errs)
         } else {
-            let hir_params = hir::Params::new(
-                hir_non_defaults,
-                hir_var_params,
-                hir_defaults,
-                params.parens,
-            );
             Ok(hir_params)
         }
     }
@@ -1378,19 +1410,14 @@ impl ASTLowerer {
                 .context
                 .grow(&name, kind, Private, Some(tv_cache));
         }
-        let mut params = self.lower_params(lambda.sig.params).map_err(|errs| {
-            if !in_statement {
-                self.pop_append_errs();
-            }
-            errs
-        })?;
-        if let Err(errs) = self
-            .module
-            .context
-            .assign_params(&mut params, expect.cloned())
-        {
-            self.errs.extend(errs);
-        }
+        let params = self
+            .lower_params(lambda.sig.params, expect)
+            .map_err(|errs| {
+                if !in_statement {
+                    self.pop_append_errs();
+                }
+                errs
+            })?;
         let overwritten = {
             let mut overwritten = vec![];
             let guards = if in_statement {
@@ -1737,10 +1764,7 @@ impl ASTLowerer {
         }
         match registered_t {
             Type::Subr(subr_t) => {
-                let mut params = self.lower_params(sig.params.clone())?;
-                if let Err(errs) = self.module.context.assign_params(&mut params, Some(subr_t)) {
-                    self.errs.extend(errs);
-                }
+                let params = self.lower_params(sig.params.clone(), Some(&subr_t))?;
                 if let Err(errs) = self.module.context.register_const(&body.block) {
                     self.errs.extend(errs);
                 }
@@ -1806,10 +1830,7 @@ impl ASTLowerer {
                 }
             }
             Type::Failure => {
-                let mut params = self.lower_params(sig.params)?;
-                if let Err(errs) = self.module.context.assign_params(&mut params, None) {
-                    self.errs.extend(errs);
-                }
+                let params = self.lower_params(sig.params, None)?;
                 if let Err(errs) = self.module.context.register_const(&body.block) {
                     self.errs.extend(errs);
                 }
@@ -2653,6 +2674,7 @@ impl ASTLowerer {
             ast::Expr::TypeAscription(tasc) => {
                 hir::Expr::TypeAsc(self.lower_type_asc(tasc, expect)?)
             }
+            ast::Expr::Compound(comp) => hir::Expr::Compound(self.lower_compound(comp, expect)?),
             // Checking is also performed for expressions in Dummy. However, it has no meaning in code generation
             ast::Expr::Dummy(dummy) => hir::Expr::Dummy(self.lower_dummy(dummy, expect)?),
             other => {
@@ -2706,6 +2728,22 @@ impl ASTLowerer {
                     hir::Expr::Dummy(hir::Dummy::new(vec![]))
                 }
             };
+            hir_block.push(chunk);
+        }
+        Ok(hir::Block::new(hir_block))
+    }
+
+    fn lower_compound(
+        &mut self,
+        compound: ast::Compound,
+        expect: Option<&Type>,
+    ) -> LowerResult<hir::Block> {
+        log!(info "entered {}", fn_name!());
+        let mut hir_block = Vec::with_capacity(compound.len());
+        let last = compound.len().saturating_sub(1);
+        for (i, chunk) in compound.into_iter().enumerate() {
+            let expect = if i == last { expect } else { None };
+            let chunk = self.lower_chunk(chunk, expect)?;
             hir_block.push(chunk);
         }
         Ok(hir::Block::new(hir_block))
