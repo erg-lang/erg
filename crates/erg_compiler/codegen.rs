@@ -75,7 +75,9 @@ fn debind(ident: &Identifier) -> Option<Str> {
 fn escape_name(name: &str, vis: &VisibilityModifier, def_line: u32, def_col: u32) -> Str {
     let name = name.replace('!', "__erg_proc__");
     let name = name.replace('$', "__erg_shared__");
-    if vis.is_private() {
+    // For public APIs, mangling is not performed because `hasattr`, etc. cannot be used.
+    // For automatically generated variables, there is no possibility of conflict.
+    if vis.is_private() && !name.starts_with('%') {
         let line_mangling = match (def_line, def_col) {
             (0, 0) => "".to_string(),
             (0, _) => format!("_C{def_col}"),
@@ -84,7 +86,6 @@ fn escape_name(name: &str, vis: &VisibilityModifier, def_line: u32, def_col: u32
         };
         Str::from(format!("::{name}{line_mangling}"))
     } else {
-        // For public APIs, mangling is not performed because `hasattr`, etc. cannot be used.
         Str::from(name)
     }
 }
@@ -2066,25 +2067,25 @@ impl PyCodeGenerator {
             if !lambda.params.defaults.is_empty() {
                 todo!("default values in match expression are not supported yet")
             }
-            let pop_jump_point =
-                self.emit_match_pattern(lambda.params, lambda.pre_block, args.is_empty());
-            self.emit_frameless_block(lambda.body, Vec::new());
+            let pop_jump_point = self.emit_match_pattern(lambda.params, args.is_empty());
+            self.emit_frameless_block(lambda.pre_block, vec![]);
+            self.emit_frameless_block(lambda.body, vec![]);
             // If we move on to the next arm, the stack size will increase
             // so `self.stack_dec();` for now (+1 at the end).
             self.stack_dec();
-            if let Some(pop_jump_point) = pop_jump_point {
+            for pop_jump_point in pop_jump_point {
                 let idx = match self.py_version.minor {
                     Some(11) => self.lasti() - pop_jump_point,
                     Some(10) => self.lasti() + 4,
                     _ => self.lasti() + 4,
                 };
                 self.fill_jump(pop_jump_point + 1, idx); // jump to POP_TOP
-                jump_forward_points.push(self.lasti());
-                self.write_instr(EXTENDED_ARG);
-                self.write_arg(0);
-                self.write_instr(Opcode308::JUMP_FORWARD); // jump to the end
-                self.write_arg(0);
             }
+            jump_forward_points.push(self.lasti());
+            self.write_instr(EXTENDED_ARG);
+            self.write_arg(0);
+            self.write_instr(Opcode308::JUMP_FORWARD); // jump to the end
+            self.write_arg(0);
         }
         let lasti = self.lasti();
         for jump_point in jump_forward_points.into_iter() {
@@ -2099,12 +2100,7 @@ impl PyCodeGenerator {
     }
 
     /// return `None` if the arm is the last one
-    fn emit_match_pattern(
-        &mut self,
-        mut params: Params,
-        pre_block: Block,
-        is_last_arm: bool,
-    ) -> Option<usize> {
+    fn emit_match_pattern(&mut self, mut params: Params, is_last_arm: bool) -> Vec<usize> {
         let param = params.non_defaults.remove(0);
         log!(info "entered {}({param})", fn_name!());
         // for pre_block
@@ -2119,8 +2115,7 @@ impl PyCodeGenerator {
             }
             _other => unreachable!(),
         }
-        self.emit_frameless_block(pre_block, vec![]);
-        let mut pop_jump_point = None;
+        let mut pop_jump_point = vec![];
         if !is_last_arm {
             let last = params.guards.len().saturating_sub(1);
             for (i, mut guard) in params.guards.into_iter().enumerate() {
@@ -2139,25 +2134,21 @@ impl PyCodeGenerator {
                     *rhs.ref_mut_t().unwrap() = Type::Obj;
                 }
                 self.emit_expr(guard);
-                if i != 0 {
-                    self.emit_binop_instr(
-                        Token::from_str(TokenKind::AndOp, "and"),
-                        TypePair::Others,
-                    );
-                }
+                pop_jump_point.push(self.lasti());
+                // HACK: match branches often jump very far (beyond the u8 range),
+                // so the jump destination should be reserved as the u16 range.
+                // Other jump instructions may need to be replaced by this way.
+                self.write_instr(EXTENDED_ARG);
+                self.write_arg(0);
+                // in 3.11, POP_JUMP_IF_FALSE is replaced with POP_JUMP_FORWARD_IF_FALSE
+                // but the numbers are the same, only the way the jumping points are calculated is different.
+                self.write_instr(Opcode310::POP_JUMP_IF_FALSE); // jump to the next case
+                self.write_arg(0);
+                // if matched, pop original
                 if i == last {
-                    pop_jump_point = Some(self.lasti());
-                    // HACK: match branches often jump very far (beyond the u8 range),
-                    // so the jump destination should be reserved as the u16 range.
-                    // Other jump instructions may need to be replaced by this way.
-                    self.write_instr(EXTENDED_ARG);
-                    self.write_arg(0);
-                    // in 3.11, POP_JUMP_IF_FALSE is replaced with POP_JUMP_FORWARD_IF_FALSE
-                    // but the numbers are the same, only the way the jumping points are calculated is different.
-                    self.write_instr(Opcode310::POP_JUMP_IF_FALSE); // jump to the next case
-                    self.write_arg(0);
-                    // if matched, pop original
-                    self.emit_pop_top(); // self.stack_dec();
+                    self.emit_pop_top();
+                } else {
+                    self.stack_dec();
                 }
             }
         }
