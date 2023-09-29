@@ -918,6 +918,11 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         self.shared.clear(&path);
     }
 
+    #[allow(unused)]
+    pub fn get_file_cache(&self) -> &FileCache {
+        &self.file_cache
+    }
+
     pub fn remove_module_entry(&mut self, uri: &NormalizedUrl) -> Option<ModuleEntry> {
         let path = uri.to_file_path().ok()?;
         self.shared.mod_cache.remove(&path)

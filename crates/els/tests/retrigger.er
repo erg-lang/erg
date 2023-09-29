@@ -1,0 +1,4 @@
+l = [1, 2]
+for! l, i =>
+    pri
+    print! i.bi

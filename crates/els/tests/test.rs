@@ -2,18 +2,18 @@ use std::path::Path;
 
 use lsp_types::{
     CompletionResponse, DiagnosticSeverity, DocumentSymbolResponse, FoldingRange, FoldingRangeKind,
-    GotoDefinitionResponse, HoverContents, InlayHintLabel, MarkedString, PublishDiagnosticsParams,
+    GotoDefinitionResponse, HoverContents, InlayHintLabel, MarkedString,
 };
 const FILE_A: &str = "tests/a.er";
 const FILE_B: &str = "tests/b.er";
 const FILE_C: &str = "tests/c.er";
 const FILE_IMPORTS: &str = "tests/imports.er";
 const FILE_INVALID_SYNTAX: &str = "tests/invalid_syntax.er";
+const FILE_RETRIGGER: &str = "tests/retrigger.er";
 
 use els::{NormalizedUrl, Server};
 use erg_proc_macros::exec_new_thread;
 use molc::{add_char, delete_line, oneline_range};
-use serde::Deserialize;
 
 #[test]
 fn test_open() -> Result<(), Box<dyn std::error::Error>> {
@@ -66,6 +66,34 @@ fn test_neighbor_completion() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         Err(format!("not items: {resp:?}").into())
     }
+}
+
+#[test]
+fn test_completion_retrigger() -> Result<(), Box<dyn std::error::Error>> {
+    let mut client = Server::bind_fake_client();
+    client.request_initialize()?;
+    client.notify_initialized()?;
+    let uri = NormalizedUrl::from_file_path(Path::new(FILE_RETRIGGER).canonicalize()?)?;
+    client.notify_open(FILE_RETRIGGER)?;
+    let _ = client.wait_diagnostics()?;
+    client.notify_change(uri.clone().raw(), add_char(2, 7, "n"))?;
+    let resp = client.request_completion(uri.clone().raw(), 2, 7, "n")?;
+    if let Some(CompletionResponse::Array(items)) = resp {
+        assert!(!items.is_empty());
+        assert!(items.iter().any(|item| item.label == "print!"));
+    } else {
+        return Err(format!("not items: {resp:?}").into());
+    }
+    client.notify_change(uri.clone().raw(), add_char(3, 15, "t"))?;
+    let resp = client.request_completion(uri.raw(), 3, 15, "t")?;
+    if let Some(CompletionResponse::Array(items)) = resp {
+        assert!(!items.is_empty());
+        assert!(items.iter().any(|item| item.label == "bit_count"));
+        assert!(items.iter().any(|item| item.label == "bit_length"));
+    } else {
+        return Err(format!("not items: {resp:?}").into());
+    }
+    Ok(())
 }
 
 #[test]
@@ -251,11 +279,9 @@ fn test_dependents_check() -> Result<(), Box<dyn std::error::Error>> {
     client.wait_messages(2)?;
     client.responses.clear();
     client.notify_save(uri_b.clone().raw())?;
-    client.wait_messages(9)?;
-    assert!(client.responses.iter().any(|resp| resp
-        .to_string()
-        .contains("tests/b.er passed, found warns: 0")));
-    let diags = PublishDiagnosticsParams::deserialize(&client.responses.last().unwrap()["params"])?;
+    let diags = client.wait_diagnostics()?;
+    assert!(diags.diagnostics.is_empty());
+    let diags = client.wait_diagnostics()?;
     assert_eq!(diags.diagnostics.len(), 1);
     assert_eq!(
         diags.diagnostics[0].severity,
@@ -269,24 +295,17 @@ fn test_fix_error() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = Server::bind_fake_client();
     client.request_initialize()?;
     client.notify_initialized()?;
-    client.wait_messages(3)?;
-    client.responses.clear();
     client.notify_open(FILE_INVALID_SYNTAX)?;
-    client.wait_messages(6)?;
-    let msg = client.responses.last().unwrap();
-    let diags = PublishDiagnosticsParams::deserialize(&msg["params"])?;
+    let diags = client.wait_diagnostics()?;
     assert_eq!(diags.diagnostics.len(), 1);
     assert_eq!(
         diags.diagnostics[0].severity,
         Some(DiagnosticSeverity::ERROR)
     );
-    client.responses.clear();
     let uri = NormalizedUrl::from_file_path(Path::new(FILE_INVALID_SYNTAX).canonicalize()?)?;
     client.notify_change(uri.clone().raw(), add_char(0, 10, " 1"))?;
     client.notify_save(uri.clone().raw())?;
-    client.wait_messages(4)?;
-    let msg = client.responses.last().unwrap();
-    let diags = PublishDiagnosticsParams::deserialize(&msg["params"])?;
+    let diags = client.wait_diagnostics()?;
     assert_eq!(diags.diagnostics.len(), 0);
     Ok(())
 }

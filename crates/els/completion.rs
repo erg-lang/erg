@@ -32,7 +32,7 @@ use lsp_types::{
 };
 
 use crate::server::{ELSResult, RedirectableStdout, Server};
-use crate::util::{self, NormalizedUrl};
+use crate::util::{self, loc_to_pos, NormalizedUrl};
 
 fn comp_item_kind(vi: &VarInfo) -> CompletionItemKind {
     match &vi.t {
@@ -51,20 +51,21 @@ fn comp_item_kind(vi: &VarInfo) -> CompletionItemKind {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum CompletionKind {
+    RetriggerLocal,
     Local,
-    Space,
     LParen,
     Method,
+    RetriggerMethod,
     // Colon, // :, Type ascription or private access `::`
 }
 
 impl CompletionKind {
     pub const fn should_be_local(&self) -> bool {
-        matches!(self, Self::Local | Self::Space | Self::LParen)
+        matches!(self, Self::RetriggerLocal | Self::Local | Self::LParen)
     }
 
     pub const fn should_be_method(&self) -> bool {
-        matches!(self, Self::Method)
+        matches!(self, Self::Method | Self::RetriggerMethod)
     }
 
     pub const fn _is_lparen(&self) -> bool {
@@ -493,7 +494,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         self.send_log(format!("completion requested: {params:?}"))?;
         let uri = NormalizedUrl::new(params.text_document_position.text_document.uri);
         let path = util::uri_to_path(&uri);
-        let pos = params.text_document_position.position;
+        let mut pos = params.text_document_position.position;
         // ignore comments
         // TODO: multiline comments
         if self
@@ -510,32 +511,39 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let comp_kind = match trigger {
             Some(".") => CompletionKind::Method,
             Some(":") => CompletionKind::Method,
-            Some(" ") => CompletionKind::Space,
+            Some(" ") => CompletionKind::Local,
             Some("(") => CompletionKind::LParen,
-            _ => CompletionKind::Local,
+            _ => {
+                let offset = match self.file_cache.get_token(&uri, pos).map(|tk| tk.kind) {
+                    Some(TokenKind::Newline | TokenKind::EOF) => -2,
+                    _ => -1,
+                };
+                let prev_token = self.file_cache.get_token_relatively(&uri, pos, offset);
+                match prev_token {
+                    Some(prev) if matches!(prev.kind, Dot | DblColon) => {
+                        if let Some(p) = loc_to_pos(prev.loc()) {
+                            pos = p;
+                        }
+                        CompletionKind::RetriggerMethod
+                    }
+                    _ => CompletionKind::RetriggerLocal,
+                }
+            }
         };
         self.send_log(format!("CompletionKind: {comp_kind:?}"))?;
         let mut result: Vec<CompletionItem> = vec![];
         let mut already_appeared = Set::new();
         let contexts = if comp_kind.should_be_local() {
-            let prev_token = self.file_cache.get_token_relatively(&uri, pos, -1);
-            match prev_token {
-                Some(prev) if matches!(prev.kind, Dot | DblColon) => {
-                    let Some(dot_pos) = util::loc_to_pos(prev.loc()) else {
-                        return Ok(None);
-                    };
-                    self.get_receiver_ctxs(&uri, dot_pos)?
-                }
-                _ => self.get_local_ctx(&uri, pos),
-            }
+            self.get_local_ctx(&uri, pos)
         } else {
             self.get_receiver_ctxs(&uri, pos)?
         };
         let offset = match comp_kind {
-            CompletionKind::Local => 0,
+            CompletionKind::RetriggerLocal => 0,
             CompletionKind::Method => -1,
-            CompletionKind::Space => -1,
+            CompletionKind::Local => -1,
             CompletionKind::LParen => 0,
+            CompletionKind::RetriggerMethod => -1,
         };
         let arg_pt = self
             .get_min_expr(&uri, pos, offset)
@@ -547,7 +555,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     let nth = nth + additional;
                     sig_t.non_default_params()?.get(nth).cloned()
                 }
-                other if comp_kind == CompletionKind::Space => {
+                other if comp_kind == CompletionKind::Local => {
                     match other.show_acc().as_deref() {
                         Some("import") => {
                             let insert = other
