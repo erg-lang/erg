@@ -16,6 +16,8 @@ pub type TyCheckErrors = CompileErrors;
 pub type TyCheckWarnings = CompileWarnings;
 pub type TyCheckResult<T> = CompileResult<T>;
 pub type SingleTyCheckResult<T> = SingleCompileResult<T>;
+pub type FailableOption<T> = Result<T, (Option<T>, CompileErrors)>;
+pub type Failable<T> = Result<T, (T, CompileErrors)>;
 
 impl TyCheckError {
     pub fn dummy(input: Input, errno: usize) -> Self {

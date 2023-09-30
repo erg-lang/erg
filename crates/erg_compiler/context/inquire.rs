@@ -30,8 +30,8 @@ use Type::*;
 use crate::context::instantiate_spec::ConstTemplate;
 use crate::context::{Context, RegistrationMode, TraitImpl, TyVarCache, Variance};
 use crate::error::{
-    binop_to_dname, ordinal_num, readable_name, unaryop_to_dname, SingleTyCheckResult,
-    TyCheckError, TyCheckErrors, TyCheckResult,
+    binop_to_dname, ordinal_num, readable_name, unaryop_to_dname, FailableOption,
+    SingleTyCheckResult, TyCheckError, TyCheckErrors, TyCheckResult,
 };
 use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
 use crate::{feature_error, hir};
@@ -421,14 +421,17 @@ impl Context {
                 )));
             }
             let mut dummy_tv_cache = TyVarCache::new(self.level, self);
-            let rhs = self.instantiate_param_sig_t(
-                &lambda.params.non_defaults[0].raw,
-                None,
-                &mut dummy_tv_cache,
-                Normal,
-                ParamKind::NonDefault,
-                false,
-            )?;
+            let rhs = self
+                .instantiate_param_sig_t(
+                    &lambda.params.non_defaults[0].raw,
+                    None,
+                    &mut dummy_tv_cache,
+                    Normal,
+                    ParamKind::NonDefault,
+                    false,
+                )
+                // TODO: continue
+                .map_err(|(_, errs)| errs)?;
             union_pat_t = self.union(&union_pat_t, &rhs);
             arm_ts.push(rhs);
         }
@@ -2080,8 +2083,9 @@ impl Context {
         obj: &hir::Expr,
         attr_name: &Option<Identifier>,
         input: &Input,
+        expected_return: Option<&Type>,
         namespace: &Context,
-    ) -> Result<VarInfo, (Option<VarInfo>, TyCheckErrors)> {
+    ) -> FailableOption<VarInfo> {
         let found = self
             .search_callee_info_without_args(obj, attr_name, input, namespace)
             .map_err(|err| (None, TyCheckErrors::from(err)))?;
@@ -2099,6 +2103,9 @@ impl Context {
         );
         log!(info "Substituted:\ninstance: {instance}");
         debug_assert!(instance.has_no_qvar(), "{instance} has qvar");
+        if let Some((expected, instance)) = expected_return.zip(instance.return_t()) {
+            let _res = self.sub_unify(instance, expected, obj, None);
+        }
         let res = VarInfo {
             t: instance,
             ..found
@@ -2114,7 +2121,7 @@ impl Context {
         kw_args: &[hir::KwArg],
         input: &Input,
         namespace: &Context,
-    ) -> Result<VarInfo, (Option<VarInfo>, TyCheckErrors)> {
+    ) -> FailableOption<VarInfo> {
         if let hir::Expr::Accessor(hir::Accessor::Ident(local)) = obj {
             if local.vis().is_private() {
                 match &local.inspect()[..] {

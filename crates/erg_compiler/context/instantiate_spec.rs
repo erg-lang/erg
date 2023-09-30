@@ -27,7 +27,7 @@ use Type::*;
 
 use crate::context::instantiate::TyVarCache;
 use crate::context::{Context, DefaultInfo, RegistrationMode};
-use crate::error::{TyCheckError, TyCheckErrors, TyCheckResult};
+use crate::error::{Failable, TyCheckError, TyCheckErrors, TyCheckResult};
 use crate::AccessKind;
 use RegistrationMode::*;
 
@@ -217,7 +217,7 @@ impl Context {
         sig: &ast::SubrSignature,
         default_ts: Vec<Type>,
         mode: RegistrationMode,
-    ) -> Result<Type, (TyCheckErrors, Type)> {
+    ) -> Failable<Type> {
         let mut errs = TyCheckErrors::empty();
         // -> Result<Type, (Type, TyCheckErrors)> {
         let opt_decl_sig_t = match self
@@ -233,13 +233,13 @@ impl Context {
                     "instantiate_sub_sig_t",
                     line!(),
                 );
-                return Err((TyCheckErrors::from(err), other));
+                return Err((other, TyCheckErrors::from(err)));
             }
             None => None,
         };
         let mut tmp_tv_cache = self
             .instantiate_ty_bounds(&sig.bounds, PreRegister)
-            .map_err(|errs| (errs, Type::Failure))?;
+            .map_err(|errs| (Type::Failure, errs))?;
         let mut non_defaults = vec![];
         for (n, param) in sig.params.non_defaults.iter().enumerate() {
             let opt_decl_t = opt_decl_sig_t
@@ -254,9 +254,9 @@ impl Context {
                 false,
             ) {
                 Ok(pt) => non_defaults.push(pt),
-                Err(es) => {
+                Err((pt, es)) => {
                     errs.extend(es);
-                    non_defaults.push(ParamTy::pos_or_kw(param.inspect().cloned(), Type::Failure));
+                    non_defaults.push(pt);
                 }
             }
         }
@@ -273,9 +273,9 @@ impl Context {
                 false,
             ) {
                 Ok(pt) => pt,
-                Err(es) => {
+                Err((pt, es)) => {
                     errs.extend(es);
-                    ParamTy::pos_or_kw(var_args.inspect().cloned(), Type::Failure)
+                    pt
                 }
             };
             Some(pt)
@@ -296,9 +296,9 @@ impl Context {
                 false,
             ) {
                 Ok(pt) => defaults.push(pt),
-                Err(es) => {
+                Err((pt, es)) => {
                     errs.extend(es);
-                    defaults.push(ParamTy::pos_or_kw(p.sig.inspect().cloned(), Type::Failure));
+                    defaults.push(pt);
                 }
             }
         }
@@ -337,7 +337,7 @@ impl Context {
         if errs.is_empty() {
             Ok(typ)
         } else {
-            Err((errs, typ))
+            Err((typ, errs))
         }
     }
 
@@ -350,7 +350,7 @@ impl Context {
         mode: RegistrationMode,
         kind: ParamKind,
         not_found_is_qvar: bool,
-    ) -> TyCheckResult<Type> {
+    ) -> Failable<Type> {
         let gen_free_t = || {
             let level = if mode == PreRegister {
                 self.level
@@ -366,10 +366,14 @@ impl Context {
                 tmp_tv_cache,
                 mode,
                 not_found_is_qvar,
-            )?
+            )
+            .map_err(|errs| (Type::Failure, errs))?
         } else {
             match &sig.pat {
-                ast::ParamPattern::Lit(lit) => v_enum(set![self.eval_lit(lit)?]),
+                ast::ParamPattern::Lit(lit) => {
+                    let lit = self.eval_lit(lit).map_err(|errs| (Type::Failure, errs))?;
+                    v_enum(set![lit])
+                }
                 ast::ParamPattern::Discard(_) => Type::Obj,
                 ast::ParamPattern::Ref(_) => ref_(gen_free_t()),
                 ast::ParamPattern::RefMut(_) => ref_mut(gen_free_t(), None),
@@ -386,14 +390,16 @@ impl Context {
                     &spec_t,
                     &sig.t_spec.as_ref().ok_or(sig),
                     None,
-                )?;
+                )
+                .map_err(|errs| (spec_t, errs))?;
             } else {
                 self.sub_unify(
                     decl_pt.typ(),
                     &spec_t,
                     &sig.t_spec.as_ref().ok_or(sig),
                     None,
-                )?;
+                )
+                .map_err(|errs| (spec_t.clone(), errs))?;
             }
         }
         Ok(spec_t)
@@ -410,7 +416,7 @@ impl Context {
         mode: RegistrationMode,
         kind: ParamKind,
         not_found_is_qvar: bool,
-    ) -> TyCheckResult<ParamTy> {
+    ) -> Failable<ParamTy> {
         if let Some(value) = sig
             .name()
             .and_then(|name| self.get_const_local(name.token(), &self.name).ok())
@@ -423,27 +429,41 @@ impl Context {
             match tp {
                 TyParam::Type(t) => return Ok(ParamTy::Pos(*t)),
                 other => {
-                    return Ok(ParamTy::Pos(tp_enum(
-                        self.get_tp_t(&other)?,
-                        set! { other },
-                    )))
+                    let (t, errs) = match self.get_tp_t(&other) {
+                        Ok(t) => (t, TyCheckErrors::empty()),
+                        Err(errs) => (Type::Failure, errs),
+                    };
+                    let pt = ParamTy::Pos(tp_enum(t, set! { other }));
+                    if errs.is_empty() {
+                        return Ok(pt);
+                    } else {
+                        return Err((pt, errs));
+                    }
                 }
             }
         }
-        let t = self.instantiate_param_sig_t(
+        let (t, errs) = match self.instantiate_param_sig_t(
             sig,
             opt_decl_t,
             tmp_tv_cache,
             mode,
             kind.clone(),
             not_found_is_qvar,
-        )?;
-        match (sig.inspect(), kind) {
+        ) {
+            Ok(t) => (t, TyCheckErrors::empty()),
+            Err((t, errs)) => (t, errs),
+        };
+        let pt = match (sig.inspect(), kind) {
             (Some(name), ParamKind::Default(default_t)) => {
-                Ok(ParamTy::kw_default(name.clone(), t, default_t))
+                ParamTy::kw_default(name.clone(), t, default_t)
             }
-            (Some(name), _) => Ok(ParamTy::kw(name.clone(), t)),
-            (None, _) => Ok(ParamTy::Pos(t)),
+            (Some(name), _) => ParamTy::kw(name.clone(), t),
+            (None, _) => ParamTy::Pos(t),
+        };
+        if errs.is_empty() {
+            Ok(pt)
+        } else {
+            Err((pt, errs))
         }
     }
 
@@ -1054,25 +1074,30 @@ impl Context {
                 tmp_tv_cache.merge(&_tmp_tv_cache);
                 let mut nd_params = Vec::with_capacity(lambda.sig.params.non_defaults.len());
                 for sig in lambda.sig.params.non_defaults.iter() {
-                    let pt = self.instantiate_param_ty(
-                        sig,
-                        None,
-                        tmp_tv_cache,
-                        RegistrationMode::Normal,
-                        ParamKind::NonDefault,
-                        not_found_is_qvar,
-                    )?;
+                    let pt = self
+                        .instantiate_param_ty(
+                            sig,
+                            None,
+                            tmp_tv_cache,
+                            RegistrationMode::Normal,
+                            ParamKind::NonDefault,
+                            not_found_is_qvar,
+                        )
+                        // TODO: continue
+                        .map_err(|(_, errs)| errs)?;
                     nd_params.push(pt);
                 }
                 let var_params = if let Some(p) = lambda.sig.params.var_params.as_ref() {
-                    let pt = self.instantiate_param_ty(
-                        p,
-                        None,
-                        tmp_tv_cache,
-                        RegistrationMode::Normal,
-                        ParamKind::VarParams,
-                        not_found_is_qvar,
-                    )?;
+                    let pt = self
+                        .instantiate_param_ty(
+                            p,
+                            None,
+                            tmp_tv_cache,
+                            RegistrationMode::Normal,
+                            ParamKind::VarParams,
+                            not_found_is_qvar,
+                        )
+                        .map_err(|(_, errs)| errs)?;
                     Some(pt)
                 } else {
                     None
@@ -1080,14 +1105,16 @@ impl Context {
                 let mut d_params = Vec::with_capacity(lambda.sig.params.defaults.len());
                 for sig in lambda.sig.params.defaults.iter() {
                     let expr = self.eval_const_expr(&sig.default_val)?;
-                    let pt = self.instantiate_param_ty(
-                        &sig.sig,
-                        None,
-                        tmp_tv_cache,
-                        RegistrationMode::Normal,
-                        ParamKind::Default(expr.t()),
-                        not_found_is_qvar,
-                    )?;
+                    let pt = self
+                        .instantiate_param_ty(
+                            &sig.sig,
+                            None,
+                            tmp_tv_cache,
+                            RegistrationMode::Normal,
+                            ParamKind::Default(expr.t()),
+                            not_found_is_qvar,
+                        )
+                        .map_err(|(_, errs)| errs)?;
                     d_params.push(pt);
                 }
                 let mut body = vec![];

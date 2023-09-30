@@ -1309,6 +1309,44 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     }
                 }
             }
+            (
+                _,
+                ProjCall {
+                    lhs,
+                    attr_name,
+                    args,
+                },
+            ) => {
+                if let Some(evaled) = self
+                    .ctx
+                    .eval_proj_call(*lhs.clone(), attr_name.clone(), args.clone(), self.loc)
+                    .ok()
+                    .and_then(|tp| self.ctx.convert_tp_into_type(tp).ok())
+                {
+                    if maybe_sup != &evaled {
+                        self.sub_unify(maybe_sub, &evaled)?;
+                    }
+                }
+            }
+            (
+                ProjCall {
+                    lhs,
+                    attr_name,
+                    args,
+                },
+                _,
+            ) => {
+                if let Some(evaled) = self
+                    .ctx
+                    .eval_proj_call(*lhs.clone(), attr_name.clone(), args.clone(), self.loc)
+                    .ok()
+                    .and_then(|tp| self.ctx.convert_tp_into_type(tp).ok())
+                {
+                    if maybe_sub != &evaled {
+                        self.sub_unify(&evaled, maybe_sup)?;
+                    }
+                }
+            }
             // TODO: Judgment for any number of preds
             (Refinement(sub), Refinement(sup)) => {
                 // {I: Int or Str | I == 0} <: {I: Int}

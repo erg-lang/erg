@@ -850,42 +850,58 @@ impl Context {
         let mut tmp_tv_cache =
             self.instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)?;
         let mut non_default_params = Vec::with_capacity(lambda.sig.params.non_defaults.len());
+        let mut errs = EvalErrors::empty();
         for sig in lambda.sig.params.non_defaults.iter() {
-            let pt = self.instantiate_param_ty(
+            match self.instantiate_param_ty(
                 sig,
                 None,
                 &mut tmp_tv_cache,
                 RegistrationMode::Normal,
                 ParamKind::NonDefault,
                 false,
-            )?;
-            non_default_params.push(pt);
+            ) {
+                Ok(pt) => non_default_params.push(pt),
+                Err((pt, err)) => {
+                    non_default_params.push(pt);
+                    errs.extend(err)
+                }
+            }
         }
         let var_params = if let Some(p) = lambda.sig.params.var_params.as_ref() {
-            let pt = self.instantiate_param_ty(
+            match self.instantiate_param_ty(
                 p,
                 None,
                 &mut tmp_tv_cache,
                 RegistrationMode::Normal,
                 ParamKind::VarParams,
                 false,
-            )?;
-            Some(pt)
+            ) {
+                Ok(pt) => Some(pt),
+                Err((pt, err)) => {
+                    errs.extend(err);
+                    Some(pt)
+                }
+            }
         } else {
             None
         };
         let mut default_params = Vec::with_capacity(lambda.sig.params.defaults.len());
         for sig in lambda.sig.params.defaults.iter() {
             let expr = self.eval_const_expr(&sig.default_val)?;
-            let pt = self.instantiate_param_ty(
+            match self.instantiate_param_ty(
                 &sig.sig,
                 None,
                 &mut tmp_tv_cache,
                 RegistrationMode::Normal,
                 ParamKind::Default(expr.t()),
                 false,
-            )?;
-            default_params.push(pt);
+            ) {
+                Ok(pt) => default_params.push(pt),
+                Err((pt, err)) => {
+                    errs.extend(err);
+                    default_params.push(pt)
+                }
+            }
         }
         // HACK: should avoid cloning
         let mut lambda_ctx = Context::instant(

@@ -256,7 +256,7 @@ impl Context {
             vec![free_var(self.level, Constraint::new_type_of(Type::Type)); sig.params.len()];
         let (errs, t) = match self.instantiate_sub_sig_t(sig, default_ts, PreRegister) {
             Ok(t) => (TyCheckErrors::empty(), t),
-            Err((errs, t)) => (errs, t),
+            Err((t, errs)) => (errs, t),
         };
         let py_name = if let ContextKind::PatchMethodDefs(_base) = &self.kind {
             Some(Str::from(format!("::{}{}", self.name, sig.ident)))
@@ -457,7 +457,7 @@ impl Context {
                     false,
                 ) {
                     Ok(ty) => (ty, TyCheckErrors::empty()),
-                    Err(errs) => (Type::Failure, errs),
+                    Err((ty, errs)) => (ty, errs),
                 };
                 let def_id = DefId(get_hash(&(&self.name, "_")));
                 let kind = VarKind::parameter(def_id, is_var_params, DefaultInfo::NonDefault);
@@ -504,7 +504,7 @@ impl Context {
                         false,
                     ) {
                         Ok(ty) => (ty, TyCheckErrors::empty()),
-                        Err(errs) => (Type::Failure, errs),
+                        Err((ty, errs)) => (ty, errs),
                     };
                     let spec_t = if is_var_params {
                         unknown_len_array_t(spec_t)
@@ -561,7 +561,7 @@ impl Context {
                         false,
                     ) {
                         Ok(ty) => (ty, TyCheckErrors::empty()),
-                        Err(errs) => (Type::Failure, errs),
+                        Err((ty, errs)) => (ty, errs),
                     };
                     if &name.inspect()[..] == "self" {
                         self.type_self_param(&sig.raw.pat, name, &spec_t, &mut errs);
@@ -614,7 +614,7 @@ impl Context {
                         false,
                     ) {
                         Ok(ty) => (ty, TyCheckErrors::empty()),
-                        Err(errs) => (Type::Failure, errs),
+                        Err((ty, errs)) => (ty, errs),
                     };
                     if &name.inspect()[..] == "self" {
                         self.type_self_param(&sig.raw.pat, name, &spec_t, &mut errs);

@@ -1082,7 +1082,7 @@ impl ASTLowerer {
     pub(crate) fn lower_call(
         &mut self,
         call: ast::Call,
-        _expect: Option<&Type>,
+        expect: Option<&Type>,
     ) -> LowerResult<hir::Call> {
         log!(info "entered {}({}{}(...))", fn_name!(), call.obj, fmt_option!(call.attr_name));
         if let (Some(name), None) = (call.obj.get_name(), &call.attr_name) {
@@ -1116,6 +1116,7 @@ impl ASTLowerer {
             &obj,
             &call.attr_name,
             &self.cfg.input,
+            expect,
             &self.module.context,
         );
         let expect_subr = opt_vi
