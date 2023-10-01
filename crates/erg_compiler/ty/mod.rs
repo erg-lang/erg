@@ -2671,45 +2671,68 @@ impl Type {
         }
     }
 
+    /// returns top-level qvars.
+    /// see also: `qvars_inner`
     pub fn qvars(&self) -> Set<(Str, Constraint)> {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.unsafe_crack().qvars(),
+            Self::Quantified(quant) => quant.qvars_inner(),
+            _ => self.qvars_inner(),
+        }
+    }
+
+    /// ```erg
+    /// (|T|(T) -> T).qvars() == {T}
+    /// (|T|(T) -> T).qvars_inner() == {}
+    /// ((|T|(T) -> T) and (Int -> Int)).qvars() == {}
+    /// ```
+    fn qvars_inner(&self) -> Set<(Str, Constraint)> {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.unsafe_crack().qvars_inner(),
             Self::FreeVar(fv) if !fv.constraint_is_uninited() => {
                 let base = set! {(fv.unbound_name().unwrap(), fv.constraint().unwrap())};
                 if let Some((sub, sup)) = fv.get_subsup() {
-                    fv.do_avoiding_recursion(|| base.concat(sub.qvars()).concat(sup.qvars()))
+                    fv.do_avoiding_recursion(|| {
+                        base.concat(sub.qvars_inner()).concat(sup.qvars_inner())
+                    })
                 } else if let Some(ty) = fv.get_type() {
-                    fv.do_avoiding_recursion(|| base.concat(ty.qvars()))
+                    fv.do_avoiding_recursion(|| base.concat(ty.qvars_inner()))
                 } else {
                     base
                 }
             }
-            Self::Ref(ty) => ty.qvars(),
-            Self::RefMut { before, after } => before
-                .qvars()
-                .concat(after.as_ref().map(|t| t.qvars()).unwrap_or_else(|| set! {})),
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => lhs.qvars().concat(rhs.qvars()),
-            Self::Not(ty) => ty.qvars(),
+            Self::Ref(ty) => ty.qvars_inner(),
+            Self::RefMut { before, after } => before.qvars_inner().concat(
+                after
+                    .as_ref()
+                    .map(|t| t.qvars_inner())
+                    .unwrap_or_else(|| set! {}),
+            ),
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => lhs.qvars_inner().concat(rhs.qvars_inner()),
+            Self::Not(ty) => ty.qvars_inner(),
             Self::Callable { param_ts, return_t } => param_ts
                 .iter()
-                .fold(set! {}, |acc, t| acc.concat(t.qvars()))
-                .concat(return_t.qvars()),
+                .fold(set! {}, |acc, t| acc.concat(t.qvars_inner()))
+                .concat(return_t.qvars_inner()),
             Self::Subr(subr) => subr.qvars(),
-            Self::Record(r) => r.values().fold(set! {}, |acc, t| acc.concat(t.qvars())),
-            Self::NamedTuple(r) => r.iter().fold(set! {}, |acc, (_, t)| acc.concat(t.qvars())),
-            Self::Refinement(refine) => refine.t.qvars().concat(refine.pred.qvars()),
+            Self::Record(r) => r
+                .values()
+                .fold(set! {}, |acc, t| acc.concat(t.qvars_inner())),
+            Self::NamedTuple(r) => r
+                .iter()
+                .fold(set! {}, |acc, (_, t)| acc.concat(t.qvars_inner())),
+            Self::Refinement(refine) => refine.t.qvars_inner().concat(refine.pred.qvars()),
             // ((|T| T -> T) and U).qvars() == U.qvars()
             // Self::Quantified(quant) => quant.qvars(),
             Self::Poly { params, .. } => params
                 .iter()
                 .fold(set! {}, |acc, tp| acc.concat(tp.qvars())),
-            Self::Proj { lhs, .. } => lhs.qvars(),
+            Self::Proj { lhs, .. } => lhs.qvars_inner(),
             Self::ProjCall { lhs, args, .. } => lhs
                 .qvars()
                 .concat(args.iter().fold(set! {}, |acc, tp| acc.concat(tp.qvars()))),
-            Self::Structural(ty) => ty.qvars(),
-            Self::Guard(guard) => guard.to.qvars(),
-            Self::Bounded { sub, sup } => sub.qvars().concat(sup.qvars()),
+            Self::Structural(ty) => ty.qvars_inner(),
+            Self::Guard(guard) => guard.to.qvars_inner(),
+            Self::Bounded { sub, sup } => sub.qvars_inner().concat(sup.qvars_inner()),
             _ => set! {},
         }
     }
