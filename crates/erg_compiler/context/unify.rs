@@ -53,6 +53,8 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
 impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
     /// ```erg
     /// occur(?T, ?T) ==> OK
+    /// occur(?T(<: ?U), ?U) ==> OK
+    /// occur(?T, ?U(:> ?T)) ==> OK
     /// occur(X -> ?T, ?T) ==> Error
     /// occur(X -> ?T, X -> ?T) ==> OK
     /// occur(?T, ?T -> X) ==> Error
@@ -65,6 +67,14 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
     fn occur(&self, maybe_sub: &Type, maybe_sup: &Type) -> TyCheckResult<()> {
         if maybe_sub == maybe_sup {
             return Ok(());
+        } else if let Some(sup) = maybe_sub.get_super() {
+            if &sup == maybe_sup {
+                return Ok(());
+            }
+        } else if let Some(sub) = maybe_sup.get_sub() {
+            if &sub == maybe_sub {
+                return Ok(());
+            }
         }
         match (maybe_sub, maybe_sup) {
             (FreeVar(fv), _) if fv.is_linked() => self.occur(&fv.crack(), maybe_sup),

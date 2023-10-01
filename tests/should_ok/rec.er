@@ -16,3 +16,12 @@ iterate(f, n: Int, x) = iterate f, n-1, f x
 
 assert iterate((x -> x + 1), 5, 0) == 5
 assert iterate((x -> x + "a"), 5, "b") == "baaaaa"
+
+push! x: Str =
+    res = ![]
+    res.push! x
+    for! [], a =>
+        res.extend! push! a
+    res
+
+assert push!("a") == ["a"]

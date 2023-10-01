@@ -2469,6 +2469,7 @@ impl Type {
         }
     }
 
+    /// <: Super
     pub fn get_super(&self) -> Option<Type> {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().get_super(),
@@ -2477,6 +2478,7 @@ impl Type {
         }
     }
 
+    /// :> Sub
     pub fn get_sub(&self) -> Option<Type> {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().get_sub(),
