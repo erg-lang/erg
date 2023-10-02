@@ -652,7 +652,7 @@ impl Context {
             return Triple::Ok(vi);
         }
         let self_t = obj.t();
-        match self.get_attr_info_from_attributive(&self_t, ident) {
+        match self.get_attr_info_from_attributive(&self_t, ident, namespace) {
             Triple::Ok(vi) => {
                 return Triple::Ok(vi);
             }
@@ -712,7 +712,7 @@ impl Context {
                 }
             }
         }
-        match self.get_attr_type_by_name(obj, ident) {
+        match self.get_attr_type_by_name(obj, ident, namespace) {
             Triple::Ok(method) => {
                 if let Err(mut errs) =
                     self.sub_unify(obj.ref_t(), &method.definition_type, obj, None)
@@ -817,23 +817,24 @@ impl Context {
         &self,
         t: &Type,
         ident: &Identifier,
+        namespace: &Context,
     ) -> Triple<VarInfo, TyCheckError> {
         match t {
             // (obj: Failure).foo: Failure
             Type::Failure => Triple::Ok(VarInfo::ILLEGAL),
             Type::FreeVar(fv) if fv.is_linked() => {
-                self.get_attr_info_from_attributive(&fv.crack(), ident)
+                self.get_attr_info_from_attributive(&fv.crack(), ident, namespace)
             }
             Type::FreeVar(fv) /* if fv.is_unbound() */ => {
                 let sup = fv.get_super().unwrap();
-                self.get_attr_info_from_attributive(&sup, ident)
+                self.get_attr_info_from_attributive(&sup, ident, namespace)
             }
-            Type::Ref(t) => self.get_attr_info_from_attributive(t, ident),
+            Type::Ref(t) => self.get_attr_info_from_attributive(t, ident, namespace),
             Type::RefMut { before, .. } => {
-                self.get_attr_info_from_attributive(before, ident)
+                self.get_attr_info_from_attributive(before, ident, namespace)
             }
             Type::Refinement(refine) => {
-                self.get_attr_info_from_attributive(&refine.t, ident)
+                self.get_attr_info_from_attributive(&refine.t, ident, namespace)
             }
             Type::Record(record) => {
                 if let Some((field, attr_t)) = record.get_key_value(ident.inspect()) {
@@ -848,7 +849,7 @@ impl Context {
                         None,
                         AbsLocation::unknown(),
                     );
-                    if let Err(err) = self.validate_visibility(ident, &vi, &self.cfg.input, self) {
+                    if let Err(err) = self.validate_visibility(ident, &vi, &self.cfg.input, namespace) {
                         return Triple::Err(err);
                     }
                     Triple::Ok(vi)
@@ -869,7 +870,7 @@ impl Context {
                         None,
                         AbsLocation::unknown(),
                     );
-                    if let Err(err) = self.validate_visibility(ident, &vi, &self.cfg.input, self) {
+                    if let Err(err) = self.validate_visibility(ident, &vi, &self.cfg.input, namespace) {
                         return Triple::Err(err);
                     }
                     Triple::Ok(vi)
@@ -877,7 +878,7 @@ impl Context {
                     Triple::None
                 }
             }
-            Type::Structural(t) => self.get_attr_info_from_attributive(t, ident),
+            Type::Structural(t) => self.get_attr_info_from_attributive(t, ident, namespace),
             _other => Triple::None,
         }
     }
@@ -1069,7 +1070,7 @@ impl Context {
             );
             return Ok(vi);
         }
-        match self.get_attr_info_from_attributive(obj.ref_t(), attr_name) {
+        match self.get_attr_info_from_attributive(obj.ref_t(), attr_name, namespace) {
             Triple::Ok(vi) => {
                 return Ok(vi);
             }
@@ -1136,7 +1137,7 @@ impl Context {
                 self.get_similar_attr_from_singular(obj, attr_name.inspect()),
             ));
         }
-        match self.get_attr_type_by_name(obj, attr_name) {
+        match self.get_attr_type_by_name(obj, attr_name, namespace) {
             Triple::Ok(method) => {
                 let def_t = self.instantiate_def_type(&method.definition_type).unwrap();
                 self.sub_unify(obj.ref_t(), &def_t, obj, None)
@@ -1190,7 +1191,7 @@ impl Context {
         input: &Input,
         namespace: &Context,
     ) -> SingleTyCheckResult<VarInfo> {
-        match self.get_attr_info_from_attributive(obj.ref_t(), attr_name) {
+        match self.get_attr_info_from_attributive(obj.ref_t(), attr_name, namespace) {
             Triple::Ok(vi) => {
                 return Ok(vi);
             }
@@ -1257,7 +1258,7 @@ impl Context {
                 self.get_similar_attr_from_singular(obj, attr_name.inspect()),
             ));
         }
-        match self.get_attr_type_by_name(obj, attr_name) {
+        match self.get_attr_type_by_name(obj, attr_name, namespace) {
             Triple::Ok(method) => {
                 let def_t = self.instantiate_def_type(&method.definition_type).unwrap();
                 self.sub_unify(obj.ref_t(), &def_t, obj, None)
@@ -3129,6 +3130,7 @@ impl Context {
         obj: &hir::Expr,
         attr: &Identifier,
         candidates: &'m [MethodPair],
+        namespace: &Context,
     ) -> Triple<&'m MethodPair, TyCheckError> {
         if candidates.first().is_none() {
             return Triple::None;
@@ -3162,7 +3164,7 @@ impl Context {
             }
         }
         Triple::Err(TyCheckError::ambiguous_method_error(
-            self.cfg.input.clone(),
+            namespace.cfg.input.clone(),
             line!() as usize,
             obj,
             attr,
@@ -3170,7 +3172,7 @@ impl Context {
                 .iter()
                 .map(|mp| mp.definition_type.clone())
                 .collect::<Vec<_>>(),
-            self.caused_by(),
+            namespace.caused_by(),
         ))
     }
 
@@ -3180,15 +3182,16 @@ impl Context {
         &self,
         receiver: &hir::Expr,
         attr: &Identifier,
+        namespace: &Context,
     ) -> Triple<&MethodPair, TyCheckError> {
         if let Some(candidates) = self.method_to_traits.get(attr.inspect()) {
-            return self.get_attr_type(receiver, attr, candidates);
+            return self.get_attr_type(receiver, attr, candidates, namespace);
         }
         if let Some(candidates) = self.method_to_classes.get(attr.inspect()) {
-            return self.get_attr_type(receiver, attr, candidates);
+            return self.get_attr_type(receiver, attr, candidates, namespace);
         }
         if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
-            outer.get_attr_type_by_name(receiver, attr)
+            outer.get_attr_type_by_name(receiver, attr, namespace)
         } else {
             Triple::None
         }
