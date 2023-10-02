@@ -1809,6 +1809,10 @@ impl Context {
                 }
                 Ok(array_t(union, TyParam::value(len)))
             }
+            TyParam::UnsizedArray(elem) => {
+                let elem = self.convert_tp_into_type(*elem)?;
+                Ok(unknown_len_array_t(elem))
+            }
             TyParam::Set(tps) => {
                 let mut union = Type::Never;
                 for tp in tps.iter() {
@@ -1873,6 +1877,10 @@ impl Context {
                     new.push(elem);
                 }
                 Ok(ValueObj::Array(new.into()))
+            }
+            TyParam::UnsizedArray(elem) => {
+                let elem = self.convert_tp_into_value(*elem)?;
+                Ok(ValueObj::UnsizedArray(Box::new(elem)))
             }
             TyParam::Tuple(tys) => {
                 let mut new = vec![];
@@ -1977,6 +1985,13 @@ impl Context {
                     new_arr.push(tp);
                 }
                 Ok(TyParam::Array(new_arr))
+            }
+            ValueObj::UnsizedArray(elem) => {
+                let tp = match Self::convert_value_into_tp(*elem) {
+                    Ok(tp) => tp,
+                    Err(tp) => tp,
+                };
+                Ok(TyParam::UnsizedArray(Box::new(tp)))
             }
             ValueObj::Tuple(vs) => {
                 let mut new_ts = vec![];

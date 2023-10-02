@@ -1,0 +1,3 @@
+D = Class { Int: [Str; _] }
+_ = D.new {:}
+_ = D.new {1: ["a"]}

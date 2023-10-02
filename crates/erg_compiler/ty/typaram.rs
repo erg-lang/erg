@@ -237,6 +237,7 @@ pub enum TyParam {
     Value(ValueObj),
     Type(Box<Type>),
     Array(Vec<TyParam>),
+    UnsizedArray(Box<TyParam>),
     Tuple(Vec<TyParam>),
     Set(Set<TyParam>),
     Dict(Dict<TyParam, TyParam>),
@@ -280,6 +281,7 @@ impl PartialEq for TyParam {
             (Self::Value(l), Self::Value(r)) => l == r,
             (Self::Type(l), Self::Type(r)) => l == r,
             (Self::Array(l), Self::Array(r)) => l == r,
+            (Self::UnsizedArray(l), Self::UnsizedArray(r)) => l == r,
             (Self::Tuple(l), Self::Tuple(r)) => l == r,
             (Self::Dict(l), Self::Dict(r)) => l == r,
             (Self::Record(l), Self::Record(r)) => l == r,
@@ -422,6 +424,11 @@ impl LimitedDisplay for TyParam {
                     t.limited_fmt(f, limit - 1)?;
                 }
                 write!(f, "]")
+            }
+            Self::UnsizedArray(elem) => {
+                write!(f, "[")?;
+                elem.limited_fmt(f, limit - 1)?;
+                write!(f, "; _]")
             }
             Self::Set(st) => {
                 write!(f, "{{")?;
