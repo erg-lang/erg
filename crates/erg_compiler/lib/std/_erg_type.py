@@ -1,4 +1,10 @@
-from typing import Union
+try:
+    from typing import Union
+except ImportError:
+    import warnings
+    warnings.warn("`typing.Union` is not available. Please use Python 3.8+.")
+    class Union:
+        pass
 
 class UnionType:
         __origin__ = Union
