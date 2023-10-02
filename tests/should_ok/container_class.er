@@ -1,3 +1,7 @@
 D = Class { Int: [Str; _] }
 _ = D.new {:}
 _ = D.new {1: ["a"]}
+
+D! = Class Dict! { Int: [Str; _] }
+_ = D!.new !{:}
+_ = D!.new !{1: ["a"]}

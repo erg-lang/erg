@@ -526,6 +526,47 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     Ok(())
                 }
             }
+            (
+                TyParam::App {
+                    name: ln,
+                    args: largs,
+                },
+                TyParam::App {
+                    name: rn,
+                    args: rargs,
+                },
+            ) if ln == rn => {
+                for (l, r) in largs.iter().zip(rargs.iter()) {
+                    self.sub_unify_tp(l, r, _variance, allow_divergence)?;
+                }
+                Ok(())
+            }
+            (l, TyParam::Value(sup)) => {
+                let sup = match Context::convert_value_into_tp(sup.clone()) {
+                    Ok(r) => r,
+                    Err(tp) => {
+                        return type_feature_error!(
+                            self.ctx,
+                            self.loc.loc(),
+                            &format!("unifying {l} and {tp}")
+                        )
+                    }
+                };
+                self.sub_unify_tp(maybe_sub, &sup, _variance, allow_divergence)
+            }
+            (TyParam::Value(sub), r) => {
+                let sub = match Context::convert_value_into_tp(sub.clone()) {
+                    Ok(l) => l,
+                    Err(tp) => {
+                        return type_feature_error!(
+                            self.ctx,
+                            self.loc.loc(),
+                            &format!("unifying {tp} and {r}")
+                        )
+                    }
+                };
+                self.sub_unify_tp(&sub, maybe_sup, _variance, allow_divergence)
+            }
             (l, r) => {
                 log!(err "{l} / {r}");
                 type_feature_error!(self.ctx, self.loc.loc(), &format!("unifying {l} and {r}"))
