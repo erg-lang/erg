@@ -333,7 +333,8 @@ impl Context {
     ) -> TyCheckResult<TyParam> {
         match quantified {
             TyParam::FreeVar(fv) if fv.is_linked() => {
-                self.instantiate_tp(fv.crack().clone(), tmp_tv_cache, loc)
+                let tp = fv.crack().clone();
+                self.instantiate_tp(tp, tmp_tv_cache, loc)
             }
             TyParam::FreeVar(fv) if fv.is_generalized() => {
                 let (name, constr) = (fv.unbound_name().unwrap(), fv.constraint().unwrap());
@@ -655,7 +656,8 @@ impl Context {
     ) -> TyCheckResult<Type> {
         match unbound {
             FreeVar(fv) if fv.is_linked() => {
-                self.instantiate_t_inner(fv.crack().clone(), tmp_tv_cache, loc)
+                let t = fv.crack().clone();
+                self.instantiate_t_inner(t, tmp_tv_cache, loc)
             }
             FreeVar(fv) if fv.is_generalized() => {
                 let (name, constr) = (fv.unbound_name().unwrap(), fv.constraint().unwrap());
@@ -829,7 +831,10 @@ impl Context {
 
     pub(crate) fn instantiate(&self, quantified: Type, callee: &hir::Expr) -> TyCheckResult<Type> {
         match quantified {
-            FreeVar(fv) if fv.is_linked() => self.instantiate(fv.crack().clone(), callee),
+            FreeVar(fv) if fv.is_linked() => {
+                let t = fv.crack().clone();
+                self.instantiate(t, callee)
+            }
             And(lhs, rhs) => {
                 let lhs = self.instantiate(*lhs, callee)?;
                 let rhs = self.instantiate(*rhs, callee)?;
@@ -889,7 +894,10 @@ impl Context {
 
     pub(crate) fn instantiate_dummy(&self, quantified: Type) -> TyCheckResult<Type> {
         match quantified {
-            FreeVar(fv) if fv.is_linked() => self.instantiate_dummy(fv.crack().clone()),
+            FreeVar(fv) if fv.is_linked() => {
+                let t = fv.crack().clone();
+                self.instantiate_dummy(t)
+            }
             And(lhs, rhs) => {
                 let lhs = self.instantiate_dummy(*lhs)?;
                 let rhs = self.instantiate_dummy(*rhs)?;

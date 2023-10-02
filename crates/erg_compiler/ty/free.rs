@@ -787,6 +787,8 @@ impl<T: Send + Clone> Free<T> {
 
     /// returns linked type (panic if self is unbounded)
     /// NOTE: check by `.is_linked` before call
+    /// NOTE: Sometimes a `BorrowMut` error occurs when trying to pass the result of `crack().clone()` as an argument.
+    /// Bind it to a variable beforehand.
     #[track_caller]
     pub fn crack(&self) -> Ref<'_, T> {
         Ref::map(self.borrow(), |f| match f {

@@ -1277,7 +1277,8 @@ impl Context {
                 Ok(TyParam::Array([l, r].concat()))
             }
             (TyParam::FreeVar(fv), r) if fv.is_linked() => {
-                self.eval_bin_tp(op, fv.crack().clone(), r)
+                let t = fv.crack().clone();
+                self.eval_bin_tp(op, t, r)
             }
             (TyParam::FreeVar(_), _) if op.is_comparison() => Ok(TyParam::value(true)),
             // _: Nat <= 10 => true
@@ -1289,7 +1290,8 @@ impl Context {
                 Ok(TyParam::value(true))
             }
             (l, TyParam::FreeVar(fv)) if fv.is_linked() => {
-                self.eval_bin_tp(op, l, fv.crack().clone())
+                let t = fv.crack().clone();
+                self.eval_bin_tp(op, l, t)
             }
             (_, TyParam::FreeVar(_)) if op.is_comparison() => Ok(TyParam::value(true)),
             // 10 <= _: Nat => true
@@ -1340,7 +1342,10 @@ impl Context {
     pub(crate) fn eval_unary_tp(&self, op: OpKind, val: TyParam) -> EvalResult<TyParam> {
         match val {
             TyParam::Value(c) => self.eval_unary_val(op, c).map(TyParam::Value),
-            TyParam::FreeVar(fv) if fv.is_linked() => self.eval_unary_tp(op, fv.crack().clone()),
+            TyParam::FreeVar(fv) if fv.is_linked() => {
+                let t = fv.crack().clone();
+                self.eval_unary_tp(op, t)
+            }
             e @ TyParam::Erased(_) => Ok(e),
             TyParam::FreeVar(fv) if fv.is_unbound() => {
                 feature_error!(self, Location::Unknown, &format!("{op} {fv}"))
@@ -1409,7 +1414,10 @@ impl Context {
     /// 量化変数などはそのまま返す
     pub(crate) fn eval_tp(&self, p: TyParam) -> EvalResult<TyParam> {
         match p {
-            TyParam::FreeVar(fv) if fv.is_linked() => self.eval_tp(fv.crack().clone()),
+            TyParam::FreeVar(fv) if fv.is_linked() => {
+                let tp = fv.crack().clone();
+                self.eval_tp(tp)
+            }
             TyParam::FreeVar(_) => Ok(p),
             TyParam::Mono(name) => self
                 .rec_get_const_obj(&name)
@@ -1490,7 +1498,8 @@ impl Context {
     ) -> Result<Type, (Type, EvalErrors)> {
         match substituted {
             Type::FreeVar(fv) if fv.is_linked() => {
-                self.eval_t_params(fv.crack().clone(), level, t_loc)
+                let t = fv.crack().clone();
+                self.eval_t_params(t, level, t_loc)
             }
             Type::FreeVar(fv) if fv.constraint_is_sandwiched() => {
                 let (sub, sup) = fv.get_subsup().unwrap();
@@ -1664,9 +1673,10 @@ impl Context {
         // All type variables will be dereferenced or fail.
         let (sub, opt_sup) = match lhs.clone() {
             Type::FreeVar(fv) if fv.is_linked() => {
+                let t = fv.crack().clone();
                 return self
-                    .eval_t_params(proj(fv.crack().clone(), rhs), level, t_loc)
-                    .map_err(|(_, errs)| errs)
+                    .eval_t_params(proj(t, rhs), level, t_loc)
+                    .map_err(|(_, errs)| errs);
             }
             Type::FreeVar(fv) if fv.is_unbound() => {
                 let (sub, sup) = fv.get_subsup().unwrap();
@@ -1823,7 +1833,10 @@ impl Context {
                 }
                 Ok(Type::from(kvs))
             }
-            TyParam::FreeVar(fv) if fv.is_linked() => self.convert_tp_into_type(fv.crack().clone()),
+            TyParam::FreeVar(fv) if fv.is_linked() => {
+                let t = fv.crack().clone();
+                self.convert_tp_into_type(t)
+            }
             // TyParam(Ts: Array(Type)) -> Type(Ts: Array(Type))
             TyParam::FreeVar(fv) if fv.get_type().is_some() => Ok(named_free_var(
                 fv.unbound_name().unwrap(),
@@ -1849,7 +1862,8 @@ impl Context {
     pub(crate) fn convert_tp_into_value(&self, tp: TyParam) -> Result<ValueObj, TyParam> {
         match tp {
             TyParam::FreeVar(fv) if fv.is_linked() => {
-                self.convert_tp_into_value(fv.crack().clone())
+                let tp = fv.crack().clone();
+                self.convert_tp_into_value(tp)
             }
             TyParam::Value(v) => Ok(v),
             TyParam::Array(arr) => {
@@ -1891,7 +1905,8 @@ impl Context {
     pub(crate) fn convert_singular_type_into_value(&self, typ: Type) -> Result<ValueObj, Type> {
         match typ {
             Type::FreeVar(fv) if fv.is_linked() => {
-                self.convert_singular_type_into_value(fv.crack().clone())
+                let t = fv.crack().clone();
+                self.convert_singular_type_into_value(t)
             }
             Type::Refinement(ref refine) => {
                 if let Predicate::Equal { rhs, .. } = refine.pred.as_ref() {
@@ -2032,7 +2047,8 @@ impl Context {
     pub(crate) fn convert_type_to_dict_type(&self, ty: Type) -> Result<Dict<Type, Type>, ()> {
         match ty {
             Type::FreeVar(fv) if fv.is_linked() => {
-                self.convert_type_to_dict_type(fv.crack().clone())
+                let t = fv.crack().clone();
+                self.convert_type_to_dict_type(t)
             }
             Type::Refinement(refine) => self.convert_type_to_dict_type(*refine.t),
             Type::Poly { name, params } if &name[..] == "Dict" => {
@@ -2052,7 +2068,8 @@ impl Context {
     pub(crate) fn convert_type_to_tuple_type(&self, ty: Type) -> Result<Vec<Type>, ()> {
         match ty {
             Type::FreeVar(fv) if fv.is_linked() => {
-                self.convert_type_to_tuple_type(fv.crack().clone())
+                let t = fv.crack().clone();
+                self.convert_type_to_tuple_type(t)
             }
             Type::Refinement(refine) => self.convert_type_to_tuple_type(*refine.t),
             Type::Poly { name, params } if &name[..] == "Tuple" => {
@@ -2070,7 +2087,10 @@ impl Context {
 
     pub(crate) fn convert_type_to_array(&self, ty: Type) -> Result<Vec<ValueObj>, Type> {
         match ty {
-            Type::FreeVar(fv) if fv.is_linked() => self.convert_type_to_array(fv.crack().clone()),
+            Type::FreeVar(fv) if fv.is_linked() => {
+                let t = fv.crack().clone();
+                self.convert_type_to_array(t)
+            }
             Type::Refinement(refine) => self.convert_type_to_array(*refine.t),
             Type::Poly { name, params } if &name[..] == "Array" || &name[..] == "Array!" => {
                 let Ok(t) = self.convert_tp_into_type(params[0].clone()) else {
@@ -2203,7 +2223,10 @@ impl Context {
 
     fn detach_tp(&self, tp: TyParam, tv_cache: &mut TyVarCache) -> TyParam {
         match tp {
-            TyParam::FreeVar(fv) if fv.is_linked() => self.detach_tp(fv.crack().clone(), tv_cache),
+            TyParam::FreeVar(fv) if fv.is_linked() => {
+                let tp = fv.crack().clone();
+                self.detach_tp(tp, tv_cache)
+            }
             TyParam::FreeVar(fv) => {
                 let new_fv = fv.detach();
                 let name = new_fv.unbound_name().unwrap();

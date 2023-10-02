@@ -48,7 +48,8 @@ impl Generalizer {
             }
             TyParam::FreeVar(fv) if fv.is_generalized() => TyParam::FreeVar(fv),
             TyParam::FreeVar(fv) if fv.is_linked() => {
-                self.generalize_tp(fv.crack().clone(), uninit)
+                let tp = fv.crack().clone();
+                self.generalize_tp(tp, uninit)
             }
             // TODO: Polymorphic generalization
             TyParam::FreeVar(fv) if fv.level() > Some(self.level) => {

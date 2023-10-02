@@ -1219,7 +1219,8 @@ impl Context {
     fn instantiate_tp_as_type(&self, tp: TyParam, loc: &impl Locational) -> TyCheckResult<Type> {
         match tp {
             TyParam::FreeVar(fv) if fv.is_linked() => {
-                self.instantiate_tp_as_type(fv.crack().clone(), loc)
+                let tp = fv.crack().clone();
+                self.instantiate_tp_as_type(tp, loc)
             }
             TyParam::Mono(name) => Ok(mono(name)),
             TyParam::Proj { obj, attr } => {
