@@ -130,7 +130,9 @@ impl SideEffectChecker {
                     }
                     Array::WithLength(arr) => {
                         self.check_expr(&arr.elem);
-                        self.check_expr(&arr.len);
+                        if let Some(len) = &arr.len {
+                            self.check_expr(len);
+                        }
                     }
                     Array::Comprehension(arr) => {
                         self.check_expr(&arr.elem);
@@ -340,7 +342,9 @@ impl SideEffectChecker {
                 }
                 Array::WithLength(arr) => {
                     self.check_expr(&arr.elem);
-                    self.check_expr(&arr.len);
+                    if let Some(len) = &arr.len {
+                        self.check_expr(len);
+                    }
                 }
                 Array::Comprehension(arr) => {
                     self.check_expr(&arr.elem);
@@ -491,7 +495,10 @@ impl SideEffectChecker {
                     .pos_args
                     .iter()
                     .any(|elem| Self::is_impure(&elem.expr)),
-                Array::WithLength(arr) => Self::is_impure(&arr.elem) || Self::is_impure(&arr.len),
+                Array::WithLength(arr) => {
+                    Self::is_impure(&arr.elem)
+                        || arr.len.as_ref().map_or(false, |len| Self::is_impure(len))
+                }
                 _ => todo!(),
             },
             Expr::Tuple(tup) => match tup {

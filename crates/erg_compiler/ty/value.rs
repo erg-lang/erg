@@ -25,7 +25,7 @@ use crate::context::Context;
 use self::value_set::inner_class;
 
 use super::codeobj::CodeObj;
-use super::constructors::{array_t, dict_t, refinement, set_t, tuple_t};
+use super::constructors::{array_t, dict_t, refinement, set_t, tuple_t, unsized_array_t};
 use super::typaram::{OpKind, TyParam};
 use super::{ConstSubr, Field, HasType, Predicate, Type};
 use super::{CONTAINER_OMIT_THRESHOLD, STR_OMIT_THRESHOLD};
@@ -503,6 +503,7 @@ pub enum ValueObj {
     Str(Str),
     Bool(bool),
     Array(ArcArray<ValueObj>),
+    UnsizedArray(Box<ValueObj>),
     Set(Set<ValueObj>),
     Dict(Dict<ValueObj, ValueObj>),
     Tuple(ArcArray<ValueObj>),
@@ -561,6 +562,7 @@ impl fmt::Debug for ValueObj {
                 }
             }
             Self::Array(arr) => write!(f, "[{}]", fmt_iter(arr.iter())),
+            Self::UnsizedArray(elem) => write!(f, "[{elem}; _]"),
             Self::Dict(dict) => {
                 write!(f, "{{")?;
                 for (i, (k, v)) in dict.iter().enumerate() {
@@ -749,6 +751,10 @@ impl Hash for ValueObj {
             Self::Str(s) => s.hash(state),
             Self::Bool(b) => b.hash(state),
             Self::Array(arr) => arr.hash(state),
+            Self::UnsizedArray(elem) => {
+                "UnsizedArray".hash(state);
+                elem.hash(state)
+            }
             Self::Dict(dict) => dict.hash(state),
             Self::Tuple(tup) => tup.hash(state),
             Self::Set(st) => st.hash(state),
@@ -1157,6 +1163,7 @@ impl ValueObj {
                     .unwrap_or(Type::Never),
                 TyParam::value(arr.len()),
             ),
+            Self::UnsizedArray(elem) => unsized_array_t(elem.class()),
             Self::Dict(dict) => {
                 let tp = dict
                     .iter()

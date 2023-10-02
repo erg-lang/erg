@@ -9,7 +9,7 @@ use erg_common::log;
 use erg_common::set::Set as HashSet;
 use erg_common::traits::{Locational, NestedDisplay, NoTypeDisplay, Stream};
 use erg_common::{
-    enum_unwrap, fmt_option, fmt_vec, fmt_vec_split_with, impl_display_for_enum,
+    enum_unwrap, fmt_option, fmt_option_map, fmt_vec, fmt_vec_split_with, impl_display_for_enum,
     impl_display_from_nested, impl_locational, impl_locational_for_enum,
     impl_nested_display_for_chunk_enum, impl_nested_display_for_enum,
     impl_no_type_display_for_enum, impl_stream,
@@ -702,12 +702,18 @@ pub struct ArrayWithLength {
     pub r_sqbr: Token,
     pub t: Type,
     pub elem: Box<Expr>,
-    pub len: Box<Expr>,
+    pub len: Option<Box<Expr>>,
 }
 
 impl NestedDisplay for ArrayWithLength {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "[{}; {}](: {})", self.elem, self.len, self.t)
+        write!(
+            f,
+            "[{}; {}](: {})",
+            self.elem,
+            fmt_option!(self.len, else "_"),
+            self.t
+        )
     }
 }
 
@@ -716,7 +722,7 @@ impl NoTypeDisplay for ArrayWithLength {
         format!(
             "[{}; {}]",
             self.elem.to_string_notype(),
-            self.len.to_string_notype()
+            fmt_option_map!(self.len, else "_", |len: &Expr| len.to_string_notype())
         )
     }
 }
@@ -726,14 +732,18 @@ impl_locational!(ArrayWithLength, l_sqbr, elem, r_sqbr);
 impl_t!(ArrayWithLength);
 
 impl ArrayWithLength {
-    pub fn new(l_sqbr: Token, r_sqbr: Token, t: Type, elem: Expr, len: Expr) -> Self {
+    pub fn new(l_sqbr: Token, r_sqbr: Token, t: Type, elem: Expr, len: Option<Expr>) -> Self {
         Self {
             l_sqbr,
             r_sqbr,
             t,
             elem: Box::new(elem),
-            len: Box::new(len),
+            len: len.map(Box::new),
         }
+    }
+
+    pub const fn is_unsized(&self) -> bool {
+        self.len.is_none()
     }
 }
 
@@ -828,6 +838,12 @@ impl_no_type_display_for_enum!(Array; Normal, Comprehension, WithLength);
 impl_display_for_enum!(Array; Normal, Comprehension, WithLength);
 impl_locational_for_enum!(Array; Normal, Comprehension, WithLength);
 impl_t_for_enum!(Array; Normal, Comprehension, WithLength);
+
+impl Array {
+    pub const fn is_unsized(&self) -> bool {
+        matches!(self, Self::WithLength(arr) if arr.is_unsized())
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NormalTuple {

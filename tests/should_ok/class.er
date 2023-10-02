@@ -17,3 +17,11 @@ assert d.foo(1) == 2
 
 c = C.new { .x = D.new(1) }
 assert c.x.y == 1
+
+Vec = Class [Int; _]
+Vec.
+    sum self =
+        sum(self::base)
+
+v = Vec.new [1, 2, 3]
+assert v.sum() == 6

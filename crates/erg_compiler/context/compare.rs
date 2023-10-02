@@ -533,7 +533,9 @@ impl Context {
             (Mono(n), NamedTuple(_)) => &n[..] == "GenericNamedTuple" || &n[..] == "GenericTuple",
             (Mono(n), Record(_)) => &n[..] == "Record",
             (Type, Subr(subr)) => self.supertype_of(&Type, &subr.return_t),
-            (Type, Poly { name, params }) if &name[..] == "Array" || &name[..] == "Set" => {
+            (Type, Poly { name, params })
+                if &name[..] == "Array" || &name[..] == "UnsizedArray" || &name[..] == "Set" =>
+            {
                 let elem_t = self.convert_tp_into_type(params[0].clone()).unwrap();
                 self.supertype_of(&Type, &elem_t)
             }

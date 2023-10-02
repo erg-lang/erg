@@ -12,6 +12,8 @@ def contains_operator(y, elem) -> bool:
     elif is_type(y):
         if _isinstance(elem, y):
             return True
+        elif hasattr(y, "generic_try_new"):
+            return is_ok(y.generic_try_new(elem, y))
         elif hasattr(y, "try_new") and is_ok(y.try_new(elem)):
             return True
         elif hasattr(y, "__origin__") and hasattr(y.__origin__, "type_check"):

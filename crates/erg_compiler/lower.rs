@@ -27,7 +27,8 @@ use crate::artifact::{CompleteArtifact, IncompleteArtifact};
 use crate::context::instantiate::TyVarCache;
 use crate::module::SharedCompilerResource;
 use crate::ty::constructors::{
-    array_t, free_var, func, guard, mono, poly, proc, refinement, set_t, singleton, ty_tp, v_enum,
+    array_t, free_var, func, guard, mono, poly, proc, refinement, set_t, singleton, ty_tp,
+    unsized_array_t, v_enum,
 };
 use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
@@ -370,18 +371,26 @@ impl ASTLowerer {
         });
         let elem = self.lower_expr(array.elem.expr, expect_elem.as_ref())?;
         let array_t = self.gen_array_with_length_type(&elem, &array.len);
-        let len = self.lower_expr(*array.len, Some(&Type::Nat))?;
+        let len = match *array.len {
+            ast::Expr::Accessor(ast::Accessor::Ident(ident)) if ident.is_discarded() => None,
+            len => Some(self.lower_expr(len, Some(&Type::Nat))?),
+        };
         let hir_array = hir::ArrayWithLength::new(array.l_sqbr, array.r_sqbr, array_t, elem, len);
         Ok(hir_array)
     }
 
     fn gen_array_with_length_type(&self, elem: &hir::Expr, len: &ast::Expr) -> Type {
+        match len {
+            ast::Expr::Accessor(ast::Accessor::Ident(ident)) if ident.is_discarded() => {
+                return unsized_array_t(elem.t());
+            }
+            _ => {}
+        }
         let maybe_len = self.module.context.eval_const_expr(len);
         match maybe_len {
             Ok(v @ ValueObj::Nat(_)) => array_t(elem.t(), TyParam::Value(v)),
             Ok(other) => todo!("{other} is not a Nat object"),
-            // REVIEW: is it ok to ignore the error?
-            Err(_e) => array_t(elem.t(), TyParam::erased(Type::Nat)),
+            Err(err) => todo!("{err}"),
         }
     }
 

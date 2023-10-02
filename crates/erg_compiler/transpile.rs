@@ -1130,8 +1130,9 @@ impl JsonGenerator {
                 Some(ValueObj::Array(vals.into()))
             }
             Expr::Array(Array::WithLength(arr)) => {
-                let len = self
-                    .expr_into_value(*arr.len)
+                let len = arr
+                    .len
+                    .and_then(|len| self.expr_into_value(*len))
                     .and_then(|v| usize::try_from(&v).ok())?;
                 let vals = vec![self.expr_into_value(*arr.elem)?; len];
                 Some(ValueObj::Array(vals.into()))

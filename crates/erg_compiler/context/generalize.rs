@@ -1125,7 +1125,9 @@ impl Context {
                 }
                 hir::Array::WithLength(arr) => {
                     self.resolve_expr_t(&mut arr.elem, qnames)?;
-                    self.resolve_expr_t(&mut arr.len, qnames)?;
+                    if let Some(len) = &mut arr.len {
+                        self.resolve_expr_t(len, qnames)?;
+                    }
                     let t = mem::take(&mut arr.t);
                     let mut dereferencer = Dereferencer::simple(self, qnames, arr);
                     arr.t = dereferencer.deref_tyvar(t)?;

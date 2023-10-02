@@ -3,6 +3,8 @@ from _erg_range import Range
 from _erg_nat import NatMut
 from _erg_int import IntMut
 from _erg_contains_operator import contains_operator
+from _erg_result import is_ok
+from _erg_result import Error
 
 class Array(list):
     def try_new(arr):  # -> Result[Array]
@@ -10,6 +12,21 @@ class Array(list):
             return Array(arr)
         else:
             return Error("not a list")
+
+    def generic_try_new(arr, cls = None):  # -> Result[Array]
+        if cls is None:
+            return Array.try_new(arr)
+        else:
+            elem_t = cls.__args__[0]
+            elems = []
+            for elem in arr:
+                # TODO: nested check
+                elem = elem_t.try_new(elem)
+                if is_ok(elem):
+                    elems.append(elem)
+                else:
+                    return Error("not a " + str(elem_t))
+            return Array(elems)
 
     def dedup(self, same_bucket=None):
         if same_bucket is None:
@@ -77,3 +94,8 @@ class Array(list):
 
     def update_nth(self, index, f):
         self[index] = f(self[index])
+
+class UnsizedArray:
+    elem: object
+    def __init__(self, elem):
+        self.elem = elem

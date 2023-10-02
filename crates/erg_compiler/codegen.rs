@@ -34,6 +34,7 @@ use erg_parser::token::{Token, TokenKind};
 
 use crate::compile::{AccessKind, Name, StoreLoadKind};
 use crate::error::CompileError;
+use crate::hir::ArrayWithLength;
 use crate::hir::{
     Accessor, Args, Array, BinOp, Block, Call, ClassDef, Def, DefBody, Expr, GuardClause,
     Identifier, Lambda, Literal, NonDefaultParamSignature, Params, PatchDef, PosArg, ReDef, Record,
@@ -2735,7 +2736,11 @@ impl PyCodeGenerator {
         let init_stack_len = self.stack_len();
         if !self.cfg.no_std {
             self.emit_push_null();
-            self.emit_load_name_instr(Identifier::public("Array"));
+            if array.is_unsized() {
+                self.emit_load_name_instr(Identifier::public("UnsizedArray"));
+            } else {
+                self.emit_load_name_instr(Identifier::public("Array"));
+            }
         }
         match array {
             Array::Normal(mut arr) => {
@@ -2751,15 +2756,24 @@ impl PyCodeGenerator {
                     self.stack_dec_n(len - 1);
                 }
             }
-            Array::WithLength(arr) => {
-                self.emit_expr(*arr.elem);
+            Array::WithLength(ArrayWithLength {
+                elem,
+                len: Some(len),
+                ..
+            }) => {
+                self.emit_expr(*elem);
                 self.write_instr(BUILD_LIST);
                 self.write_arg(1);
                 self.emit_call_instr(1, Name);
                 self.stack_dec();
-                self.emit_expr(*arr.len);
+                self.emit_expr(*len);
                 self.emit_binop_instr(Token::dummy(TokenKind::Star, "*"), TypePair::ArrayNat);
                 return;
+            }
+            Array::WithLength(ArrayWithLength {
+                elem, len: None, ..
+            }) => {
+                self.emit_expr(*elem);
             }
             other => todo!("{other}"),
         }

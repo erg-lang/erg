@@ -130,7 +130,9 @@ impl<'a> HIRLinker<'a> {
                 }
                 Array::WithLength(arr) => {
                     Self::resolve_pymod_path(&mut arr.elem);
-                    Self::resolve_pymod_path(&mut arr.len);
+                    if let Some(len) = arr.len.as_deref_mut() {
+                        Self::resolve_pymod_path(len);
+                    }
                 }
                 _ => todo!(),
             },
@@ -252,7 +254,9 @@ impl<'a> HIRLinker<'a> {
                 }
                 Array::WithLength(arr) => {
                     self.replace_import(&mut arr.elem);
-                    self.replace_import(&mut arr.len);
+                    if let Some(len) = arr.len.as_deref_mut() {
+                        self.replace_import(len);
+                    }
                 }
                 _ => todo!(),
             },

@@ -208,7 +208,9 @@ impl OwnershipChecker {
                 }
                 Array::WithLength(arr) => {
                     self.check_expr(&arr.elem, ownership, false);
-                    self.check_expr(&arr.len, ownership, false);
+                    if let Some(len) = &arr.len {
+                        self.check_expr(len, ownership, false);
+                    }
                 }
                 _ => todo!(),
             },

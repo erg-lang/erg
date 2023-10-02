@@ -13,7 +13,7 @@ from _erg_nat import Nat, NatMut
 from _erg_bool import Bool
 from _erg_bytes import Bytes
 from _erg_str import Str, StrMut
-from _erg_array import Array
+from _erg_array import Array, UnsizedArray
 from _erg_dict import Dict
 from _erg_set import Set
 from _erg_contains_operator import contains_operator

@@ -12,6 +12,10 @@ assert j["a"] in Array(Int)
 assert j["a"] notin Array(Str)
 _: Array(Int) = j["a"]
 
+k = json.loads "{ \"a\": [1] }"
+assert k in {Str: Obj}
+assert k["a"] notin Array(Str)
+
 dic = {"a": "b", "c": "d"}
 assert dic in {Str: {"b", "d"}}
 assert dic in {Str: Str}

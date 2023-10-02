@@ -21,7 +21,7 @@ use erg_parser::token::{Token, TokenKind};
 
 use crate::ty::constructors::{
     array_t, bounded, dict_t, mono, mono_q, named_free_var, poly, proj, proj_call, ref_, ref_mut,
-    refinement, set_t, subr_t, subtypeof, tp_enum, tuple_t, v_enum,
+    refinement, set_t, subr_t, subtypeof, tp_enum, tuple_t, unknown_len_array_t, v_enum,
 };
 use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::typaram::{OpKind, TyParam};
@@ -731,6 +731,33 @@ impl Context {
     fn eval_const_array(&self, arr: &Array) -> EvalResult<ValueObj> {
         match arr {
             Array::Normal(arr) => self.eval_const_normal_array(arr),
+            Array::WithLength(arr) => {
+                let elem = self.eval_const_expr(&arr.elem.expr)?;
+                match arr.len.as_ref() {
+                    Expr::Accessor(Accessor::Ident(ident)) if ident.is_discarded() => {
+                        Ok(ValueObj::UnsizedArray(Box::new(elem)))
+                    }
+                    other => {
+                        let len = self.eval_const_expr(other)?;
+                        let len = usize::try_from(&len).map_err(|_| {
+                            EvalError::type_mismatch_error(
+                                self.cfg.input.clone(),
+                                line!() as usize,
+                                other.loc(),
+                                self.caused_by(),
+                                "_",
+                                None,
+                                &Type::Nat,
+                                &len.t(),
+                                None,
+                                None,
+                            )
+                        })?;
+                        let arr = vec![elem; len];
+                        Ok(ValueObj::Array(ArcArray::from(arr)))
+                    }
+                }
+            }
             _ => Err(EvalErrors::from(EvalError::not_const_expr(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -1902,6 +1929,10 @@ impl Context {
                     union = self.union(&union, &self.convert_value_into_type(v)?);
                 }
                 Ok(array_t(union, len))
+            }
+            ValueObj::UnsizedArray(elem) => {
+                let elem = self.convert_value_into_type(*elem)?;
+                Ok(unknown_len_array_t(elem))
             }
             ValueObj::Set(set) => Ok(v_enum(set)),
             ValueObj::Dict(dic) => {

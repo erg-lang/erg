@@ -55,6 +55,12 @@ pub fn unknown_len_array_mut(elem_t: Type) -> Type {
     array_mut(elem_t, TyParam::erased(Type::Nat))
 }
 
+/// `UnsizedArray` is a type of `[x; _]` (unsized array literal).
+/// `UnsizedArray(T) != Array(T, _)`
+pub fn unsized_array_t(elem_t: Type) -> Type {
+    poly("UnsizedArray", vec![TyParam::t(elem_t)])
+}
+
 pub fn tuple_t(args: Vec<Type>) -> Type {
     poly(
         "Tuple",

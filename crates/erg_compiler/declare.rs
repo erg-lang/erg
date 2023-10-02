@@ -277,7 +277,7 @@ impl ASTLowerer {
                     arr.r_sqbr,
                     Type::Failure,
                     elem,
-                    len,
+                    Some(len),
                 )))
             }
             ast::Array::Normal(arr) => {
