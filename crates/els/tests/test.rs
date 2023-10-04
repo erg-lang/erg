@@ -279,12 +279,18 @@ fn test_dependents_check() -> Result<(), Box<dyn std::error::Error>> {
     client.wait_messages(2)?;
     client.responses.clear();
     client.notify_save(uri_b.clone().raw())?;
-    let diags = client.wait_diagnostics()?;
-    assert!(diags.diagnostics.is_empty());
-    let diags = client.wait_diagnostics()?;
-    assert_eq!(diags.diagnostics.len(), 1);
+    let b_diags = client.wait_diagnostics()?;
+    assert!(b_diags.diagnostics.is_empty(), "{:?}", b_diags.diagnostics);
+    let c_diags = client.wait_diagnostics()?;
     assert_eq!(
-        diags.diagnostics[0].severity,
+        c_diags.diagnostics.len(),
+        1,
+        "{:?} / {:?}",
+        b_diags.diagnostics,
+        c_diags.diagnostics
+    );
+    assert_eq!(
+        c_diags.diagnostics[0].severity,
         Some(DiagnosticSeverity::ERROR)
     );
     Ok(())

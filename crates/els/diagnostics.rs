@@ -306,7 +306,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                                 == Some("afterDelay")
                         })
                     {
-                        _log!(_self, "Auto saving is enabled");
+                        // _log!(_self, "Auto saving is enabled");
                         break;
                     }
                     for uri in _self.file_cache.entries() {
