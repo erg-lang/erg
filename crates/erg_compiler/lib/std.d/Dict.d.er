@@ -10,3 +10,13 @@
     items: |K, V|(self: .Dict(K, V)) -> .DictItems(K, V)
     keys: |K, V|(self: .Dict(K, V)) -> .DictKeys(K, V)
     values: |K, V|(self: .Dict(K, V)) -> .DictValues(K, V)
+    '''erg
+    dic = {"a": 1, "b": 2}
+    assert dic.concat({"c": 3}) == {"a": 1, "b": 2, "c": 3}
+    '''
+    concat: (self: .Dict(K, V), other: .Dict(K, V)) -> .Dict(K, V)
+    '''erg
+    dic = {"a": 1, "b": 2}
+    assert dic.diff({"a": 2, "d": 4}) == {"b": 2}
+    '''
+    diff: (self: .Dict(K, V), other: .Dict(K, V)) -> .Dict(K, V)

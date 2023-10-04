@@ -4,4 +4,29 @@ dict = pyimport "Dict"
 .Dict!: ClassType
 .Dict! <: dict.Dict
 .Dict!.
-    insert!: |K, V|(self: .Dict!, key: K, value: V) => NoneType
+    '''erg
+    dic = !{"a": 1}
+    dic.insert!("b", 2)
+    assert dic == {"a": 1, "b": 2}
+    '''
+    insert!: |K, V|(self: .Dict!(K, V), key: K, value: V) => NoneType
+    '''erg
+    dic = !{"a": 1}
+    x = dic.remove!("a")
+    assert dic == {}
+    assert x == 1
+    '''
+    remove!: |K, V|(self: .Dict!(K, V), key: K) => V or NoneType
+    '''erg
+    dic = !{"a": 1}
+    dic.update!({"b": 2})
+    dic.update!([("c", 3)])
+    assert dic == {"a": 1, "b": 2, "c": 3}
+    '''
+    update!: |K, V|(self: .Dict!(K, V), other: Iterable([K, V])) => NoneType
+    '''erg
+    dic = !{"a": 1}
+    dic.merge!({"b": 2})
+    assert dic == {"a": 1, "b": 2}
+    '''
+    merge!: |K, V|(self: .Dict!(K, V), other: .Dict!(K, V)) => NoneType

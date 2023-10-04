@@ -363,6 +363,32 @@ pub(crate) fn dict_items(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
     Ok(ValueObj::builtin_type(union).into())
 }
 
+/// If the key is duplicated, the value of the right dict is used.
+/// `{Str: Int, Int: Float}.concat({Int: Str, Float: Bool}) == {Str: Int, Int: Str, Float: Bool}`
+pub(crate) fn dict_concat(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let slf = args
+        .remove_left_or_key("Self")
+        .ok_or_else(|| not_passed("Self"))?;
+    let slf = enum_unwrap!(slf, ValueObj::Dict);
+    let other = args
+        .remove_left_or_key("Other")
+        .ok_or_else(|| not_passed("Other"))?;
+    let other = enum_unwrap!(other, ValueObj::Dict);
+    Ok(ValueObj::Dict(slf.concat(other)).into())
+}
+
+pub(crate) fn dict_diff(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let slf = args
+        .remove_left_or_key("Self")
+        .ok_or_else(|| not_passed("Self"))?;
+    let slf = enum_unwrap!(slf, ValueObj::Dict);
+    let other = args
+        .remove_left_or_key("Other")
+        .ok_or_else(|| not_passed("Other"))?;
+    let other = enum_unwrap!(other, ValueObj::Dict);
+    Ok(ValueObj::Dict(slf.diff(&other)).into())
+}
+
 /// `[Int, Str].union() == Int or Str`
 pub(crate) fn array_union(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let slf = args

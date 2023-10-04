@@ -1363,6 +1363,15 @@ impl TyParam {
         }
     }
 
+    pub fn is_type(&self) -> bool {
+        match self {
+            Self::Type(_) => true,
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_type(),
+            Self::Value(ValueObj::Type(_)) => true,
+            _ => false,
+        }
+    }
+
     pub fn replace(self, target: &Type, to: &Type) -> TyParam {
         match self {
             TyParam::Value(ValueObj::Type(obj)) => {

@@ -1798,6 +1798,40 @@ impl Context {
         dict_.register_py_builtin(FUNC_GET, get_t, Some(FUNC_GET), 9);
         let copy_t = fn0_met(dict_t.clone(), dict_t.clone()).quantify();
         dict_.register_py_builtin(COPY, copy_t, Some(COPY), 7);
+        let D2 = mono_q_tp("D2", instanceof(mono(GENERIC_DICT)));
+        let other_dict_t = poly(DICT, vec![D2.clone()]);
+        let dict_concat_t = fn1_met(
+            dict_t.clone(),
+            other_dict_t.clone(),
+            poly(
+                DICT,
+                vec![D.clone().proj_call(FUNC_CONCAT.into(), vec![D2.clone()])],
+            ),
+        )
+        .quantify();
+        let concat = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_CONCAT,
+            dict_concat,
+            dict_concat_t,
+            None,
+        )));
+        dict_.register_builtin_const(FUNC_CONCAT, Visibility::BUILTIN_PUBLIC, concat);
+        let dict_diff_t = fn1_met(
+            dict_t.clone(),
+            other_dict_t.clone(),
+            poly(
+                DICT,
+                vec![D.clone().proj_call(FUNC_DIFF.into(), vec![D2.clone()])],
+            ),
+        )
+        .quantify();
+        let diff = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_DIFF,
+            dict_diff,
+            dict_diff_t,
+            None,
+        )));
+        dict_.register_builtin_const(FUNC_DIFF, Visibility::BUILTIN_PUBLIC, diff);
         /* Bytes */
         let mut bytes = Self::builtin_mono_class(BYTES, 2);
         bytes.register_superclass(Obj, &obj);
@@ -2692,16 +2726,66 @@ impl Context {
                 dict_mut_t.clone(),
                 Some(poly(
                     MUT_DICT,
-                    vec![D + dict! { K.clone() => V.clone() }.into()],
+                    vec![D.clone() + dict! { K.clone() => V.clone() }.into()],
                 )),
             ),
-            vec![kw(KW_KEY, K), kw(KW_VALUE, V)],
+            vec![kw(KW_KEY, K.clone()), kw(KW_VALUE, V.clone())],
             None,
             vec![],
             NoneType,
         )
         .quantify();
         dict_mut.register_py_builtin(PROC_INSERT, insert_t, Some(FUNDAMENTAL_SETITEM), 12);
+        let remove_t = pr_met(
+            ref_mut(
+                dict_mut_t.clone(),
+                Some(poly(
+                    MUT_DICT,
+                    vec![D
+                        .clone()
+                        .proj_call(FUNC_DIFF.into(), vec![dict! { K.clone() => Never }.into()])],
+                )),
+            ),
+            vec![kw(KW_KEY, K.clone())],
+            None,
+            vec![],
+            proj_call(D.clone(), FUNDAMENTAL_GETITEM, vec![ty_tp(K.clone())]) | NoneType,
+        )
+        .quantify();
+        dict_mut.register_py_builtin(PROC_REMOVE, remove_t, Some(FUNC_REMOVE), 19);
+        let update_t = pr_met(
+            ref_mut(
+                dict_mut_t.clone(),
+                Some(poly(
+                    MUT_DICT,
+                    vec![D.clone() + dict! { K.clone() => V.clone() }.into()],
+                )),
+            ),
+            vec![kw(
+                KW_ITERABLE,
+                poly(ITERABLE, vec![ty_tp(tuple_t(vec![K.clone(), V.clone()]))]),
+            )],
+            None,
+            vec![],
+            NoneType,
+        )
+        .quantify();
+        dict_mut.register_py_builtin(PROC_UPDATE, update_t, Some(FUNC_UPDATE), 26);
+        let merge_t = pr_met(
+            ref_mut(
+                dict_mut_t.clone(),
+                Some(poly(
+                    MUT_DICT,
+                    vec![D.proj_call(FUNC_CONCAT.into(), vec![D2.clone()])],
+                )),
+            ),
+            vec![kw(KW_OTHER, poly(DICT, vec![D2.clone()]))],
+            None,
+            vec![],
+            NoneType,
+        )
+        .quantify();
+        dict_mut.register_py_builtin(PROC_MERGE, merge_t, Some(FUNC_MERGE), 32);
         /* Set! */
         let set_mut_t = poly(MUT_SET, vec![ty_tp(T.clone()), N]);
         let mut set_mut_ =

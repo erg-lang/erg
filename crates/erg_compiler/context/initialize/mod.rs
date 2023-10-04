@@ -54,6 +54,7 @@ const SELF: &str = "Self";
 const IMMUTIZABLE: &str = "Immutizable";
 const IMMUT_TYPE: &str = "ImmutType";
 const PROC_UPDATE: &str = "update!";
+const FUNC_UPDATE: &str = "update";
 const MUTIZABLE: &str = "Mutizable";
 const MUTABLE_MUT_TYPE: &str = "MutType!";
 const PATH_LIKE: &str = "PathLike";
@@ -232,8 +233,11 @@ const PROC_UPDATE_NTH: &str = "update_nth!";
 const FUNC_PARTITION: &str = "partition";
 const FUNC_DEDUP: &str = "dedup";
 const FUNC_CONCAT: &str = "concat";
+const FUNC_DIFF: &str = "diff";
 const FUNC_PUSH: &str = "push";
 const PROC_PUSH: &str = "push!";
+const FUNC_MERGE: &str = "merge";
+const PROC_MERGE: &str = "merge!";
 const ARRAY_ITERATOR: &str = "ArrayIterator";
 const GENERIC_SET: &str = "GenericSet";
 const SET: &str = "Set";
@@ -557,6 +561,7 @@ const KW_SUB: &str = "sub";
 const KW_OFFSET: &str = "offset";
 const KW_WHENCE: &str = "whence";
 const KW_CHARS: &str = "chars";
+const KW_OTHER: &str = "other";
 
 pub fn builtins_path() -> PathBuf {
     erg_pystd_path().join("builtins.d.er")

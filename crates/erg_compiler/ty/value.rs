@@ -494,7 +494,7 @@ impl TypeObj {
 }
 
 /// 値オブジェクト
-/// コンパイル時評価ができ、シリアライズも可能
+/// コンパイル時評価ができ、シリアライズも可能(Typeなどはシリアライズ不可)
 #[derive(Clone, PartialEq, Default)]
 pub enum ValueObj {
     Int(i32),

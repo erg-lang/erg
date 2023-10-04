@@ -1304,6 +1304,32 @@ impl Context {
             (e @ TyParam::Erased(_), _) | (_, e @ TyParam::Erased(_)) => Ok(e),
             (lhs @ TyParam::FreeVar(_), rhs) => Ok(TyParam::bin(op, lhs, rhs)),
             (lhs, rhs @ TyParam::FreeVar(_)) => Ok(TyParam::bin(op, lhs, rhs)),
+            (TyParam::Value(lhs), rhs) => {
+                let lhs = match Self::convert_value_into_tp(lhs) {
+                    Ok(tp) => tp,
+                    Err(lhs) => {
+                        return feature_error!(
+                            self,
+                            Location::Unknown,
+                            &format!("{lhs} {op} {rhs}")
+                        );
+                    }
+                };
+                self.eval_bin_tp(op, lhs, rhs)
+            }
+            (lhs, TyParam::Value(rhs)) => {
+                let rhs = match Self::convert_value_into_tp(rhs) {
+                    Ok(tp) => tp,
+                    Err(rhs) => {
+                        return feature_error!(
+                            self,
+                            Location::Unknown,
+                            &format!("{lhs} {op} {rhs}")
+                        );
+                    }
+                };
+                self.eval_bin_tp(op, lhs, rhs)
+            }
             (l, r) => feature_error!(self, Location::Unknown, &format!("{l} {op} {r}"))
                 .map_err(Into::into),
         }
@@ -1439,6 +1465,10 @@ impl Context {
                 }
                 Ok(TyParam::Array(new_tps))
             }
+            TyParam::UnsizedArray(elem) => {
+                let elem = self.eval_tp(*elem)?;
+                Ok(TyParam::UnsizedArray(Box::new(elem)))
+            }
             TyParam::Tuple(tps) => {
                 let mut new_tps = Vec::with_capacity(tps.len());
                 for tp in tps {
@@ -1484,7 +1514,7 @@ impl Context {
             }
             TyParam::ProjCall { obj, attr, args } => self.eval_proj_call(*obj, attr, args, &()),
             TyParam::Value(_) => Ok(p.clone()),
-            _other => feature_error!(self, Location::Unknown, "???"),
+            other => feature_error!(self, Location::Unknown, &format!("evaluating {other}")),
         }
     }
 
