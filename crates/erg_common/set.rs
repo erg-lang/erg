@@ -117,6 +117,10 @@ impl<T: Hash> Set<T> {
     {
         self.iter().cloned().collect()
     }
+
+    pub fn into_vec(self) -> Vec<T> {
+        self.elems.into_iter().collect()
+    }
 }
 
 impl<T: Hash> IntoIterator for Set<T> {

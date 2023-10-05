@@ -11,17 +11,16 @@ use erg_common::traits::{ExitStatus, Runnable, Stream};
 use erg_parser::ast::VarName;
 
 use crate::artifact::{CompleteArtifact, ErrorArtifact};
-use crate::context::{Context, ContextProvider};
-use crate::optimize::HIROptimizer;
-use crate::ty::codeobj::CodeObj;
-
-use crate::build_hir::HIRBuilder;
 use crate::codegen::PyCodeGenerator;
+use crate::context::{Context, ContextProvider};
 use crate::desugar_hir::HIRDesugarer;
 use crate::error::{CompileError, CompileErrors, CompileWarnings};
 use crate::hir::Expr;
 use crate::link_hir::HIRLinker;
 use crate::module::SharedCompilerResource;
+use crate::optimize::HIROptimizer;
+use crate::plan::Planner;
+use crate::ty::codeobj::CodeObj;
 use crate::varinfo::VarInfo;
 
 /// * registered as global -> Global
@@ -113,7 +112,7 @@ impl AccessKind {
 #[derive(Debug)]
 pub struct Compiler {
     pub cfg: ErgConfig,
-    builder: HIRBuilder,
+    planner: Planner,
     shared: SharedCompilerResource,
     code_generator: PyCodeGenerator,
 }
@@ -133,7 +132,7 @@ impl Runnable for Compiler {
         let shared = SharedCompilerResource::new(cfg.copy());
         Self {
             shared: shared.clone(),
-            builder: HIRBuilder::new_with_cache(cfg.copy(), "<module>", shared),
+            planner: Planner::new(cfg.copy(), shared),
             code_generator: PyCodeGenerator::new(cfg.copy()),
             cfg,
         }
@@ -152,13 +151,13 @@ impl Runnable for Compiler {
     fn finish(&mut self) {}
 
     fn initialize(&mut self) {
-        self.builder.initialize();
+        self.planner.builder.initialize();
         self.code_generator.clear();
         // .mod_cache will be initialized in .builder
     }
 
     fn clear(&mut self) {
-        self.builder.clear();
+        self.planner.builder.clear();
         self.code_generator.clear();
     }
 
@@ -187,15 +186,15 @@ impl Runnable for Compiler {
 
 impl ContextProvider for Compiler {
     fn dir(&self) -> Dict<&VarName, &VarInfo> {
-        self.builder.dir()
+        self.planner.builder.dir()
     }
 
     fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context> {
-        self.builder.get_receiver_ctx(receiver_name)
+        self.planner.builder.get_receiver_ctx(receiver_name)
     }
 
     fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
-        self.builder.get_var_info(name)
+        self.planner.builder.get_var_info(name)
     }
 }
 
@@ -263,7 +262,7 @@ impl Compiler {
         src: String,
         mode: &str,
     ) -> Result<CompleteArtifact, ErrorArtifact> {
-        let artifact = self.builder.build(src, mode)?;
+        let artifact = self.planner.build(src, mode)?;
         let linker = HIRLinker::new(&self.cfg, &self.shared.mod_cache);
         let hir = linker.link(artifact.object);
         let hir = HIRDesugarer::desugar(hir);

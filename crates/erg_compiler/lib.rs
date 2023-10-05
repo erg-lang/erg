@@ -22,6 +22,7 @@ pub mod lower;
 pub mod module;
 pub mod optimize;
 pub mod ownercheck;
+pub mod plan;
 pub mod transpile;
 pub mod ty;
 pub mod varinfo;

@@ -106,6 +106,7 @@ impl ModuleGraph {
 
     /// returns Err (and do nothing) if this operation makes a cycle
     pub fn inc_ref(&mut self, referrer: &Path, depends_on: PathBuf) -> Result<(), IncRefError> {
+        self.add_node_if_none(referrer);
         let referrer = NormalizedPathBuf::new(referrer.to_path_buf());
         let depends_on = NormalizedPathBuf::new(depends_on);
         if self.ancestors(&depends_on).contains(&referrer) && referrer != depends_on {
@@ -141,6 +142,9 @@ impl ModuleGraph {
     pub fn remove(&mut self, path: &Path) {
         let path = NormalizedPathBuf::new(path.to_path_buf());
         self.0.retain(|n| n.id != path);
+        for node in self.0.iter_mut() {
+            node.depends_on.retain(|p| *p != path);
+        }
     }
 
     pub fn rename_path(&mut self, old: &Path, new: PathBuf) {
@@ -237,5 +241,9 @@ impl SharedModuleGraph {
 
     pub fn initialize(&self) {
         self.0.borrow_mut().initialize();
+    }
+
+    pub fn clone_inner(&self) -> ModuleGraph {
+        self.0.borrow().clone()
     }
 }

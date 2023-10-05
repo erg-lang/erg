@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use erg_common::config::ErgConfig;
+use erg_common::pathutil::NormalizedPathBuf;
 
 use crate::context::Context;
 
@@ -48,7 +49,7 @@ impl SharedCompilerResource {
         self_
     }
 
-    pub fn inherit(&self, path: PathBuf) -> Self {
+    pub fn inherit<P: Into<NormalizedPathBuf>>(&self, path: P) -> Self {
         let mut _self = self.clone();
         _self.promises.path = path.into();
         _self
