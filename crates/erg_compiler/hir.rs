@@ -2764,9 +2764,21 @@ impl Expr {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Module(Vec<Expr>);
 
-impl fmt::Display for Module {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt_lines(self.0.iter(), f, 0)
+impl NestedDisplay for Module {
+    fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
+        fmt_lines(self.0.iter(), f, level)
+    }
+}
+
+impl_display_from_nested!(Module);
+
+impl NoTypeDisplay for Module {
+    fn to_string_notype(&self) -> String {
+        self.0
+            .iter()
+            .map(|e| e.to_string_notype())
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 }
 
