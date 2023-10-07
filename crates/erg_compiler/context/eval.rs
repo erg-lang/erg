@@ -962,7 +962,11 @@ impl Context {
             block,
             sig_t,
         ));
-        Ok(ValueObj::Subr(subr))
+        if errs.is_empty() {
+            Ok(ValueObj::Subr(subr))
+        } else {
+            Err(errs)
+        }
     }
 
     pub(crate) fn eval_lit(&self, lit: &Literal) -> EvalResult<ValueObj> {

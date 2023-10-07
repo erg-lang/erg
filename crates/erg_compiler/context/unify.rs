@@ -390,6 +390,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     } else {
                         maybe_sup.link(sub_tp, self.undoable);
                     }
+                    // self.sub_unify(&tp_t, &fv_t)
                     Ok(())
                 } else if allow_divergence
                     && (self.ctx.eq_tp(sub_tp, &TyParam::value(Inf))
@@ -397,6 +398,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     && self.ctx.subtype_of(&fv_t, &mono("Num"))
                 {
                     maybe_sup.link(sub_tp, self.undoable);
+                    // self.sub_unify(&tp_t, &fv_t)
                     Ok(())
                 } else {
                     Err(TyCheckErrors::from(TyCheckError::unreachable(
