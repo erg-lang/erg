@@ -21,7 +21,7 @@ use crate::varinfo::VarInfo;
 /// Summarize lowering, side-effect checking, and ownership checking
 #[derive(Debug)]
 pub struct HIRBuilder {
-    lowerer: ASTLowerer,
+    pub(crate) lowerer: ASTLowerer,
     ownership_checker: OwnershipChecker,
 }
 
@@ -206,5 +206,9 @@ impl HIRBuilder {
 
     pub fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
         ContextProvider::get_var_info(self, name)
+    }
+
+    pub fn current_ctx(&self) -> &Context {
+        &self.lowerer.module.context
     }
 }

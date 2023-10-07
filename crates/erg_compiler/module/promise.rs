@@ -2,6 +2,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::thread::{current, JoinHandle, ThreadId};
 
+use erg_common::consts::DEBUG_MODE;
 use erg_common::dict::Dict;
 use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::shared::Shared;
@@ -95,7 +96,9 @@ impl SharedPromises {
     pub fn insert<P: Into<NormalizedPathBuf>>(&self, path: P, handle: JoinHandle<()>) {
         let path = path.into();
         if self.promises.borrow().get(&path).is_some() {
-            // panic!("already registered: {}", path.display());
+            if DEBUG_MODE {
+                panic!("already registered: {}", path.display());
+            }
             return;
         }
         self.promises
