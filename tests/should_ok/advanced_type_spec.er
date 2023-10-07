@@ -8,3 +8,7 @@ g _: Tuple([]) = None
 _: Iterable(Array(Int, _)) = [[1]]
 _: Array(Int, _) = [1]
 _: Iterable(Dict({Str: Int})) = [{"a": 1}]
+
+f2|T|(_: Structural { .a = (self: T) -> Obj }): NoneType = None
+g2: (|T|(_: Structural { .a = (self: T) -> Obj }) -> NoneType) = f2
+_, _ = f2, g2

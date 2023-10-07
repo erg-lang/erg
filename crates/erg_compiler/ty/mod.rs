@@ -2754,6 +2754,10 @@ impl Type {
     }
 
     /// if the type is polymorphic
+    /// ```erg
+    /// assert ('T -> Int).has_qvar()
+    /// assert not (|T| T -> T).has_qvar()
+    /// ```
     pub fn has_qvar(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().has_qvar(),
@@ -2776,7 +2780,7 @@ impl Type {
                 param_ts.iter().any(|t| t.has_qvar()) || return_t.has_qvar()
             }
             Self::Subr(subr) => subr.has_qvar(),
-            Self::Quantified(quant) => quant.has_qvar(),
+            // Self::Quantified(quant) => quant.has_qvar(),
             Self::Record(r) => r.values().any(|t| t.has_qvar()),
             Self::NamedTuple(r) => r.iter().any(|(_, t)| t.has_qvar()),
             Self::Refinement(refine) => refine.t.has_qvar() || refine.pred.has_qvar(),
