@@ -1773,7 +1773,7 @@ impl Context {
         let ctxs = self
             .get_singular_ctxs_by_hir_expr(obj, self)
             .ok()
-            .unwrap_or(vec![]);
+            .unwrap_or_default();
         let one = attr_name
             .as_ref()
             .map(|attr| {
@@ -1781,7 +1781,7 @@ impl Context {
                     .flat_map(|ctx| {
                         ctx.get_singular_ctxs_by_ident(attr, self)
                             .ok()
-                            .unwrap_or(vec![])
+                            .unwrap_or_default()
                     })
                     .collect()
             })
@@ -1792,7 +1792,7 @@ impl Context {
                 self.get_same_name_context(&name)
                     .map_or(vec![], |ctx| vec![ctx])
             })
-            .unwrap_or(vec![]);
+            .unwrap_or_default();
         let fallbacks = one.into_iter().chain(two);
         for typ_ctx in fallbacks {
             if let Some(call_vi) = typ_ctx.get_current_scope_var(&VarName::from_static("__call__"))
@@ -2801,6 +2801,7 @@ impl Context {
         }
     }
 
+    /// name: Identifier.inspect()
     // FIXME: 現在の実装だとimportしたモジュールはどこからでも見れる
     pub(crate) fn get_mod(&self, name: &str) -> Option<&Context> {
         if name == "module" && ERG_MODE {

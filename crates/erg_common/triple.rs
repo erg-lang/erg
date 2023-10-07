@@ -75,6 +75,17 @@ impl<T, E> Triple<T, E> {
         }
     }
 
+    pub fn unwrap_or_default(self) -> T
+    where
+        T: Default,
+    {
+        match self {
+            Triple::None => T::default(),
+            Triple::Ok(ok) => ok,
+            Triple::Err(_) => T::default(),
+        }
+    }
+
     #[track_caller]
     pub fn unwrap_err(self) -> E {
         match self {

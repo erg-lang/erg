@@ -14,6 +14,14 @@ impl SharedCompileErrors {
         Self(Shared::new(Set::new()))
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.0.borrow().is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.borrow().len()
+    }
+
     pub fn push(&self, error: CompileError) {
         self.0.borrow_mut().insert(error);
     }
