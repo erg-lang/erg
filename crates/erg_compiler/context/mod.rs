@@ -1077,14 +1077,13 @@ impl Context {
             .or(Some(self))
     }
 
-    pub(crate) fn get_module_from_stack(&self, path: &Path) -> Option<&Context> {
-        self.get_outer().and_then(|outer| {
-            if outer.kind == ContextKind::Module && outer.module_path() == path {
-                Some(outer)
-            } else {
-                outer.get_module_from_stack(path)
-            }
-        })
+    pub(crate) fn get_module_from_stack(&self, path: &NormalizedPathBuf) -> Option<&Context> {
+        if self.kind == ContextKind::Module && &NormalizedPathBuf::from(self.module_path()) == path
+        {
+            return Some(self);
+        }
+        self.get_outer()
+            .and_then(|outer| outer.get_module_from_stack(path))
     }
 
     /// This method is intended to be called __only__ in the top-level module.

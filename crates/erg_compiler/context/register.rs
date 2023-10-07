@@ -8,26 +8,23 @@ use std::thread::sleep;
 use std::time::{Duration, SystemTime};
 
 use erg_common::config::ErgMode;
-use erg_common::consts::{ELS, ERG_MODE, PYTHON_MODE};
+use erg_common::consts::{ERG_MODE, PYTHON_MODE};
 use erg_common::dict::Dict;
 use erg_common::env::{is_pystd_main_module, is_std_decl_path};
 use erg_common::erg_util::BUILTIN_ERG_MODS;
-use erg_common::io::Input;
 use erg_common::levenshtein::get_similar_name;
 use erg_common::pathutil::{DirKind, FileKind};
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::set::Set;
-use erg_common::spawn::spawn_new_thread;
 use erg_common::traits::{Locational, Stream, StructuralEq};
 use erg_common::triple::Triple;
-use erg_common::{dict, get_hash, log, set, unique_in_place, Str};
+use erg_common::{get_hash, log, set, unique_in_place, Str};
 
 use ast::{
     ConstIdentifier, Decorator, DefId, Identifier, OperationKind, PolyTypeSpec, PreDeclTypeSpec,
     VarName,
 };
 use erg_parser::ast;
-use erg_parser::parse::SimpleParser;
 
 use crate::ty::constructors::{
     free_var, func, func0, func1, proc, ref_, ref_mut, tp_enum, unknown_len_array_t, v_enum,
@@ -39,7 +36,6 @@ use crate::ty::{
     CastTarget, Field, GuardType, HasType, ParamTy, SubrType, Type, Visibility, VisibilityModifier,
 };
 
-use crate::build_hir::HIRBuilder;
 use crate::context::{ClassDefType, Context, ContextKind, DefaultInfo, RegistrationMode};
 use crate::error::readable_name;
 use crate::error::{
@@ -54,7 +50,7 @@ use RegistrationMode::*;
 use super::eval::Substituter;
 use super::instantiate::TyVarCache;
 use super::instantiate_spec::ParamKind;
-use super::{ModuleContext, ParamSpec};
+use super::ParamSpec;
 
 pub fn valid_mod_name(name: &str) -> bool {
     !name.is_empty() && !name.starts_with('/') && name.trim() == name
@@ -1983,63 +1979,7 @@ impl Context {
         if ERG_MODE {
             self.check_mod_vis(path.as_path(), __name__, loc)?;
         }
-        let referrer = self.cfg.input.path();
-        if self.shared().graph.inc_ref(referrer, path.clone()).is_err() {
-            self.build_cyclic_mod(&path);
-        }
-        self.build_erg_mod(path, __name__, loc)
-    }
-
-    /// e.g.
-    /// ```erg
-    /// # a.er
-    /// b = import "b"
-    /// .f() = b.f()
-    /// ```
-    /// ```erg
-    /// # b.er (entry point)
-    /// a = import "a"
-    /// .f() = 1
-    /// print! a.f()
-    /// ```
-    /// ↓
-    /// ```erg
-    /// # a.er (pseudo code)
-    /// b = {
-    ///     # a = import "a"
-    ///     .f() = 1
-    ///     # print! a.f()
-    /// }
-    /// .f() = b.f()
-    /// ```
-    fn build_cyclic_mod(&self, path: &Path) {
-        let mod_ctx = ModuleContext::new(self.clone(), dict! {});
-        let mut builder = HIRBuilder::new_with_ctx(mod_ctx);
-        let src = Input::file(path.to_path_buf()).read();
-        let ast = if ELS {
-            SimpleParser::parse(src.clone())
-                .ok()
-                .map(|artifact| artifact.ast)
-        } else {
-            None
-        };
-        let mode = if path.to_string_lossy().ends_with("d.er") {
-            "declare"
-        } else {
-            "exec"
-        };
-        let res = builder.build(src, mode);
-        let hir = match res {
-            Ok(art) => Some(art.object),
-            Err(art) => art.object,
-        };
-        let ctx = builder.pop_mod_ctx().unwrap();
-        let cache = if path.to_string_lossy().ends_with("d.er") {
-            &self.shared().py_mod_cache
-        } else {
-            &self.shared().mod_cache
-        };
-        cache.register(path.to_path_buf(), ast, hir, ctx);
+        Ok(path)
     }
 
     /// If the path is like `foo/bar`, check if `bar` is a public module (the definition is in `foo/__init__.er`)
@@ -2061,8 +2001,6 @@ impl Context {
                 let parent_module = if let Some(parent) = self.get_mod_with_path(&parent) {
                     Some(parent)
                 } else {
-                    // TODO: This error should not be discarded, but the later processing should also continue while generating the error
-                    self.build_erg_mod(parent.clone(), __name__, loc)?;
                     self.get_mod_with_path(&parent)
                 };
                 if let Some(parent_module) = parent_module {
@@ -2096,91 +2034,12 @@ impl Context {
         Ok(())
     }
 
-    /// Start a new build process and let it do the module analysis.
-    /// Currently the analysis is speculative and handles for unused modules may not be joined.
-    /// In that case, the `HIROptimizer` will remove unused imports from the `HIR`.
-    fn build_erg_mod(
-        &self,
-        path: PathBuf,
-        __name__: &Str,
-        loc: &impl Locational,
-    ) -> CompileResult<PathBuf> {
-        if self.mod_registered(&path) {
-            return Ok(path);
-        }
-        let mut cfg = self.cfg.inherit(path.clone());
-        let src = cfg
-            .input
-            .try_read()
-            .map_err(|_| self.import_err(line!(), __name__, loc))?;
-        let ast = if ELS {
-            SimpleParser::parse(src.clone())
-                .ok()
-                .map(|artifact| artifact.ast)
-        } else {
-            None
-        };
-        let name = __name__.clone();
-        let _path = path.clone();
-        let shared = self.shared.as_ref().unwrap().inherit(path.clone());
-        let run = move || {
-            let mut builder = HIRBuilder::new_with_cache(cfg, name, shared.clone());
-            match builder.build(src, "exec") {
-                Ok(artifact) => {
-                    shared.mod_cache.register(
-                        _path.clone(),
-                        ast,
-                        Some(artifact.object),
-                        builder.pop_mod_ctx().unwrap(),
-                    );
-                    shared.warns.extend(artifact.warns);
-                }
-                Err(artifact) => {
-                    if let Some(hir) = artifact.object {
-                        shared.mod_cache.register(
-                            _path,
-                            ast,
-                            Some(hir),
-                            builder.pop_mod_ctx().unwrap(),
-                        );
-                    }
-                    shared.warns.extend(artifact.warns);
-                    shared.errors.extend(artifact.errors);
-                }
-            }
-        };
-        let handle = spawn_new_thread(run, __name__);
-        self.shared().promises.insert(path.clone(), handle);
-        Ok(path)
-    }
-
     fn similar_builtin_py_mod_name(&self, name: &Str) -> Option<Str> {
         get_similar_name(BUILTIN_PYTHON_MODS.into_iter(), name).map(Str::rc)
     }
 
     fn similar_builtin_erg_mod_name(&self, name: &Str) -> Option<Str> {
         get_similar_name(BUILTIN_ERG_MODS.into_iter(), name).map(Str::rc)
-    }
-
-    /// e.g. http.d/client.d.er -> http.client
-    /// math.d.er -> math
-    fn mod_name(&self, path: &Path) -> Str {
-        let mut name = path
-            .file_name()
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .trim_end_matches(".d.er")
-            .to_string();
-        for parent in path.components().rev().skip(1) {
-            let parent = parent.as_os_str().to_str().unwrap();
-            if parent.ends_with(".d") {
-                name = parent.trim_end_matches(".d").to_string() + "." + &name;
-            } else {
-                break;
-            }
-        }
-        Str::from(name)
     }
 
     fn analysis_in_progress(path: &Path) -> bool {
@@ -2306,59 +2165,15 @@ impl Context {
     }
 
     fn import_py_mod(&self, __name__: &Str, loc: &impl Locational) -> CompileResult<PathBuf> {
-        let py_mod_cache = self.py_mod_cache();
         let path = self.get_decl_path(__name__, loc)?;
         // module itself
         if self.cfg.input.path() == path.as_path() {
             return Ok(path);
         }
-        let referrer = self.cfg.input.path();
-        if self.shared().graph.inc_ref(referrer, path.clone()).is_err() {
-            self.build_cyclic_mod(&path);
-        }
-        if py_mod_cache.get(&path).is_some() {
+        if self.py_mod_cache().get(&path).is_some() {
             return Ok(path);
         }
-        self.build_decl_mod(path, __name__, loc)
-    }
-
-    fn build_decl_mod(
-        &self,
-        path: PathBuf,
-        __name__: &Str,
-        loc: &impl Locational,
-    ) -> CompileResult<PathBuf> {
-        let py_mod_cache = self.py_mod_cache();
-        let mut cfg = self.cfg.inherit(path.clone());
-        let src = cfg
-            .input
-            .try_read()
-            .map_err(|_| self.import_err(line!(), __name__, loc))?;
-        let ast = if ELS {
-            SimpleParser::parse(src.clone())
-                .ok()
-                .map(|artifact| artifact.ast)
-        } else {
-            None
-        };
-        let mut builder = HIRBuilder::new_with_cache(
-            cfg,
-            self.mod_name(&path),
-            self.shared.as_ref().unwrap().clone(),
-        );
-        match builder.build(src, "declare") {
-            Ok(artifact) => {
-                let ctx = builder.pop_mod_ctx().unwrap();
-                py_mod_cache.register(path.clone(), ast, Some(artifact.object), ctx);
-                Ok(path)
-            }
-            Err(artifact) => {
-                if let Some(hir) = artifact.object {
-                    py_mod_cache.register(path, ast, Some(hir), builder.pop_mod_ctx().unwrap());
-                }
-                Err(artifact.errors)
-            }
-        }
+        Ok(path)
     }
 
     pub fn del(&mut self, ident: &hir::Identifier) -> CompileResult<()> {

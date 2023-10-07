@@ -1,0 +1,4 @@
+self_reference = import "self_reference"
+
+.a = 1
+assert self_reference.a == 1

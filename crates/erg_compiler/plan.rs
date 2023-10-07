@@ -1,36 +1,46 @@
 use std::path::Path;
 
 use erg_common::config::ErgConfig;
+use erg_common::consts::ELS;
+use erg_common::debug_power_assert;
 use erg_common::dict::Dict;
+use erg_common::io::Input;
 #[allow(unused)]
 use erg_common::log;
 use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::spawn::spawn_new_thread;
-use erg_common::traits::Stream;
+use erg_common::str::Str;
+use erg_common::traits::{Runnable, Stream};
 
-use erg_parser::ast::{Expr, AST};
-
-use erg_common::traits::{Locational, Runnable};
+use erg_parser::ast::{Expr, InlineModule, AST};
 use erg_parser::build_ast::ASTBuilder;
+use erg_parser::parse::SimpleParser;
 
 use crate::artifact::{CompleteArtifact, ErrorArtifact, IncompleteArtifact};
-use crate::error::{CompileError, CompileErrors};
+use crate::error::CompileErrors;
 use crate::module::SharedCompilerResource;
 use crate::ty::ValueObj;
-use crate::ty::{HasType, Type};
 use crate::HIRBuilder;
 
 #[derive(Debug)]
-pub struct Submodules(Vec<AST>);
+pub enum PlanError {
+    CycleDetected {
+        path: NormalizedPathBuf,
+        submod_input: Input,
+    },
+}
+
+pub type PlanResult<T> = Result<T, PlanError>;
 
 #[derive(Debug)]
 pub struct Planner {
     cfg: ErgConfig,
     shared: SharedCompilerResource,
     pub(crate) builder: HIRBuilder,
-    asts: Dict<NormalizedPathBuf, AST>,
+    cyclic: Vec<NormalizedPathBuf>,
+    submodules: Vec<NormalizedPathBuf>,
+    asts: Dict<NormalizedPathBuf, (Str, AST)>,
     parse_errors: ErrorArtifact,
-    sub_mods: Dict<NormalizedPathBuf, Submodules>,
 }
 
 impl Planner {
@@ -39,9 +49,10 @@ impl Planner {
             cfg: cfg.copy(),
             shared: shared.clone(),
             builder: HIRBuilder::new_with_cache(cfg, "<module>", shared),
+            cyclic: vec![],
+            submodules: vec![],
             asts: Dict::new(),
             parse_errors: ErrorArtifact::new(CompileErrors::empty(), CompileErrors::empty()),
-            sub_mods: Dict::new(),
         }
     }
 
@@ -59,11 +70,13 @@ impl Planner {
 
     pub fn build_module(
         &mut self,
-        ast: AST,
+        mut ast: AST,
         mode: &str,
     ) -> Result<CompleteArtifact, IncompleteArtifact> {
-        let from_path = self.cfg.input.path().to_path_buf();
-        self.plan(&ast, &from_path);
+        let cfg = self.cfg.copy();
+        log!(info "Start dependency resolution process");
+        let _ = self.plan(&mut ast, &cfg);
+        log!(info "Dependency resolution process completed");
         if !self.parse_errors.errors.is_empty() {
             return Err(IncompleteArtifact::new(
                 None,
@@ -74,146 +87,255 @@ impl Planner {
         self.execute(ast, mode)
     }
 
-    fn plan(&mut self, ast: &AST, from_path: &Path) {
-        for chunk in ast.module.iter() {
-            self.check_import(chunk, from_path);
+    /// Analyze ASTs and make the dependencies graph.
+    /// If circular dependencies are found, inline submodules to eliminate the circularity.
+    fn plan(&mut self, ast: &mut AST, cfg: &ErgConfig) -> PlanResult<()> {
+        let mut result = Ok(());
+        for chunk in ast.module.iter_mut() {
+            if let Err(err) = self.check_import(chunk, cfg) {
+                result = Err(err);
+            }
         }
+        result
     }
 
-    fn check_import(&mut self, expr: &Expr, from_path: &Path) {
+    fn check_import(&mut self, expr: &mut Expr, cfg: &ErgConfig) -> PlanResult<()> {
+        let mut result = Ok(());
         match expr {
             Expr::Call(call) if call.additional_operation().is_some_and(|op| op.is_import()) => {
-                let op = call.additional_operation().unwrap();
-                let Some(Expr::Literal(mod_name)) = call.args.get_left_or_key("Path") else {
-                    return;
-                };
-                let Ok(mod_name) = crate::hir::Literal::try_from(mod_name.token.clone()) else {
-                    return;
-                };
-                let ValueObj::Str(__name__) = &mod_name.value else {
-                    let name = if op.is_erg_import() {
-                        "import"
-                    } else {
-                        "pyimport"
-                    };
-                    let err = CompileError::type_mismatch_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        mod_name.loc(),
-                        "?".into(),
-                        name,
-                        Some(1),
-                        &Type::Str,
-                        &mod_name.t(),
-                        None,
-                        None,
-                    );
-                    self.shared.errors.push(err);
-                    return;
-                };
-                let import_path = match self.cfg.input.resolve_path(Path::new(&__name__[..])) {
-                    Some(path) => path,
-                    None => {
-                        return; //Err(self.import_err(line!(), __name__, loc));
-                    }
-                };
-                let mut cfg = self.cfg.inherit(import_path.clone());
-                let src = cfg.input.try_read().unwrap(); // .map_err(|_| self.import_err(line!(), __name__, loc))?;
-                let mut ast_builder = ASTBuilder::new(self.cfg.copy());
-                let artifact = match ast_builder.build(src) {
-                    Ok(art) => art,
-                    Err(iart) => {
-                        self.parse_errors
-                            .errors
-                            .extend(CompileErrors::from(iart.errors));
-                        self.parse_errors
-                            .warns
-                            .extend(CompileErrors::from(iart.warns));
-                        return;
-                    }
-                };
-                if self
-                    .shared
-                    .graph
-                    .inc_ref(from_path, import_path.clone())
-                    .is_err()
-                {
-                    if let Some(subs) = self.sub_mods.get_mut(&import_path) {
-                        subs.0.push(artifact.ast);
-                    } else {
-                        let path = NormalizedPathBuf::from(import_path);
-                        self.sub_mods.insert(path, Submodules(vec![artifact.ast]));
-                    }
-                    return;
+                if let Err(err) = self.register(expr, cfg) {
+                    result = Err(err);
                 }
-                let path = NormalizedPathBuf::from(import_path);
-                self.plan(&artifact.ast, &path);
-                self.asts.insert(path, artifact.ast);
             }
             Expr::Def(def) => {
-                def.body
-                    .block
-                    .iter()
-                    .for_each(|expr| self.check_import(expr, from_path));
+                for expr in def.body.block.iter_mut() {
+                    if let Err(err) = self.check_import(expr, cfg) {
+                        result = Err(err);
+                    }
+                }
             }
             _ => {}
         }
+        result
     }
 
+    fn register(&mut self, expr: &mut Expr, cfg: &ErgConfig) -> PlanResult<()> {
+        let Expr::Call(call) = expr else {
+            unreachable!()
+        };
+        let Some(Expr::Literal(mod_name)) = call.args.get_left_or_key("Path") else {
+            return Ok(());
+        };
+        let Ok(mod_name) = crate::hir::Literal::try_from(mod_name.token.clone()) else {
+            return Ok(());
+        };
+        let ValueObj::Str(__name__) = &mod_name.value else {
+            return Ok(());
+        };
+        let import_path = match cfg.input.resolve_path(Path::new(&__name__[..])) {
+            Some(path) => path,
+            None => {
+                // error will be reported in `Context::import_erg_mod`
+                return Ok(());
+            }
+        };
+        let from_path = NormalizedPathBuf::from(cfg.input.path());
+        let mut import_cfg = cfg.inherit(import_path.clone());
+        let Ok(src) = import_cfg.input.try_read() else {
+            return Ok(());
+        };
+        let import_path = NormalizedPathBuf::from(import_path.clone());
+        let mut ast_builder = ASTBuilder::new(cfg.copy());
+        let mut ast = match ast_builder.build(src) {
+            Ok(art) => {
+                self.parse_errors
+                    .warns
+                    .extend(CompileErrors::from(art.warns));
+                art.ast
+            }
+            Err(iart) => {
+                self.parse_errors
+                    .errors
+                    .extend(CompileErrors::from(iart.errors));
+                self.parse_errors
+                    .warns
+                    .extend(CompileErrors::from(iart.warns));
+                if let Some(ast) = iart.ast {
+                    ast
+                } else {
+                    return Ok(());
+                }
+            }
+        };
+        // root -> a -> b -> a
+        // b: submodule
+        if self
+            .shared
+            .graph
+            .inc_ref(&from_path, import_path.to_path_buf())
+            .is_err()
+        {
+            self.submodules.push(from_path.clone());
+            return Err(PlanError::CycleDetected {
+                path: import_path,
+                submod_input: cfg.input.clone(),
+            });
+        }
+        if import_path == from_path
+            || self.submodules.contains(&import_path)
+            || self.asts.contains_key(&import_path)
+        {
+            return Ok(());
+        }
+        if let Err(PlanError::CycleDetected { path, submod_input }) =
+            self.plan(&mut ast, &import_cfg)
+        {
+            *expr = Expr::InlineModule(InlineModule::new(submod_input.clone(), ast, call.clone()));
+            if path != from_path {
+                return Err(PlanError::CycleDetected { path, submod_input });
+            } else {
+                self.cyclic.push(path);
+                return Ok(());
+            }
+        }
+        let prev = self.asts.insert(import_path, (__name__.clone(), ast));
+        debug_assert!(prev.is_none());
+        Ok(())
+    }
+
+    /// Launch the analysis processes in order according to the dependency graph.
     fn execute(&mut self, ast: AST, mode: &str) -> Result<CompleteArtifact, IncompleteArtifact> {
+        log!(info "Start to spawn dependencies processes");
         let path = self.cfg.input.path().to_path_buf();
         let mut graph = self.shared.graph.clone_inner();
         let mut ancestors = graph.ancestors(&path).into_vec();
         while let Some(ancestor) = ancestors.pop() {
-            let ancs = graph.ancestors(&ancestor);
-            if ancs.is_empty() {
+            if self.cyclic.contains(&ancestor) || graph.ancestors(&ancestor).is_empty() {
                 graph.remove(&ancestor);
-                let ancestor_ast = self.asts.remove(&ancestor).unwrap();
-                if ancestor_ast.name == ast.name {
-                    continue;
+                if let Some((__name__, ancestor_ast)) = self.asts.remove(&ancestor) {
+                    self.start_analysis_process(ancestor_ast, __name__, ancestor);
+                } else if !self.submodules.contains(&ancestor) {
+                    panic!("not found: {ancestor}");
                 }
-                let name = ancestor_ast.name.clone();
-                let _name = name.clone();
-                let _path = path.clone();
-                let cfg = self.cfg.inherit(ancestor.to_path_buf());
-                let shared = self.shared.inherit(ancestor);
-                let run = move || {
-                    let mut builder = HIRBuilder::new_with_cache(cfg, _name, shared.clone());
-                    let mode = if _path.to_string_lossy().ends_with(".d.er") {
-                        "declare"
-                    } else {
-                        "exec"
-                    };
-                    let cache = if mode == "exec" {
-                        &shared.mod_cache
-                    } else {
-                        &shared.py_mod_cache
-                    };
-                    match builder.check(ancestor_ast, mode) {
-                        Ok(artifact) => {
-                            cache.register(
-                                _path.clone(),
-                                None, // TODO:
-                                Some(artifact.object),
-                                builder.pop_mod_ctx().unwrap(),
-                            );
-                            shared.warns.extend(artifact.warns);
-                        }
-                        Err(artifact) => {
-                            shared.warns.extend(artifact.warns);
-                            shared.errors.extend(artifact.errors);
-                        }
-                    }
-                };
-                let handle = spawn_new_thread(run, &name);
-                self.shared.promises.insert(path.clone(), handle);
             } else {
                 ancestors.insert(0, ancestor);
             }
         }
+        log!(info "All dependencies have started to analyze");
+        debug_power_assert!(self.asts.len(), ==, 0);
         let mod_name = "<module>";
         let mut builder =
             HIRBuilder::new_with_cache(self.cfg.clone(), mod_name, self.shared.clone());
         builder.check(ast, mode)
+    }
+
+    fn start_analysis_process(&self, ast: AST, __name__: Str, path: NormalizedPathBuf) {
+        if self.builder.current_ctx().mod_registered(&path) {
+            return;
+        }
+        // for cache comparing
+        let raw_ast = if ELS {
+            let mut cfg = self.cfg.inherit(path.to_path_buf());
+            let src = cfg.input.read();
+            SimpleParser::parse(src.clone())
+                .ok()
+                .map(|artifact| artifact.ast)
+        } else {
+            None
+        };
+        let name = __name__.clone();
+        let _path = path.to_path_buf();
+        let cfg = self.cfg.inherit(path.to_path_buf());
+        let shared = self.shared.inherit(path.clone());
+        let mode = if _path.to_string_lossy().ends_with(".d.er") {
+            "declare"
+        } else {
+            "exec"
+        };
+        if mode == "declare" {
+            self.build_decl_mod(ast, path);
+            return;
+        }
+        let run = move || {
+            let mut builder = HIRBuilder::new_with_cache(cfg, name, shared.clone());
+            let cache = if mode == "exec" {
+                &shared.mod_cache
+            } else {
+                &shared.py_mod_cache
+            };
+            match builder.check(ast, mode) {
+                Ok(artifact) => {
+                    cache.register(
+                        _path.clone(),
+                        raw_ast,
+                        Some(artifact.object),
+                        builder.pop_mod_ctx().unwrap(),
+                    );
+                    shared.warns.extend(artifact.warns);
+                }
+                Err(artifact) => {
+                    cache.register(
+                        _path.clone(),
+                        raw_ast,
+                        artifact.object,
+                        builder.pop_mod_ctx().unwrap(),
+                    );
+                    shared.warns.extend(artifact.warns);
+                    shared.errors.extend(artifact.errors);
+                }
+            }
+        };
+        let handle = spawn_new_thread(run, &__name__);
+        self.shared.promises.insert(path, handle);
+    }
+
+    /// e.g. http.d/client.d.er -> http.client
+    /// math.d.er -> math
+    fn mod_name(&self, path: &Path) -> Str {
+        let mut name = path
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .trim_end_matches(".d.er")
+            .to_string();
+        for parent in path.components().rev().skip(1) {
+            let parent = parent.as_os_str().to_str().unwrap();
+            if parent.ends_with(".d") {
+                name = parent.trim_end_matches(".d").to_string() + "." + &name;
+            } else {
+                break;
+            }
+        }
+        Str::from(name)
+    }
+
+    /// FIXME: bug with inter-process sharing of type variables (pyimport "math")
+    fn build_decl_mod(&self, ast: AST, path: NormalizedPathBuf) {
+        let py_mod_cache = &self.shared.py_mod_cache;
+        let mut cfg = self.cfg.inherit(path.to_path_buf());
+        let raw_ast = if ELS {
+            let src = cfg.input.read();
+            SimpleParser::parse(src.clone())
+                .ok()
+                .map(|artifact| artifact.ast)
+        } else {
+            None
+        };
+        let mut builder =
+            HIRBuilder::new_with_cache(cfg, self.mod_name(&path), self.shared.clone());
+        match builder.check(ast, "declare") {
+            Ok(artifact) => {
+                let ctx = builder.pop_mod_ctx().unwrap();
+                py_mod_cache.register(path.clone(), raw_ast, Some(artifact.object), ctx);
+                self.shared.warns.extend(artifact.warns);
+            }
+            Err(artifact) => {
+                let ctx = builder.pop_mod_ctx().unwrap();
+                py_mod_cache.register(path, raw_ast, artifact.object, ctx);
+                self.shared.warns.extend(artifact.warns);
+                self.shared.errors.extend(artifact.errors);
+            }
+        }
     }
 }

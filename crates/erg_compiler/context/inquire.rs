@@ -6,6 +6,7 @@ use erg_common::consts::{DEBUG_MODE, ERG_MODE, PYTHON_MODE};
 use erg_common::error::{ErrorCore, Location, SubMessage};
 use erg_common::io::Input;
 use erg_common::levenshtein;
+use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, NoTypeDisplay, Stream};
 use erg_common::triple::Triple;
@@ -62,7 +63,7 @@ impl Context {
     pub(crate) fn get_mod_with_path(&self, path: &Path) -> Option<&Context> {
         if self.module_path() == path {
             return self.get_module();
-        } else if let Some(ctx) = self.get_module_from_stack(path) {
+        } else if let Some(ctx) = self.get_module_from_stack(&NormalizedPathBuf::from(path)) {
             return Some(ctx);
         }
         if self.shared.is_some()
