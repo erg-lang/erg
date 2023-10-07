@@ -50,7 +50,11 @@ pub enum SubstituteResult {
 
 impl Context {
     pub(crate) fn mod_registered(&self, path: &Path) -> bool {
-        self.shared.is_some() && self.promises().is_registered(path)
+        (self.shared.is_some() && self.promises().is_registered(path)) || self.mod_cached(path)
+    }
+
+    pub(crate) fn mod_cached(&self, path: &Path) -> bool {
+        self.mod_cache().get(path).is_some() || self.py_mod_cache().get(path).is_some()
     }
 
     /// Get the context of the module. If it was in analysis, wait until analysis is complete and join the thread.
@@ -58,6 +62,8 @@ impl Context {
     pub(crate) fn get_mod_with_path(&self, path: &Path) -> Option<&Context> {
         if self.module_path() == path {
             return self.get_module();
+        } else if let Some(ctx) = self.get_module_from_stack(path) {
+            return Some(ctx);
         }
         if self.shared.is_some()
             && self.promises().is_registered(path)
