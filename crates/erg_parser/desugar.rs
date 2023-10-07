@@ -400,13 +400,13 @@ impl Desugarer {
                 }
                 Expr::Compound(Compound::new(chunks))
             }
-            Expr::InlineModule(module) => {
+            Expr::InlineModule(inline) => {
                 let mut chunks = vec![];
-                for chunk in module.ast.module.into_iter() {
+                for chunk in inline.ast.module.into_iter() {
                     chunks.push(desugar(chunk));
                 }
-                let ast = AST::new(module.ast.name, Module::new(chunks));
-                Expr::InlineModule(InlineModule::new(ast, module.import))
+                let ast = AST::new(inline.ast.name, Module::new(chunks));
+                Expr::InlineModule(InlineModule::new(inline.input, ast, inline.import))
             }
             Expr::Dummy(exprs) => {
                 let loc = exprs.loc;
