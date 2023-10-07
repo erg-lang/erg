@@ -177,7 +177,7 @@ impl ASTLowerer {
                     .module
                     .context
                     .rec_get_var_info(&ident, AccessKind::Name, self.input(), &self.module.context)
-                    .unwrap_or(VarInfo::default());
+                    .unwrap_or_default();
                 let ident = hir::Identifier::new(ident, None, vi);
                 let acc = hir::Accessor::Ident(ident);
                 Ok(acc)
