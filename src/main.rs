@@ -10,8 +10,7 @@ use erg_parser::build_ast::ASTBuilder;
 use erg_parser::lex::LexerRunner;
 use erg_parser::ParserRunner;
 
-use erg_compiler::build_hir::HIRBuilder;
-use erg_compiler::lower::ASTLowerer;
+use erg_compiler::build_package::PackageBuilder;
 use erg_compiler::transpile::Transpiler;
 use erg_compiler::ty::deserialize::Deserializer;
 use erg_compiler::Compiler;
@@ -24,8 +23,7 @@ fn run() {
         Lex => LexerRunner::run(cfg),
         Parse => ParserRunner::run(cfg),
         Desugar => ASTBuilder::run(cfg),
-        TypeCheck => ASTLowerer::run(cfg),
-        FullCheck => HIRBuilder::run(cfg),
+        Check => PackageBuilder::run(cfg),
         Compile => Compiler::run(cfg),
         Transpile => Transpiler::run(cfg),
         Execute => DummyVM::run(cfg),

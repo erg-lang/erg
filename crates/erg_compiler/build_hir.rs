@@ -19,6 +19,8 @@ use crate::ty::VisibilityModifier;
 use crate::varinfo::VarInfo;
 
 /// Summarize lowering, side-effect checking, and ownership checking
+///
+/// NOTE: This does not perform dependency resolution, use `PackageBuilder` to build a package
 #[derive(Debug)]
 pub struct HIRBuilder {
     pub(crate) lowerer: ASTLowerer,

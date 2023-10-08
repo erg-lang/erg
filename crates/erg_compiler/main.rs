@@ -6,8 +6,7 @@ use erg_common::config::{ErgConfig, ErgMode::*};
 use erg_common::spawn::exec_new_thread;
 use erg_common::traits::{ExitStatus, Runnable};
 
-use erg_compiler::build_hir::HIRBuilder;
-use erg_compiler::lower::ASTLowerer;
+use erg_compiler::build_package::PackageBuilder;
 use erg_compiler::transpile::Transpiler;
 use erg_compiler::ty::deserialize::Deserializer;
 use erg_compiler::Compiler;
@@ -20,8 +19,7 @@ fn run() {
     let stat = match cfg.mode {
         Lex => LexerRunner::run(cfg),
         Parse => ParserRunner::run(cfg),
-        TypeCheck => ASTLowerer::run(cfg),
-        FullCheck => HIRBuilder::run(cfg),
+        Check => PackageBuilder::run(cfg),
         Transpile => Transpiler::run(cfg),
         Compile | Execute => Compiler::run(cfg),
         Read => Deserializer::run(cfg),
