@@ -138,24 +138,20 @@ impl SharedPromises {
             .is_some_and(|promise| promise.is_joined())
     }
 
-    pub fn can_be_joined(&self, path: &NormalizedPathBuf) -> bool {
+    pub fn is_finished(&self, path: &NormalizedPathBuf) -> bool {
         self.promises
             .borrow()
             .get(path)
             .is_some_and(|promise| promise.is_finished())
     }
 
-    fn join_checked(&self, path: &NormalizedPathBuf, promise: Promise) -> std::thread::Result<()> {
-        let Promise::Running { handle, parent } = promise else {
-            *self.promises.borrow_mut().get_mut(path).unwrap() = promise;
-            return Ok(());
-        };
-        if self.graph.ancestors(path).contains(&self.path) || handle.thread().id() == current().id()
-        {
+    pub fn join(&self, path: &NormalizedPathBuf) -> std::thread::Result<()> {
+        if self.graph.ancestors(path).contains(&self.path) {
             // cycle detected, `self.path` must not in the dependencies
             // Erg analysis processes never join ancestor threads (although joining ancestors itself is allowed in Rust)
-            *self.promises.borrow_mut().get_mut(path).unwrap() =
-                Promise::Running { parent, handle };
+            while !self.is_finished(path) {
+                safe_yield();
+            }
             return Ok(());
         }
         // Suppose A depends on B and C, and B depends on C.
@@ -165,25 +161,12 @@ impl SharedPromises {
             if child == &self.path {
                 continue;
             } else if self.graph.depends_on(&self.path, child) {
-                *self.promises.borrow_mut().get_mut(path).unwrap() =
-                    Promise::Running { parent, handle };
-                while self
-                    .promises
-                    .borrow()
-                    .get(path)
-                    .is_some_and(|p| !p.is_finished())
-                {
+                while !self.is_finished(path) {
                     safe_yield();
                 }
                 return Ok(());
             }
         }
-        let res = handle.join();
-        *self.promises.borrow_mut().get_mut(path).unwrap() = Promise::Joined;
-        res
-    }
-
-    pub fn join(&self, path: &NormalizedPathBuf) -> std::thread::Result<()> {
         while let Some(Promise::Joining) | None = self.promises.borrow().get(path) {
             safe_yield();
         }
@@ -191,30 +174,39 @@ impl SharedPromises {
             return Ok(());
         }
         let promise = self.promises.borrow_mut().get_mut(path).unwrap().take();
-        self.join_checked(path, promise)
+        let Promise::Running { handle, .. } = promise else {
+            *self.promises.borrow_mut().get_mut(path).unwrap() = promise;
+            while !self.is_finished(path) {
+                safe_yield();
+            }
+            return Ok(());
+        };
+        if handle.thread().id() == current().id() {
+            return Ok(());
+        }
+        let res = handle.join();
+        *self.promises.borrow_mut().get_mut(path).unwrap() = Promise::Joined;
+        res
     }
 
     pub fn join_children(&self) {
         let cur_id = std::thread::current().id();
-        let mut promises = vec![];
-        for (path, promise) in self.promises.borrow_mut().iter_mut() {
+        let mut paths = vec![];
+        for (path, promise) in self.promises.borrow().iter() {
             if promise.parent_thread_id() != Some(cur_id) {
                 continue;
             }
-            promises.push((path.clone(), promise.take()));
+            paths.push(path.clone());
         }
-        for (path, promise) in promises {
-            let _result = self.join_checked(&path, promise);
+        for path in paths {
+            let _result = self.join(&path);
         }
     }
 
     pub fn join_all(&self) {
-        let mut promises = vec![];
-        for (path, promise) in self.promises.borrow_mut().iter_mut() {
-            promises.push((path.clone(), promise.take()));
-        }
-        for (path, promise) in promises {
-            let _result = self.join_checked(&path, promise);
+        let paths = self.promises.borrow().keys().cloned().collect::<Vec<_>>();
+        for path in paths {
+            let _result = self.join(&path);
         }
     }
 }
