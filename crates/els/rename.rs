@@ -324,8 +324,8 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 continue;
             };
             self.shared.rename_path(
-                &old_uri.to_file_path().unwrap(),
-                new_uri.to_file_path().unwrap(),
+                &old_uri.to_file_path().unwrap().into(),
+                new_uri.to_file_path().unwrap().into(),
             );
             self.restore_entry(new_uri, entry);
         }

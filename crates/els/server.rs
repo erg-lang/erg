@@ -758,7 +758,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     /// the cache is deleted after each analysis.
     pub(crate) fn get_checker(&self, path: PathBuf) -> Checker {
         let shared = self.shared.clone();
-        shared.clear(&path);
+        shared.clear(&NormalizedPathBuf::from(&path));
         Checker::inherit(self.cfg.inherit(path), shared)
     }
 
@@ -914,7 +914,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     }
 
     pub(crate) fn clear_cache(&mut self, uri: &NormalizedUrl) {
-        let path = util::uri_to_path(uri);
+        let path = NormalizedPathBuf::from(util::uri_to_path(uri));
         self.shared.clear(&path);
     }
 

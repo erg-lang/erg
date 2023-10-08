@@ -1,5 +1,4 @@
 use std::fmt;
-use std::path::{Path, PathBuf};
 
 use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::set;
@@ -49,14 +48,13 @@ impl ModuleGraph {
         Self(Graph::new())
     }
 
-    pub fn get_node(&self, path: &Path) -> Option<&Node<NormalizedPathBuf, ()>> {
-        let path = NormalizedPathBuf::new(path.to_path_buf());
-        self.0.iter().find(|n| n.id == path)
+    pub fn get_node(&self, path: &NormalizedPathBuf) -> Option<&Node<NormalizedPathBuf, ()>> {
+        self.0.iter().find(|n| &n.id == path)
     }
 
     /// if `path` depends on `target`, returns `true`, else `false`.
     /// if `path` not found, returns `false`
-    pub fn depends_on(&self, path: &Path, target: &Path) -> bool {
+    pub fn depends_on(&self, path: &NormalizedPathBuf, target: &NormalizedPathBuf) -> bool {
         let path = NormalizedPathBuf::new(path.to_path_buf());
         let target = NormalizedPathBuf::new(target.to_path_buf());
         self.0
@@ -66,18 +64,16 @@ impl ModuleGraph {
             .unwrap_or(false)
     }
 
-    pub fn children(&self, path: &Path) -> Set<NormalizedPathBuf> {
-        let path = NormalizedPathBuf::new(path.to_path_buf());
+    pub fn children(&self, path: &NormalizedPathBuf) -> Set<NormalizedPathBuf> {
         self.0
             .iter()
-            .filter(|n| n.depends_on.contains(&path))
+            .filter(|n| n.depends_on.contains(path))
             .map(|n| n.id.clone())
             .collect()
     }
 
-    fn parents(&self, path: &Path) -> Option<&Set<NormalizedPathBuf>> {
-        let path = NormalizedPathBuf::new(path.to_path_buf());
-        self.0.iter().find(|n| n.id == path).map(|n| &n.depends_on)
+    fn parents(&self, path: &NormalizedPathBuf) -> Option<&Set<NormalizedPathBuf>> {
+        self.0.iter().find(|n| &n.id == path).map(|n| &n.depends_on)
     }
 
     /// ```erg
@@ -85,7 +81,7 @@ impl ModuleGraph {
     /// b = import "b"
     /// ```
     /// -> a: child, b: parent
-    pub fn ancestors(&self, path: &Path) -> Set<NormalizedPathBuf> {
+    pub fn ancestors(&self, path: &NormalizedPathBuf) -> Set<NormalizedPathBuf> {
         let mut ancestors = set! {};
         if let Some(parents) = self.parents(path) {
             for parent in parents.iter() {
@@ -96,24 +92,25 @@ impl ModuleGraph {
         ancestors
     }
 
-    pub fn add_node_if_none(&mut self, path: &Path) {
-        let path = NormalizedPathBuf::new(path.to_path_buf());
-        if self.0.iter().all(|n| n.id != path) {
-            let node = Node::new(path, (), set! {});
+    pub fn add_node_if_none(&mut self, path: &NormalizedPathBuf) {
+        if self.0.iter().all(|n| &n.id != path) {
+            let node = Node::new(path.clone(), (), set! {});
             self.0.push(node);
         }
     }
 
     /// returns Err (and do nothing) if this operation makes a cycle
-    pub fn inc_ref(&mut self, referrer: &Path, depends_on: PathBuf) -> Result<(), IncRefError> {
+    pub fn inc_ref(
+        &mut self,
+        referrer: &NormalizedPathBuf,
+        depends_on: NormalizedPathBuf,
+    ) -> Result<(), IncRefError> {
         self.add_node_if_none(referrer);
-        let referrer = NormalizedPathBuf::new(referrer.to_path_buf());
-        let depends_on = NormalizedPathBuf::new(depends_on);
-        if self.ancestors(&depends_on).contains(&referrer) && referrer != depends_on {
+        if self.ancestors(&depends_on).contains(referrer) && referrer != &depends_on {
             return Err(IncRefError::CycleDetected);
         }
-        if let Some(node) = self.0.iter_mut().find(|n| n.id == referrer) {
-            if referrer == depends_on {
+        if let Some(node) = self.0.iter_mut().find(|n| &n.id == referrer) {
+            if referrer == &depends_on {
                 return Ok(());
             }
             node.push_dep(depends_on);
@@ -139,25 +136,22 @@ impl ModuleGraph {
     }
 
     /// Do not erase relationships with modules that depend on `path`
-    pub fn remove(&mut self, path: &Path) {
-        let path = NormalizedPathBuf::new(path.to_path_buf());
-        self.0.retain(|n| n.id != path);
+    pub fn remove(&mut self, path: &NormalizedPathBuf) {
+        self.0.retain(|n| &n.id != path);
         for node in self.0.iter_mut() {
-            node.depends_on.retain(|p| *p != path);
+            node.depends_on.retain(|p| p != path);
         }
     }
 
-    pub fn rename_path(&mut self, old: &Path, new: PathBuf) {
-        let old = NormalizedPathBuf::new(old.to_path_buf());
-        let new = NormalizedPathBuf::new(new);
+    pub fn rename_path(&mut self, old: &NormalizedPathBuf, new: NormalizedPathBuf) {
         for node in self.0.iter_mut() {
-            if node.id == old {
+            if &node.id == old {
                 node.id = new.clone();
             }
-            if node.depends_on.contains(&old) {
+            if node.depends_on.contains(old) {
                 node.depends_on.insert(new.clone());
             }
-            node.depends_on.retain(|p| *p != old);
+            node.depends_on.retain(|p| p != old);
         }
     }
 
@@ -191,7 +185,7 @@ impl SharedModuleGraph {
 
     pub fn get_node(
         &self,
-        path: &Path,
+        path: &NormalizedPathBuf,
     ) -> Option<MappedRwLockReadGuard<Node<NormalizedPathBuf, ()>>> {
         if self.0.borrow().get_node(path).is_some() {
             Some(RwLockReadGuard::map(self.0.borrow(), |graph| {
@@ -202,23 +196,27 @@ impl SharedModuleGraph {
         }
     }
 
-    pub fn depends_on(&self, path: &Path, target: &Path) -> bool {
+    pub fn depends_on(&self, path: &NormalizedPathBuf, target: &NormalizedPathBuf) -> bool {
         self.0.borrow().depends_on(path, target)
     }
 
-    pub fn children(&self, path: &Path) -> Set<NormalizedPathBuf> {
+    pub fn children(&self, path: &NormalizedPathBuf) -> Set<NormalizedPathBuf> {
         self.0.borrow().children(path)
     }
 
-    pub fn ancestors(&self, path: &Path) -> Set<NormalizedPathBuf> {
+    pub fn ancestors(&self, path: &NormalizedPathBuf) -> Set<NormalizedPathBuf> {
         self.0.borrow().ancestors(path)
     }
 
-    pub fn add_node_if_none(&self, path: &Path) {
+    pub fn add_node_if_none(&self, path: &NormalizedPathBuf) {
         self.0.borrow_mut().add_node_if_none(path);
     }
 
-    pub fn inc_ref(&self, referrer: &Path, depends_on: PathBuf) -> Result<(), IncRefError> {
+    pub fn inc_ref(
+        &self,
+        referrer: &NormalizedPathBuf,
+        depends_on: NormalizedPathBuf,
+    ) -> Result<(), IncRefError> {
         self.0.borrow_mut().inc_ref(referrer, depends_on)
     }
 
@@ -226,11 +224,11 @@ impl SharedModuleGraph {
         self.0.borrow()
     }
 
-    pub fn remove(&self, path: &Path) {
+    pub fn remove(&self, path: &NormalizedPathBuf) {
         self.0.borrow_mut().remove(path);
     }
 
-    pub fn rename_path(&self, old: &Path, new: PathBuf) {
+    pub fn rename_path(&self, old: &NormalizedPathBuf, new: NormalizedPathBuf) {
         self.0.borrow_mut().rename_path(old, new);
     }
 

@@ -50,7 +50,7 @@ pub enum SubstituteResult {
 }
 
 impl Context {
-    pub(crate) fn mod_registered(&self, path: &Path) -> bool {
+    pub(crate) fn mod_registered(&self, path: &NormalizedPathBuf) -> bool {
         (self.shared.is_some() && self.promises().is_registered(path)) || self.mod_cached(path)
     }
 
@@ -63,15 +63,18 @@ impl Context {
     pub(crate) fn get_mod_with_path(&self, path: &Path) -> Option<&Context> {
         if self.module_path() == path {
             return self.get_module();
-        } else if let Some(ctx) = self.get_module_from_stack(&NormalizedPathBuf::from(path)) {
+        }
+        let path = NormalizedPathBuf::from(path);
+        if let Some(ctx) = self.get_module_from_stack(&path) {
             return Some(ctx);
         }
-        if self.shared.is_some() && self.promises().is_registered(path) && !self.mod_cached(path) {
-            let _result = self.promises().join(path);
+        if self.shared.is_some() && self.promises().is_registered(&path) && !self.mod_cached(&path)
+        {
+            let _result = self.promises().join(&path);
         }
         self.opt_mod_cache()?
-            .raw_ref_ctx(path)
-            .or_else(|| self.opt_py_mod_cache()?.raw_ref_ctx(path))
+            .raw_ref_ctx(&path)
+            .or_else(|| self.opt_py_mod_cache()?.raw_ref_ctx(&path))
             .map(|mod_ctx| &mod_ctx.context)
     }
 

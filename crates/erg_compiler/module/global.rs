@@ -1,5 +1,3 @@
-use std::path::{Path, PathBuf};
-
 use erg_common::config::ErgConfig;
 use erg_common::pathutil::NormalizedPathBuf;
 
@@ -38,10 +36,7 @@ impl SharedCompilerResource {
             index: SharedModuleIndex::new(),
             graph: graph.clone(),
             trait_impls: SharedTraitImpls::new(),
-            promises: SharedPromises::new(
-                graph,
-                cfg.input.path().canonicalize().unwrap_or_default(),
-            ),
+            promises: SharedPromises::new(graph, NormalizedPathBuf::from(cfg.input.path())),
             errors: SharedCompileErrors::new(),
             warns: SharedCompileWarnings::new(),
         };
@@ -69,7 +64,7 @@ impl SharedCompilerResource {
 
     /// Clear all information about the module.
     /// Graph information is not cleared (due to ELS).
-    pub fn clear(&self, path: &Path) {
+    pub fn clear(&self, path: &NormalizedPathBuf) {
         for child in self.graph.children(path) {
             self.clear(&child);
         }
@@ -82,7 +77,7 @@ impl SharedCompilerResource {
         self.warns.remove(path);
     }
 
-    pub fn rename_path(&self, old: &Path, new: PathBuf) {
+    pub fn rename_path(&self, old: &NormalizedPathBuf, new: NormalizedPathBuf) {
         self.mod_cache.rename_path(old, new.clone());
         self.py_mod_cache.rename_path(old, new.clone());
         self.index.rename_path(old, new.clone());

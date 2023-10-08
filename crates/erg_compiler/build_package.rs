@@ -265,7 +265,7 @@ impl PackageBuilder {
         if self
             .shared
             .graph
-            .inc_ref(&from_path, import_path.to_path_buf())
+            .inc_ref(&from_path, import_path.clone())
             .is_err()
         {
             self.submodules.push(from_path.clone());
@@ -299,7 +299,7 @@ impl PackageBuilder {
     /// Launch the analysis processes in order according to the dependency graph.
     fn execute(&mut self, ast: AST, mode: &str) -> Result<CompleteArtifact, IncompleteArtifact> {
         log!(info "Start to spawn dependencies processes");
-        let path = self.cfg.input.path().to_path_buf();
+        let path = NormalizedPathBuf::from(self.cfg.input.path());
         let mut graph = self.shared.graph.clone_inner();
         let mut ancestors = graph.ancestors(&path).into_vec();
         while let Some(ancestor) = ancestors.pop() {

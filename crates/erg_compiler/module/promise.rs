@@ -1,5 +1,4 @@
 use std::fmt;
-use std::path::{Path, PathBuf};
 use std::thread::{current, JoinHandle, ThreadId};
 
 use erg_common::consts::DEBUG_MODE;
@@ -92,17 +91,17 @@ impl fmt::Display for SharedPromises {
 }
 
 impl SharedPromises {
-    pub fn new(graph: SharedModuleGraph, path: PathBuf) -> Self {
+    pub fn new(graph: SharedModuleGraph, path: NormalizedPathBuf) -> Self {
         Self {
             graph,
-            path: NormalizedPathBuf::new(path),
+            path,
             promises: Shared::new(Dict::new()),
         }
     }
 
-    pub fn insert<P: Into<NormalizedPathBuf>>(&self, path: P, handle: JoinHandle<()>) {
+    pub fn insert(&self, path: impl Into<NormalizedPathBuf>, handle: JoinHandle<()>) {
         let path = path.into();
-        if self.promises.borrow().get(&path).is_some() {
+        if self.is_registered(&path) {
             if DEBUG_MODE {
                 panic!("already registered: {}", path.display());
             }
@@ -113,40 +112,40 @@ impl SharedPromises {
             .insert(path, Promise::running(handle));
     }
 
-    pub fn remove(&self, path: &Path) {
-        self.promises.borrow_mut().remove(path);
+    pub fn remove(&self, path: &NormalizedPathBuf) -> Option<Promise> {
+        self.promises.borrow_mut().remove(path)
     }
 
     pub fn initialize(&self) {
         self.promises.borrow_mut().clear();
     }
 
-    pub fn rename(&self, old: &Path, new: PathBuf) {
-        let Some(promise) = self.promises.borrow_mut().remove(old) else {
+    pub fn rename(&self, old: &NormalizedPathBuf, new: NormalizedPathBuf) {
+        let Some(promise) = self.remove(old) else {
             return;
         };
-        self.promises.borrow_mut().insert(new.into(), promise);
+        self.promises.borrow_mut().insert(new, promise);
     }
 
-    pub fn is_registered(&self, path: &Path) -> bool {
+    pub fn is_registered(&self, path: &NormalizedPathBuf) -> bool {
         self.promises.borrow().get(path).is_some()
     }
 
-    pub fn is_joined(&self, path: &Path) -> bool {
+    pub fn is_joined(&self, path: &NormalizedPathBuf) -> bool {
         self.promises
             .borrow()
             .get(path)
             .is_some_and(|promise| promise.is_joined())
     }
 
-    pub fn can_be_joined(&self, path: &Path) -> bool {
+    pub fn can_be_joined(&self, path: &NormalizedPathBuf) -> bool {
         self.promises
             .borrow()
             .get(path)
             .is_some_and(|promise| promise.is_finished())
     }
 
-    fn join_checked(&self, path: &Path, promise: Promise) -> std::thread::Result<()> {
+    fn join_checked(&self, path: &NormalizedPathBuf, promise: Promise) -> std::thread::Result<()> {
         let Promise::Running { handle, parent } = promise else {
             *self.promises.borrow_mut().get_mut(path).unwrap() = promise;
             return Ok(());
@@ -184,7 +183,7 @@ impl SharedPromises {
         res
     }
 
-    pub fn join(&self, path: &Path) -> std::thread::Result<()> {
+    pub fn join(&self, path: &NormalizedPathBuf) -> std::thread::Result<()> {
         while let Some(Promise::Joining) | None = self.promises.borrow().get(path) {
             safe_yield();
         }

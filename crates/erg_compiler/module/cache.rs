@@ -1,7 +1,6 @@
 use std::borrow::Borrow;
 use std::fmt;
 use std::hash::Hash;
-use std::path::Path;
 
 use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
@@ -166,7 +165,7 @@ impl ModuleCache {
         get_similar_name(self.cache.iter().map(|(v, _)| v.to_str().unwrap()), name).map(Str::rc)
     }
 
-    pub fn rename_path(&mut self, old: &Path, new: NormalizedPathBuf) {
+    pub fn rename_path(&mut self, old: &NormalizedPathBuf, new: NormalizedPathBuf) {
         if let Some(entry) = self.cache.remove(old) {
             self.cache.insert(new, entry);
         }
@@ -302,7 +301,7 @@ impl SharedModuleCache {
         self.register(builtin_path, None, None, builtin.module);
     }
 
-    pub fn rename_path<P: Into<NormalizedPathBuf>>(&self, path: &Path, new: P) {
+    pub fn rename_path<P: Into<NormalizedPathBuf>>(&self, path: &NormalizedPathBuf, new: P) {
         self.0.borrow_mut().rename_path(path, new.into());
     }
 
