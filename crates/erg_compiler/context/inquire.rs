@@ -66,11 +66,7 @@ impl Context {
         } else if let Some(ctx) = self.get_module_from_stack(&NormalizedPathBuf::from(path)) {
             return Some(ctx);
         }
-        if self.shared.is_some()
-            && self.promises().is_registered(path)
-            && !self.promises().is_finished(path)
-            && (self.mod_cache().get(path).is_none() && self.py_mod_cache().get(path).is_none())
-        {
+        if self.shared.is_some() && self.promises().is_registered(path) && !self.mod_cached(path) {
             let _result = self.promises().join(path);
         }
         self.opt_mod_cache()?
