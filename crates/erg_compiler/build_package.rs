@@ -75,7 +75,9 @@ impl Runnable for PackageBuilder {
     }
 
     #[inline]
-    fn finish(&mut self) {}
+    fn finish(&mut self) {
+        self.main_builder.finish();
+    }
 
     fn initialize(&mut self) {
         self.main_builder.initialize();
@@ -87,26 +89,15 @@ impl Runnable for PackageBuilder {
     }
 
     fn exec(&mut self) -> Result<ExitStatus, Self::Errs> {
-        let mut builder = ASTBuilder::new(self.cfg().copy());
-        let artifact = builder
-            .build(self.cfg_mut().input.read())
-            .map_err(|arti| arti.errors)?;
-        artifact.warns.write_all_stderr();
-        let artifact = self
-            .build_module(artifact.ast, "exec")
-            .map_err(|arti| arti.errors)?;
+        let src = self.cfg_mut().input.read();
+        let artifact = self.build(src, "exec").map_err(|arti| arti.errors)?;
         artifact.warns.write_all_stderr();
         println!("{}", artifact.object);
         Ok(ExitStatus::compile_passed(artifact.warns.len()))
     }
 
     fn eval(&mut self, src: String) -> Result<String, Self::Errs> {
-        let mut builder = ASTBuilder::new(self.cfg().copy());
-        let artifact = builder.build(src).map_err(|arti| arti.errors)?;
-        artifact.warns.write_all_stderr();
-        let artifact = self
-            .build_module(artifact.ast, "eval")
-            .map_err(|arti| arti.errors)?;
+        let artifact = self.build(src, "eval").map_err(|arti| arti.errors)?;
         artifact.warns.write_all_stderr();
         Ok(artifact.object.to_string())
     }
@@ -177,7 +168,9 @@ impl PackageBuilder {
         log!(info "Start dependency resolution process");
         let _ = self.resolve(&mut ast, &cfg);
         log!(info "Dependency resolution process completed");
-        if !self.parse_errors.errors.is_empty() {
+        if self.parse_errors.errors.is_empty() {
+            self.shared.warns.extend(self.parse_errors.warns.flush());
+        } else {
             return Err(IncompleteArtifact::new(
                 None,
                 self.parse_errors.errors.flush(),
@@ -323,10 +316,9 @@ impl PackageBuilder {
         }
         log!(info "All dependencies have started to analyze");
         debug_power_assert!(self.asts.len(), ==, 0);
-        let mod_name = "<module>";
-        let mut builder =
-            HIRBuilder::new_with_cache(self.cfg.clone(), mod_name, self.shared.clone());
-        builder.check(ast, mode)
+        self.cyclic.clear();
+        self.submodules.clear();
+        self.main_builder.check(ast, mode)
     }
 
     fn start_analysis_process(&self, ast: AST, __name__: Str, path: NormalizedPathBuf) {
