@@ -4,51 +4,151 @@ use erg_common::config::ErgConfig;
 use erg_common::consts::ELS;
 use erg_common::debug_power_assert;
 use erg_common::dict::Dict;
+use erg_common::error::MultiErrorDisplay;
 use erg_common::io::Input;
 #[allow(unused)]
 use erg_common::log;
 use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::spawn::spawn_new_thread;
 use erg_common::str::Str;
-use erg_common::traits::{Runnable, Stream};
+use erg_common::traits::{ExitStatus, Runnable, Stream};
 
-use erg_parser::ast::{Expr, InlineModule, AST};
+use erg_parser::ast::{Expr, InlineModule, VarName, AST};
 use erg_parser::build_ast::ASTBuilder;
 use erg_parser::parse::SimpleParser;
 
-use crate::artifact::{CompleteArtifact, ErrorArtifact, IncompleteArtifact};
-use crate::error::CompileErrors;
+use crate::artifact::{
+    BuildRunnable, Buildable, CompleteArtifact, ErrorArtifact, IncompleteArtifact,
+};
+use crate::context::{Context, ContextProvider, ModuleContext};
+use crate::error::{CompileError, CompileErrors};
 use crate::module::SharedCompilerResource;
 use crate::ty::ValueObj;
+use crate::varinfo::VarInfo;
 use crate::HIRBuilder;
 
 #[derive(Debug)]
-pub enum PlanError {
+pub enum ResolveError {
     CycleDetected {
         path: NormalizedPathBuf,
         submod_input: Input,
     },
 }
 
-pub type PlanResult<T> = Result<T, PlanError>;
+pub type ResolveResult<T> = Result<T, ResolveError>;
 
+/// Resolve dependencies and build a package
 #[derive(Debug)]
-pub struct Planner {
+pub struct PackageBuilder {
     cfg: ErgConfig,
     shared: SharedCompilerResource,
-    pub(crate) builder: HIRBuilder,
+    pub(crate) main_builder: HIRBuilder,
     cyclic: Vec<NormalizedPathBuf>,
     submodules: Vec<NormalizedPathBuf>,
     asts: Dict<NormalizedPathBuf, (Str, AST)>,
     parse_errors: ErrorArtifact,
 }
 
-impl Planner {
+impl Default for PackageBuilder {
+    fn default() -> Self {
+        let cfg = ErgConfig::default();
+        PackageBuilder::new(cfg.copy(), SharedCompilerResource::new(cfg))
+    }
+}
+
+impl Runnable for PackageBuilder {
+    type Err = CompileError;
+    type Errs = CompileErrors;
+    const NAME: &'static str = "Erg package builder";
+
+    fn new(cfg: ErgConfig) -> Self {
+        PackageBuilder::new(cfg.copy(), SharedCompilerResource::new(cfg))
+    }
+
+    #[inline]
+    fn cfg(&self) -> &ErgConfig {
+        self.main_builder.cfg()
+    }
+    #[inline]
+    fn cfg_mut(&mut self) -> &mut ErgConfig {
+        self.main_builder.cfg_mut()
+    }
+
+    #[inline]
+    fn finish(&mut self) {}
+
+    fn initialize(&mut self) {
+        self.main_builder.initialize();
+    }
+
+    fn clear(&mut self) {
+        self.main_builder.clear();
+        // don't initialize the ownership checker
+    }
+
+    fn exec(&mut self) -> Result<ExitStatus, Self::Errs> {
+        let mut builder = ASTBuilder::new(self.cfg().copy());
+        let artifact = builder
+            .build(self.cfg_mut().input.read())
+            .map_err(|arti| arti.errors)?;
+        artifact.warns.write_all_stderr();
+        let artifact = self
+            .build_module(artifact.ast, "exec")
+            .map_err(|arti| arti.errors)?;
+        artifact.warns.write_all_stderr();
+        println!("{}", artifact.object);
+        Ok(ExitStatus::compile_passed(artifact.warns.len()))
+    }
+
+    fn eval(&mut self, src: String) -> Result<String, Self::Errs> {
+        let mut builder = ASTBuilder::new(self.cfg().copy());
+        let artifact = builder.build(src).map_err(|arti| arti.errors)?;
+        artifact.warns.write_all_stderr();
+        let artifact = self
+            .build_module(artifact.ast, "eval")
+            .map_err(|arti| arti.errors)?;
+        artifact.warns.write_all_stderr();
+        Ok(artifact.object.to_string())
+    }
+}
+
+impl Buildable for PackageBuilder {
+    fn inherit(cfg: ErgConfig, shared: SharedCompilerResource) -> Self {
+        Self::new(cfg, shared)
+    }
+    fn build(&mut self, src: String, mode: &str) -> Result<CompleteArtifact, IncompleteArtifact> {
+        self.build(src, mode)
+    }
+    fn pop_context(&mut self) -> Option<ModuleContext> {
+        self.main_builder.pop_mod_ctx()
+    }
+    fn get_context(&self) -> Option<&ModuleContext> {
+        self.main_builder.get_context()
+    }
+}
+
+impl BuildRunnable for PackageBuilder {}
+
+impl ContextProvider for PackageBuilder {
+    fn dir(&self) -> Dict<&VarName, &VarInfo> {
+        self.main_builder.dir()
+    }
+
+    fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context> {
+        self.main_builder.get_receiver_ctx(receiver_name)
+    }
+
+    fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
+        self.main_builder.get_var_info(name)
+    }
+}
+
+impl PackageBuilder {
     pub fn new(cfg: ErgConfig, shared: SharedCompilerResource) -> Self {
         Self {
             cfg: cfg.copy(),
             shared: shared.clone(),
-            builder: HIRBuilder::new_with_cache(cfg, "<module>", shared),
+            main_builder: HIRBuilder::new_with_cache(cfg, "<module>", shared),
             cyclic: vec![],
             submodules: vec![],
             asts: Dict::new(),
@@ -75,7 +175,7 @@ impl Planner {
     ) -> Result<CompleteArtifact, IncompleteArtifact> {
         let cfg = self.cfg.copy();
         log!(info "Start dependency resolution process");
-        let _ = self.plan(&mut ast, &cfg);
+        let _ = self.resolve(&mut ast, &cfg);
         log!(info "Dependency resolution process completed");
         if !self.parse_errors.errors.is_empty() {
             return Err(IncompleteArtifact::new(
@@ -89,7 +189,7 @@ impl Planner {
 
     /// Analyze ASTs and make the dependencies graph.
     /// If circular dependencies are found, inline submodules to eliminate the circularity.
-    fn plan(&mut self, ast: &mut AST, cfg: &ErgConfig) -> PlanResult<()> {
+    fn resolve(&mut self, ast: &mut AST, cfg: &ErgConfig) -> ResolveResult<()> {
         let mut result = Ok(());
         for chunk in ast.module.iter_mut() {
             if let Err(err) = self.check_import(chunk, cfg) {
@@ -99,7 +199,7 @@ impl Planner {
         result
     }
 
-    fn check_import(&mut self, expr: &mut Expr, cfg: &ErgConfig) -> PlanResult<()> {
+    fn check_import(&mut self, expr: &mut Expr, cfg: &ErgConfig) -> ResolveResult<()> {
         let mut result = Ok(());
         match expr {
             Expr::Call(call) if call.additional_operation().is_some_and(|op| op.is_import()) => {
@@ -119,7 +219,7 @@ impl Planner {
         result
     }
 
-    fn register(&mut self, expr: &mut Expr, cfg: &ErgConfig) -> PlanResult<()> {
+    fn register(&mut self, expr: &mut Expr, cfg: &ErgConfig) -> ResolveResult<()> {
         let Expr::Call(call) = expr else {
             unreachable!()
         };
@@ -176,7 +276,7 @@ impl Planner {
             .is_err()
         {
             self.submodules.push(from_path.clone());
-            return Err(PlanError::CycleDetected {
+            return Err(ResolveError::CycleDetected {
                 path: import_path,
                 submod_input: cfg.input.clone(),
             });
@@ -187,12 +287,12 @@ impl Planner {
         {
             return Ok(());
         }
-        if let Err(PlanError::CycleDetected { path, submod_input }) =
-            self.plan(&mut ast, &import_cfg)
+        if let Err(ResolveError::CycleDetected { path, submod_input }) =
+            self.resolve(&mut ast, &import_cfg)
         {
             *expr = Expr::InlineModule(InlineModule::new(submod_input.clone(), ast, call.clone()));
             if path != from_path {
-                return Err(PlanError::CycleDetected { path, submod_input });
+                return Err(ResolveError::CycleDetected { path, submod_input });
             } else {
                 self.cyclic.push(path);
                 return Ok(());
@@ -230,7 +330,7 @@ impl Planner {
     }
 
     fn start_analysis_process(&self, ast: AST, __name__: Str, path: NormalizedPathBuf) {
-        if self.builder.current_ctx().mod_registered(&path) {
+        if self.main_builder.current_ctx().mod_registered(&path) {
             return;
         }
         // for cache comparing
