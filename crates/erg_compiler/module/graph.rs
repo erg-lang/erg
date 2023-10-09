@@ -64,6 +64,7 @@ impl ModuleGraph {
             .unwrap_or(false)
     }
 
+    /// (usually) `path` is not contained
     pub fn children(&self, path: &NormalizedPathBuf) -> Set<NormalizedPathBuf> {
         self.0
             .iter()
@@ -72,6 +73,7 @@ impl ModuleGraph {
             .collect()
     }
 
+    /// (usually) `path` is not contained
     fn parents(&self, path: &NormalizedPathBuf) -> Option<&Set<NormalizedPathBuf>> {
         self.0.iter().find(|n| &n.id == path).map(|n| &n.depends_on)
     }
@@ -200,10 +202,12 @@ impl SharedModuleGraph {
         self.0.borrow().depends_on(path, target)
     }
 
+    /// (usually) `path` is not contained
     pub fn children(&self, path: &NormalizedPathBuf) -> Set<NormalizedPathBuf> {
         self.0.borrow().children(path)
     }
 
+    /// (usually) `path` is not contained
     pub fn ancestors(&self, path: &NormalizedPathBuf) -> Set<NormalizedPathBuf> {
         self.0.borrow().ancestors(path)
     }

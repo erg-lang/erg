@@ -37,7 +37,11 @@ pub enum ResolveError {
 
 pub type ResolveResult<T> = Result<T, ResolveError>;
 
-/// Resolve dependencies and build a package
+/// Resolve dependencies and build a package.
+/// This object should be a singleton.
+///
+/// Invariant condition: `build_module` must be idempotent.
+/// That is, the only thing that may differ as a result of analyzing the same package is the elapsed time.
 #[derive(Debug)]
 pub struct PackageBuilder {
     cfg: ErgConfig,
@@ -105,7 +109,8 @@ impl Runnable for PackageBuilder {
 
 impl Buildable for PackageBuilder {
     fn inherit(cfg: ErgConfig, shared: SharedCompilerResource) -> Self {
-        Self::new(cfg, shared)
+        let mod_name = Str::from(cfg.input.file_stem());
+        Self::new_with_cache(cfg, mod_name, shared)
     }
     fn build(&mut self, src: String, mode: &str) -> Result<CompleteArtifact, IncompleteArtifact> {
         self.build(src, mode)
@@ -136,10 +141,17 @@ impl ContextProvider for PackageBuilder {
 
 impl PackageBuilder {
     pub fn new(cfg: ErgConfig, shared: SharedCompilerResource) -> Self {
+        Self::new_with_cache(cfg, "<module>".into(), shared)
+    }
+
+    /// For batch compilation mode, `mod_name` of the entry point must be `<module>`.
+    ///
+    /// For ELS mode, `mod_name` must be the file name of the entry point.
+    pub fn new_with_cache(cfg: ErgConfig, mod_name: Str, shared: SharedCompilerResource) -> Self {
         Self {
             cfg: cfg.copy(),
             shared: shared.clone(),
-            main_builder: HIRBuilder::new_with_cache(cfg, "<module>", shared),
+            main_builder: HIRBuilder::new_with_cache(cfg, mod_name, shared),
             cyclic: vec![],
             submodules: vec![],
             asts: Dict::new(),
@@ -238,6 +250,7 @@ impl PackageBuilder {
             return Ok(());
         };
         let import_path = NormalizedPathBuf::from(import_path.clone());
+        self.shared.graph.add_node_if_none(&import_path);
         let mut ast_builder = ASTBuilder::new(cfg.copy());
         let mut ast = match ast_builder.build(src) {
             Ok(art) => {

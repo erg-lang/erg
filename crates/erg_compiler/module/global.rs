@@ -77,6 +77,16 @@ impl SharedCompilerResource {
         self.warns.remove(path);
     }
 
+    pub fn clear_path(&self, path: &NormalizedPathBuf) {
+        self.mod_cache.remove(path);
+        self.py_mod_cache.remove(path);
+        self.index.remove_path(path);
+        // self.graph.remove(path);
+        self.promises.remove(path);
+        self.errors.remove(path);
+        self.warns.remove(path);
+    }
+
     pub fn rename_path(&self, old: &NormalizedPathBuf, new: NormalizedPathBuf) {
         self.mod_cache.rename_path(old, new.clone());
         self.py_mod_cache.rename_path(old, new.clone());

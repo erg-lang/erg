@@ -1,3 +1,5 @@
 .neighbor = "defined in b.er"
 
 .x = 1
+
+.C = Class { .x = Int }

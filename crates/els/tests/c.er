@@ -1,4 +1,4 @@
 b = import "b"
 {neighbor;} = import "b"
 
-print! neighbor, b.x
+print! neighbor, b.x, b.C.new({ .x = 1 }).x
