@@ -1429,6 +1429,9 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             // REVIEW: correct?
             (Poly { name, .. }, Type) if &name[..] == "Array" || &name[..] == "Tuple" => {}
             (Poly { .. }, _) => {
+                if maybe_sub.has_no_qvar() && maybe_sup.has_no_qvar() {
+                    return Ok(());
+                }
                 self.nominal_sub_unify(maybe_sub, maybe_sup, &[])?;
             }
             (

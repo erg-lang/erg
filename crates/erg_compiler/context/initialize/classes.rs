@@ -2493,7 +2493,7 @@ impl Context {
         /* Array! */
         let array_mut_t = poly(MUT_ARRAY, vec![ty_tp(T.clone()), N.clone()]);
         let mut array_mut_ =
-            Self::builtin_poly_class(MUT_ARRAY, vec![PS::t_nd(TY_T), PS::named_nd(TY_N, Nat)], 2);
+            Self::builtin_poly_class(MUT_ARRAY, vec![PS::t_nd(TY_T), PS::default(TY_N, Nat)], 2);
         array_mut_.register_superclass(arr_t.clone(), &array_);
         let t = pr_met(
             ref_mut(
