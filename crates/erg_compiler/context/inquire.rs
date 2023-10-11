@@ -1629,6 +1629,7 @@ impl Context {
                     {
                         errs.append(&mut es);
                     }
+                    passed_params.insert("self".into());
                     non_default_params
                 } else {
                     subr.non_default_params.iter()
@@ -1736,12 +1737,16 @@ impl Context {
                         .non_default_params
                         .iter()
                         .enumerate()
-                        .map(|(i, pt)| {
-                            pt.name().cloned().unwrap_or_else(|| {
-                                Str::from(format!("({} param)", ordinal_num(i + 1)))
-                            })
+                        .filter(|(_, pt)| {
+                            pt.name().map_or(true, |name| !passed_params.contains(name))
                         })
-                        .filter(|pt| !passed_params.contains(pt))
+                        .map(|(i, pt)| {
+                            let n = if is_method { i } else { i + 1 };
+                            let nth = format!("({} param)", ordinal_num(n));
+                            pt.name()
+                                .map_or(nth.clone(), |name| format!("{name} {nth}"))
+                                .into()
+                        })
                         .collect::<Vec<_>>();
                     if !missing_params.is_empty() {
                         return Err(TyCheckErrors::from(TyCheckError::args_missing_error(
