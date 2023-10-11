@@ -13,3 +13,10 @@ str_to_int_or_rec(_: {Str: Int or Record}) = None
 str_to_int_or_rec { "a": 1 }
 str_to_int_or_rec { "a": {.a = 1} }
 str_to_int_or_rec { "a": {.a = 1}, "b": 1 }
+
+_ as Array(Array(Int)) = ![![1]]
+_ as Array(Array(Int, 1), 1) = ![![1]]
+_ as Array(Array!(Int, 1), 1) = ![![1]]
+_ as Array!(Array(Int, 1), 1) = ![![1]]
+_ as Array!(Array!(Int, 1), 1) = ![![1]]
+_ as Array!(Array!({1}, 1), 1) = ![![1]]

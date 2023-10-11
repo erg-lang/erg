@@ -19,7 +19,7 @@ use erg_parser::ast::{self, Identifier, VarName};
 use erg_parser::token::Token;
 
 use crate::ty::constructors::{anon, fn_met, free_var, func, mono, poly, proc, proj, ref_, subr_t};
-use crate::ty::free::{Constraint, FreeTyParam};
+use crate::ty::free::{Constraint, FreeTyParam, FreeTyVar};
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{
@@ -2314,6 +2314,10 @@ impl Context {
     pub(crate) fn type_params_variance(&self) -> Vec<Variance> {
         let match_tp_name = |tp: &TyParam, name: &VarName| -> bool {
             if let Ok(free) = <&FreeTyParam>::try_from(tp) {
+                if let Some(prev) = free.get_previous() {
+                    return prev.unbound_name().as_ref() == Some(name.inspect());
+                }
+            } else if let Ok(free) = <&FreeTyVar>::try_from(tp) {
                 if let Some(prev) = free.get_previous() {
                     return prev.unbound_name().as_ref() == Some(name.inspect());
                 }
