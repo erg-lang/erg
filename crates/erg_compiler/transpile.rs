@@ -16,7 +16,7 @@ use erg_parser::token::TokenKind;
 use crate::artifact::{
     BuildRunnable, Buildable, CompleteArtifact, ErrorArtifact, IncompleteArtifact,
 };
-use crate::build_hir::HIRBuilder;
+use crate::build_package::PackageBuilder;
 use crate::codegen::PyCodeGenerator;
 use crate::context::{Context, ContextProvider, ModuleContext};
 use crate::desugar_hir::HIRDesugarer;
@@ -140,7 +140,7 @@ pub struct Json {
 #[derive(Debug)]
 pub struct Transpiler {
     pub cfg: ErgConfig,
-    builder: HIRBuilder,
+    builder: PackageBuilder,
     shared: SharedCompilerResource,
     script_generator: PyScriptGenerator,
 }
@@ -160,7 +160,7 @@ impl Runnable for Transpiler {
         let shared = SharedCompilerResource::new(cfg.copy());
         Self {
             shared: shared.clone(),
-            builder: HIRBuilder::new_with_cache(cfg.copy(), "<module>", shared),
+            builder: PackageBuilder::new_with_cache(cfg.copy(), "<module>".into(), shared),
             script_generator: PyScriptGenerator::new(),
             cfg,
         }
@@ -264,7 +264,7 @@ impl Transpiler {
     pub fn new_with_cache(cfg: ErgConfig, mod_name: Str, shared: SharedCompilerResource) -> Self {
         Self {
             shared: shared.clone(),
-            builder: HIRBuilder::new_with_cache(cfg.copy(), mod_name, shared),
+            builder: PackageBuilder::new_with_cache(cfg.copy(), mod_name, shared),
             script_generator: PyScriptGenerator::new(),
             cfg,
         }
@@ -333,7 +333,7 @@ impl Transpiler {
     }
 
     pub fn pop_mod_ctx(&mut self) -> Option<ModuleContext> {
-        self.builder.pop_mod_ctx()
+        self.builder.pop_context()
     }
 
     pub fn dir(&mut self) -> HashMap<&VarName, &VarInfo> {
