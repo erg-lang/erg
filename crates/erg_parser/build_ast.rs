@@ -7,6 +7,17 @@ use crate::desugar::Desugarer;
 use crate::error::{CompleteArtifact, IncompleteArtifact, ParserRunnerError, ParserRunnerErrors};
 use crate::parse::ParserRunner;
 
+pub trait ASTBuildable {
+    fn new(cfg: ErgConfig) -> Self;
+    fn build_ast(
+        &mut self,
+        src: String,
+    ) -> Result<
+        CompleteArtifact<AST, ParserRunnerErrors>,
+        IncompleteArtifact<AST, ParserRunnerErrors>,
+    >;
+}
+
 /// Summarize parsing and desugaring
 #[derive(Debug, Default)]
 pub struct ASTBuilder {
@@ -53,6 +64,24 @@ impl Runnable for ASTBuilder {
     fn eval(&mut self, src: String) -> Result<String, ParserRunnerErrors> {
         let artifact = self.build(src).map_err(|iart| iart.errors)?;
         Ok(format!("{}", artifact.ast))
+    }
+}
+
+impl ASTBuildable for ASTBuilder {
+    fn new(cfg: ErgConfig) -> Self {
+        Self {
+            runner: ParserRunner::new(cfg),
+        }
+    }
+
+    fn build_ast(
+        &mut self,
+        src: String,
+    ) -> Result<
+        CompleteArtifact<AST, ParserRunnerErrors>,
+        IncompleteArtifact<AST, ParserRunnerErrors>,
+    > {
+        self.build(src)
     }
 }
 

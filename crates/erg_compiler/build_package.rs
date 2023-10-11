@@ -1,3 +1,4 @@
+use std::marker::PhantomData;
 use std::path::Path;
 
 use erg_common::config::ErgConfig;
@@ -14,7 +15,7 @@ use erg_common::str::Str;
 use erg_common::traits::{ExitStatus, Runnable, Stream};
 
 use erg_parser::ast::{Expr, InlineModule, VarName, AST};
-use erg_parser::build_ast::ASTBuilder;
+use erg_parser::build_ast::{ASTBuildable, ASTBuilder};
 use erg_parser::parse::SimpleParser;
 
 use crate::artifact::{
@@ -22,6 +23,7 @@ use crate::artifact::{
 };
 use crate::context::{Context, ContextProvider, ModuleContext};
 use crate::error::{CompileError, CompileErrors};
+use crate::lower::ASTLowerer;
 use crate::module::SharedCompilerResource;
 use crate::ty::ValueObj;
 use crate::varinfo::VarInfo;
@@ -43,7 +45,7 @@ pub type ResolveResult<T> = Result<T, ResolveError>;
 /// Invariant condition: `build_module` must be idempotent.
 /// That is, the only thing that may differ as a result of analyzing the same package is the elapsed time.
 #[derive(Debug)]
-pub struct PackageBuilder<Builder: Buildable = HIRBuilder> {
+pub struct PackageBuilder<Parser: ASTBuildable = ASTBuilder, Builder: Buildable = HIRBuilder> {
     cfg: ErgConfig,
     shared: SharedCompilerResource,
     pub(crate) main_builder: Builder,
@@ -51,16 +53,20 @@ pub struct PackageBuilder<Builder: Buildable = HIRBuilder> {
     submodules: Vec<NormalizedPathBuf>,
     asts: Dict<NormalizedPathBuf, (Str, AST)>,
     parse_errors: ErrorArtifact,
+    _parser: PhantomData<fn() -> Parser>,
 }
 
-impl<Builder: Buildable> Default for PackageBuilder<Builder> {
+pub type PackageTypeChecker = PackageBuilder<ASTBuilder, ASTLowerer>;
+pub type FullPackageBuilder = PackageBuilder<ASTBuilder, HIRBuilder>;
+
+impl<Parser: ASTBuildable, Builder: Buildable> Default for PackageBuilder<Parser, Builder> {
     fn default() -> Self {
         let cfg = ErgConfig::default();
         PackageBuilder::new(cfg.copy(), SharedCompilerResource::new(cfg))
     }
 }
 
-impl<Builder: BuildRunnable> Runnable for PackageBuilder<Builder> {
+impl<Parser: ASTBuildable, Builder: BuildRunnable> Runnable for PackageBuilder<Parser, Builder> {
     type Err = CompileError;
     type Errs = CompileErrors;
     const NAME: &'static str = "Erg package builder";
@@ -107,7 +113,7 @@ impl<Builder: BuildRunnable> Runnable for PackageBuilder<Builder> {
     }
 }
 
-impl<Builder: Buildable> Buildable for PackageBuilder<Builder> {
+impl<Parser: ASTBuildable, Builder: Buildable> Buildable for PackageBuilder<Parser, Builder> {
     fn inherit(cfg: ErgConfig, shared: SharedCompilerResource) -> Self {
         let mod_name = Str::from(cfg.input.file_stem());
         Self::new_with_cache(cfg, mod_name, shared)
@@ -133,9 +139,14 @@ impl<Builder: Buildable> Buildable for PackageBuilder<Builder> {
     }
 }
 
-impl<Builder: BuildRunnable + 'static> BuildRunnable for PackageBuilder<Builder> {}
+impl<Parser: ASTBuildable + 'static, Builder: BuildRunnable + 'static> BuildRunnable
+    for PackageBuilder<Parser, Builder>
+{
+}
 
-impl<Builder: Buildable + ContextProvider> ContextProvider for PackageBuilder<Builder> {
+impl<Parser: ASTBuildable, Builder: Buildable + ContextProvider> ContextProvider
+    for PackageBuilder<Parser, Builder>
+{
     fn dir(&self) -> Dict<&VarName, &VarInfo> {
         self.main_builder.dir()
     }
@@ -149,7 +160,7 @@ impl<Builder: Buildable + ContextProvider> ContextProvider for PackageBuilder<Bu
     }
 }
 
-impl<Builder: Buildable> PackageBuilder<Builder> {
+impl<Parser: ASTBuildable, Builder: Buildable> PackageBuilder<Parser, Builder> {
     pub fn new(cfg: ErgConfig, shared: SharedCompilerResource) -> Self {
         Self::new_with_cache(cfg, "<module>".into(), shared)
     }
@@ -166,6 +177,7 @@ impl<Builder: Buildable> PackageBuilder<Builder> {
             submodules: vec![],
             asts: Dict::new(),
             parse_errors: ErrorArtifact::new(CompileErrors::empty(), CompileErrors::empty()),
+            _parser: PhantomData,
         }
     }
 
@@ -174,9 +186,9 @@ impl<Builder: Buildable> PackageBuilder<Builder> {
         src: String,
         mode: &str,
     ) -> Result<CompleteArtifact, IncompleteArtifact> {
-        let mut ast_builder = ASTBuilder::new(self.cfg.copy());
+        let mut ast_builder = Parser::new(self.cfg.copy());
         let artifact = ast_builder
-            .build(src)
+            .build_ast(src)
             .map_err(|err| IncompleteArtifact::new(None, err.errors.into(), err.warns.into()))?;
         self.build_module(artifact.ast, mode)
     }
@@ -261,8 +273,8 @@ impl<Builder: Buildable> PackageBuilder<Builder> {
         };
         let import_path = NormalizedPathBuf::from(import_path.clone());
         self.shared.graph.add_node_if_none(&import_path);
-        let mut ast_builder = ASTBuilder::new(cfg.copy());
-        let mut ast = match ast_builder.build(src) {
+        let mut ast_builder = Parser::new(cfg.copy());
+        let mut ast = match ast_builder.build_ast(src) {
             Ok(art) => {
                 self.parse_errors
                     .warns
