@@ -409,40 +409,51 @@ impl<'a> HIRLinker<'a> {
         // let sig = option_enum_unwrap!(&def.sig, Signature::Var)
         //    .unwrap_or_else(|| todo!("module subroutines are not allowed"));
         if let Some((hir, cfg)) = hir_cfg {
-            let tmp = Identifier::private_with_line(self.fresh_gen.fresh_varname(), line);
-            let mod_var = Expr::Accessor(Accessor::Ident(tmp.clone()));
-            let module_type =
-                Expr::Accessor(Accessor::private_with_line(Str::ever("#ModuleType"), line));
-            let args = Args::single(PosArg::new(mod_name.clone()));
-            let block = Block::new(vec![module_type.call_expr(args)]);
-            let mod_def = Expr::Def(Def::new(
-                Signature::Var(VarSignature::global(tmp, None)),
-                DefBody::new(EQUAL, block, DefId(0)),
-            ));
-            self.removed_mods
-                .borrow_mut()
-                .insert(path, Mod::new(mod_var.clone(), mod_def));
-            let linker = self.inherit(&cfg);
-            let hir = linker.link_child(hir);
-            let code = Expr::Code(Block::new(Vec::from(hir.module)));
-            let __dict__ = Identifier::public("__dict__");
-            let m_dict = mod_var.clone().attr_expr(__dict__);
-            let locals = Expr::Accessor(Accessor::public_with_line(Str::ever("locals"), line));
-            let locals_call = locals.call_expr(Args::empty());
-            let args = Args::single(PosArg::new(locals_call));
-            let mod_update = Expr::Call(Call::new(
-                m_dict.clone(),
-                Some(Identifier::public("update")),
-                args,
-            ));
-            let exec = Expr::Accessor(Accessor::public_with_line(Str::ever("exec"), line));
-            let args = Args::pos_only(vec![PosArg::new(code), PosArg::new(m_dict)], None);
-            let exec_code = exec.call_expr(args);
-            let compound = Block::new(vec![mod_update, exec_code, mod_var]);
-            *expr = Expr::Compound(compound);
+            *expr = self.modularize(mod_name.clone(), hir, cfg, line, path);
         } else if let Some(module) = self.removed_mods.borrow().get(&path) {
             *expr = module.variable.clone();
         }
+    }
+
+    fn modularize(
+        &self,
+        mod_name: Expr,
+        hir: HIR,
+        cfg: ErgConfig,
+        line: u32,
+        path: PathBuf,
+    ) -> Expr {
+        let tmp = Identifier::private_with_line(self.fresh_gen.fresh_varname(), line);
+        let mod_var = Expr::Accessor(Accessor::Ident(tmp.clone()));
+        let module_type =
+            Expr::Accessor(Accessor::private_with_line(Str::ever("#ModuleType"), line));
+        let args = Args::single(PosArg::new(mod_name));
+        let block = Block::new(vec![module_type.call_expr(args)]);
+        let mod_def = Expr::Def(Def::new(
+            Signature::Var(VarSignature::global(tmp, None)),
+            DefBody::new(EQUAL, block, DefId(0)),
+        ));
+        self.removed_mods
+            .borrow_mut()
+            .insert(path, Mod::new(mod_var.clone(), mod_def));
+        let linker = self.inherit(&cfg);
+        let hir = linker.link_child(hir);
+        let code = Expr::Code(Block::new(Vec::from(hir.module)));
+        let __dict__ = Identifier::public("__dict__");
+        let m_dict = mod_var.clone().attr_expr(__dict__);
+        let locals = Expr::Accessor(Accessor::public_with_line(Str::ever("locals"), line));
+        let locals_call = locals.call_expr(Args::empty());
+        let args = Args::single(PosArg::new(locals_call));
+        let mod_update = Expr::Call(Call::new(
+            m_dict.clone(),
+            Some(Identifier::public("update")),
+            args,
+        ));
+        let exec = Expr::Accessor(Accessor::public_with_line(Str::ever("exec"), line));
+        let args = Args::pos_only(vec![PosArg::new(code), PosArg::new(m_dict)], None);
+        let exec_code = exec.call_expr(args);
+        let compound = Block::new(vec![mod_update, exec_code, mod_var]);
+        Expr::Compound(compound)
     }
 
     /// ```erg

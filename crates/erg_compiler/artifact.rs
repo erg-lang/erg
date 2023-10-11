@@ -2,6 +2,8 @@ use std::fmt;
 
 use erg_common::config::ErgConfig;
 use erg_common::traits::{Runnable, Stream};
+use erg_common::Str;
+use erg_parser::ast::AST;
 
 use crate::context::ModuleContext;
 use crate::error::CompileErrors;
@@ -103,9 +105,17 @@ pub trait Buildable<T = HIR> {
     fn inherit(cfg: ErgConfig, shared: SharedCompilerResource) -> Self
     where
         Self: Sized;
+    fn inherit_with_name(cfg: ErgConfig, mod_name: Str, shared: SharedCompilerResource) -> Self
+    where
+        Self: Sized;
     fn build(
         &mut self,
         src: String,
+        mode: &str,
+    ) -> Result<CompleteArtifact<T>, IncompleteArtifact<T>>;
+    fn build_from_ast(
+        &mut self,
+        ast: AST,
         mode: &str,
     ) -> Result<CompleteArtifact<T>, IncompleteArtifact<T>>;
     fn pop_context(&mut self) -> Option<ModuleContext>;

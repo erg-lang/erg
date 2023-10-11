@@ -14,13 +14,14 @@ use erg_common::{enum_unwrap, get_hash, log, set};
 use crate::ast::{
     Accessor, Args, Array, ArrayComprehension, ArrayTypeSpec, ArrayWithLength, BinOp, Block, Call,
     ClassAttr, ClassAttrs, ClassDef, Compound, ConstExpr, DataPack, Def, DefBody, DefId,
-    DefaultParamSignature, Dict, Dummy, Expr, GuardClause, Identifier, KeyValue, KwArg, Lambda,
-    LambdaSignature, Literal, Methods, MixedRecord, Module, NonDefaultParamSignature, NormalArray,
-    NormalDict, NormalRecord, NormalSet, NormalTuple, ParamPattern, ParamRecordAttr,
-    ParamTuplePattern, Params, PatchDef, PosArg, ReDef, Record, RecordAttrOrIdent, RecordAttrs,
-    RecordTypeSpec, Set as astSet, SetComprehension, SetWithLength, Signature, SubrSignature,
-    Tuple, TupleTypeSpec, TypeAppArgs, TypeAppArgsKind, TypeBoundSpecs, TypeSpec, TypeSpecWithOp,
-    UnaryOp, VarName, VarPattern, VarRecordAttr, VarSignature, VisModifierSpec,
+    DefaultParamSignature, Dict, Dummy, Expr, GuardClause, Identifier, InlineModule, KeyValue,
+    KwArg, Lambda, LambdaSignature, Literal, Methods, MixedRecord, Module,
+    NonDefaultParamSignature, NormalArray, NormalDict, NormalRecord, NormalSet, NormalTuple,
+    ParamPattern, ParamRecordAttr, ParamTuplePattern, Params, PatchDef, PosArg, ReDef, Record,
+    RecordAttrOrIdent, RecordAttrs, RecordTypeSpec, Set as astSet, SetComprehension, SetWithLength,
+    Signature, SubrSignature, Tuple, TupleTypeSpec, TypeAppArgs, TypeAppArgsKind, TypeBoundSpecs,
+    TypeSpec, TypeSpecWithOp, UnaryOp, VarName, VarPattern, VarRecordAttr, VarSignature,
+    VisModifierSpec, AST,
 };
 use crate::token::{Token, TokenKind, COLON, DOT};
 
@@ -398,6 +399,14 @@ impl Desugarer {
                     chunks.push(desugar(chunk));
                 }
                 Expr::Compound(Compound::new(chunks))
+            }
+            Expr::InlineModule(inline) => {
+                let mut chunks = vec![];
+                for chunk in inline.ast.module.into_iter() {
+                    chunks.push(desugar(chunk));
+                }
+                let ast = AST::new(inline.ast.name, Module::new(chunks));
+                Expr::InlineModule(InlineModule::new(inline.input, ast, inline.import))
             }
             Expr::Dummy(exprs) => {
                 let loc = exprs.loc;

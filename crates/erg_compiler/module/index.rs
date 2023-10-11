@@ -1,6 +1,5 @@
 use std::collections::hash_map::{Iter, Keys, Values};
 use std::fmt;
-use std::path::{Path, PathBuf};
 
 use erg_common::dict::Dict;
 use erg_common::pathutil::NormalizedPathBuf;
@@ -103,7 +102,7 @@ impl ModuleIndex {
         self.members.clear();
     }
 
-    pub fn remove_path(&mut self, path: &Path) {
+    pub fn remove_path(&mut self, path: &NormalizedPathBuf) {
         self.members.retain(|loc, value| {
             value
                 .referrers
@@ -112,8 +111,7 @@ impl ModuleIndex {
         });
     }
 
-    pub fn rename_path(&mut self, old: &Path, new: PathBuf) {
-        let new = NormalizedPathBuf::new(new);
+    pub fn rename_path(&mut self, old: &NormalizedPathBuf, new: NormalizedPathBuf) {
         let mut new_members = Dict::new();
         for (loc, mut value) in std::mem::take(&mut self.members) {
             if value.vi.def_loc.module.as_deref() == Some(old) {
@@ -190,11 +188,11 @@ impl SharedModuleIndex {
         self.0.borrow_mut().initialize();
     }
 
-    pub fn remove_path(&self, path: &Path) {
+    pub fn remove_path(&self, path: &NormalizedPathBuf) {
         self.0.borrow_mut().remove_path(path);
     }
 
-    pub fn rename_path(&self, old: &Path, new: PathBuf) {
+    pub fn rename_path(&self, old: &NormalizedPathBuf, new: NormalizedPathBuf) {
         self.0.borrow_mut().rename_path(old, new);
     }
 }

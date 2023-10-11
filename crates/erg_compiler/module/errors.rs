@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::set::Set;
 use erg_common::shared::Shared;
@@ -38,11 +36,10 @@ impl SharedCompileErrors {
         self.0.borrow_mut().clear();
     }
 
-    pub fn remove(&self, path: &Path) {
-        let path = NormalizedPathBuf::from(path);
+    pub fn remove(&self, path: &NormalizedPathBuf) {
         self.0
             .borrow_mut()
-            .retain(|e| NormalizedPathBuf::from(e.input.path()) != path);
+            .retain(|e| &NormalizedPathBuf::from(e.input.path()) != path);
     }
 
     pub fn raw_iter(&self) -> impl Iterator<Item = &CompileError> {

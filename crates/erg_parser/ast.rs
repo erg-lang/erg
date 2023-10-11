@@ -5,14 +5,15 @@ use std::fmt::Write as _;
 
 use erg_common::consts::ERG_MODE;
 use erg_common::error::Location;
+use erg_common::io::Input;
 use erg_common::set::Set as HashSet;
 // use erg_common::dict::Dict as HashMap;
 use erg_common::traits::{Locational, NestedDisplay, Stream};
 use erg_common::{
-    fmt_option, fmt_vec, impl_display_for_enum, impl_display_for_single_struct,
-    impl_display_from_nested, impl_displayable_stream_for_wrapper, impl_from_trait_for_enum,
-    impl_locational, impl_locational_for_enum, impl_nested_display_for_chunk_enum,
-    impl_nested_display_for_enum, impl_stream,
+    fmt_option, fmt_vec, impl_display_for_enum, impl_display_from_nested,
+    impl_displayable_stream_for_wrapper, impl_from_trait_for_enum, impl_locational,
+    impl_locational_for_enum, impl_nested_display_for_chunk_enum, impl_nested_display_for_enum,
+    impl_stream,
 };
 use erg_common::{fmt_vec_split_with, Str};
 
@@ -4890,14 +4891,15 @@ pub enum Expr {
     PatchDef(PatchDef),
     ReDef(ReDef),
     Compound(Compound),
+    InlineModule(InlineModule),
     /// for mapping to Python AST
     Dummy(Dummy),
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, Dummy);
-impl_from_trait_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, Dummy);
+impl_nested_display_for_chunk_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, Dummy);
+impl_from_trait_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, Dummy);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, Dummy);
+impl_locational_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, Dummy);
 
 impl Expr {
     pub fn is_match_call(&self) -> bool {
@@ -4936,6 +4938,7 @@ impl Expr {
             Self::PatchDef(_) => "patch definition",
             Self::ReDef(_) => "re-definition",
             Self::Compound(_) => "compound",
+            Self::InlineModule(_) => "inline module",
             Self::Dummy(_) => "dummy",
         }
     }
@@ -5044,11 +5047,13 @@ impl Expr {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Module(Block);
 
-impl fmt::Display for Module {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt_lines(self.0.iter(), f, 0)
+impl NestedDisplay for Module {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        fmt_lines(self.0.iter(), f, level)
     }
 }
+
+impl_display_from_nested!(Module);
 
 impl Locational for Module {
     fn loc(&self) -> Location {
@@ -5100,13 +5105,20 @@ impl Module {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AST {
     pub name: Str,
     pub module: Module,
 }
 
-impl_display_for_single_struct!(AST, module);
+impl NestedDisplay for AST {
+    fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
+        self.module.fmt_nest(f, level)
+    }
+}
+
+impl_display_from_nested!(AST);
+impl_locational!(AST, module);
 
 impl AST {
     pub const fn new(name: Str, module: Module) -> Self {
@@ -5115,5 +5127,28 @@ impl AST {
 
     pub fn is_empty(&self) -> bool {
         self.module.is_empty()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct InlineModule {
+    pub input: Input,
+    pub ast: AST,
+    pub import: Call,
+}
+
+impl NestedDisplay for InlineModule {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        writeln!(f, "inline-module({})", self.import)?;
+        self.ast.fmt_nest(f, level)
+    }
+}
+
+impl_display_from_nested!(InlineModule);
+impl_locational!(InlineModule, ast);
+
+impl InlineModule {
+    pub const fn new(input: Input, ast: AST, import: Call) -> Self {
+        Self { input, ast, import }
     }
 }

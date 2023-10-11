@@ -17,7 +17,7 @@ use erg_common::spawn::{safe_yield, spawn_new_thread};
 use erg_common::{fn_name, normalize_path};
 
 use erg_compiler::artifact::BuildRunnable;
-use erg_compiler::build_hir::HIRBuilder;
+use erg_compiler::build_package::PackageBuilder;
 use erg_compiler::context::{Context, ModuleContext};
 use erg_compiler::erg_parser::ast::Module;
 use erg_compiler::erg_parser::parse::{Parsable, SimpleParser};
@@ -65,7 +65,7 @@ pub const ASK_AUTO_SAVE_ID: i64 = 10001;
 
 pub type ELSResult<T> = Result<T, Box<dyn std::error::Error>>;
 
-pub type ErgLanguageServer = Server<HIRBuilder>;
+pub type ErgLanguageServer = Server<PackageBuilder>;
 
 pub type Handler<Server, Params, Out = ()> = fn(&mut Server, Params) -> ELSResult<Out>;
 
@@ -161,7 +161,7 @@ impl Flags {
 
 /// A Language Server, which can be used any object implementing `BuildRunnable` internally by passing it as a generic parameter.
 #[derive(Debug)]
-pub struct Server<Checker: BuildRunnable = HIRBuilder, Parser: Parsable = SimpleParser> {
+pub struct Server<Checker: BuildRunnable = PackageBuilder, Parser: Parsable = SimpleParser> {
     pub(crate) cfg: ErgConfig,
     pub(crate) home: PathBuf,
     pub(crate) erg_path: PathBuf,
@@ -758,7 +758,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     /// the cache is deleted after each analysis.
     pub(crate) fn get_checker(&self, path: PathBuf) -> Checker {
         let shared = self.shared.clone();
-        shared.clear(&path);
+        shared.clear(&NormalizedPathBuf::from(&path));
         Checker::inherit(self.cfg.inherit(path), shared)
     }
 
@@ -914,7 +914,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     }
 
     pub(crate) fn clear_cache(&mut self, uri: &NormalizedUrl) {
-        let path = util::uri_to_path(uri);
+        let path = NormalizedPathBuf::from(util::uri_to_path(uri));
         self.shared.clear(&path);
     }
 

@@ -11,17 +11,16 @@ use erg_common::traits::{ExitStatus, Runnable, Stream};
 use erg_parser::ast::VarName;
 
 use crate::artifact::{CompleteArtifact, ErrorArtifact};
-use crate::context::{Context, ContextProvider};
-use crate::optimize::HIROptimizer;
-use crate::ty::codeobj::CodeObj;
-
-use crate::build_hir::HIRBuilder;
+use crate::build_package::PackageBuilder;
 use crate::codegen::PyCodeGenerator;
+use crate::context::{Context, ContextProvider};
 use crate::desugar_hir::HIRDesugarer;
 use crate::error::{CompileError, CompileErrors, CompileWarnings};
 use crate::hir::Expr;
 use crate::link_hir::HIRLinker;
 use crate::module::SharedCompilerResource;
+use crate::optimize::HIROptimizer;
+use crate::ty::codeobj::CodeObj;
 use crate::varinfo::VarInfo;
 
 /// * registered as global -> Global
@@ -113,7 +112,7 @@ impl AccessKind {
 #[derive(Debug)]
 pub struct Compiler {
     pub cfg: ErgConfig,
-    builder: HIRBuilder,
+    builder: PackageBuilder,
     shared: SharedCompilerResource,
     code_generator: PyCodeGenerator,
 }
@@ -133,7 +132,7 @@ impl Runnable for Compiler {
         let shared = SharedCompilerResource::new(cfg.copy());
         Self {
             shared: shared.clone(),
-            builder: HIRBuilder::new_with_cache(cfg.copy(), "<module>", shared),
+            builder: PackageBuilder::new(cfg.copy(), shared),
             code_generator: PyCodeGenerator::new(cfg.copy()),
             cfg,
         }

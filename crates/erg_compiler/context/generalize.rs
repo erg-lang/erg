@@ -449,7 +449,9 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                     new_dic
                         .entry(k)
                         .and_modify(|old_v| {
-                            *old_v = self.ctx.union_tp(&mem::take(old_v), &v).unwrap();
+                            if let Some(union) = self.ctx.union_tp(&mem::take(old_v), &v) {
+                                *old_v = union;
+                            }
                         })
                         .or_insert(v);
                 }

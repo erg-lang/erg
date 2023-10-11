@@ -8,6 +8,7 @@ pub mod artifact;
 pub mod build_hir;
 mod compile;
 pub use compile::*;
+pub mod build_package;
 mod codegen;
 pub mod context;
 pub mod declare;

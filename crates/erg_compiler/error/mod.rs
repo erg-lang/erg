@@ -525,6 +525,10 @@ impl CompileErrors {
     pub fn flush(&mut self) -> Self {
         Self(self.0.drain(..).collect())
     }
+
+    pub fn take(&mut self) -> Self {
+        self.flush()
+    }
 }
 
 pub type SingleCompileResult<T> = Result<T, CompileError>;

@@ -302,6 +302,11 @@ fn exec_return() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_self_reference() -> Result<(), ()> {
+    expect_success("tests/should_ok/self_reference.er", 0)
+}
+
+#[test]
 fn exec_self_type() -> Result<(), ()> {
     expect_success("tests/should_ok/self_type.er", 0)
 }

@@ -214,6 +214,13 @@ pub struct Parser {
     pub(crate) errs: ParseErrors,
 }
 
+impl Parsable for Parser {
+    fn parse(code: String) -> Result<CompleteArtifact, IncompleteArtifact<Module, ParseErrors>> {
+        let ts = Lexer::from_str(code).lex()?;
+        Parser::new(ts).parse()
+    }
+}
+
 impl Parser {
     pub const fn new(ts: TokenStream) -> Self {
         Self {

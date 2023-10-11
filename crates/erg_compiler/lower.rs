@@ -2,6 +2,7 @@
 //!
 //! ASTLowerer(ASTからHIRへの変換器)を実装
 use std::mem;
+use std::path::Path;
 
 use erg_common::config::{ErgConfig, ErgMode};
 use erg_common::consts::{ELS, ERG_MODE, PYTHON_MODE};
@@ -16,14 +17,14 @@ use erg_common::traits::{ExitStatus, Locational, NoTypeDisplay, Runnable, Stream
 use erg_common::triple::Triple;
 use erg_common::{fmt_option, fn_name, log, switch_lang, Str};
 
-use erg_parser::ast::{self, AscriptionKind, VisModifierSpec};
+use erg_parser::ast::{self, AscriptionKind, InlineModule, VisModifierSpec};
 use erg_parser::ast::{OperationKind, TypeSpecWithOp, VarName, AST};
 use erg_parser::build_ast::ASTBuilder;
 use erg_parser::desugar::Desugarer;
 use erg_parser::token::{Token, TokenKind};
 use erg_parser::Parser;
 
-use crate::artifact::{CompleteArtifact, IncompleteArtifact};
+use crate::artifact::{BuildRunnable, Buildable, CompleteArtifact, IncompleteArtifact};
 use crate::context::instantiate::TyVarCache;
 use crate::module::SharedCompilerResource;
 use crate::ty::constructors::{
@@ -45,12 +46,12 @@ use crate::error::{
     CompileError, CompileErrors, CompileWarning, LowerError, LowerErrors, LowerResult,
     LowerWarning, LowerWarnings, SingleLowerResult,
 };
-use crate::hir;
 use crate::hir::HIR;
 use crate::link_ast::ASTLinker;
 use crate::varinfo::{VarInfo, VarKind};
 use crate::AccessKind;
 use crate::{feature_error, unreachable_error};
+use crate::{hir, HIRBuilder};
 
 use VisibilityModifier::*;
 
@@ -160,6 +161,46 @@ impl ContextProvider for ASTLowerer {
         self.module.context.get_var_info(name)
     }
 }
+
+impl Buildable for ASTLowerer {
+    fn inherit(cfg: ErgConfig, shared: SharedCompilerResource) -> Self {
+        let mod_name = Str::from(cfg.input.file_stem());
+        Self::new_with_cache(cfg, mod_name, shared)
+    }
+
+    fn inherit_with_name(cfg: ErgConfig, mod_name: Str, shared: SharedCompilerResource) -> Self {
+        Self::new_with_cache(cfg, mod_name, shared)
+    }
+
+    fn build(
+        &mut self,
+        src: String,
+        mode: &str,
+    ) -> Result<CompleteArtifact<HIR>, IncompleteArtifact<HIR>> {
+        let mut ast_builder = ASTBuilder::new(self.cfg.copy());
+        let artifact = ast_builder.build(src).map_err(|artifact| {
+            IncompleteArtifact::new(None, artifact.errors.into(), artifact.warns.into())
+        })?;
+        self.lower(artifact.ast, mode)
+    }
+
+    fn build_from_ast(
+        &mut self,
+        ast: AST,
+        mode: &str,
+    ) -> Result<CompleteArtifact<HIR>, IncompleteArtifact<HIR>> {
+        self.lower(ast, mode)
+    }
+
+    fn pop_context(&mut self) -> Option<ModuleContext> {
+        self.pop_mod_ctx()
+    }
+    fn get_context(&self) -> Option<&ModuleContext> {
+        Some(self.get_mod_ctx())
+    }
+}
+
+impl BuildRunnable for ASTLowerer {}
 
 impl ASTLowerer {
     pub fn new_with_cache<S: Into<Str>>(
@@ -2687,6 +2728,9 @@ impl ASTLowerer {
             ast::Expr::Compound(comp) => hir::Expr::Compound(self.lower_compound(comp, expect)?),
             // Checking is also performed for expressions in Dummy. However, it has no meaning in code generation
             ast::Expr::Dummy(dummy) => hir::Expr::Dummy(self.lower_dummy(dummy, expect)?),
+            ast::Expr::InlineModule(inline) => {
+                hir::Expr::Call(self.lower_inline_module(inline, expect)?)
+            }
             other => {
                 log!(err "unreachable: {other}");
                 return unreachable_error!(LowerErrors, LowerError, self.module.context);
@@ -2775,6 +2819,55 @@ impl ASTLowerer {
         Ok(hir::Dummy::new(hir_dummy))
     }
 
+    fn lower_inline_module(
+        &mut self,
+        inline: InlineModule,
+        expect: Option<&Type>,
+    ) -> LowerResult<hir::Call> {
+        log!(info "entered {}", fn_name!());
+        let Some(ast::Expr::Literal(mod_name)) = inline.import.args.get_left_or_key("Path") else {
+            unreachable!();
+        };
+        let Ok(mod_name) = hir::Literal::try_from(mod_name.token.clone()) else {
+            unreachable!();
+        };
+        let ValueObj::Str(__name__) = &mod_name.value else {
+            unreachable!();
+        };
+        let Some(path) = inline.input.resolve_path(Path::new(&__name__[..])) else {
+            unreachable!();
+        };
+        let parent = self.get_mod_ctx().context.get_module().unwrap().clone();
+        let mod_ctx = ModuleContext::new(parent, dict! {});
+        let mut builder = HIRBuilder::new_with_ctx(mod_ctx);
+        builder.lowerer.module.context.cfg.input = inline.input.clone();
+        builder.cfg_mut().input = inline.input.clone();
+        let mode = if path.to_string_lossy().ends_with("d.er") {
+            "declare"
+        } else {
+            "exec"
+        };
+        let hir = match builder.check(inline.ast, mode) {
+            Ok(art) => {
+                self.warns.extend(art.warns);
+                Some(art.object)
+            }
+            Err(art) => {
+                self.warns.extend(art.warns);
+                self.errs.extend(art.errors);
+                art.object
+            }
+        };
+        let ctx = builder.pop_mod_ctx().unwrap();
+        let cache = if path.to_string_lossy().ends_with("d.er") {
+            &self.module.context.shared().py_mod_cache
+        } else {
+            &self.module.context.shared().mod_cache
+        };
+        cache.register(path.to_path_buf(), None, hir, ctx);
+        self.lower_call(inline.import, expect)
+    }
+
     fn return_incomplete_artifact(&mut self, hir: HIR) -> IncompleteArtifact {
         self.module.context.clear_invalid_vars();
         IncompleteArtifact::new(
@@ -2794,9 +2887,6 @@ impl ASTLowerer {
     pub fn lower(&mut self, ast: AST, mode: &str) -> Result<CompleteArtifact, IncompleteArtifact> {
         log!(info "the AST lowering process has started.");
         log!(info "the type-checking process has started.");
-        let path = self.cfg.input.path();
-        let graph = &self.module.context.shared().graph;
-        graph.add_node_if_none(path);
         let ast = ASTLinker::new(self.cfg.clone())
             .link(ast, mode)
             .map_err(|errs| {

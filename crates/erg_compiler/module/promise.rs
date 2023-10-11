@@ -1,5 +1,4 @@
 use std::fmt;
-use std::path::{Path, PathBuf};
 use std::thread::{current, JoinHandle, ThreadId};
 
 use erg_common::consts::DEBUG_MODE;
@@ -10,6 +9,8 @@ use erg_common::spawn::safe_yield;
 
 use super::SharedModuleGraph;
 
+/// transition:
+/// Running(not finished) -> Running(finished) -> Joining -> Joined
 #[derive(Debug)]
 pub enum Promise {
     Running {
@@ -17,7 +18,7 @@ pub enum Promise {
         handle: JoinHandle<()>,
     },
     Joining,
-    Finished,
+    Joined,
 }
 
 impl fmt::Display for Promise {
@@ -27,7 +28,7 @@ impl fmt::Display for Promise {
                 write!(f, "running on thread {:?}", handle.thread().id())
             }
             Self::Joining => write!(f, "joining"),
-            Self::Finished => write!(f, "finished"),
+            Self::Joined => write!(f, "joined"),
         }
     }
 }
@@ -40,24 +41,29 @@ impl Promise {
         }
     }
 
+    /// can be joined if `true`
     pub fn is_finished(&self) -> bool {
         match self {
-            Self::Finished => true,
+            Self::Joined => true,
             Self::Joining => false,
             Self::Running { handle, .. } => handle.is_finished(),
         }
     }
 
+    pub const fn is_joined(&self) -> bool {
+        matches!(self, Self::Joined)
+    }
+
     pub fn thread_id(&self) -> Option<ThreadId> {
         match self {
-            Self::Finished | Self::Joining => None,
+            Self::Joined | Self::Joining => None,
             Self::Running { handle, .. } => Some(handle.thread().id()),
         }
     }
 
     pub fn parent_thread_id(&self) -> Option<ThreadId> {
         match self {
-            Self::Finished | Self::Joining => None,
+            Self::Joined | Self::Joining => None,
             Self::Running { parent, .. } => Some(*parent),
         }
     }
@@ -85,17 +91,17 @@ impl fmt::Display for SharedPromises {
 }
 
 impl SharedPromises {
-    pub fn new(graph: SharedModuleGraph, path: PathBuf) -> Self {
+    pub fn new(graph: SharedModuleGraph, path: NormalizedPathBuf) -> Self {
         Self {
             graph,
-            path: NormalizedPathBuf::new(path),
+            path,
             promises: Shared::new(Dict::new()),
         }
     }
 
-    pub fn insert<P: Into<NormalizedPathBuf>>(&self, path: P, handle: JoinHandle<()>) {
+    pub fn insert(&self, path: impl Into<NormalizedPathBuf>, handle: JoinHandle<()>) {
         let path = path.into();
-        if self.promises.borrow().get(&path).is_some() {
+        if self.is_registered(&path) {
             if DEBUG_MODE {
                 panic!("already registered: {}", path.display());
             }
@@ -106,42 +112,46 @@ impl SharedPromises {
             .insert(path, Promise::running(handle));
     }
 
-    pub fn remove(&self, path: &Path) {
-        self.promises.borrow_mut().remove(path);
+    pub fn remove(&self, path: &NormalizedPathBuf) -> Option<Promise> {
+        self.promises.borrow_mut().remove(path)
     }
 
     pub fn initialize(&self) {
         self.promises.borrow_mut().clear();
     }
 
-    pub fn rename(&self, old: &Path, new: PathBuf) {
-        let Some(promise) = self.promises.borrow_mut().remove(old) else {
+    pub fn rename(&self, old: &NormalizedPathBuf, new: NormalizedPathBuf) {
+        let Some(promise) = self.remove(old) else {
             return;
         };
-        self.promises.borrow_mut().insert(new.into(), promise);
+        self.promises.borrow_mut().insert(new, promise);
     }
 
-    pub fn is_registered(&self, path: &Path) -> bool {
+    pub fn is_registered(&self, path: &NormalizedPathBuf) -> bool {
         self.promises.borrow().get(path).is_some()
     }
 
-    pub fn is_finished(&self, path: &Path) -> bool {
+    pub fn is_joined(&self, path: &NormalizedPathBuf) -> bool {
+        self.promises
+            .borrow()
+            .get(path)
+            .is_some_and(|promise| promise.is_joined())
+    }
+
+    pub fn is_finished(&self, path: &NormalizedPathBuf) -> bool {
         self.promises
             .borrow()
             .get(path)
             .is_some_and(|promise| promise.is_finished())
     }
 
-    fn join_checked(&self, path: &Path, promise: Promise) -> std::thread::Result<()> {
-        let Promise::Running { handle, parent } = promise else {
-            return Ok(());
-        };
-        if self.graph.ancestors(path).contains(&self.path) || handle.thread().id() == current().id()
-        {
+    pub fn join(&self, path: &NormalizedPathBuf) -> std::thread::Result<()> {
+        if self.graph.ancestors(path).contains(&self.path) {
             // cycle detected, `self.path` must not in the dependencies
             // Erg analysis processes never join ancestor threads (although joining ancestors itself is allowed in Rust)
-            *self.promises.borrow_mut().get_mut(path).unwrap() =
-                Promise::Running { parent, handle };
+            while !self.is_finished(path) {
+                safe_yield();
+            }
             return Ok(());
         }
         // Suppose A depends on B and C, and B depends on C.
@@ -151,53 +161,52 @@ impl SharedPromises {
             if child == &self.path {
                 continue;
             } else if self.graph.depends_on(&self.path, child) {
-                *self.promises.borrow_mut().get_mut(path).unwrap() =
-                    Promise::Running { parent, handle };
-                while self
-                    .promises
-                    .borrow()
-                    .get(path)
-                    .is_some_and(|p| !p.is_finished())
-                {
+                while !self.is_finished(path) {
                     safe_yield();
                 }
                 return Ok(());
             }
         }
-        let res = handle.join();
-        *self.promises.borrow_mut().get_mut(path).unwrap() = Promise::Finished;
-        res
-    }
-
-    pub fn join(&self, path: &Path) -> std::thread::Result<()> {
         while let Some(Promise::Joining) | None = self.promises.borrow().get(path) {
             safe_yield();
         }
+        if self.is_joined(path) {
+            return Ok(());
+        }
         let promise = self.promises.borrow_mut().get_mut(path).unwrap().take();
-        self.join_checked(path, promise)
+        let Promise::Running { handle, .. } = promise else {
+            *self.promises.borrow_mut().get_mut(path).unwrap() = promise;
+            while !self.is_finished(path) {
+                safe_yield();
+            }
+            return Ok(());
+        };
+        if handle.thread().id() == current().id() {
+            return Ok(());
+        }
+        let res = handle.join();
+        *self.promises.borrow_mut().get_mut(path).unwrap() = Promise::Joined;
+        res
     }
 
     pub fn join_children(&self) {
         let cur_id = std::thread::current().id();
-        let mut promises = vec![];
-        for (path, promise) in self.promises.borrow_mut().iter_mut() {
+        let mut paths = vec![];
+        for (path, promise) in self.promises.borrow().iter() {
             if promise.parent_thread_id() != Some(cur_id) {
                 continue;
             }
-            promises.push((path.clone(), promise.take()));
+            paths.push(path.clone());
         }
-        for (path, promise) in promises {
-            let _result = self.join_checked(&path, promise);
+        for path in paths {
+            let _result = self.join(&path);
         }
     }
 
     pub fn join_all(&self) {
-        let mut promises = vec![];
-        for (path, promise) in self.promises.borrow_mut().iter_mut() {
-            promises.push((path.clone(), promise.take()));
-        }
-        for (path, promise) in promises {
-            let _result = self.join_checked(&path, promise);
+        let paths = self.promises.borrow().keys().cloned().collect::<Vec<_>>();
+        for path in paths {
+            let _result = self.join(&path);
         }
     }
 }

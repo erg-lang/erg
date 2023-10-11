@@ -6,6 +6,7 @@ use erg_common::consts::{DEBUG_MODE, ERG_MODE, PYTHON_MODE};
 use erg_common::error::{ErrorCore, Location, SubMessage};
 use erg_common::io::Input;
 use erg_common::levenshtein;
+use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, NoTypeDisplay, Stream};
 use erg_common::triple::Triple;
@@ -49,8 +50,12 @@ pub enum SubstituteResult {
 }
 
 impl Context {
-    pub(crate) fn mod_registered(&self, path: &Path) -> bool {
-        self.shared.is_some() && self.promises().is_registered(path)
+    pub(crate) fn mod_registered(&self, path: &NormalizedPathBuf) -> bool {
+        (self.shared.is_some() && self.promises().is_registered(path)) || self.mod_cached(path)
+    }
+
+    pub(crate) fn mod_cached(&self, path: &Path) -> bool {
+        self.mod_cache().get(path).is_some() || self.py_mod_cache().get(path).is_some()
     }
 
     /// Get the context of the module. If it was in analysis, wait until analysis is complete and join the thread.
@@ -59,16 +64,17 @@ impl Context {
         if self.module_path() == path {
             return self.get_module();
         }
-        if self.shared.is_some()
-            && self.promises().is_registered(path)
-            && !self.promises().is_finished(path)
-            && (self.mod_cache().get(path).is_none() && self.py_mod_cache().get(path).is_none())
+        let path = NormalizedPathBuf::from(path);
+        if let Some(ctx) = self.get_module_from_stack(&path) {
+            return Some(ctx);
+        }
+        if self.shared.is_some() && self.promises().is_registered(&path) && !self.mod_cached(&path)
         {
-            let _result = self.promises().join(path);
+            let _result = self.promises().join(&path);
         }
         self.opt_mod_cache()?
-            .raw_ref_ctx(path)
-            .or_else(|| self.opt_py_mod_cache()?.raw_ref_ctx(path))
+            .raw_ref_ctx(&path)
+            .or_else(|| self.opt_py_mod_cache()?.raw_ref_ctx(&path))
             .map(|mod_ctx| &mod_ctx.context)
     }
 
