@@ -6,6 +6,7 @@ use erg_common::config::{ErgConfig, ErgMode::*};
 use erg_common::spawn::exec_new_thread;
 use erg_common::traits::{ExitStatus, Runnable};
 
+use erg_compiler::lower::ASTLowerer;
 use erg_parser::build_ast::ASTBuilder;
 use erg_parser::lex::LexerRunner;
 use erg_parser::ParserRunner;
@@ -13,7 +14,7 @@ use erg_parser::ParserRunner;
 use erg_compiler::build_package::PackageBuilder;
 use erg_compiler::transpile::Transpiler;
 use erg_compiler::ty::deserialize::Deserializer;
-use erg_compiler::Compiler;
+use erg_compiler::{Compiler, HIRBuilder};
 
 use erg::DummyVM;
 
@@ -23,7 +24,8 @@ fn run() {
         Lex => LexerRunner::run(cfg),
         Parse => ParserRunner::run(cfg),
         Desugar => ASTBuilder::run(cfg),
-        Check => PackageBuilder::run(cfg),
+        TypeCheck => PackageBuilder::<ASTLowerer>::run(cfg),
+        FullCheck => PackageBuilder::<HIRBuilder>::run(cfg),
         Compile => Compiler::run(cfg),
         Transpile => Transpiler::run(cfg),
         Execute => DummyVM::run(cfg),

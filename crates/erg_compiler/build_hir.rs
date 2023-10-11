@@ -99,8 +99,18 @@ impl Buildable for HIRBuilder {
         let mod_name = Str::from(cfg.input.file_stem());
         Self::new_with_cache(cfg, mod_name, shared)
     }
+    fn inherit_with_name(cfg: ErgConfig, mod_name: Str, shared: SharedCompilerResource) -> Self {
+        Self::new_with_cache(cfg, mod_name, shared)
+    }
     fn build(&mut self, src: String, mode: &str) -> Result<CompleteArtifact, IncompleteArtifact> {
         self.build(src, mode)
+    }
+    fn build_from_ast(
+        &mut self,
+        ast: AST,
+        mode: &str,
+    ) -> Result<CompleteArtifact<crate::hir::HIR>, IncompleteArtifact<crate::hir::HIR>> {
+        self.check(ast, mode)
     }
     fn pop_context(&mut self) -> Option<ModuleContext> {
         self.pop_mod_ctx()

@@ -20,7 +20,8 @@ pub enum ErgMode {
     Lex,
     Parse,
     Desugar,
-    Check,
+    TypeCheck,
+    FullCheck,
     Compile,
     Transpile,
     Execute,
@@ -35,7 +36,8 @@ impl TryFrom<&str> for ErgMode {
             "lex" | "lexer" => Ok(Self::Lex),
             "parse" | "parser" => Ok(Self::Parse),
             "desugar" | "desugarer" => Ok(Self::Desugar),
-            "tc" | "typecheck" | "check" | "checker" => Ok(Self::Check),
+            "typecheck" | "lower" | "tc" => Ok(Self::TypeCheck),
+            "fullcheck" | "check" | "checker" => Ok(Self::FullCheck),
             "comp" | "compile" | "compiler" => Ok(Self::Compile),
             "trans" | "transpile" | "transpiler" => Ok(Self::Transpile),
             "run" | "execute" => Ok(Self::Execute),
@@ -52,7 +54,8 @@ impl From<ErgMode> for &str {
             ErgMode::Lex => "lex",
             ErgMode::Parse => "parse",
             ErgMode::Desugar => "desugar",
-            ErgMode::Check => "check",
+            ErgMode::TypeCheck => "typecheck",
+            ErgMode::FullCheck => "fullcheck",
             ErgMode::Compile => "compile",
             ErgMode::Transpile => "transpile",
             ErgMode::Execute => "execute",
@@ -225,7 +228,7 @@ impl ErgConfig {
                     cfg.input = Input::str(args.next().expect("the value of `-c` is not passed"));
                 }
                 "--check" => {
-                    cfg.mode = ErgMode::Check;
+                    cfg.mode = ErgMode::FullCheck;
                 }
                 "--compile" | "--dump-as-pyc" => {
                     cfg.mode = ErgMode::Compile;

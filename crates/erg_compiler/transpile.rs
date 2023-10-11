@@ -10,7 +10,7 @@ use erg_common::set::Set as HashSet;
 use erg_common::traits::{ExitStatus, Locational, Runnable, Stream};
 use erg_common::Str;
 
-use erg_parser::ast::{ParamPattern, TypeSpec, VarName};
+use erg_parser::ast::{ParamPattern, TypeSpec, VarName, AST};
 use erg_parser::token::TokenKind;
 
 use crate::artifact::{
@@ -229,12 +229,10 @@ impl ContextProvider for Transpiler {
 impl Buildable<TranspiledFile> for Transpiler {
     fn inherit(cfg: ErgConfig, shared: SharedCompilerResource) -> Self {
         let mod_name = Str::from(cfg.input.file_stem());
-        Self {
-            shared: shared.clone(),
-            builder: HIRBuilder::new_with_cache(cfg.copy(), mod_name, shared),
-            script_generator: PyScriptGenerator::new(),
-            cfg,
-        }
+        Self::new_with_cache(cfg, mod_name, shared)
+    }
+    fn inherit_with_name(cfg: ErgConfig, mod_name: Str, shared: SharedCompilerResource) -> Self {
+        Self::new_with_cache(cfg, mod_name, shared)
     }
     fn build(
         &mut self,
@@ -242,6 +240,14 @@ impl Buildable<TranspiledFile> for Transpiler {
         mode: &str,
     ) -> Result<CompleteArtifact<TranspiledFile>, IncompleteArtifact<TranspiledFile>> {
         self.transpile(src, mode)
+            .map_err(|err| IncompleteArtifact::new(None, err.errors, err.warns))
+    }
+    fn build_from_ast(
+        &mut self,
+        ast: AST,
+        mode: &str,
+    ) -> Result<CompleteArtifact<TranspiledFile>, IncompleteArtifact<TranspiledFile>> {
+        self.transpile_from_ast(ast, mode)
             .map_err(|err| IncompleteArtifact::new(None, err.errors, err.warns))
     }
     fn pop_context(&mut self) -> Option<ModuleContext> {
@@ -255,6 +261,15 @@ impl Buildable<TranspiledFile> for Transpiler {
 impl BuildRunnable<TranspiledFile> for Transpiler {}
 
 impl Transpiler {
+    pub fn new_with_cache(cfg: ErgConfig, mod_name: Str, shared: SharedCompilerResource) -> Self {
+        Self {
+            shared: shared.clone(),
+            builder: HIRBuilder::new_with_cache(cfg.copy(), mod_name, shared),
+            script_generator: PyScriptGenerator::new(),
+            cfg,
+        }
+    }
+
     pub fn transpile(
         &mut self,
         src: String,
@@ -262,16 +277,35 @@ impl Transpiler {
     ) -> Result<CompleteArtifact<TranspiledFile>, ErrorArtifact> {
         log!(info "the transpiling process has started.");
         let artifact = self.build_link_desugar(src, mode)?;
-        let file = match self.cfg.transpile_target {
-            Some(TranspileTarget::Json) => {
-                let mut gen = JsonGenerator::new(self.cfg.copy());
-                TranspiledFile::Json(gen.transpile(artifact.object)?)
-            }
-            _ => TranspiledFile::PyScript(self.script_generator.transpile(artifact.object)),
-        };
+        let file = self.lower(artifact.object)?;
         log!(info "code:\n{}", file.code());
         log!(info "the transpiling process has completed");
         Ok(CompleteArtifact::new(file, artifact.warns))
+    }
+
+    pub fn transpile_from_ast(
+        &mut self,
+        ast: AST,
+        mode: &str,
+    ) -> Result<CompleteArtifact<TranspiledFile>, ErrorArtifact> {
+        log!(info "the transpiling process has started.");
+        let artifact = self.builder.build_from_ast(ast, mode)?;
+        let file = self.lower(artifact.object)?;
+        log!(info "code:\n{}", file.code());
+        log!(info "the transpiling process has completed");
+        Ok(CompleteArtifact::new(file, artifact.warns))
+    }
+
+    fn lower(&mut self, hir: HIR) -> CompileResult<TranspiledFile> {
+        match self.cfg.transpile_target {
+            Some(TranspileTarget::Json) => {
+                let mut gen = JsonGenerator::new(self.cfg.copy());
+                Ok(TranspiledFile::Json(gen.transpile(hir)?))
+            }
+            _ => Ok(TranspiledFile::PyScript(
+                self.script_generator.transpile(hir),
+            )),
+        }
     }
 
     pub fn transpile_module(&mut self) -> Result<CompleteArtifact<TranspiledFile>, ErrorArtifact> {
@@ -285,6 +319,13 @@ impl Transpiler {
         mode: &str,
     ) -> Result<CompleteArtifact, ErrorArtifact> {
         let artifact = self.builder.build(src, mode)?;
+        self.link_desugar(artifact)
+    }
+
+    fn link_desugar(
+        &mut self,
+        artifact: CompleteArtifact,
+    ) -> Result<CompleteArtifact, ErrorArtifact> {
         let linker = HIRLinker::new(&self.cfg, &self.shared.mod_cache);
         let hir = linker.link(artifact.object);
         let desugared = HIRDesugarer::desugar(hir);

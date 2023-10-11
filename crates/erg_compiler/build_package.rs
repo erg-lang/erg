@@ -43,24 +43,24 @@ pub type ResolveResult<T> = Result<T, ResolveError>;
 /// Invariant condition: `build_module` must be idempotent.
 /// That is, the only thing that may differ as a result of analyzing the same package is the elapsed time.
 #[derive(Debug)]
-pub struct PackageBuilder {
+pub struct PackageBuilder<Builder: Buildable = HIRBuilder> {
     cfg: ErgConfig,
     shared: SharedCompilerResource,
-    pub(crate) main_builder: HIRBuilder,
+    pub(crate) main_builder: Builder,
     cyclic: Vec<NormalizedPathBuf>,
     submodules: Vec<NormalizedPathBuf>,
     asts: Dict<NormalizedPathBuf, (Str, AST)>,
     parse_errors: ErrorArtifact,
 }
 
-impl Default for PackageBuilder {
+impl<Builder: Buildable> Default for PackageBuilder<Builder> {
     fn default() -> Self {
         let cfg = ErgConfig::default();
         PackageBuilder::new(cfg.copy(), SharedCompilerResource::new(cfg))
     }
 }
 
-impl Runnable for PackageBuilder {
+impl<Builder: BuildRunnable> Runnable for PackageBuilder<Builder> {
     type Err = CompileError;
     type Errs = CompileErrors;
     const NAME: &'static str = "Erg package builder";
@@ -107,25 +107,35 @@ impl Runnable for PackageBuilder {
     }
 }
 
-impl Buildable for PackageBuilder {
+impl<Builder: Buildable> Buildable for PackageBuilder<Builder> {
     fn inherit(cfg: ErgConfig, shared: SharedCompilerResource) -> Self {
         let mod_name = Str::from(cfg.input.file_stem());
+        Self::new_with_cache(cfg, mod_name, shared)
+    }
+    fn inherit_with_name(cfg: ErgConfig, mod_name: Str, shared: SharedCompilerResource) -> Self {
         Self::new_with_cache(cfg, mod_name, shared)
     }
     fn build(&mut self, src: String, mode: &str) -> Result<CompleteArtifact, IncompleteArtifact> {
         self.build(src, mode)
     }
+    fn build_from_ast(
+        &mut self,
+        ast: AST,
+        mode: &str,
+    ) -> Result<CompleteArtifact<crate::hir::HIR>, IncompleteArtifact<crate::hir::HIR>> {
+        self.build_module(ast, mode)
+    }
     fn pop_context(&mut self) -> Option<ModuleContext> {
-        self.main_builder.pop_mod_ctx()
+        self.main_builder.pop_context()
     }
     fn get_context(&self) -> Option<&ModuleContext> {
         self.main_builder.get_context()
     }
 }
 
-impl BuildRunnable for PackageBuilder {}
+impl<Builder: BuildRunnable + 'static> BuildRunnable for PackageBuilder<Builder> {}
 
-impl ContextProvider for PackageBuilder {
+impl<Builder: Buildable + ContextProvider> ContextProvider for PackageBuilder<Builder> {
     fn dir(&self) -> Dict<&VarName, &VarInfo> {
         self.main_builder.dir()
     }
@@ -139,7 +149,7 @@ impl ContextProvider for PackageBuilder {
     }
 }
 
-impl PackageBuilder {
+impl<Builder: Buildable> PackageBuilder<Builder> {
     pub fn new(cfg: ErgConfig, shared: SharedCompilerResource) -> Self {
         Self::new_with_cache(cfg, "<module>".into(), shared)
     }
@@ -151,7 +161,7 @@ impl PackageBuilder {
         Self {
             cfg: cfg.copy(),
             shared: shared.clone(),
-            main_builder: HIRBuilder::new_with_cache(cfg, mod_name, shared),
+            main_builder: Builder::inherit_with_name(cfg, mod_name, shared),
             cyclic: vec![],
             submodules: vec![],
             asts: Dict::new(),
@@ -331,11 +341,15 @@ impl PackageBuilder {
         debug_power_assert!(self.asts.len(), ==, 0);
         self.cyclic.clear();
         self.submodules.clear();
-        self.main_builder.check(ast, mode)
+        self.main_builder.build_from_ast(ast, mode)
     }
 
     fn start_analysis_process(&self, ast: AST, __name__: Str, path: NormalizedPathBuf) {
-        if self.main_builder.current_ctx().mod_registered(&path) {
+        if self
+            .main_builder
+            .get_context()
+            .is_some_and(|ctx| ctx.context.mod_registered(&path))
+        {
             return;
         }
         // for cache comparing

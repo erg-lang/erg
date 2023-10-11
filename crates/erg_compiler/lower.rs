@@ -24,7 +24,7 @@ use erg_parser::desugar::Desugarer;
 use erg_parser::token::{Token, TokenKind};
 use erg_parser::Parser;
 
-use crate::artifact::{CompleteArtifact, IncompleteArtifact};
+use crate::artifact::{BuildRunnable, Buildable, CompleteArtifact, IncompleteArtifact};
 use crate::context::instantiate::TyVarCache;
 use crate::module::SharedCompilerResource;
 use crate::ty::constructors::{
@@ -161,6 +161,46 @@ impl ContextProvider for ASTLowerer {
         self.module.context.get_var_info(name)
     }
 }
+
+impl Buildable for ASTLowerer {
+    fn inherit(cfg: ErgConfig, shared: SharedCompilerResource) -> Self {
+        let mod_name = Str::from(cfg.input.file_stem());
+        Self::new_with_cache(cfg, mod_name, shared)
+    }
+
+    fn inherit_with_name(cfg: ErgConfig, mod_name: Str, shared: SharedCompilerResource) -> Self {
+        Self::new_with_cache(cfg, mod_name, shared)
+    }
+
+    fn build(
+        &mut self,
+        src: String,
+        mode: &str,
+    ) -> Result<CompleteArtifact<HIR>, IncompleteArtifact<HIR>> {
+        let mut ast_builder = ASTBuilder::new(self.cfg.copy());
+        let artifact = ast_builder.build(src).map_err(|artifact| {
+            IncompleteArtifact::new(None, artifact.errors.into(), artifact.warns.into())
+        })?;
+        self.lower(artifact.ast, mode)
+    }
+
+    fn build_from_ast(
+        &mut self,
+        ast: AST,
+        mode: &str,
+    ) -> Result<CompleteArtifact<HIR>, IncompleteArtifact<HIR>> {
+        self.lower(ast, mode)
+    }
+
+    fn pop_context(&mut self) -> Option<ModuleContext> {
+        self.pop_mod_ctx()
+    }
+    fn get_context(&self) -> Option<&ModuleContext> {
+        Some(self.get_mod_ctx())
+    }
+}
+
+impl BuildRunnable for ASTLowerer {}
 
 impl ASTLowerer {
     pub fn new_with_cache<S: Into<Str>>(
