@@ -31,3 +31,7 @@ print! sub 1, 1, y:=2 # ERR, too many args
 
 for! {"a": 1}, (i, s #[ ERR ]#) =>
     print! i
+
+d = !{ "a": 1 }
+d.insert! "b", 2, 3 # ERR, too many args
+d.insert! "c" # ERR, missing argument value

@@ -383,7 +383,7 @@ fn exec_addition_err() -> Result<(), ()> {
 
 #[test]
 fn exec_args() -> Result<(), ()> {
-    expect_failure("tests/should_err/args.er", 0, 17)
+    expect_failure("tests/should_err/args.er", 0, 19)
 }
 
 #[test]

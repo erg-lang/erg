@@ -1614,11 +1614,17 @@ impl Context {
                 } else {
                     obj.clone()
                 };
-                let params_len = subr.non_default_params.len() + subr.default_params.len();
+                let params_len = if is_method {
+                    subr.non_default_params.len().saturating_sub(1) + subr.default_params.len()
+                } else {
+                    subr.non_default_params.len() + subr.default_params.len()
+                };
                 if (params_len < pos_args.len() || params_len < pos_args.len() + kw_args.len())
                     && subr.var_params.is_none()
                 {
-                    return Err(self.gen_too_many_args_error(&callee, subr, pos_args, kw_args));
+                    return Err(
+                        self.gen_too_many_args_error(&callee, subr, is_method, pos_args, kw_args)
+                    );
                 }
                 let mut passed_params = set! {};
                 let non_default_params = if is_method {
@@ -1833,6 +1839,7 @@ impl Context {
         &self,
         callee: &hir::Expr,
         subr_ty: &SubrType,
+        is_method: bool,
         pos_args: &[hir::PosArg],
         kw_args: &[hir::KwArg],
     ) -> TyCheckErrors {
@@ -1863,7 +1870,11 @@ impl Context {
             }
         }
         if unknown_args.is_empty() && duplicated_args.is_empty() {
-            let params_len = subr_ty.non_default_params.len() + subr_ty.default_params.len();
+            let params_len = if is_method {
+                subr_ty.non_default_params.len().saturating_sub(1) + subr_ty.default_params.len()
+            } else {
+                subr_ty.non_default_params.len() + subr_ty.default_params.len()
+            };
             TyCheckErrors::from(TyCheckError::too_many_args_error(
                 self.cfg.input.clone(),
                 line!() as usize,
