@@ -2041,6 +2041,33 @@ impl Type {
         }
     }
 
+    pub fn ref_inner(&self) -> Option<Type> {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().ref_inner(),
+            Self::Ref(t) => Some(t.as_ref().clone()),
+            Self::Refinement(refine) => refine.t.ref_inner(),
+            _ => None,
+        }
+    }
+
+    pub fn is_refmut(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_refmut(),
+            Self::RefMut { .. } => true,
+            Self::Refinement(refine) => refine.t.is_refmut(),
+            _ => false,
+        }
+    }
+
+    pub fn ref_mut_inner(&self) -> Option<Type> {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().ref_mut_inner(),
+            Self::RefMut { before, .. } => Some(before.as_ref().clone()),
+            Self::Refinement(refine) => refine.t.ref_mut_inner(),
+            _ => None,
+        }
+    }
+
     pub fn is_structural(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_structural(),
@@ -3198,6 +3225,32 @@ impl Type {
         }
     }
 
+    pub fn eliminate(self, target: &Type) -> Self {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => {
+                let t = fv.crack().clone();
+                t.eliminate(target)
+            }
+            Self::And(l, r) => {
+                if l.addr_eq(target) {
+                    return r.eliminate(target);
+                } else if r.addr_eq(target) {
+                    return l.eliminate(target);
+                }
+                l.eliminate(target) & r.eliminate(target)
+            }
+            Self::Or(l, r) => {
+                if l.addr_eq(target) {
+                    return r.eliminate(target);
+                } else if r.addr_eq(target) {
+                    return l.eliminate(target);
+                }
+                l.eliminate(target) | r.eliminate(target)
+            }
+            other => other,
+        }
+    }
+
     pub fn replace(self, target: &Type, to: &Type) -> Type {
         let table = ReplaceTable::make(target, to);
         table.replace(self)
@@ -3506,6 +3559,7 @@ impl Type {
         list: Option<&UndoableLinkedList>,
         in_instantiation: bool,
     ) {
+        let new_constraint = new_constraint.eliminate_recursion(self);
         if let Some(list) = list {
             self.undoable_update_constraint(new_constraint, list);
         } else {

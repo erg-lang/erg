@@ -163,7 +163,9 @@ impl<'c> Substituter<'c> {
         let qtps = qt.typarams();
         let stps = st.typarams();
         if qt.qual_name() != st.qual_name() || qtps.len() != stps.len() {
-            if let Some(sub) = st.get_sub() {
+            if let Some(inner) = st.ref_inner().or_else(|| st.ref_mut_inner()) {
+                return Self::substitute_typarams(ctx, qt, &inner);
+            } else if let Some(sub) = st.get_sub() {
                 return Self::substitute_typarams(ctx, qt, &sub);
             }
             log!(err "{qt} / {st}");

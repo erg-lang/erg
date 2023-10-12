@@ -36,6 +36,7 @@ fn _test_infer_types() -> Result<(), ()> {
     let u = type_q("U");
     let id_t = func1(t.clone(), t.clone()).quantify();
     module.context.assert_var_type("id", &id_t)?;
+    module.context.assert_var_type("id2", &id_t)?;
     let tu = or(t.clone(), u.clone());
     let if_t = nd_func(
         vec![
@@ -62,8 +63,10 @@ fn _test_infer_types() -> Result<(), ()> {
     let o = a.clone().proj("Output");
     let add_t = func2(a, t, o).quantify();
     module.context.assert_var_type("add", &add_t)?;
+    module.context.assert_var_type("add2", &add_t)?;
     let abs_t = func1(Int, Nat);
     module.context.assert_var_type("abs_", &abs_t)?;
+    module.context.assert_var_type("abs2", &abs_t)?;
     let norm_t = func1(mono("<module>::Norm"), Nat);
     module.context.assert_var_type("norm", &norm_t)?;
     let a_t = array_t(

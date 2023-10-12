@@ -1121,6 +1121,7 @@ impl Context {
         };
         log!(info "{}: current namespace: {name}", fn_name!());
         self.outer = Some(Box::new(mem::take(self)));
+        // self.level += 1;
         if let Some(tv_cache) = tv_cache.as_ref() {
             self.assign_bounds(tv_cache)
         };

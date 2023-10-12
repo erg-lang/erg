@@ -222,6 +222,22 @@ impl Constraint {
             _ => None,
         }
     }
+
+    /// e.g.
+    /// ```erg
+    /// old_sub: ?T, constraint: (:> ?T or NoneType, <: Obj)
+    /// -> constraint: (:> NoneType, <: Obj)
+    /// ```
+    pub fn eliminate_recursion(self, target: &Type) -> Self {
+        match self {
+            Self::Sandwiched { sub, sup } => {
+                let sub = sub.eliminate(target);
+                let sup = sup.eliminate(target);
+                Self::new_sandwiched(sub, sup)
+            }
+            other => other,
+        }
+    }
 }
 
 pub trait CanbeFree {

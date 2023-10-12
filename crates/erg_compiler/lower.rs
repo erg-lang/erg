@@ -1611,7 +1611,14 @@ impl ASTLowerer {
                 body.t(),
             )
         };
-        let t = if ty.has_qvar() { ty.quantify() } else { ty };
+        let t = if ty.has_unbound_var() {
+            // TODO:
+            // ty.lift();
+            // self.module.context.generalize_t(ty)
+            ty.quantify()
+        } else {
+            ty
+        };
         Ok(hir::Lambda::new(id, params, lambda.op, body, t))
     }
 

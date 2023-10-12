@@ -872,7 +872,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                                 maybe_sup.update_constraint(new_constraint, self.undoable, false);
                                 maybe_sub.link(maybe_sup, self.undoable);
                             } else {
-                                maybe_sup.update_constraint(new_constraint, self.undoable, false);
+                                maybe_sub.update_constraint(new_constraint, self.undoable, false);
                                 maybe_sup.link(maybe_sub, self.undoable);
                             }
                         }
