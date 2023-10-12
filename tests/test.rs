@@ -212,6 +212,11 @@ fn exec_map() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_match() -> Result<(), ()> {
+    expect_success("tests/should_ok/match.er", 0)
+}
+
+#[test]
 fn exec_method() -> Result<(), ()> {
     expect_success("tests/should_ok/method.er", 0)
 }

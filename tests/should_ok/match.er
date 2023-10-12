@@ -1,0 +1,9 @@
+f x: Obj =
+    match x:
+        (s: Str) -> s + "a"
+        { foo; bar } -> foo + bar
+        a -> a
+
+assert f("a") == "aa"
+assert f({ foo = "a"; bar = "b" }) == "ab"
+assert str(f(1)) == "1"
