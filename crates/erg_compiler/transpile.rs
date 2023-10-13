@@ -1178,6 +1178,17 @@ impl JsonGenerator {
                 let vals = vec![self.expr_into_value(*arr.elem)?; len];
                 Some(ValueObj::Array(vals.into()))
             }
+            Expr::Tuple(Tuple::Normal(tup)) => {
+                let mut vals = vec![];
+                for elem in tup.elems.pos_args {
+                    if let Some(val) = self.expr_into_value(elem.expr) {
+                        vals.push(val);
+                    } else {
+                        return None;
+                    }
+                }
+                Some(ValueObj::Tuple(vals.into()))
+            }
             Expr::Dict(Dict::Normal(dic)) => {
                 let mut kvs = dict! {};
                 for kv in dic.kvs {
@@ -1253,13 +1264,27 @@ impl JsonGenerator {
                 }
                 other => todo!("{other}"),
             },
+            Expr::Tuple(tup) => match tup {
+                Tuple::Normal(tup) => {
+                    let mut code = "[".to_string();
+                    for (i, elem) in tup.elems.pos_args.into_iter().enumerate() {
+                        if i > 0 {
+                            code += ", ";
+                        }
+                        code += &self.transpile_expr(elem.expr);
+                    }
+                    code += "]";
+                    code
+                }
+            },
             Expr::Record(rec) => {
                 let mut code = "".to_string();
-                for (i, attr) in rec.attrs.into_iter().enumerate() {
-                    code += &self.transpile_def(attr);
+                for (i, mut attr) in rec.attrs.into_iter().enumerate() {
                     if i > 0 {
                         code += ", ";
                     }
+                    let expr = self.transpile_expr(attr.body.block.remove(0));
+                    code += &format!("\"{}\": {expr}", attr.sig.inspect());
                 }
                 format!("{{{code}}}")
             }
