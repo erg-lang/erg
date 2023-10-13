@@ -389,6 +389,7 @@ impl SideEffectChecker {
                 other => todo!("{other}"),
             },
             Expr::Call(call) => {
+                self.check_expr(&call.obj);
                 if (call.obj.t().is_procedure()
                     || call
                         .attr_name
@@ -450,7 +451,11 @@ impl SideEffectChecker {
                 self.check_expr(&type_asc.expr);
             }
             Expr::Accessor(acc) => {
-                if !self.in_context_effects_allowed() && acc.ref_t().is_mut_type() {
+                if !self.in_context_effects_allowed()
+                    && !acc.var_info().is_parameter()
+                    && acc.ref_t().is_mut_type()
+                    && acc.root_obj().map_or(true, |obj| !obj.ref_t().is_ref())
+                {
                     self.errs.push(EffectError::touch_mut_error(
                         self.cfg.input.clone(),
                         line!() as usize,

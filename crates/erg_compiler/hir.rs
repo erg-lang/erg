@@ -694,6 +694,22 @@ impl Accessor {
             Self::Attr(attr) => &attr.ident.raw.name,
         }
     }
+
+    pub fn obj(&self) -> Option<&Expr> {
+        match self {
+            Self::Attr(attr) => Some(&attr.obj),
+            _ => None,
+        }
+    }
+
+    pub fn root_obj(&self) -> Option<&Expr> {
+        match self.obj() {
+            Some(expr @ Expr::Accessor(Accessor::Ident(_))) => Some(expr),
+            Some(Expr::Accessor(acc)) => acc.root_obj(),
+            Some(obj) => Some(obj),
+            None => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

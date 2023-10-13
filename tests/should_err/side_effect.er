@@ -1,0 +1,37 @@
+i = !0
+rec = {
+    .a = !1;
+    .b = 1
+}
+arr = ![1]
+
+# OK
+f arr: Array!(Int, _) =
+    arr
+# NG
+f2 arr: Array!(Int, _) =
+    arr.push! 1
+# NG
+g x: Int =
+    i + x
+# NG
+g2 x: Int =
+    rec.a + x
+# OK
+g3 x: Int =
+    rec.b + x
+# NG
+g4 x: Int =
+    arr[0] + x
+
+C! = Class Dict! { Str: Int }
+# OK
+C!|<: Show|.
+    __str__ ref self = str self::base
+C!.
+    # OK
+    items ref self = self::base.items()
+    # OK
+    abs ref self = self::base["a"].abs()
+    # NG
+    insert ref self = self::base.insert! "a", 1

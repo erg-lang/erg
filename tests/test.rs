@@ -502,6 +502,11 @@ fn exec_side_effect() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_side_effect_test() -> Result<(), ()> {
+    expect_failure("tests/should_err/side_effect.er", 6, 5)
+}
+
+#[test]
 fn exec_structural_err() -> Result<(), ()> {
     expect_failure("tests/should_err/structural.er", 1, 9)
 }

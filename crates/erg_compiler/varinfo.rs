@@ -425,4 +425,8 @@ impl VarInfo {
     pub fn is_untyped_parameter(&self) -> bool {
         self.kind.is_parameter() && self.t.is_unbound_var()
     }
+
+    pub const fn is_parameter(&self) -> bool {
+        self.kind.is_parameter()
+    }
 }
