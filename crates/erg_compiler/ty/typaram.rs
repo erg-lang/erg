@@ -668,6 +668,10 @@ impl TryFrom<TyParam> for ValueObj {
                 }
                 Ok(ValueObj::Array(Arc::from(vals)))
             }
+            TyParam::UnsizedArray(elem) => {
+                let elem = ValueObj::try_from(*elem)?;
+                Ok(ValueObj::UnsizedArray(Box::new(elem)))
+            }
             TyParam::Tuple(tps) => {
                 let mut vals = vec![];
                 for tp in tps {
@@ -688,6 +692,13 @@ impl TryFrom<TyParam> for ValueObj {
                     vals.insert(k, ValueObj::try_from(v)?);
                 }
                 Ok(ValueObj::Record(vals))
+            }
+            TyParam::Set(tps) => {
+                let mut vals = set! {};
+                for tp in tps {
+                    vals.insert(ValueObj::try_from(tp)?);
+                }
+                Ok(ValueObj::Set(vals))
             }
             TyParam::DataClass { name, fields } => {
                 let mut vals = dict! {};
@@ -710,7 +721,7 @@ impl TryFrom<TyParam> for ValueObj {
             TyParam::Type(t) => Ok(ValueObj::builtin_type(*t)),
             TyParam::Value(v) => Ok(v),
             _ => {
-                log!(err "Expected value, got {tp} ({tp:?})");
+                log!(err "Expected value, got {tp}");
                 Err(())
             }
         }

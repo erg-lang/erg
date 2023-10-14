@@ -826,55 +826,27 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 self.sub_unify(&rsub, &union)?;
                 // self.sub_unify(&intersec, &lsup, loc, param_name)?;
                 // self.sub_unify(&lsub, &union, loc, param_name)?;
-                if union == intersec {
-                    match sub_fv
-                        .level()
-                        .unwrap_or(GENERIC_LEVEL)
-                        .cmp(&sup_fv.level().unwrap_or(GENERIC_LEVEL))
-                    {
-                        std::cmp::Ordering::Less => {
-                            maybe_sub.link(&union, self.undoable);
-                            maybe_sup.link(maybe_sub, self.undoable);
-                        }
-                        std::cmp::Ordering::Greater => {
-                            maybe_sup.link(&union, self.undoable);
-                            maybe_sub.link(maybe_sup, self.undoable);
-                        }
-                        std::cmp::Ordering::Equal => {
-                            // choose named one
-                            if sup_fv.is_named_unbound() {
-                                maybe_sup.link(&union, self.undoable);
-                                maybe_sub.link(maybe_sup, self.undoable);
-                            } else {
-                                maybe_sub.link(&union, self.undoable);
-                                maybe_sup.link(maybe_sub, self.undoable);
-                            }
-                        }
+                match sub_fv
+                    .level()
+                    .unwrap_or(GENERIC_LEVEL)
+                    .cmp(&sup_fv.level().unwrap_or(GENERIC_LEVEL))
+                {
+                    std::cmp::Ordering::Less => {
+                        maybe_sub.update_tyvar(union, intersec, self.undoable, false);
+                        maybe_sup.link(maybe_sub, self.undoable);
                     }
-                } else {
-                    let new_constraint = Constraint::new_sandwiched(union, intersec);
-                    match sub_fv
-                        .level()
-                        .unwrap_or(GENERIC_LEVEL)
-                        .cmp(&sup_fv.level().unwrap_or(GENERIC_LEVEL))
-                    {
-                        std::cmp::Ordering::Less => {
-                            maybe_sub.update_constraint(new_constraint, self.undoable, false);
-                            maybe_sup.link(maybe_sub, self.undoable);
-                        }
-                        std::cmp::Ordering::Greater => {
-                            maybe_sup.update_constraint(new_constraint, self.undoable, false);
+                    std::cmp::Ordering::Greater => {
+                        maybe_sup.update_tyvar(union, intersec, self.undoable, false);
+                        maybe_sub.link(maybe_sup, self.undoable);
+                    }
+                    std::cmp::Ordering::Equal => {
+                        // choose named one
+                        if sup_fv.is_named_unbound() {
+                            maybe_sup.update_tyvar(union, intersec, self.undoable, false);
                             maybe_sub.link(maybe_sup, self.undoable);
-                        }
-                        std::cmp::Ordering::Equal => {
-                            // choose named one
-                            if sup_fv.is_named_unbound() {
-                                maybe_sup.update_constraint(new_constraint, self.undoable, false);
-                                maybe_sub.link(maybe_sup, self.undoable);
-                            } else {
-                                maybe_sub.update_constraint(new_constraint, self.undoable, false);
-                                maybe_sup.link(maybe_sub, self.undoable);
-                            }
+                        } else {
+                            maybe_sub.update_tyvar(union, intersec, self.undoable, false);
+                            maybe_sup.link(maybe_sub, self.undoable);
                         }
                     }
                 }
@@ -947,12 +919,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 self.sub_unify(&rsub, &union)?;
                 // self.sub_unify(&intersec, &lsup, loc, param_name)?;
                 // self.sub_unify(&lsub, &union, loc, param_name)?;
-                if union == intersec {
-                    maybe_sup.link(&union, self.undoable);
-                } else {
-                    let new_constraint = Constraint::new_sandwiched(union, intersec);
-                    maybe_sup.update_constraint(new_constraint, self.undoable, false);
-                }
+                maybe_sup.update_tyvar(union, intersec, self.undoable, false);
             }
             // (Int or ?T) <: (?U or Int)
             // OK: (Int <: Int); (?T <: ?U)

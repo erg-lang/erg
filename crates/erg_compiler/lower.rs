@@ -1078,6 +1078,7 @@ impl ASTLowerer {
                 }
             }
         }
+        // TODO: expect var_args
         if let Some(var_args) = var_args {
             match self.lower_expr(var_args.expr, None) {
                 Ok(expr) => hir_args.var_args = Some(Box::new(hir::PosArg::new(expr))),
@@ -1089,7 +1090,12 @@ impl ASTLowerer {
             }
         }
         for arg in kw_args.into_iter() {
-            match self.lower_expr(arg.expr, None) {
+            let kw_param = expect.as_ref().and_then(|subr| {
+                subr.non_var_params()
+                    .find(|pt| pt.name().is_some_and(|n| n == &arg.keyword.content))
+                    .map(|pt| pt.typ())
+            });
+            match self.lower_expr(arg.expr, kw_param) {
                 Ok(expr) => hir_args.push_kw(hir::KwArg::new(arg.keyword, expr)),
                 Err(es) => {
                     errs.extend(es);

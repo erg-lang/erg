@@ -1167,7 +1167,7 @@ impl ValueObj {
             Self::Dict(dict) => {
                 let tp = dict
                     .iter()
-                    .map(|(k, v)| (TyParam::value(k.clone()), TyParam::value(v.clone())));
+                    .map(|(k, v)| (TyParam::t(k.class()), TyParam::t(v.class())));
                 dict_t(TyParam::Dict(tp.collect()))
             }
             Self::Tuple(tup) => tuple_t(tup.iter().map(|v| v.class()).collect()),

@@ -564,10 +564,15 @@ impl SubrType {
             .non_default_params
             .iter()
             .filter(|pt| !pt.name().is_some_and(|n| &n[..] == "self"));
+        let defaults = self.default_params.iter();
         if let Some(var_params) = self.var_params.as_ref() {
-            non_defaults.chain(std::iter::repeat(var_params.as_ref()))
+            non_defaults
+                .chain([].iter())
+                .chain(std::iter::repeat(var_params.as_ref()))
         } else {
-            non_defaults.chain(std::iter::repeat(&ParamTy::Pos(Type::Failure)))
+            non_defaults
+                .chain(defaults)
+                .chain(std::iter::repeat(&ParamTy::Pos(Type::Failure)))
         }
     }
 
@@ -1771,6 +1776,46 @@ impl Type {
         }
     }
 
+    pub fn immutate(&self) -> Option<Self> {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => {
+                let t = fv.crack().clone();
+                if let Some(t) = t.immutate() {
+                    fv.link(&t);
+                    Some(Self::FreeVar(fv.clone()))
+                } else {
+                    None
+                }
+            }
+            Self::Mono(name) => match &name[..] {
+                "Int!" => Some(Self::Int),
+                "Nat!" => Some(Self::Nat),
+                "Ratio!" => Some(Self::Ratio),
+                "Float!" => Some(Self::Float),
+                "Complex!" => Some(Self::Complex),
+                "Bool!" => Some(Self::Bool),
+                "Str!" => Some(Self::Str),
+                _ => None,
+            },
+            Self::Poly { name, params } => match &name[..] {
+                "Array!" => Some(Self::Poly {
+                    name: "Array".into(),
+                    params: params.clone(),
+                }),
+                "Set!" => Some(Self::Poly {
+                    name: "Set".into(),
+                    params: params.clone(),
+                }),
+                "Dict!" => Some(Self::Poly {
+                    name: "Dict".into(),
+                    params: params.clone(),
+                }),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
     pub fn quantify(self) -> Self {
         debug_assert!(self.is_subr(), "{self} is not subr");
         match self {
@@ -1833,6 +1878,10 @@ impl Type {
             }
             _ => self.is_mono_value_class(),
         }
+    }
+
+    pub fn is_mut_value_class(&self) -> bool {
+        self.immutate().is_some_and(|t| t.is_value_class())
     }
 
     /// Procedure
@@ -3564,6 +3613,21 @@ impl Type {
             self.undoable_update_constraint(new_constraint, list);
         } else {
             self.destructive_update_constraint(new_constraint, in_instantiation);
+        }
+    }
+
+    pub(crate) fn update_tyvar(
+        &self,
+        new_sub: Type,
+        new_sup: Type,
+        list: Option<&UndoableLinkedList>,
+        in_instantiation: bool,
+    ) {
+        if new_sub == new_sup {
+            self.link(&new_sub, list);
+        } else {
+            let new_constraint = Constraint::new_sandwiched(new_sub, new_sup);
+            self.update_constraint(new_constraint, list, in_instantiation);
         }
     }
 

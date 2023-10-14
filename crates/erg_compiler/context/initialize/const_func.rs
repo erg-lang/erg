@@ -4,7 +4,7 @@ use std::mem;
 use erg_common::dict::Dict;
 #[allow(unused_imports)]
 use erg_common::log;
-use erg_common::{dict, enum_unwrap, set};
+use erg_common::{dict, set};
 
 use crate::context::Context;
 use crate::feature_error;
@@ -186,14 +186,19 @@ pub(crate) fn __array_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValue
     let slf = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
-    let slf = ctx
-        .convert_value_into_array(slf)
-        .unwrap_or_else(|err| panic!("{err}, {args}"));
+    let slf = match ctx.convert_value_into_array(slf) {
+        Ok(slf) => slf,
+        Err(val) => {
+            return Err(type_mismatch("Array", val, "Self"));
+        }
+    };
     let index = args
         .remove_left_or_key("Index")
         .ok_or_else(|| not_passed("Index"))?;
-    let index = enum_unwrap!(index, ValueObj::Nat);
-    if let Some(v) = slf.get(index as usize) {
+    let Ok(index) = usize::try_from(&index) else {
+        return Err(type_mismatch("Nat", index, "Index"));
+    };
+    if let Some(v) = slf.get(index) {
         Ok(v.clone().into())
     } else {
         Err(ErrorCore::new(
@@ -280,7 +285,9 @@ pub(crate) fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueR
     let slf = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
-    let slf = enum_unwrap!(slf, ValueObj::Dict);
+    let ValueObj::Dict(slf) = slf else {
+        return Err(type_mismatch("Dict", slf, "Self"));
+    };
     let index = args
         .remove_left_or_key("Index")
         .ok_or_else(|| not_passed("Index"))?;
@@ -302,7 +309,9 @@ pub(crate) fn dict_keys(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<T
     let slf = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
-    let slf = enum_unwrap!(slf, ValueObj::Dict);
+    let ValueObj::Dict(slf) = slf else {
+        return Err(type_mismatch("Dict", slf, "Self"));
+    };
     let slf = slf
         .into_iter()
         .map(|(k, v)| {
@@ -324,7 +333,9 @@ pub(crate) fn dict_values(mut args: ValueArgs, ctx: &Context) -> EvalValueResult
     let slf = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
-    let slf = enum_unwrap!(slf, ValueObj::Dict);
+    let ValueObj::Dict(slf) = slf else {
+        return Err(type_mismatch("Dict", slf, "Self"));
+    };
     let slf = slf
         .into_iter()
         .map(|(k, v)| {
@@ -346,7 +357,9 @@ pub(crate) fn dict_items(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
     let slf = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
-    let slf = enum_unwrap!(slf, ValueObj::Dict);
+    let ValueObj::Dict(slf) = slf else {
+        return Err(type_mismatch("Dict", slf, "Self"));
+    };
     let slf = slf
         .into_iter()
         .map(|(k, v)| {
@@ -369,11 +382,15 @@ pub(crate) fn dict_concat(mut args: ValueArgs, _ctx: &Context) -> EvalValueResul
     let slf = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
-    let slf = enum_unwrap!(slf, ValueObj::Dict);
+    let ValueObj::Dict(slf) = slf else {
+        return Err(type_mismatch("Dict", slf, "Self"));
+    };
     let other = args
         .remove_left_or_key("Other")
         .ok_or_else(|| not_passed("Other"))?;
-    let other = enum_unwrap!(other, ValueObj::Dict);
+    let ValueObj::Dict(other) = other else {
+        return Err(type_mismatch("Dict", other, "Other"));
+    };
     Ok(ValueObj::Dict(slf.concat(other)).into())
 }
 
@@ -381,11 +398,15 @@ pub(crate) fn dict_diff(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<
     let slf = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
-    let slf = enum_unwrap!(slf, ValueObj::Dict);
+    let ValueObj::Dict(slf) = slf else {
+        return Err(type_mismatch("Dict", slf, "Self"));
+    };
     let other = args
         .remove_left_or_key("Other")
         .ok_or_else(|| not_passed("Other"))?;
-    let other = enum_unwrap!(other, ValueObj::Dict);
+    let ValueObj::Dict(other) = other else {
+        return Err(type_mismatch("Dict", other, "Other"));
+    };
     Ok(ValueObj::Dict(slf.diff(&other)).into())
 }
 
@@ -394,7 +415,9 @@ pub(crate) fn array_union(mut args: ValueArgs, ctx: &Context) -> EvalValueResult
     let slf = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
-    let slf = enum_unwrap!(slf, ValueObj::Array);
+    let ValueObj::Array(slf) = slf else {
+        return Err(type_mismatch("Array", slf, "Self"));
+    };
     let slf = slf
         .iter()
         .map(|t| ctx.convert_value_into_type(t.clone()).unwrap())
@@ -423,7 +446,12 @@ fn _arr_shape(arr: ValueObj, ctx: &Context) -> Result<Vec<TyParam>, String> {
             }
             ValueObj::Type(ref t) if &t.typ().qual_name()[..] == "Array" => {
                 let mut tps = t.typ().typarams();
-                let elem = ctx.convert_tp_into_type(tps.remove(0)).unwrap();
+                let elem = match ctx.convert_tp_into_type(tps.remove(0)) {
+                    Ok(elem) => elem,
+                    Err(err) => {
+                        return Err(err.to_string());
+                    }
+                };
                 let len = tps.remove(0);
                 shape.push(len);
                 arr = ValueObj::builtin_type(elem);
@@ -452,24 +480,31 @@ pub(crate) fn array_shape(mut args: ValueArgs, ctx: &Context) -> EvalValueResult
 }
 
 pub(crate) fn __range_getitem__(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
-    let (_name, fields) = enum_unwrap!(
-        args.remove_left_or_key("Self")
-            .ok_or_else(|| not_passed("Self"))?,
-        ValueObj::DataClass { name, fields }
-    );
+    let slf = args
+        .remove_left_or_key("Self")
+        .ok_or_else(|| not_passed("Self"))?;
+    let ValueObj::DataClass { name: _, fields } = slf else {
+        return Err(type_mismatch("Range", slf, "Self"));
+    };
     let index = args
         .remove_left_or_key("Index")
         .ok_or_else(|| not_passed("Index"))?;
-    let index = enum_unwrap!(index, ValueObj::Nat);
+    let Ok(index) = usize::try_from(&index) else {
+        return Err(type_mismatch("Nat", index, "Index"));
+    };
     let start = fields
         .get("start")
         .ok_or_else(|| no_key(&fields, "start"))?;
-    let start = *enum_unwrap!(start, ValueObj::Nat);
+    let Ok(start) = usize::try_from(start) else {
+        return Err(type_mismatch("Nat", start, "start"));
+    };
     let end = fields.get("end").ok_or_else(|| no_key(&fields, "end"))?;
-    let end = *enum_unwrap!(end, ValueObj::Nat);
+    let Ok(end) = usize::try_from(end) else {
+        return Err(type_mismatch("Nat", end, "end"));
+    };
     // FIXME <= if inclusive
     if start + index < end {
-        Ok(ValueObj::Nat(start + index).into())
+        Ok(ValueObj::Nat((start + index) as u64).into())
     } else {
         Err(ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
