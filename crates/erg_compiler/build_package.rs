@@ -259,6 +259,16 @@ impl<Parser: ASTBuildable, Builder: Buildable> PackageBuilder<Parser, Builder> {
         let ValueObj::Str(__name__) = &mod_name.value else {
             return Ok(());
         };
+        if call
+            .additional_operation()
+            .is_some_and(|op| op.is_erg_import())
+            && __name__ == "unsound"
+        {
+            if let Some(mod_ctx) = self.get_context() {
+                mod_ctx.context.build_module_unsound();
+            }
+            return Ok(());
+        }
         let import_path = match cfg.input.resolve_path(Path::new(&__name__[..])) {
             Some(path) => path,
             None => {

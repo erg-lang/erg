@@ -497,6 +497,10 @@ impl Identifier {
         }
     }
 
+    pub fn call(self, args: Args) -> Call {
+        Call::new(Expr::Accessor(Accessor::Ident(self)), None, args)
+    }
+
     pub fn is_py_api(&self) -> bool {
         self.vi.py_name.is_some()
     }

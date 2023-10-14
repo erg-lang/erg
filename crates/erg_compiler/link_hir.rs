@@ -6,10 +6,10 @@ use std::rc::Rc;
 use erg_common::config::ErgConfig;
 use erg_common::dict::Dict as Dic;
 use erg_common::fresh::SharedFreshNameGenerator;
+use erg_common::log;
 use erg_common::pathutil::squash;
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
-use erg_common::{enum_unwrap, log};
 
 use erg_parser::ast::{DefId, OperationKind};
 use erg_parser::token::{Token, TokenKind, DOT, EQUAL};
@@ -402,10 +402,14 @@ impl<'a> HIRLinker<'a> {
                 .remove(path.as_path())
                 .and_then(|entry| entry.hir.map(|hir| (hir, entry.module.context.cfg.clone())))
         };
-        let mod_name = enum_unwrap!(expr, Expr::Call)
-            .args
-            .get_left_or_key("Path")
-            .unwrap();
+        let Expr::Call(call) = expr else {
+            log!(err "{expr}");
+            return;
+        };
+        let Some(mod_name) = call.args.get_left_or_key("Path") else {
+            log!(err "{call}");
+            return;
+        };
         // let sig = option_enum_unwrap!(&def.sig, Signature::Var)
         //    .unwrap_or_else(|| todo!("module subroutines are not allowed"));
         if let Some((hir, cfg)) = hir_cfg {
@@ -464,9 +468,20 @@ impl<'a> HIRLinker<'a> {
     /// x = __import__("a.x").x
     /// ```
     fn replace_py_import(&self, expr: &mut Expr) {
-        let args = &mut enum_unwrap!(expr, Expr::Call).args;
-        let mod_name_lit = enum_unwrap!(args.remove_left_or_key("Path").unwrap(), Expr::Literal);
-        let mod_name_str = enum_unwrap!(mod_name_lit.value.clone(), ValueObj::Str);
+        let args = if let Expr::Call(call) = expr {
+            &mut call.args
+        } else {
+            log!(err "{expr}");
+            return;
+        };
+        let Some(Expr::Literal(mod_name_lit)) = args.remove_left_or_key("Path") else {
+            log!(err "{args}");
+            return;
+        };
+        let ValueObj::Str(mod_name_str) = mod_name_lit.value.clone() else {
+            log!(err "{mod_name_lit}");
+            return;
+        };
         let mut dir = self.cfg.input.dir();
         let mod_path = self
             .cfg

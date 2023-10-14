@@ -502,6 +502,8 @@ impl Input {
             .canonicalize()
         {
             Some(normalize_path(path))
+        } else if path == Path::new("unsound") {
+            Some(PathBuf::from("unsound"))
         } else {
             None
         }

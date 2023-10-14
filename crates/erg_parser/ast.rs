@@ -4076,6 +4076,10 @@ impl NonDefaultParamSignature {
         Self { pat, t_spec }
     }
 
+    pub fn simple(name: Str) -> Self {
+        Self::new(ParamPattern::VarName(VarName::from_str(name)), None)
+    }
+
     pub const fn inspect(&self) -> Option<&Str> {
         self.pat.inspect()
     }

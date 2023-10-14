@@ -1,0 +1,10 @@
+unsound = import "unsound"
+
+i = unsound.pyeval "1 + 1"
+assert i in Nat
+assert i == 2
+
+print x =
+    unsound.perform do! print! x
+
+print "hello"

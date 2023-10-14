@@ -1153,6 +1153,69 @@ impl Context {
             .register(PathBuf::from("<builtins>"), None, None, module);
     }
 
+    pub(crate) fn build_module_unsound(&self) {
+        use erg_common::pathutil::NormalizedPathBuf;
+        use std::path::Path;
+
+        use crate::hir::{
+            Accessor, Args, Block, Def, DefBody, Expr, Identifier, Module, Params, Signature,
+            SubrSignature, VarSignature, HIR,
+        };
+        use erg_parser::ast::{DefId, NonDefaultParamSignature, TypeBoundSpecs};
+        use erg_parser::token::Token;
+
+        let path = NormalizedPathBuf::from(Path::new("unsound"));
+        let mut ctx = Context::new_module(
+            "unsound",
+            self.cfg.inherit(path.to_path_buf()),
+            self.shared().clone(),
+        );
+        let eval_t = func1(Type::Str, Type::Obj);
+        ctx.register_builtin_erg_impl(
+            "pyeval",
+            eval_t,
+            Mutability::Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        let pyeval = Identifier::public("pyeval");
+        let sig = VarSignature::new(pyeval.clone(), None);
+        let sig = Signature::Var(sig);
+        let eval = Expr::Accessor(Accessor::Ident(Identifier::public("eval")));
+        let block = Block::new(vec![eval]);
+        let body = DefBody::new(Token::DUMMY, block, DefId(0));
+        let eval = Def::new(sig, body);
+        let T = type_q("T");
+        let perform_t = func1(proc0(T.clone()), T).quantify();
+        ctx.register_builtin_erg_impl(
+            "perform",
+            perform_t,
+            Mutability::Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        let perform = Identifier::public("perform");
+        let params = Params::single(crate::hir::NonDefaultParamSignature::new(
+            NonDefaultParamSignature::simple("p!".into()),
+            VarInfo::const_default_public(),
+            None,
+        ));
+        let sig = SubrSignature::new(
+            set! {},
+            perform.clone(),
+            TypeBoundSpecs::empty(),
+            params,
+            None,
+        );
+        let sig = Signature::Subr(sig);
+        let call = Identifier::private("p!").call(Args::empty());
+        let block = Block::new(vec![Expr::Call(call)]);
+        let body = DefBody::new(Token::DUMMY, block, DefId(0));
+        let perform = Def::new(sig, body);
+        let module = Module::new(vec![Expr::Def(eval), Expr::Def(perform)]);
+        let hir = HIR::new("unsound".into(), module);
+        let ctx = ModuleContext::new(ctx, dict! {});
+        self.mod_cache().register(path, None, Some(hir), ctx);
+    }
+
     pub fn new_module<S: Into<Str>>(
         name: S,
         cfg: ErgConfig,

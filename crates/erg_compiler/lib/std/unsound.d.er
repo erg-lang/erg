@@ -1,0 +1,9 @@
+'''
+Evaluate a string as Python code.
+'''
+.pyeval: (code: Str, globals := {Str: Obj}, locals := {Str: Obj}) -> Obj
+'''
+Execute the procedure circumventing effect analysis.
+If you want to use side effects locally in a function, use the `isolate` function instead.
+'''
+.perform: |T|(p!: () => T) -> T
