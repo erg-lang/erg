@@ -12,3 +12,10 @@ for! immut_dict.items(), ((k, v),) =>
     print! k, v
 
 _ = immut_dict.copy()
+
+mut_dict = !{ "a": 1 }
+mut_dict.update! [("a", 2)], (a, b) -> a + b
+assert mut_dict == {"a": 3}
+mut_dict.insert! "b", 4
+i = mut_dict.remove! "a"
+assert i == 3

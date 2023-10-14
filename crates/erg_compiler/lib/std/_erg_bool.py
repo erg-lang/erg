@@ -53,5 +53,8 @@ class BoolMut(NatMut):
         else:
             return self.value != other.value
 
+    def update(self, f):
+        self.value = Bool(f(self.value))
+
     def invert(self):
         self.value = self.value.invert()

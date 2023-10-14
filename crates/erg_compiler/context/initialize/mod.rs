@@ -562,6 +562,7 @@ const KW_OFFSET: &str = "offset";
 const KW_WHENCE: &str = "whence";
 const KW_CHARS: &str = "chars";
 const KW_OTHER: &str = "other";
+const KW_CONFLICT_RESOLVER: &str = "conflict_resolver";
 
 pub fn builtins_path() -> PathBuf {
     erg_pystd_path().join("builtins.d.er")

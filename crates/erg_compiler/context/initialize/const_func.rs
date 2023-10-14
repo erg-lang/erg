@@ -6,6 +6,7 @@ use erg_common::dict::Dict;
 use erg_common::log;
 use erg_common::{dict, set};
 
+use crate::context::eval::UndoableLinkedList;
 use crate::context::Context;
 use crate::feature_error;
 use crate::ty::constructors::{and, mono, tuple_t, v_enum};
@@ -237,7 +238,8 @@ pub(crate) fn sub_vdict_get<'d>(
         }
     }
     for (idx, kt, v) in matches.into_iter() {
-        match ctx.sub_unify(idx.typ(), kt.typ(), &(), None) {
+        let list = UndoableLinkedList::new();
+        match ctx.undoable_sub_unify(idx.typ(), kt.typ(), &(), &list, None) {
             Ok(_) => {
                 return Some(v);
             }
@@ -269,7 +271,8 @@ pub(crate) fn sub_tpdict_get<'d>(
         }
     }
     for (idx, kt, v) in matches.into_iter() {
-        match ctx.sub_unify(idx, kt, &(), None) {
+        let list = UndoableLinkedList::new();
+        match ctx.undoable_sub_unify(idx, kt, &(), &list, None) {
             Ok(_) => {
                 return Some(v);
             }

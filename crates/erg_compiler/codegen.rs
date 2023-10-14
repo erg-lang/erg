@@ -2474,7 +2474,8 @@ impl PyCodeGenerator {
     fn emit_call_method(&mut self, obj: Expr, method_name: Identifier, args: Args) {
         log!(info "entered {}", fn_name!());
         match &method_name.inspect()[..] {
-            "update!" => {
+            // mut value class `update!` can be optimized
+            "update!" if method_name.ref_t().self_t().is_some_and(|t| t.ref_mut_inner().is_some_and(|t| t.is_mut_value_class())) => {
                 if self.py_version.minor >= Some(11) {
                     return self.emit_call_update_311(obj, args);
                 } else {

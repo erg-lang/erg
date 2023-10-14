@@ -145,3 +145,6 @@ class FloatMut:  # inherits Float
 
     def __neg__(self):
         return FloatMut(-self.value)
+
+    def update(self, f):
+        self.value = Float(f(self.value))

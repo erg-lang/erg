@@ -2244,11 +2244,12 @@ impl Context {
             vec![],
             NoneType,
         );
-        float_mut_mutable.register_builtin_erg_impl(
+        float_mut_mutable.register_builtin_py_impl(
             PROC_UPDATE,
             t,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_UPDATE),
         );
         float_mut.register_trait(mono(MUT_FLOAT), float_mut_mutable);
         /* Ratio! */
@@ -2268,11 +2269,12 @@ impl Context {
             vec![],
             NoneType,
         );
-        ratio_mut_mutable.register_builtin_erg_impl(
+        ratio_mut_mutable.register_builtin_py_impl(
             PROC_UPDATE,
             t,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_UPDATE),
         );
         ratio_mut.register_trait(mono(MUT_RATIO), ratio_mut_mutable);
         /* Int! */
@@ -2308,11 +2310,12 @@ impl Context {
             vec![],
             NoneType,
         );
-        int_mut_mutable.register_builtin_erg_impl(
+        int_mut_mutable.register_builtin_py_impl(
             PROC_UPDATE,
             t,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_UPDATE),
         );
         int_mut.register_trait(mono(MUT_INT), int_mut_mutable);
         let mut nat_mut = Self::builtin_mono_class(MUT_NAT, 2);
@@ -2333,11 +2336,12 @@ impl Context {
             vec![],
             NoneType,
         );
-        nat_mut_mutable.register_builtin_erg_impl(
+        nat_mut_mutable.register_builtin_py_impl(
             PROC_UPDATE,
             t,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_UPDATE),
         );
         nat_mut.register_trait(mono(MUT_NAT), nat_mut_mutable);
         /* Bool! */
@@ -2358,11 +2362,12 @@ impl Context {
             vec![],
             NoneType,
         );
-        bool_mut_mutable.register_builtin_erg_impl(
+        bool_mut_mutable.register_builtin_py_impl(
             PROC_UPDATE,
             t,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_UPDATE),
         );
         bool_mut.register_trait(mono(MUT_BOOL), bool_mut_mutable);
         let t = pr0_met(mono(MUT_BOOL), NoneType);
@@ -2390,11 +2395,12 @@ impl Context {
             vec![],
             NoneType,
         );
-        str_mut_mutable.register_builtin_erg_impl(
+        str_mut_mutable.register_builtin_py_impl(
             PROC_UPDATE,
             t,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_UPDATE),
         );
         str_mut.register_trait(mono(MUT_STR), str_mut_mutable);
         let t = pr_met(
@@ -2626,11 +2632,12 @@ impl Context {
         )
         .quantify();
         let mut array_mut_mutable = Self::builtin_methods(Some(mono(MUTABLE)), 2);
-        array_mut_mutable.register_builtin_erg_impl(
+        array_mut_mutable.register_builtin_py_impl(
             PROC_UPDATE,
             t,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_UPDATE),
         );
         array_mut_.register_trait(array_mut_t.clone(), array_mut_mutable);
         /* ByteArray! */
@@ -2766,7 +2773,10 @@ impl Context {
                 poly(ITERABLE, vec![ty_tp(tuple_t(vec![K.clone(), V.clone()]))]),
             )],
             None,
-            vec![],
+            vec![kw(
+                KW_CONFLICT_RESOLVER,
+                func2(V.clone(), V.clone(), V.clone()),
+            )],
             NoneType,
         )
         .quantify();

@@ -123,6 +123,9 @@ class NatMut(IntMut):  # and Nat
     def __pos__(self):
         return self
 
+    def update(self, f):
+        self.value = Nat(f(self.value))
+
     def try_new(i):  # -> Result[Nat]
         if i >= 0:
             return NatMut(i)

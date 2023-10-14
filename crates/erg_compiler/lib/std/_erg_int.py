@@ -153,6 +153,9 @@ class IntMut:  # inherits Int
     def __neg__(self):
         return IntMut(-self.value)
 
+    def update(self, f):
+        self.value = Int(f(self.value))
+
     def inc(self, i=1):
         self.value = Int(self.value + i)
 

@@ -1005,8 +1005,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     if sup.contains_union(&new_sub) {
                         maybe_sup.link(&new_sub, self.undoable); // Bool <: ?T <: Bool or Y ==> ?T == Bool
                     } else {
-                        let constr = Constraint::new_sandwiched(new_sub, mem::take(&mut sup));
-                        maybe_sup.update_constraint(constr, self.undoable, true);
+                        maybe_sup.update_tyvar(new_sub, mem::take(&mut sup), self.undoable, true);
                     }
                 }
                 // sub_unify(Nat, ?T(: Type)): (/* ?T(:> Nat) */)
@@ -1072,8 +1071,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     {
                         maybe_sub.link(&sub, self.undoable);
                     } else {
-                        let constr = Constraint::new_sandwiched(sub, new_sup);
-                        maybe_sub.update_constraint(constr, self.undoable, true);
+                        maybe_sub.update_tyvar(sub, new_sup, self.undoable, true);
                     }
                 }
                 // sub_unify(?T(: Type), Int): (?T(<: Int))
@@ -1570,6 +1568,7 @@ impl Context {
         unifier.sub_unify_tp(maybe_sub, maybe_sup, variance, is_structural)
     }
 
+    /// Use `undoable_sub_unify` to temporarily impose type constraints.
     pub(crate) fn sub_unify(
         &self,
         maybe_sub: &Type,

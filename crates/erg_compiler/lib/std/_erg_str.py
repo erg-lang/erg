@@ -76,6 +76,9 @@ class StrMut:  # Inherits Str
         else:
             return self.value != other.value
 
+    def update(self, f):
+        self.value = Str(f(self.value))
+
     def try_new(s: str):
         if isinstance(s, str):
             self = StrMut()

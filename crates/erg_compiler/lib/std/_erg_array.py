@@ -71,6 +71,9 @@ class Array(list):
     def __hash__(self):
         return hash(tuple(self))
 
+    def update(self, f):
+        self = Array(f(self))
+
     def type_check(self, t: type) -> bool:
         if isinstance(t, list):
             if len(t) < len(self):

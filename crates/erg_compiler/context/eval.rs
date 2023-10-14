@@ -1524,6 +1524,18 @@ impl Context {
         }
     }
 
+    fn _eval_tp_into_value(&self, tp: TyParam) -> EvalResult<ValueObj> {
+        self.eval_tp(tp).and_then(|tp| {
+            self.convert_tp_into_value(tp).map_err(|_| {
+                EvalErrors::from(EvalError::unreachable(
+                    self.cfg.input.clone(),
+                    fn_name!(),
+                    line!(),
+                ))
+            })
+        })
+    }
+
     /// Evaluate `substituted`.
     /// If the evaluation fails, return a harmless type (filled with `Failure`) and errors
     pub(crate) fn eval_t_params(
