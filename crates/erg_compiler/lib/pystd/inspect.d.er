@@ -1,6 +1,7 @@
 .FrameInfo: ClassType
 .Traceback: ClassType
 
+.currentframe!: () => Frame
 .ismodule: (object: Obj) -> Bool
 .isclass: (object: Obj) -> Bool
 .ismethod: (object: Obj) -> Bool

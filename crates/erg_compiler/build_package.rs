@@ -342,8 +342,6 @@ impl<Parser: ASTBuildable, Builder: Buildable> PackageBuilder<Parser, Builder> {
                 graph.remove(&ancestor);
                 if let Some((__name__, ancestor_ast)) = self.asts.remove(&ancestor) {
                     self.start_analysis_process(ancestor_ast, __name__, ancestor);
-                } else if !self.submodules.contains(&ancestor) {
-                    panic!("not found: {ancestor}");
                 }
             } else {
                 ancestors.insert(0, ancestor);

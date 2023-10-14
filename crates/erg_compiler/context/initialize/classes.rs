@@ -1303,6 +1303,28 @@ impl Context {
         );
         code.register_trait(Code, code_hash);
         code.register_marker_trait(self, mono(EQ_HASH)).unwrap();
+        let mut frame = Self::builtin_mono_class(FRAME, 10);
+        frame.register_builtin_erg_impl(
+            F_BUILTINS,
+            mono(GENERIC_DICT),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        frame.register_builtin_erg_impl(F_CODE, Code, Immutable, Visibility::BUILTIN_PUBLIC);
+        frame.register_builtin_erg_impl(
+            F_GLOBALS,
+            mono(GENERIC_DICT),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        frame.register_builtin_erg_impl(F_LASTI, Nat, Immutable, Visibility::BUILTIN_PUBLIC);
+        frame.register_builtin_erg_impl(F_LINENO, Nat, Immutable, Visibility::BUILTIN_PUBLIC);
+        frame.register_builtin_erg_impl(
+            F_LOCALS,
+            mono(GENERIC_DICT),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
         let g_module_t = mono(GENERIC_MODULE);
         let mut generic_module = Self::builtin_mono_class(GENERIC_MODULE, 2);
         generic_module.register_superclass(Obj, &obj);
@@ -2950,6 +2972,7 @@ impl Context {
         self.register_builtin_type(ClassType, class_type, vis.clone(), Const, Some(CLASS_TYPE));
         self.register_builtin_type(TraitType, trait_type, vis.clone(), Const, Some(TRAIT_TYPE));
         self.register_builtin_type(Code, code, vis.clone(), Const, Some(CODE_TYPE));
+        self.register_builtin_type(Frame, frame, vis.clone(), Const, Some(FRAME_TYPE));
         self.register_builtin_type(
             g_module_t,
             generic_module,
