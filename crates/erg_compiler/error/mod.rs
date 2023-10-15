@@ -9,7 +9,7 @@ use erg_common::error::{
 };
 use erg_common::io::Input;
 use erg_common::style::{Attribute, Color, StyledStr, StyledString, StyledStrings, Theme, THEME};
-use erg_common::traits::{Locational, Stream};
+use erg_common::traits::{Locational, NoTypeDisplay, Stream};
 use erg_common::{impl_display_and_error, impl_stream, switch_lang};
 
 use erg_parser::error::{ParseError, ParseErrors, ParserRunnerError, ParserRunnerErrors};
@@ -18,6 +18,7 @@ pub use crate::error::eval::*;
 pub use crate::error::lower::*;
 pub use crate::error::tycheck::*;
 use crate::hir::Expr;
+use crate::ty::HasType;
 
 /// `unreachable!(self: Context)`
 #[macro_export]
@@ -413,9 +414,31 @@ impl EffectError {
     }
 
     pub fn touch_mut_error(input: Input, errno: usize, expr: &Expr, caused_by: String) -> Self {
+        let (hint, def_loc) = match expr {
+            Expr::Accessor(acc)
+                if acc.root_obj().map_or(false, |obj| {
+                    obj.var_info().is_some_and(|vi| vi.is_parameter()) && !obj.ref_t().is_ref()
+                }) =>
+            {
+                let def_loc = acc.root_obj().unwrap().var_info().unwrap().def_loc.loc;
+                let msg = format!(
+                    "add `ref` in the parameter definition of `{}`",
+                    acc.root_obj().unwrap().to_string_notype()
+                );
+                (Some(msg), Some(def_loc))
+            }
+            _ => (None, None),
+        };
+        let fst =
+            SubMessage::ambiguous_new(expr.loc(), vec!["invalid access here".to_string()], None);
+        let sub = if let Some(def_loc) = def_loc {
+            vec![fst, SubMessage::ambiguous_new(def_loc, vec![], hint)]
+        } else {
+            vec![fst]
+        };
         Self::new(
             ErrorCore::new(
-                vec![SubMessage::only_loc(expr.loc())],
+                sub,
                 switch_lang!(
                     "japanese" => "関数中で可変オブジェクトにアクセスすることは出来ません",
                     "simplified_chinese" => "函数中不能访问可变对象",
