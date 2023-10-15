@@ -1,0 +1,16 @@
+#[
+Python's `STORE_NAME` was changed incompatibly in CPython 3.10.
+`STORE_NAME` was originally an instruction to branch to `STORE_FAST` or `STORE_GLOBAL` depending on the context,
+but as of 3.10, it now uses `STORE_GLOBAL` even when the value should clearly be fast.
+Currently the Erg code generator has already addressed this issue,
+but we added a test to ensure that future changes will not cause the same issue again.
+]#
+f(x: Int): Int =
+    y = x
+    if x == 0, do:
+        f::return 0
+    _ = f x - 1
+    y
+
+# if `y` is global, here `f(1)` will return 0
+assert f(1) == 1

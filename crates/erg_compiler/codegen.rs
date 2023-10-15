@@ -33,6 +33,7 @@ use erg_parser::token::EQUAL;
 use erg_parser::token::{Token, TokenKind};
 
 use crate::compile::{AccessKind, Name, StoreLoadKind};
+use crate::context::ControlKind;
 use crate::error::CompileError;
 use crate::hir::ArrayWithLength;
 use crate::hir::{
@@ -47,16 +48,27 @@ use crate::varinfo::VarInfo;
 use AccessKind::*;
 use Type::*;
 
-#[allow(dead_code)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ControlKind {
-    If,
-    While,
-    For,
-    Match,
-    With,
-    Discard,
-    Assert,
+#[derive(Debug)]
+pub enum RegisterNameKind {
+    Import,
+    Fast,
+    NonFast,
+}
+
+use RegisterNameKind::*;
+
+impl RegisterNameKind {
+    pub const fn is_fast(&self) -> bool {
+        matches!(self, Fast)
+    }
+
+    pub fn from_ident(ident: &Identifier) -> Self {
+        if ident.vi.is_fast_value() {
+            Fast
+        } else {
+            NonFast
+        }
+    }
 }
 
 /// patch method -> function
@@ -589,7 +601,6 @@ impl PyCodeGenerator {
     }
 
     fn local_search(&self, name: &str, _acc_kind: AccessKind) -> Option<Name> {
-        let current_is_toplevel = self.cur_block() == self.toplevel_block();
         if let Some(idx) = self
             .cur_block_codeobj()
             .names
@@ -603,9 +614,7 @@ impl PyCodeGenerator {
             .iter()
             .position(|v| &**v == name)
         {
-            if current_is_toplevel {
-                Some(Name::local(idx))
-            } else if self.cur_block().captured_vars.contains(&Str::rc(name)) {
+            if self.cur_block().captured_vars.contains(&Str::rc(name)) {
                 Some(Name::deref(idx))
             } else {
                 Some(Name::fast(idx))
@@ -644,17 +653,22 @@ impl PyCodeGenerator {
         Some(StoreLoadKind::Global)
     }
 
-    fn register_name(&mut self, name: Str) -> Name {
+    fn register_name(&mut self, name: Str, kind: RegisterNameKind) -> Name {
         let current_is_toplevel = self.cur_block() == self.toplevel_block();
         match self.rec_search(&name) {
             Some(st @ (StoreLoadKind::Local | StoreLoadKind::Global)) => {
-                let st = if current_is_toplevel {
-                    StoreLoadKind::Local
+                if kind.is_fast() {
+                    self.mut_cur_block_codeobj().varnames.push(name);
+                    Name::fast(self.cur_block_codeobj().varnames.len() - 1)
                 } else {
-                    st
-                };
-                self.mut_cur_block_codeobj().names.push(name);
-                Name::new(st, self.cur_block_codeobj().names.len() - 1)
+                    let st = if current_is_toplevel {
+                        StoreLoadKind::Local
+                    } else {
+                        st
+                    };
+                    self.mut_cur_block_codeobj().names.push(name);
+                    Name::new(st, self.cur_block_codeobj().names.len() - 1)
+                }
             }
             Some(StoreLoadKind::Deref) => {
                 self.mut_cur_block_codeobj().freevars.push(name.clone());
@@ -743,6 +757,7 @@ impl PyCodeGenerator {
             self.load_module_type();
             self.module_type_loaded = true;
         }
+        let kind = RegisterNameKind::from_ident(&ident);
         let escaped = escape_ident(ident);
         match &escaped[..] {
             "if__" | "for__" | "while__" | "with__" | "discard__" => {
@@ -769,7 +784,7 @@ impl PyCodeGenerator {
         }
         let name = self
             .local_search(&escaped, Name)
-            .unwrap_or_else(|| self.register_name(escaped));
+            .unwrap_or_else(|| self.register_name(escaped, kind));
         let instr = self.select_load_instr(name.kind, Name);
         self.write_instr(instr);
         self.write_arg(name.idx);
@@ -785,7 +800,7 @@ impl PyCodeGenerator {
         let escaped = escape_ident(ident);
         let name = self
             .local_search(&escaped, Name)
-            .unwrap_or_else(|| self.register_name(escaped));
+            .unwrap_or_else(|| self.register_name(escaped, NonFast));
         let instr = LOAD_GLOBAL;
         self.write_instr(instr);
         self.write_arg(name.idx);
@@ -797,7 +812,7 @@ impl PyCodeGenerator {
         let escaped = escape_ident(ident);
         let name = self
             .local_search(&escaped, Name)
-            .unwrap_or_else(|| self.register_name(escaped));
+            .unwrap_or_else(|| self.register_name(escaped, Import));
         self.write_instr(IMPORT_NAME);
         self.write_arg(name.idx);
         self.stack_inc_n(items_len);
@@ -809,7 +824,7 @@ impl PyCodeGenerator {
         let escaped = escape_ident(ident);
         let name = self
             .local_search(&escaped, Name)
-            .unwrap_or_else(|| self.register_name(escaped));
+            .unwrap_or_else(|| self.register_name(escaped, Import));
         self.write_instr(IMPORT_FROM);
         self.write_arg(name.idx);
         // self.stack_inc(); (module object) -> attribute
@@ -822,7 +837,7 @@ impl PyCodeGenerator {
         let escaped = escape_ident(ident);
         let name = self
             .local_search(&escaped, Name)
-            .unwrap_or_else(|| self.register_name(escaped));
+            .unwrap_or_else(|| self.register_name(escaped, Import));
         self.write_instr(IMPORT_NAME);
         self.write_arg(name.idx);
         self.stack_inc();
@@ -891,10 +906,11 @@ impl PyCodeGenerator {
 
     fn emit_store_instr(&mut self, ident: Identifier, acc_kind: AccessKind) {
         log!(info "entered {} ({ident})", fn_name!());
+        let kind = RegisterNameKind::from_ident(&ident);
         let escaped = escape_ident(ident);
         let name = self.local_search(&escaped, acc_kind).unwrap_or_else(|| {
             if acc_kind.is_local() {
-                self.register_name(escaped)
+                self.register_name(escaped, kind)
             } else {
                 self.register_attr(escaped)
             }
@@ -908,6 +924,8 @@ impl PyCodeGenerator {
                 self.write_bytes(&[0; 8]);
             }
             self.stack_dec();
+        } else if instr == STORE_FAST as u8 {
+            self.mut_cur_block_codeobj().nlocals += 1;
         }
     }
 
@@ -918,7 +936,7 @@ impl PyCodeGenerator {
         let escaped = escape_ident(ident);
         let name = self
             .local_search(&escaped, Name)
-            .unwrap_or_else(|| self.register_name(escaped));
+            .unwrap_or_else(|| self.register_name(escaped, NonFast));
         let instr = STORE_GLOBAL;
         self.write_instr(instr);
         self.write_arg(name.idx);
@@ -1905,7 +1923,7 @@ impl PyCodeGenerator {
         let escaped = escape_ident(ident);
         let name = self
             .local_search(&escaped, Name)
-            .unwrap_or_else(|| self.register_name(escaped));
+            .unwrap_or_else(|| self.register_name(escaped, Fast));
         self.write_instr(DELETE_NAME);
         self.write_arg(name.idx);
         self.emit_load_const(ValueObj::None);
@@ -2990,7 +3008,7 @@ impl PyCodeGenerator {
         );
         let name = self
             .local_search(&full_name, Name)
-            .unwrap_or_else(|| self.register_name(full_name));
+            .unwrap_or_else(|| self.register_name(full_name, Import));
         self.write_instr(IMPORT_NAME);
         self.write_arg(name.idx);
         let root = Self::get_root(&acc);

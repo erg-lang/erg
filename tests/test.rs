@@ -121,6 +121,11 @@ fn exec_external() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_fast_value() -> Result<(), ()> {
+    expect_success("tests/should_ok/fast_value.er", 0)
+}
+
+#[test]
 fn exec_fib() -> Result<(), ()> {
     expect_success("examples/fib.er", 0)
 }

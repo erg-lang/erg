@@ -1141,9 +1141,12 @@ impl ASTLowerer {
         expect: Option<&Type>,
     ) -> LowerResult<hir::Call> {
         log!(info "entered {}({}{}(...))", fn_name!(), call.obj, fmt_option!(call.attr_name));
-        if let (Some(name), None) = (call.obj.get_name(), &call.attr_name) {
+        let pushed = if let (Some(name), None) = (call.obj.get_name(), &call.attr_name) {
             self.module.context.higher_order_caller.push(name.clone());
-        }
+            true
+        } else {
+            false
+        };
         let mut errs = LowerErrors::empty();
         let guard = if let (
             ast::Expr::Accessor(ast::Accessor::Ident(ident)),
@@ -1163,7 +1166,9 @@ impl ASTLowerer {
         let mut obj = match self.lower_expr(*call.obj, None) {
             Ok(obj) => obj,
             Err(es) => {
-                self.module.context.higher_order_caller.pop();
+                if pushed {
+                    self.module.context.higher_order_caller.pop();
+                }
                 errs.extend(es);
                 return Err(errs);
             }
@@ -1190,7 +1195,9 @@ impl ASTLowerer {
         ) {
             Ok(vi) => vi,
             Err((vi, es)) => {
-                self.module.context.higher_order_caller.pop();
+                if pushed {
+                    self.module.context.higher_order_caller.pop();
+                }
                 errs.extend(es);
                 vi.unwrap_or(VarInfo::ILLEGAL)
             }
@@ -1231,7 +1238,9 @@ impl ASTLowerer {
                 self.errs.extend(errs);
             }
         }*/
-        self.module.context.higher_order_caller.pop();
+        if pushed {
+            self.module.context.higher_order_caller.pop();
+        }
         if errs.is_empty() {
             self.exec_additional_op(&mut call)?;
         }
@@ -1454,9 +1463,9 @@ impl ASTLowerer {
         let id = lambda.id.0;
         let name = format!("<lambda_{id}>");
         let kind = if is_procedural {
-            ContextKind::Proc
+            ContextKind::LambdaProc(self.module.context.control_kind())
         } else {
-            ContextKind::Func
+            ContextKind::LambdaFunc(self.module.context.control_kind())
         };
         let tv_cache = self
             .module

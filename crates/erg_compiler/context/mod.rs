@@ -66,7 +66,23 @@ pub enum ControlKind {
     Match,
     Try,
     With,
+    Discard,
     Assert,
+}
+
+impl fmt::Display for ControlKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::If => write!(f, "if"),
+            Self::While => write!(f, "while"),
+            Self::For => write!(f, "for"),
+            Self::Match => write!(f, "match"),
+            Self::Try => write!(f, "try"),
+            Self::With => write!(f, "with"),
+            Self::Discard => write!(f, "discard"),
+            Self::Assert => write!(f, "assert"),
+        }
+    }
 }
 
 impl TryFrom<&str> for ControlKind {
@@ -80,6 +96,7 @@ impl TryFrom<&str> for ControlKind {
             "match" | "match!" => Ok(ControlKind::Match),
             "try" | "try!" => Ok(ControlKind::Try),
             "with" | "with!" => Ok(ControlKind::With),
+            "discard" => Ok(ControlKind::Discard),
             "assert" => Ok(ControlKind::Assert),
             _ => Err(()),
         }
@@ -311,6 +328,8 @@ impl From<&ParamSpec> for ParamTy {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ContextKind {
+    LambdaFunc(Option<ControlKind>),
+    LambdaProc(Option<ControlKind>),
     Func,
     Proc,
     Class,
@@ -354,6 +373,8 @@ impl From<&Def> for ContextKind {
 impl fmt::Display for ContextKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::LambdaFunc(kind) => write!(f, "LambdaFunc({})", fmt_option!(kind)),
+            Self::LambdaProc(kind) => write!(f, "LambdaProc({})", fmt_option!(kind)),
             Self::Func => write!(f, "Func"),
             Self::Proc => write!(f, "Proc"),
             Self::Class => write!(f, "Class"),
@@ -386,7 +407,10 @@ impl ContextKind {
     }
 
     pub const fn is_subr(&self) -> bool {
-        matches!(self, Self::Func | Self::Proc)
+        matches!(
+            self,
+            Self::Func | Self::Proc | Self::LambdaFunc(_) | Self::LambdaProc(_)
+        )
     }
 
     pub const fn is_class(&self) -> bool {
@@ -403,6 +427,17 @@ impl ContextKind {
 
     pub const fn is_module(&self) -> bool {
         matches!(self, Self::Module)
+    }
+
+    pub const fn is_instant(&self) -> bool {
+        matches!(self, Self::Instant)
+    }
+
+    pub const fn control_kind(&self) -> Option<ControlKind> {
+        match self {
+            Self::LambdaFunc(kind) | Self::LambdaProc(kind) => *kind,
+            _ => None,
+        }
     }
 }
 
@@ -1129,6 +1164,7 @@ impl Context {
         };
         self.cfg = self.get_outer().unwrap().cfg.clone();
         self.shared = self.get_outer().unwrap().shared.clone();
+        self.higher_order_caller = self.get_outer().unwrap().higher_order_caller.clone();
         self.tv_cache = tv_cache;
         self.name = name.into();
         self.kind = kind;
@@ -1266,9 +1302,12 @@ impl Context {
     }
 
     pub fn control_kind(&self) -> Option<ControlKind> {
-        self.higher_order_caller
-            .last()
-            .and_then(|caller| ControlKind::try_from(&caller[..]).ok())
+        for caller in self.higher_order_caller.iter().rev() {
+            if let Ok(control) = ControlKind::try_from(&caller[..]) {
+                return Some(control);
+            }
+        }
+        None
     }
 
     pub(crate) fn check_types(&self) {

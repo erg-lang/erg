@@ -448,4 +448,11 @@ impl VarInfo {
     pub fn is_toplevel(&self) -> bool {
         self.vis.def_namespace.split_with(&[".", "::"]).len() == 1
     }
+
+    pub fn is_fast_value(&self) -> bool {
+        !self.is_toplevel()
+            && !self.is_parameter()
+            && self.ctx.control_kind().is_none()
+            && (self.ctx.is_subr() || self.ctx.is_instant())
+    }
 }
