@@ -1,6 +1,6 @@
 fib n: Int =
     if n <= 1, do:
-        fib.return n
+        fib::return n
     fib(n - 1) + fib(n - 2)
 
 assert fib(10) == 55
@@ -8,5 +8,5 @@ assert fib(10) == 55
 # Need to specify the return type
 invalid_fib(n: Int): Int or Str =
     if n <= 1, do:
-        invalid_fib.return n
+        invalid_fib::return n
     "string"

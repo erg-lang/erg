@@ -2926,7 +2926,7 @@ impl Context {
             FUNC_RETURN,
             t_return,
             Immutable,
-            Visibility::BUILTIN_PUBLIC,
+            Visibility::BUILTIN_PRIVATE,
         );
         let mut g_generator = Self::builtin_mono_class(GENERIC_GENERATOR, 2);
         g_generator.register_superclass(mono(GENERIC_CALLABLE), &g_callable);
@@ -2935,7 +2935,7 @@ impl Context {
             FUNC_YIELD,
             t_yield,
             Immutable,
-            Visibility::BUILTIN_PUBLIC,
+            Visibility::BUILTIN_PRIVATE,
         );
         /* Proc */
         let mut proc = Self::builtin_mono_class(PROC, 2);
