@@ -1650,35 +1650,40 @@ impl PyCodeGenerator {
     fn emit_binop_instr(&mut self, binop: Token, type_pair: TypePair) {
         if self.py_version.minor >= Some(11) {
             self.emit_binop_instr_311(binop, type_pair);
+        } else if self.py_version.minor >= Some(9) {
+            self.emit_binop_instr_309(binop, type_pair);
         } else {
-            self.emit_binop_instr_310(binop, type_pair);
+            self.emit_binop_instr_307(binop, type_pair);
         }
     }
 
-    fn emit_binop_instr_310(&mut self, binop: Token, type_pair: TypePair) {
+    fn emit_binop_instr_307(&mut self, binop: Token, type_pair: TypePair) {
         let instr = match &binop.kind {
-            TokenKind::Plus => Opcode310::BINARY_ADD,
-            TokenKind::Minus => Opcode310::BINARY_SUBTRACT,
-            TokenKind::Star => Opcode310::BINARY_MULTIPLY,
-            TokenKind::Slash => Opcode310::BINARY_TRUE_DIVIDE,
-            TokenKind::FloorDiv => Opcode310::BINARY_FLOOR_DIVIDE,
-            TokenKind::Pow => Opcode310::BINARY_POWER,
-            TokenKind::Mod => Opcode310::BINARY_MODULO,
-            TokenKind::AndOp | TokenKind::BitAnd => Opcode310::BINARY_AND,
-            TokenKind::OrOp | TokenKind::BitOr => Opcode310::BINARY_OR,
-            TokenKind::BitXor => Opcode310::BINARY_XOR,
-            TokenKind::IsOp | TokenKind::IsNotOp => Opcode310::IS_OP,
+            TokenKind::Plus => Opcode308::BINARY_ADD,
+            TokenKind::Minus => Opcode308::BINARY_SUBTRACT,
+            TokenKind::Star => Opcode308::BINARY_MULTIPLY,
+            TokenKind::Slash => Opcode308::BINARY_TRUE_DIVIDE,
+            TokenKind::FloorDiv => Opcode308::BINARY_FLOOR_DIVIDE,
+            TokenKind::Pow => Opcode308::BINARY_POWER,
+            TokenKind::Mod => Opcode308::BINARY_MODULO,
+            TokenKind::AndOp | TokenKind::BitAnd => Opcode308::BINARY_AND,
+            TokenKind::OrOp | TokenKind::BitOr => Opcode308::BINARY_OR,
+            TokenKind::BitXor => Opcode308::BINARY_XOR,
             TokenKind::Less
             | TokenKind::LessEq
             | TokenKind::DblEq
             | TokenKind::NotEq
             | TokenKind::Gre
-            | TokenKind::GreEq => Opcode310::COMPARE_OP,
+            | TokenKind::GreEq
+            | TokenKind::InOp
+            | TokenKind::NotInOp
+            | TokenKind::IsOp
+            | TokenKind::IsNotOp => Opcode308::COMPARE_OP,
             TokenKind::LeftOpen
             | TokenKind::RightOpen
             | TokenKind::Closed
             | TokenKind::Open
-            | TokenKind::ContainsOp => Opcode310::CALL_FUNCTION, // ERG_BINARY_RANGE,
+            | TokenKind::ContainsOp => Opcode308::CALL_FUNCTION, // ERG_BINARY_RANGE,
             _ => {
                 CompileError::feature_error(
                     self.cfg.input.clone(),
@@ -1688,7 +1693,76 @@ impl PyCodeGenerator {
                     String::from(binop.content),
                 )
                 .write_to_stderr();
-                Opcode310::NOT_IMPLEMENTED
+                Opcode308::NOT_IMPLEMENTED
+            }
+        };
+        let arg = match &binop.kind {
+            TokenKind::Less => 0,
+            TokenKind::LessEq => 1,
+            TokenKind::DblEq => 2,
+            TokenKind::NotEq => 3,
+            TokenKind::Gre => 4,
+            TokenKind::GreEq => 5,
+            TokenKind::InOp => 6,
+            TokenKind::NotInOp => 7,
+            TokenKind::IsOp => 8,
+            TokenKind::IsNotOp => 9,
+            TokenKind::LeftOpen
+            | TokenKind::RightOpen
+            | TokenKind::Closed
+            | TokenKind::Open
+            | TokenKind::ContainsOp => 2,
+            _ => type_pair as usize,
+        };
+        self.write_instr(instr);
+        self.write_arg(arg);
+        self.stack_dec();
+        match &binop.kind {
+            TokenKind::LeftOpen
+            | TokenKind::RightOpen
+            | TokenKind::Open
+            | TokenKind::Closed
+            | TokenKind::ContainsOp => {
+                self.stack_dec();
+            }
+            _ => {}
+        }
+    }
+
+    fn emit_binop_instr_309(&mut self, binop: Token, type_pair: TypePair) {
+        let instr = match &binop.kind {
+            TokenKind::Plus => Opcode309::BINARY_ADD,
+            TokenKind::Minus => Opcode309::BINARY_SUBTRACT,
+            TokenKind::Star => Opcode309::BINARY_MULTIPLY,
+            TokenKind::Slash => Opcode309::BINARY_TRUE_DIVIDE,
+            TokenKind::FloorDiv => Opcode309::BINARY_FLOOR_DIVIDE,
+            TokenKind::Pow => Opcode309::BINARY_POWER,
+            TokenKind::Mod => Opcode309::BINARY_MODULO,
+            TokenKind::AndOp | TokenKind::BitAnd => Opcode309::BINARY_AND,
+            TokenKind::OrOp | TokenKind::BitOr => Opcode309::BINARY_OR,
+            TokenKind::BitXor => Opcode309::BINARY_XOR,
+            TokenKind::IsOp | TokenKind::IsNotOp => Opcode309::IS_OP,
+            TokenKind::Less
+            | TokenKind::LessEq
+            | TokenKind::DblEq
+            | TokenKind::NotEq
+            | TokenKind::Gre
+            | TokenKind::GreEq => Opcode309::COMPARE_OP,
+            TokenKind::LeftOpen
+            | TokenKind::RightOpen
+            | TokenKind::Closed
+            | TokenKind::Open
+            | TokenKind::ContainsOp => Opcode309::CALL_FUNCTION, // ERG_BINARY_RANGE,
+            _ => {
+                CompileError::feature_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    binop.loc(),
+                    &binop.inspect().clone(),
+                    String::from(binop.content),
+                )
+                .write_to_stderr();
+                Opcode309::NOT_IMPLEMENTED
             }
         };
         let arg = match &binop.kind {
