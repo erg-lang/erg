@@ -800,13 +800,13 @@ impl CodeObj {
             | CommonOpcode::LOAD_METHOD
             | CommonOpcode::IMPORT_NAME
             | CommonOpcode::IMPORT_FROM => {
-                write!(instrs, "{arg} ({})", self.names.get(arg).unwrap()).unwrap();
+                write!(instrs, "{arg} ({})", self.names[arg]).unwrap();
             }
             CommonOpcode::STORE_FAST | CommonOpcode::LOAD_FAST => {
-                write!(instrs, "{arg} ({})", self.varnames.get(arg).unwrap()).unwrap();
+                write!(instrs, "{arg} ({})", self.varnames[arg]).unwrap();
             }
             CommonOpcode::LOAD_CONST => {
-                write!(instrs, "{arg} ({})", self.consts.get(arg).unwrap()).unwrap();
+                write!(instrs, "{arg} ({})", self.consts[arg]).unwrap();
             }
             CommonOpcode::FOR_ITER => {
                 write!(instrs, "{arg} (to {})", idx + arg * 2 + 2).unwrap();

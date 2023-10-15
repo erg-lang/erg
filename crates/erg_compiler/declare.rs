@@ -627,7 +627,7 @@ impl ASTLowerer {
                     Visibility::new(vis, self.module.context.name.clone()),
                     VarKind::Declared,
                     None,
-                    None,
+                    self.module.context.kind.clone(),
                     Some(py_name),
                     self.module.context.absolutize(ident.name.loc()),
                 );
@@ -743,7 +743,7 @@ impl ASTLowerer {
                     Visibility::new(vis, self.module.context.name.clone()),
                     VarKind::Declared,
                     None,
-                    None,
+                    self.module.context.kind.clone(),
                     Some(py_name),
                     self.module.context.absolutize(attr.ident.name.loc()),
                 );

@@ -2363,7 +2363,7 @@ impl ASTLowerer {
                                 continue;
                             }
                         }
-                        if sup_vi.impl_of.as_ref() != impl_trait {
+                        if sup_vi.impl_of() != impl_trait {
                             continue;
                         }
                         self.errs.push(LowerError::override_error(
@@ -2492,7 +2492,7 @@ impl ASTLowerer {
                     already_defined_methods.get_var_kv(newly_defined_name.inspect())
                 {
                     if already_defined_vi.kind != VarKind::Auto
-                        && already_defined_vi.impl_of == vi.impl_of
+                        && already_defined_vi.impl_of() == vi.impl_of()
                     {
                         self.errs.push(LowerError::duplicate_definition_error(
                             self.cfg.input.clone(),
@@ -2537,7 +2537,7 @@ impl ASTLowerer {
                     already_defined_methods.get_var_kv(newly_defined_name.inspect())
                 {
                     if already_defined_vi.kind != VarKind::Auto
-                        && already_defined_vi.impl_of == vi.impl_of
+                        && already_defined_vi.impl_of() == vi.impl_of()
                     {
                         self.errs.push(LowerError::duplicate_definition_error(
                             self.cfg.input.clone(),

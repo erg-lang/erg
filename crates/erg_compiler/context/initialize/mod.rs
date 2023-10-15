@@ -591,11 +591,6 @@ impl Context {
                 }
             }
         }
-        let impl_of = if let ContextKind::MethodDefs(Some(tr)) = &self.kind {
-            Some(tr.clone())
-        } else {
-            None
-        };
         let name = if PYTHON_MODE {
             if let Some(py_name) = py_name {
                 VarName::from_static(py_name)
@@ -614,7 +609,7 @@ impl Context {
                 vis,
                 Builtin,
                 None,
-                impl_of,
+                self.kind.clone(),
                 py_name.map(Str::ever),
                 AbsLocation::unknown(),
             );
@@ -642,18 +637,13 @@ impl Context {
                 }
             }
         }
-        let impl_of = if let ContextKind::MethodDefs(Some(tr)) = &self.kind {
-            Some(tr.clone())
-        } else {
-            None
-        };
         let vi = VarInfo::new(
             t,
             muty,
             vis,
             Builtin,
             None,
-            impl_of,
+            self.kind.clone(),
             py_name.map(Str::ever),
             loc,
         );
@@ -734,11 +724,6 @@ impl Context {
         if self.rec_get_const_obj(name).is_some() {
             panic!("already registered: {} {name}", self.name);
         } else {
-            let impl_of = if let ContextKind::MethodDefs(Some(tr)) = &self.kind {
-                Some(tr.clone())
-            } else {
-                None
-            };
             if DEBUG_MODE {
                 if let ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr {
                     sig_t: Type::Subr(subr),
@@ -757,7 +742,7 @@ impl Context {
                 vis,
                 Builtin,
                 None,
-                impl_of,
+                self.kind.clone(),
                 None,
                 AbsLocation::unknown(),
             );
@@ -776,11 +761,6 @@ impl Context {
         if self.rec_get_const_obj(name).is_some() {
             panic!("already registered: {} {name}", self.name);
         } else {
-            let impl_of = if let ContextKind::MethodDefs(Some(tr)) = &self.kind {
-                Some(tr.clone())
-            } else {
-                None
-            };
             if DEBUG_MODE {
                 if let ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr {
                     sig_t: Type::Subr(subr),
@@ -799,7 +779,7 @@ impl Context {
                 vis,
                 Builtin,
                 None,
-                impl_of,
+                self.kind.clone(),
                 py_name.map(Str::ever),
                 AbsLocation::unknown(),
             );
@@ -872,7 +852,7 @@ impl Context {
                 vis,
                 Builtin,
                 None,
-                None,
+                self.kind.clone(),
                 py_name.map(Str::ever),
                 AbsLocation::unknown(),
             );
@@ -948,7 +928,7 @@ impl Context {
                         vis,
                         Builtin,
                         None,
-                        None,
+                        self.kind.clone(),
                         py_name.map(Str::ever),
                         AbsLocation::unknown(),
                     ),
@@ -1013,7 +993,7 @@ impl Context {
                 vis,
                 Builtin,
                 None,
-                None,
+                self.kind.clone(),
                 None,
                 AbsLocation::unknown(),
             );

@@ -323,6 +323,7 @@ pub enum ContextKind {
     GluePatch(TraitImpl), // TODO: deprecate (integrate into Patch)
     Module,
     Instant,
+    Record,
     Dummy,
 }
 
@@ -365,6 +366,7 @@ impl fmt::Display for ContextKind {
             Self::GluePatch(type_) => write!(f, "GluePatch({type_})"),
             Self::Module => write!(f, "Module"),
             Self::Instant => write!(f, "Instant"),
+            Self::Record => write!(f, "Record"),
             Self::Dummy => write!(f, "Dummy"),
         }
     }
@@ -648,29 +650,29 @@ impl Context {
         for param in params.clone().into_iter() {
             let id = DefId(get_hash(&(&name, &param)));
             if let Some(name) = param.name {
-                let kind = VarKind::parameter(id, param.is_var_params, param.default_info);
+                let var_kind = VarKind::parameter(id, param.is_var_params, param.default_info);
                 let muty = Mutability::from(&name[..]);
                 let vi = VarInfo::new(
                     param.t,
                     muty,
                     Visibility::private(&name),
-                    kind,
+                    var_kind,
                     None,
-                    None,
+                    kind.clone(),
                     None,
                     param.loc,
                 );
                 params_.push((Some(VarName::new(Token::symbol(&name))), vi));
             } else {
-                let kind = VarKind::parameter(id, param.is_var_params, param.default_info);
+                let var_kind = VarKind::parameter(id, param.is_var_params, param.default_info);
                 let muty = Mutability::Immutable;
                 let vi = VarInfo::new(
                     param.t,
                     muty,
                     Visibility::private(name.clone()),
-                    kind,
+                    var_kind,
                     None,
-                    None,
+                    kind.clone(),
                     None,
                     param.loc,
                 );

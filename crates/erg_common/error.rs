@@ -404,6 +404,17 @@ impl Location {
         matches!(self, Self::Unknown)
     }
 
+    pub const fn is_real(&self) -> bool {
+        match self {
+            Self::Line(l) => *l != 0,
+            Self::LineRange(lb, le) => *lb != 0 && *le != 0,
+            Self::Range {
+                ln_begin, ln_end, ..
+            } => *ln_begin != 0 && *ln_end != 0,
+            Self::Unknown => false,
+        }
+    }
+
     pub const fn unknown_or(&self, other: Self) -> Self {
         if self.is_unknown() {
             other

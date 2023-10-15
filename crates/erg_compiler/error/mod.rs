@@ -562,6 +562,7 @@ pub type CompileWarnings = CompileErrors;
 #[cfg(test)]
 mod test {
     use crate::{
+        context::ContextKind,
         error::*,
         hir::Identifier,
         ty::{Predicate, Type},
@@ -771,7 +772,7 @@ mod test {
                 crate::ty::Visibility::DUMMY_PRIVATE,
                 crate::varinfo::VarKind::Builtin,
                 None,
-                None,
+                ContextKind::Dummy,
                 None,
                 AbsLocation::unknown(),
             ),

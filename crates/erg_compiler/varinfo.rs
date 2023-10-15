@@ -8,7 +8,7 @@ use erg_common::{switch_lang, Str};
 
 use erg_parser::ast::DefId;
 
-use crate::context::DefaultInfo;
+use crate::context::{ContextKind, DefaultInfo};
 use crate::ty::{Field, HasType, Type, Visibility};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -164,6 +164,10 @@ impl AbsLocation {
         self.module.is_none() && self.loc.is_unknown()
     }
 
+    pub fn is_real(&self) -> bool {
+        self.module.is_some() && self.loc.is_real()
+    }
+
     pub fn starts_with(&self, path: impl AsRef<Path>) -> bool {
         self.module.as_ref().is_some_and(|p| p.starts_with(path))
     }
@@ -216,7 +220,7 @@ pub struct VarInfo {
     pub vis: Visibility,
     pub kind: VarKind,
     pub comptime_decos: Option<Set<Str>>,
-    pub impl_of: Option<Type>,
+    pub ctx: ContextKind,
     pub py_name: Option<Str>,
     pub def_loc: AbsLocation,
     pub alias_of: Option<AliasInfo>,
@@ -267,7 +271,7 @@ impl VarInfo {
             Visibility::DUMMY_PRIVATE,
             VarKind::DoesNotExist,
             None,
-            None,
+            ContextKind::Dummy,
             None,
             AbsLocation::unknown(),
         )
@@ -280,7 +284,7 @@ impl VarInfo {
             Visibility::DUMMY_PUBLIC,
             VarKind::DoesNotExist,
             None,
-            None,
+            ContextKind::Dummy,
             None,
             AbsLocation::unknown(),
         )
@@ -293,7 +297,7 @@ impl VarInfo {
         vis: Visibility,
         kind: VarKind,
         comptime_decos: Option<Set<Str>>,
-        impl_of: Option<Type>,
+        ctx: ContextKind,
         py_name: Option<Str>,
         def_loc: AbsLocation,
     ) -> Self {
@@ -303,7 +307,7 @@ impl VarInfo {
             vis,
             kind,
             comptime_decos,
-            impl_of,
+            ctx,
             py_name,
             def_loc,
             alias_of: None,
@@ -317,7 +321,7 @@ impl VarInfo {
         vis: Visibility,
         kind: VarKind,
         comptime_decos: Option<Set<Str>>,
-        impl_of: Option<Type>,
+        ctx: ContextKind,
         py_name: Option<Str>,
         def_loc: AbsLocation,
         alias_of: Option<AliasInfo>,
@@ -328,7 +332,7 @@ impl VarInfo {
             vis,
             kind,
             comptime_decos,
-            impl_of,
+            ctx,
             py_name,
             def_loc,
             alias_of,
@@ -354,7 +358,7 @@ impl VarInfo {
             Visibility::private(namespace),
             kind,
             None,
-            None,
+            ContextKind::Func,
             None,
             def_loc,
         )
@@ -372,13 +376,13 @@ impl VarInfo {
             Visibility::private(namespace),
             kind,
             None,
-            None,
+            ContextKind::Func,
             None,
             def_loc,
         )
     }
 
-    pub fn instance_attr(field: Field, t: Type, impl_of: Option<Type>, namespace: Str) -> Self {
+    pub fn instance_attr(field: Field, t: Type, kind: ContextKind, namespace: Str) -> Self {
         let muty = if field.is_const() {
             Mutability::Const
         } else {
@@ -390,7 +394,7 @@ impl VarInfo {
             Visibility::new(field.vis, namespace),
             VarKind::InstanceAttr,
             None,
-            impl_of,
+            kind,
             None,
             AbsLocation::unknown(),
         )
@@ -403,7 +407,7 @@ impl VarInfo {
             Visibility::private(namespace),
             VarKind::Declared,
             None,
-            None,
+            ContextKind::Dummy,
             None,
             def_loc,
         )
@@ -416,7 +420,7 @@ impl VarInfo {
             vis,
             VarKind::Declared,
             None,
-            None,
+            ContextKind::Dummy,
             None,
             def_loc,
         )
@@ -428,5 +432,20 @@ impl VarInfo {
 
     pub const fn is_parameter(&self) -> bool {
         self.kind.is_parameter()
+    }
+
+    pub fn impl_of(&self) -> Option<&Type> {
+        match &self.ctx {
+            ContextKind::MethodDefs(ty) => ty.as_ref(),
+            _ => None,
+        }
+    }
+
+    pub fn def_namespace(&self) -> &Str {
+        &self.vis.def_namespace
+    }
+
+    pub fn is_toplevel(&self) -> bool {
+        self.vis.def_namespace.split_with(&[".", "::"]).len() == 1
     }
 }

@@ -219,7 +219,7 @@ impl Context {
                 Visibility::new(vis, self.name.clone()),
                 kind,
                 None,
-                self.impl_of(),
+                self.kind.clone(),
                 py_name,
                 self.absolutize(ident.name.loc()),
             );
@@ -265,7 +265,7 @@ impl Context {
             Visibility::new(vis, self.name.clone()),
             kind,
             Some(comptime_decos),
-            self.impl_of(),
+            self.kind.clone(),
             py_name,
             self.absolutize(sig.ident.name.loc()),
         );
@@ -315,7 +315,7 @@ impl Context {
             ast::VarPattern::Discard(_) => {
                 return Ok(VarInfo {
                     t: body_t.clone(),
-                    impl_of: self.impl_of(),
+                    ctx: self.kind.clone(),
                     def_loc: self.absolutize(sig.loc()),
                     py_name,
                     alias_of,
@@ -345,7 +345,7 @@ impl Context {
                     Visibility::new(vis, self.name.clone()),
                     VarKind::Declared,
                     None,
-                    self.impl_of(),
+                    self.kind.clone(),
                     py_name.clone(),
                     self.absolutize(ident.name.loc()),
                 )
@@ -390,7 +390,7 @@ impl Context {
             Visibility::new(vis, self.name.clone()),
             kind,
             None,
-            self.impl_of(),
+            self.kind.clone(),
             py_name,
             self.absolutize(ident.name.loc()),
             alias_of,
@@ -463,7 +463,7 @@ impl Context {
                     vis,
                     kind,
                     None,
-                    None,
+                    self.kind.clone(),
                     None,
                     self.absolutize(token.loc()),
                 );
@@ -519,7 +519,7 @@ impl Context {
                         vis,
                         kind,
                         None,
-                        None,
+                        self.kind.clone(),
                         None,
                         self.absolutize(name.loc()),
                     );
@@ -573,7 +573,7 @@ impl Context {
                         vis,
                         kind,
                         None,
-                        None,
+                        self.kind.clone(),
                         None,
                         self.absolutize(name.loc()),
                     );
@@ -626,7 +626,7 @@ impl Context {
                         vis,
                         kind,
                         None,
-                        None,
+                        self.kind.clone(),
                         None,
                         self.absolutize(name.loc()),
                     );
@@ -868,7 +868,7 @@ impl Context {
             Visibility::new(vis, self.name.clone()),
             VarKind::Defined(id),
             Some(comptime_decos),
-            self.impl_of(),
+            self.kind.clone(),
             py_name,
             self.absolutize(name.loc()),
         );
@@ -920,7 +920,7 @@ impl Context {
             Visibility::new(vis, self.name.clone()),
             VarKind::DoesNotExist,
             Some(comptime_decos),
-            self.impl_of(),
+            self.kind.clone(),
             None,
             self.absolutize(name.loc()),
         );
@@ -1195,7 +1195,7 @@ impl Context {
                 vis,
                 VarKind::Auto,
                 None,
-                self.impl_of(),
+                self.kind.clone(),
                 py_name,
                 AbsLocation::unknown(),
             );
@@ -1231,7 +1231,7 @@ impl Context {
                     vis,
                     VarKind::FixedAuto,
                     None,
-                    self.impl_of(),
+                    self.kind.clone(),
                     py_name,
                     AbsLocation::unknown(),
                 ),
@@ -1245,7 +1245,7 @@ impl Context {
         name: VarName,
         t: Type,
         vis: Visibility,
-        impl_of: Option<Type>,
+        kind: ContextKind,
         py_name: Option<Str>,
     ) -> CompileResult<()> {
         if self.decls.get(&name).is_some() {
@@ -1263,7 +1263,7 @@ impl Context {
                 vis,
                 VarKind::Declared,
                 None,
-                impl_of,
+                kind,
                 py_name,
                 self.absolutize(name.loc()),
             );
@@ -1278,7 +1278,7 @@ impl Context {
         t: Type,
         muty: Mutability,
         vis: Visibility,
-        impl_of: Option<Type>,
+        kind: ContextKind,
         py_name: Option<Str>,
     ) -> CompileResult<()> {
         if self.locals.get(&name).is_some() {
@@ -1297,7 +1297,7 @@ impl Context {
                 vis,
                 VarKind::Defined(id),
                 None,
-                impl_of,
+                kind,
                 py_name,
                 self.absolutize(name.loc()),
             );
@@ -1400,7 +1400,7 @@ impl Context {
                         Visibility::new(vis, self.name.clone()),
                         VarKind::Defined(id),
                         None,
-                        self.impl_of(),
+                        self.kind.clone(),
                         None,
                         self.absolutize(ident.name.loc()),
                     );
@@ -1652,8 +1652,12 @@ impl Context {
     ) -> CompileResult<()> {
         for (field, t) in rec.iter() {
             let varname = VarName::from_str(field.symbol.clone());
-            let vi =
-                VarInfo::instance_attr(field.clone(), t.clone(), self.impl_of(), ctx.name.clone());
+            let vi = VarInfo::instance_attr(
+                field.clone(),
+                t.clone(),
+                self.kind.clone(),
+                ctx.name.clone(),
+            );
             // self.index().register(&vi);
             if let Some(_ent) = ctx.decls.insert(varname.clone(), vi) {
                 return Err(CompileErrors::from(CompileError::duplicate_decl_error(
@@ -1752,7 +1756,7 @@ impl Context {
                 Visibility::new(vis, self.name.clone()),
                 VarKind::Defined(id),
                 None,
-                self.impl_of(),
+                self.kind.clone(),
                 None,
                 self.absolutize(name.loc()),
             );
@@ -1794,7 +1798,7 @@ impl Context {
                 Visibility::new(vis, self.name.clone()),
                 VarKind::Defined(id),
                 None,
-                self.impl_of(),
+                self.kind.clone(),
                 None,
                 self.absolutize(name.loc()),
             );
@@ -1848,7 +1852,7 @@ impl Context {
                 Visibility::new(vis, self.name.clone()),
                 VarKind::Defined(id),
                 None,
-                self.impl_of(),
+                self.kind.clone(),
                 None,
                 self.absolutize(name.loc()),
             );
@@ -1899,7 +1903,7 @@ impl Context {
                     Visibility::new(vis, self.name.clone()),
                     VarKind::Defined(id),
                     None,
-                    self.impl_of(),
+                    self.kind.clone(),
                     None,
                     self.absolutize(name.loc()),
                 ),

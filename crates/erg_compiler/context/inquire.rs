@@ -676,7 +676,7 @@ impl Context {
                 Visibility::DUMMY_PUBLIC,
                 VarKind::Builtin,
                 None,
-                None,
+                ContextKind::Dummy,
                 None,
                 AbsLocation::unknown(),
             );
@@ -876,7 +876,7 @@ impl Context {
                         Visibility::new(field.vis.clone(), Str::ever("<dummy>")),
                         VarKind::Builtin,
                         None,
-                        None,
+                        ContextKind::Record,
                         None,
                         AbsLocation::unknown(),
                     );
@@ -897,7 +897,7 @@ impl Context {
                         Visibility::new(field.vis.clone(), Str::ever("<dummy>")),
                         VarKind::Builtin,
                         None,
-                        None,
+                        ContextKind::Record,
                         None,
                         AbsLocation::unknown(),
                     );
@@ -1095,7 +1095,7 @@ impl Context {
                 Visibility::DUMMY_PUBLIC,
                 VarKind::Builtin,
                 None,
-                None,
+                ContextKind::Dummy,
                 None,
                 AbsLocation::unknown(),
             );
