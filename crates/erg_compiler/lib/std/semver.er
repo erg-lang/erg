@@ -14,14 +14,14 @@
                 .Identifier::__new__ { .name; .num = num_ }
             _ -> panic "invalid identifier string: \{s}"
     @Override
-    __repr__ ref self = "Identifier(\{self.name}.\{self.num})"
+    __repr__ ref self = "Identifier(\{self.__str__()})"
 
 .SemVer = Class { .major = Nat; .minor = Nat; .patch = Nat; .pre = .Identifier or NoneType }
 .SemVer|<: Show|.
     __str__ ref self =
         if self.pre != None:
-            do: "SemVer(\{self.major}.\{self.minor}.\{self.patch}-\{self.pre})"
-            do: "SemVer(\{self.major}.\{self.minor}.\{self.patch})"
+            do: "\{self.major}.\{self.minor}.\{self.patch}-\{self.pre}"
+            do: "\{self.major}.\{self.minor}.\{self.patch}"
 .SemVer.
     new major, minor, patch, pre := None =
         .SemVer::__new__ { .major; .minor; .patch; .pre }
@@ -33,7 +33,7 @@
                 .SemVer.new(nat(major), nat(minor), nat(patch), .Identifier.from_str(pre))
             _ -> panic "invalid semver string: \{s}"
     @Override
-    __repr__ ref self = self.__str__()
+    __repr__ ref self = "SemVer(\{self.__str__()})"
 #[
     greater self, other: .Version =
         match [self.major > other.major, self.major >= other.major, self.minor > other.minor, self.minor >= other.minor, self.patch > other.patch]:
