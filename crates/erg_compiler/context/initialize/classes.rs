@@ -280,9 +280,101 @@ impl Context {
         );
         float.register_trait(Float, float_show);
 
+        /* Imag */
+        let mut imag = Self::builtin_mono_class(IMAG, 2);
+        imag.register_superclass(Complex, &complex);
+        imag.register_builtin_py_impl(
+            COMPLEX,
+            Ratio,
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+            Some(COMPLEX),
+        );
+        imag.register_marker_trait(self, mono(NUM)).unwrap();
+        imag.register_marker_trait(self, mono(ORD)).unwrap();
+        let mut imag_ord = Self::builtin_methods(Some(mono(ORD)), 2);
+        imag_ord.register_builtin_erg_impl(
+            OP_CMP,
+            fn1_met(Imag, Imag, mono(ORDERING)),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        imag.register_trait(Imag, imag_ord);
+        let mut imag_eq = Self::builtin_methods(Some(mono(EQ)), 2);
+        imag_eq.register_builtin_erg_impl(
+            OP_EQ,
+            fn1_met(Imag, Imag, Bool),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        imag.register_trait(Imag, imag_eq);
+        let op_t = fn1_met(Imag, Imag, Imag);
+        let mut imag_add = Self::builtin_methods(Some(poly(ADD, vec![ty_tp(Imag)])), 2);
+        imag_add.register_builtin_erg_impl(OP_ADD, op_t.clone(), Const, Visibility::BUILTIN_PUBLIC);
+        imag_add.register_builtin_const(
+            OUTPUT,
+            Visibility::BUILTIN_PUBLIC,
+            ValueObj::builtin_class(Imag),
+        );
+        imag.register_trait(Imag, imag_add);
+        let mut imag_sub = Self::builtin_methods(Some(poly(SUB, vec![ty_tp(Imag)])), 2);
+        imag_sub.register_builtin_erg_impl(OP_SUB, op_t.clone(), Const, Visibility::BUILTIN_PUBLIC);
+        imag_sub.register_builtin_const(
+            OUTPUT,
+            Visibility::BUILTIN_PUBLIC,
+            ValueObj::builtin_class(Imag),
+        );
+        imag.register_trait(Imag, imag_sub);
+        let mut imag_mul = Self::builtin_methods(Some(poly(MUL, vec![ty_tp(Imag)])), 2);
+        imag_mul.register_builtin_erg_impl(OP_MUL, op_t.clone(), Const, Visibility::BUILTIN_PUBLIC);
+        imag_mul.register_builtin_const(
+            OUTPUT,
+            Visibility::BUILTIN_PUBLIC,
+            ValueObj::builtin_class(Imag),
+        );
+        imag_mul.register_builtin_const(
+            POW_OUTPUT,
+            Visibility::BUILTIN_PUBLIC,
+            ValueObj::builtin_class(Imag),
+        );
+        imag.register_trait(Imag, imag_mul);
+        let mut imag_div = Self::builtin_methods(Some(poly(DIV, vec![ty_tp(Imag)])), 2);
+        imag_div.register_builtin_erg_impl(OP_DIV, op_t, Const, Visibility::BUILTIN_PUBLIC);
+        imag_div.register_builtin_const(
+            OUTPUT,
+            Visibility::BUILTIN_PUBLIC,
+            ValueObj::builtin_class(Imag),
+        );
+        imag_div.register_builtin_const(
+            MOD_OUTPUT,
+            Visibility::BUILTIN_PUBLIC,
+            ValueObj::builtin_class(Imag),
+        );
+        imag.register_trait(Imag, imag_div);
+        let mut imag_mutizable = Self::builtin_methods(Some(mono(MUTIZABLE)), 2);
+        imag_mutizable.register_builtin_const(
+            MUTABLE_MUT_TYPE,
+            Visibility::BUILTIN_PUBLIC,
+            ValueObj::builtin_class(mono(MUT_IMAG)),
+        );
+        imag.register_trait(Imag, imag_mutizable);
+        let mut imag_show = Self::builtin_methods(Some(mono(SHOW)), 1);
+        let t = fn0_met(Imag, Str);
+        imag_show.register_builtin_erg_impl(
+            FUNDAMENTAL_STR,
+            t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        imag.register_trait(Imag, imag_show);
+        imag.register_py_builtin(OP_GT, fn1_met(Imag, Imag, Bool), Some(OP_GT), 0);
+        imag.register_py_builtin(OP_GE, fn1_met(Imag, Imag, Bool), Some(OP_GE), 0);
+        imag.register_py_builtin(OP_LT, fn1_met(Imag, Imag, Bool), Some(OP_LT), 0);
+        imag.register_py_builtin(OP_LE, fn1_met(Imag, Imag, Bool), Some(OP_LE), 0);
+
         /* Ratio */
         let mut ratio = Self::builtin_mono_class(RATIO, 2);
-        ratio.register_superclass(Obj, &obj);
+        ratio.register_superclass(Complex, &complex);
         ratio.register_builtin_py_impl(REAL, Ratio, Const, Visibility::BUILTIN_PUBLIC, Some(REAL));
         ratio.register_builtin_py_impl(IMAG, Ratio, Const, Visibility::BUILTIN_PUBLIC, Some(IMAG));
         ratio.register_marker_trait(self, mono(NUM)).unwrap();
