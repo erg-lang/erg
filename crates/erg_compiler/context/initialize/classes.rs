@@ -1389,6 +1389,11 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         generic_array.register_trait(mono(GENERIC_ARRAY), array_hash);
+        let unsized_array_t = poly(UNSIZED_ARRAY, vec![ty_tp(T.clone())]);
+        let mut unsized_array =
+            Self::builtin_poly_class(UNSIZED_ARRAY, vec![ParamSpec::t_nd(TY_T)], 1);
+        unsized_array.register_superclass(Obj, &obj);
+        unsized_array.register_builtin_decl(KW_ELEM, T.clone(), vis.clone(), Some(KW_ELEM));
         /* Array */
         let mut array_ =
             Self::builtin_poly_class(ARRAY, vec![PS::t_nd(TY_T), PS::default(TY_N, Nat)], 10);
@@ -2993,6 +2998,13 @@ impl Context {
             vis.clone(),
             Const,
             Some(ARRAY),
+        );
+        self.register_builtin_type(
+            unsized_array_t,
+            unsized_array,
+            vis.clone(),
+            Const,
+            Some(UNSIZED_ARRAY),
         );
         self.register_builtin_type(arr_t, array_, vis.clone(), Const, Some(ARRAY));
         self.register_builtin_type(mono(SLICE), slice, vis.clone(), Const, Some(FUNC_SLICE));

@@ -1735,21 +1735,18 @@ impl ASTLowerer {
             Ok(block) => {
                 let found_body_t = block.ref_t();
                 let outer = self.module.context.outer.as_ref().unwrap();
-                let opt_expect_body_t = sig
-                    .ident()
-                    .and_then(|ident| outer.get_current_scope_var(&ident.name))
-                    .map(|vi| vi.t.clone())
+                let opt_expect_body_t = self
+                    .module
+                    .context
+                    .instantiate_var_sig_t(
+                        sig.t_spec.as_ref().map(|ts| &ts.t_spec),
+                        RegistrationMode::PreRegister,
+                    )
+                    .ok()
                     .or_else(|| {
-                        // discard pattern
-                        let sig_t = self
-                            .module
-                            .context
-                            .instantiate_var_sig_t(
-                                sig.t_spec.as_ref().map(|ts| &ts.t_spec),
-                                RegistrationMode::PreRegister,
-                            )
-                            .ok();
-                        sig_t
+                        sig.ident()
+                            .and_then(|ident| outer.get_current_scope_var(&ident.name))
+                            .map(|vi| vi.t.clone())
                     });
                 let ident = match &sig.pat {
                     ast::VarPattern::Ident(ident) => ident.clone(),

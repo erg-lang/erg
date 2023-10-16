@@ -227,6 +227,7 @@ const PATH: &str = "Path";
 const MODULE: &str = "Module";
 const PY_MODULE: &str = "PyModule";
 const GENERIC_ARRAY: &str = "GenericArray";
+const UNSIZED_ARRAY: &str = "UnsizedArray";
 const ARRAY: &str = "Array";
 const MUT_ARRAY: &str = "Array!";
 const FUNC_UPDATE_NTH: &str = "update_nth";

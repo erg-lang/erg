@@ -3135,8 +3135,7 @@ impl VarName {
             .content
             .chars()
             .next()
-            .map(|c| c.is_uppercase())
-            .unwrap_or(false)
+            .map_or(false, |c| c.is_uppercase())
     }
 
     #[inline]
@@ -3146,12 +3145,7 @@ impl VarName {
 
     #[inline]
     pub fn is_procedural(&self) -> bool {
-        self.0
-            .content
-            .chars()
-            .last()
-            .map(|c| c == '!')
-            .unwrap_or(false)
+        self.0.content.chars().last().map_or(false, |c| c == '!')
     }
 
     pub fn is_raw(&self) -> bool {

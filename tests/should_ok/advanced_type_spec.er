@@ -12,3 +12,6 @@ _: Iterable(Dict({Str: Int})) = [{"a": 1}]
 f2|T|(_: Structural { .a = (self: T) -> Obj }): NoneType = None
 g2: (|T|(_: Structural { .a = (self: T) -> Obj }) -> NoneType) = f2
 _, _ = f2, g2
+
+Packages = [{ .name = Str; .version = Str }; _]
+_: Packages = [{ .name = "a"; .version = "b" }]

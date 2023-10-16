@@ -570,12 +570,7 @@ impl Context {
                         return Ok(t);
                     }
                 }
-                if let Some((typ, _)) = self.get_type_and_ctx(ident.inspect()) {
-                    if let Some((_, vi)) = self.get_var_info(ident.inspect()) {
-                        self.inc_ref(ident.inspect(), vi, ident, self);
-                    }
-                    Ok(typ.clone())
-                } else if let Some(typ) = self
+                if let Some(typ) = self
                     .consts
                     .get(ident.inspect())
                     .and_then(|v| self.convert_value_into_type(v.clone()).ok())
@@ -584,6 +579,11 @@ impl Context {
                         self.inc_ref(ident.inspect(), vi, ident, self);
                     }
                     Ok(typ)
+                } else if let Some((typ, _)) = self.get_type_and_ctx(ident.inspect()) {
+                    if let Some((_, vi)) = self.get_var_info(ident.inspect()) {
+                        self.inc_ref(ident.inspect(), vi, ident, self);
+                    }
+                    Ok(typ.clone())
                 } else if not_found_is_qvar {
                     let tyvar = named_free_var(Str::rc(other), self.level, Constraint::Uninited);
                     tmp_tv_cache.push_or_init_tyvar(&ident.name, &tyvar, self);

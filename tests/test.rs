@@ -397,6 +397,11 @@ fn exec_addition_err() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_advanced_type_spec_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/advanced_type_spec.er", 0, 1)
+}
+
+#[test]
 fn exec_args() -> Result<(), ()> {
     expect_failure("tests/should_err/args.er", 0, 19)
 }

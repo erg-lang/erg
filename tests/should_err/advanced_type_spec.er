@@ -1,0 +1,2 @@
+Packages = [{ .name = Str; .version = Str }; _]
+_: Packages = [{ .name = "a"; }]
