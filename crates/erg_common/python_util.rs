@@ -14,7 +14,7 @@ use crate::random::random;
 use crate::serialize::get_magic_num_from_bytes;
 
 #[cfg(unix)]
-pub const BUILTIN_PYTHON_MODS: [&str; 176] = [
+pub const BUILTIN_PYTHON_MODS: [&str; 177] = [
     "abc",
     "argparse",
     "array",
@@ -166,6 +166,7 @@ pub const BUILTIN_PYTHON_MODS: [&str; 176] = [
     "tkinter",
     "token",
     "tokenize",
+    "tomllib",
     "trace",
     "traceback",
     "tracemalloc",
@@ -193,7 +194,7 @@ pub const BUILTIN_PYTHON_MODS: [&str; 176] = [
     "zoneinfo",
 ];
 #[cfg(windows)]
-pub const BUILTIN_PYTHON_MODS: [&str; 171] = [
+pub const BUILTIN_PYTHON_MODS: [&str; 172] = [
     "abc",
     "argparse",
     "array",
@@ -339,6 +340,7 @@ pub const BUILTIN_PYTHON_MODS: [&str; 171] = [
     "tkinter",
     "token",
     "tokenize",
+    "tomllib",
     "trace",
     "traceback",
     "tracemalloc",
@@ -367,7 +369,7 @@ pub const BUILTIN_PYTHON_MODS: [&str; 171] = [
     "zoneinfo",
 ];
 #[cfg(not(any(windows, unix)))]
-pub const BUILTIN_PYTHON_MODS: [&str; 165] = [
+pub const BUILTIN_PYTHON_MODS: [&str; 166] = [
     "abc",
     "argparse",
     "array",
@@ -509,6 +511,7 @@ pub const BUILTIN_PYTHON_MODS: [&str; 165] = [
     "tkinter",
     "token",
     "tokenize",
+    "tomllib",
     "trace",
     "traceback",
     "tracemalloc",

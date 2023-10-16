@@ -1,0 +1,2 @@
+.load: Bytes -> {Str: Obj}
+.loads: Str -> {Str: Obj}
