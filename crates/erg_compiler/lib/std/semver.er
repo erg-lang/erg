@@ -13,6 +13,8 @@
                 assert num_ in Nat
                 .Identifier::__new__ { .name; .num = num_ }
             _ -> panic "invalid identifier string: \{s}"
+    @Override
+    __repr__ ref self = "Identifier(\{self.name}.\{self.num})"
 
 .SemVer = Class { .major = Nat; .minor = Nat; .patch = Nat; .pre = .Identifier or NoneType }
 .SemVer|<: Show|.
@@ -30,6 +32,8 @@
             [major, minor, patch, pre] ->
                 .SemVer.new(nat(major), nat(minor), nat(patch), .Identifier.from_str(pre))
             _ -> panic "invalid semver string: \{s}"
+    @Override
+    __repr__ ref self = self.__str__()
 #[
     greater self, other: .Version =
         match [self.major > other.major, self.major >= other.major, self.minor > other.minor, self.minor >= other.minor, self.patch > other.patch]:
