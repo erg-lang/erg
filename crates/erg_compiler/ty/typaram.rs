@@ -1249,6 +1249,33 @@ impl TyParam {
         }
     }
 
+    pub fn is_recursive(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_recursive(),
+            Self::FreeVar(fv) => fv.get_type().map_or(false, |t| t.contains_tp(self)),
+            Self::Proj { obj, .. } => obj.contains_tp(self),
+            Self::ProjCall { obj, args, .. } => {
+                obj.contains_tp(self) || args.iter().any(|t| t.contains_tp(self))
+            }
+            Self::BinOp { lhs, rhs, .. } => lhs.contains_tp(self) || rhs.contains_tp(self),
+            Self::UnaryOp { val, .. } => val.contains_tp(self),
+            Self::App { args, .. } => args.iter().any(|t| t.contains_tp(self)),
+            Self::Lambda(lambda) => lambda.body.iter().any(|t| t.contains_tp(self)),
+            Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.contains_tp(self)),
+            Self::UnsizedArray(elem) => elem.contains_tp(self),
+            Self::Set(ts) => ts.iter().any(|t| t.contains_tp(self)),
+            Self::Record(rec) => rec.iter().any(|(_, t)| t.contains_tp(self)),
+            Self::Dict(ts) => ts
+                .iter()
+                .any(|(k, v)| k.contains_tp(self) || v.contains_tp(self)),
+            Self::DataClass { fields, .. } => fields.iter().any(|(_, t)| t.contains_tp(self)),
+            Self::Type(t) => t.contains_tp(self),
+            Self::Value(ValueObj::Type(t)) => t.typ().contains_tp(self),
+            Self::Erased(t) => t.contains_tp(self),
+            _ => false,
+        }
+    }
+
     pub fn is_unbound_var(&self) -> bool {
         match self {
             Self::FreeVar(fv) => fv.is_unbound() || fv.crack().is_unbound_var(),

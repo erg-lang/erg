@@ -503,6 +503,14 @@ macro_rules! log {
         }
     }};
 
+    (caller) => {{
+        if cfg!(feature = "debug") {
+            use $crate::style::*;
+            $crate::debug_info!();
+            println!("\n{}", std::panic::Location::caller());
+        }
+    }};
+
     ($($arg: tt)*) => {{
         if cfg!(feature = "debug") {
             use $crate::style::*;

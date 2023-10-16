@@ -6,7 +6,7 @@ use std::sync::atomic::AtomicUsize;
 
 use erg_common::shared::Forkable;
 use erg_common::traits::{LimitedDisplay, StructuralEq};
-use erg_common::Str;
+use erg_common::{addr, Str};
 use erg_common::{addr_eq, log};
 
 use super::typaram::TyParam;
@@ -556,7 +556,9 @@ impl Hash for Free<TyParam> {
         if let Some(lev) = self.level() {
             lev.hash(state);
         }
-        if let Some(t) = self.get_type() {
+        if self.is_recursive() {
+            addr!(self).hash(state);
+        } else if let Some(t) = self.get_type() {
             t.hash(state);
         } else if self.is_linked() {
             self.crack().hash(state);
@@ -690,6 +692,39 @@ impl Free<TyParam> {
             self.level().unwrap(),
             self.constraint().unwrap(),
         )
+    }
+
+    pub fn is_recursive(&self) -> bool {
+        TyParam::FreeVar(self.clone()).is_recursive()
+    }
+
+    fn _do_avoiding_recursion<O, F: FnOnce() -> O>(
+        &self,
+        placeholder: Option<&TyParam>,
+        f: F,
+    ) -> O {
+        let placeholder = placeholder.unwrap_or(&TyParam::Failure);
+        let is_recursive = self.is_recursive();
+        if is_recursive {
+            self.undoable_link(placeholder);
+        }
+        let res = f();
+        if is_recursive {
+            self.undo();
+        }
+        res
+    }
+
+    pub fn do_avoiding_recursion<O, F: FnOnce() -> O>(&self, f: F) -> O {
+        self._do_avoiding_recursion(None, f)
+    }
+
+    pub fn do_avoiding_recursion_with<O, F: FnOnce() -> O>(
+        &self,
+        placeholder: &TyParam,
+        f: F,
+    ) -> O {
+        self._do_avoiding_recursion(Some(placeholder), f)
     }
 }
 

@@ -353,30 +353,7 @@ impl ASTLowerer {
         for elem in elems.into_iter() {
             let elem = self.lower_expr(elem.expr, expect_elem.as_ref())?;
             let union_ = self.module.context.union(&union, elem.ref_t());
-            if let Some((l, r)) = union_.union_pair() {
-                match (l.is_unbound_var(), r.is_unbound_var()) {
-                    // e.g. [1, "a"]
-                    (false, false) => {
-                        if let hir::Expr::TypeAsc(type_asc) = &elem {
-                            // e.g. [1, "a": Str or NoneType]
-                            if ERG_MODE
-                                && !self
-                                    .module
-                                    .context
-                                    .supertype_of(&type_asc.spec.spec_t, &union)
-                            {
-                                return Err(self.elem_err(&l, &r, &elem));
-                            } // else(OK): e.g. [1, "a": Str or Int]
-                        } else if ERG_MODE {
-                            return Err(self.elem_err(&l, &r, &elem));
-                        }
-                    }
-                    // TODO: check if the type is compatible with the other type
-                    (true, false) => {}
-                    (false, true) => {}
-                    (true, true) => {}
-                }
-            }
+            self.homogeneity_check(expect_elem.as_ref(), &union_, &union, &elem)?;
             union = union_;
             new_array.push(elem);
         }
@@ -396,6 +373,41 @@ impl ASTLowerer {
             t
         };
         Ok(hir::NormalArray::new(array.l_sqbr, array.r_sqbr, t, elems))
+    }
+
+    fn homogeneity_check(
+        &self,
+        expect_elem: Option<&Type>,
+        union_: &Type,
+        union: &Type,
+        elem: &hir::Expr,
+    ) -> LowerResult<()> {
+        if ERG_MODE && expect_elem.is_none() {
+            if let Some((l, r)) = union_.union_pair() {
+                match (l.is_unbound_var(), r.is_unbound_var()) {
+                    // e.g. [1, "a"]
+                    (false, false) => {
+                        if let hir::Expr::TypeAsc(type_asc) = elem {
+                            // e.g. [1, "a": Str or NoneType]
+                            if !self
+                                .module
+                                .context
+                                .supertype_of(&type_asc.spec.spec_t, union)
+                            {
+                                return Err(self.elem_err(&l, &r, elem));
+                            } // else(OK): e.g. [1, "a": Str or Int]
+                        } else {
+                            return Err(self.elem_err(&l, &r, elem));
+                        }
+                    }
+                    // TODO: check if the type is compatible with the other type
+                    (true, false) => {}
+                    (false, true) => {}
+                    (true, true) => {}
+                }
+            }
+        }
+        Ok(())
     }
 
     fn lower_array_with_length(
@@ -1731,23 +1743,24 @@ impl ASTLowerer {
         if let Err(errs) = self.module.context.register_const(&body.block) {
             self.errs.extend(errs);
         }
-        match self.lower_block(body.block, None) {
+        let outer = self.module.context.outer.as_ref().unwrap();
+        let expect_body_t = sig
+            .t_spec
+            .as_ref()
+            .and_then(|t_spec| {
+                self.module
+                    .context
+                    .instantiate_var_sig_t(Some(&t_spec.t_spec), RegistrationMode::PreRegister)
+                    .ok()
+            })
+            .or_else(|| {
+                sig.ident()
+                    .and_then(|ident| outer.get_current_scope_var(&ident.name))
+                    .map(|vi| vi.t.clone())
+            });
+        match self.lower_block(body.block, expect_body_t.as_ref()) {
             Ok(block) => {
                 let found_body_t = block.ref_t();
-                let outer = self.module.context.outer.as_ref().unwrap();
-                let opt_expect_body_t = self
-                    .module
-                    .context
-                    .instantiate_var_sig_t(
-                        sig.t_spec.as_ref().map(|ts| &ts.t_spec),
-                        RegistrationMode::PreRegister,
-                    )
-                    .ok()
-                    .or_else(|| {
-                        sig.ident()
-                            .and_then(|ident| outer.get_current_scope_var(&ident.name))
-                            .map(|vi| vi.t.clone())
-                    });
                 let ident = match &sig.pat {
                     ast::VarPattern::Ident(ident) => ident.clone(),
                     ast::VarPattern::Discard(token) => {
@@ -1755,7 +1768,7 @@ impl ASTLowerer {
                     }
                     _ => unreachable!(),
                 };
-                if let Some(expect_body_t) = opt_expect_body_t {
+                if let Some(expect_body_t) = expect_body_t {
                     // TODO: expect_body_t is smaller for constants
                     // TODO: 定数の場合、expect_body_tのほうが小さくなってしまう
                     if !sig.is_const() {

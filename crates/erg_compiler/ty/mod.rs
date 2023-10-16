@@ -1939,6 +1939,14 @@ impl Type {
         }
     }
 
+    pub fn is_projection(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_projection(),
+            Self::Proj { .. } | Self::ProjCall { .. } => true,
+            _ => false,
+        }
+    }
+
     pub fn is_intersection_type(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_intersection_type(),
@@ -2286,10 +2294,9 @@ impl Type {
     pub fn is_recursive(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_recursive(),
-            Self::FreeVar(fv) => fv
-                .get_subsup()
-                .map(|(sub, sup)| sub.contains_type(self) || sup.contains_type(self))
-                .unwrap_or(false),
+            Self::FreeVar(fv) => fv.get_subsup().map_or(false, |(sub, sup)| {
+                sub.contains_type(self) || sup.contains_type(self)
+            }),
             Self::Record(rec) => rec.iter().any(|(_, t)| t.contains_type(self)),
             Self::NamedTuple(rec) => rec.iter().any(|(_, t)| t.contains_type(self)),
             Self::Poly { params, .. } => params.iter().any(|tp| tp.contains_type(self)),

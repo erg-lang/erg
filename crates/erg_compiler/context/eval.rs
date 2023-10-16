@@ -23,7 +23,7 @@ use crate::ty::constructors::{
     array_t, bounded, dict_t, mono, mono_q, named_free_var, poly, proj, proj_call, ref_, ref_mut,
     refinement, set_t, subr_t, subtypeof, tp_enum, tuple_t, unknown_len_array_t, v_enum,
 };
-use crate::ty::free::{Constraint, HasLevel};
+use crate::ty::free::HasLevel;
 use crate::ty::typaram::{OpKind, TyParam};
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{
@@ -1561,9 +1561,9 @@ impl Context {
                 } else {
                     self.eval_t_params(sup, level, t_loc)?
                 };
-                let new_constraint = Constraint::new_sandwiched(sub, sup);
-                fv.update_constraint(new_constraint, false);
-                Ok(Type::FreeVar(fv))
+                let fv = Type::FreeVar(fv);
+                fv.update_tyvar(sub, sup, None, false);
+                Ok(fv)
             }
             Type::Subr(mut subr) => {
                 for pt in subr.non_default_params.iter_mut() {
