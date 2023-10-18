@@ -7,6 +7,7 @@ use erg_common::error::{Location, MultiErrorDisplay};
 use erg_common::io::{DummyStdin, Input, Output};
 use erg_common::python_util::PythonVersion;
 use erg_common::spawn::exec_new_thread;
+use erg_common::style::remove_style;
 use erg_common::style::{colors::DEBUG_MAIN, RESET};
 use erg_common::traits::{ExitStatus, Runnable, Stream};
 
@@ -192,9 +193,9 @@ pub(crate) fn expect_failure(
     }
 }
 
-pub(crate) fn expect_error_location(
+pub(crate) fn expect_error_location_and_msg(
     file_path: &'static str,
-    locs: Vec<Location>,
+    locs: Vec<(Location, Option<&str>)>,
 ) -> Result<(), ()> {
     match exec_compiler(file_path) {
         Ok(_) => {
@@ -202,11 +203,18 @@ pub(crate) fn expect_error_location(
             Err(())
         }
         Err(errs) => {
-            for (err, loc) in errs.into_iter().zip(locs) {
+            for (err, (loc, msg)) in errs.into_iter().zip(locs) {
                 if err.core.loc != loc {
                     println!(
                         "err[{file_path}]: error location should be {loc}, but got {}",
                         err.core.loc
+                    );
+                    return Err(());
+                }
+                if msg.is_some_and(|m| remove_style(&err.core.main_message) != m) {
+                    println!(
+                        "err[{file_path}]: error message should be {:?}, but got {:?}",
+                        msg, err.core.main_message
                     );
                     return Err(());
                 }

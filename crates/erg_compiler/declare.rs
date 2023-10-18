@@ -515,11 +515,13 @@ impl ASTLowerer {
 
     fn fake_lower_lambda(&self, lambda: ast::Lambda) -> LowerResult<hir::Lambda> {
         let params = self.fake_lower_params(lambda.sig.params)?;
+        let return_t_spec = lambda.sig.return_t_spec.map(|t_spec| t_spec.t_spec);
         let body = self.fake_lower_block(lambda.body)?;
         Ok(hir::Lambda::new(
             lambda.id.0,
             params,
             lambda.op,
+            return_t_spec,
             body,
             Type::Failure,
         ))

@@ -691,11 +691,12 @@ impl ASTLowerer {
                     .convert_type_to_dict_type(exp.clone())
                     .ok()
             })
-            .map(|dict| dict.into_iter().collect::<Vec<_>>());
-        let expect_kvs = expect.transpose(dict.kvs.len());
-        for (kv, expect) in dict.kvs.into_iter().zip(expect_kvs) {
-            let key = self.lower_expr(kv.key, expect.as_ref().map(|(k, _)| k))?;
-            let value = self.lower_expr(kv.value, expect.as_ref().map(|(_, v)| v))?;
+            .and_then(|dict| (dict.len() == 1).then_some(dict));
+        for kv in dict.kvs.into_iter() {
+            let expect_key = expect.as_ref().map(|dict| dict.keys().next().unwrap());
+            let expect_value = expect.as_ref().map(|dict| dict.values().next().unwrap());
+            let key = self.lower_expr(kv.key, expect_key)?;
+            let value = self.lower_expr(kv.value, expect_value)?;
             if let Some(popped_val_t) = union.insert(key.t(), value.t()) {
                 if PYTHON_MODE {
                     let val_t = union.get_mut(key.ref_t()).unwrap();
@@ -792,6 +793,7 @@ impl ASTLowerer {
                     &attr.ident,
                     &self.cfg.input,
                     &self.module.context,
+                    expect,
                 ) {
                     Triple::Ok(vi) => {
                         self.inc_ref(attr.ident.inspect(), &vi, &attr.ident.name);
@@ -822,6 +824,15 @@ impl ASTLowerer {
                         VarInfo::ILLEGAL
                     }
                 };
+                if let Some(expect) = expect {
+                    if let Err(_errs) =
+                        self.module
+                            .context
+                            .sub_unify(&vi.t, expect, &attr.ident.loc(), None)
+                    {
+                        // self.errs.extend(errs);
+                    }
+                }
                 let ident = hir::Identifier::new(attr.ident, None, vi);
                 let acc = hir::Accessor::Attr(hir::Attribute::new(obj, ident));
                 Ok(acc)
@@ -1076,20 +1087,38 @@ impl ASTLowerer {
             .map_or(vec![None; pos_args.len()], |params| {
                 params.take(pos_args.len()).collect()
             });
-        for (nth, (arg, param)) in pos_args.into_iter().zip(pos_params).enumerate() {
+        let mut pos_args = pos_args
+            .into_iter()
+            .zip(pos_params)
+            .enumerate()
+            .collect::<Vec<_>>();
+        // `if` may perform assert casting, so don't sort args
+        if self
+            .module
+            .context
+            .control_kind()
+            .map_or(true, |kind| !kind.is_if())
+            && expect.is_some_and(|subr| subr.has_unbound_var())
+        {
+            pos_args
+                .sort_by(|(_, (l, _)), (_, (r, _))| l.expr.complexity().cmp(&r.expr.complexity()));
+        }
+        let mut hir_pos_args =
+            vec![hir::PosArg::new(hir::Expr::Dummy(hir::Dummy::empty())); pos_args.len()];
+        for (nth, (arg, param)) in pos_args {
             match self.lower_expr(arg.expr, param) {
                 Ok(expr) => {
                     if let Some(kind) = self.module.context.control_kind() {
                         self.push_guard(nth, kind, expr.ref_t());
                     }
-                    hir_args.pos_args.push(hir::PosArg::new(expr))
+                    hir_pos_args[nth] = hir::PosArg::new(expr);
                 }
                 Err(es) => {
                     errs.extend(es);
-                    hir_args.push_pos(hir::PosArg::new(hir::Expr::Dummy(hir::Dummy::empty())));
                 }
             }
         }
+        hir_args.pos_args = hir_pos_args;
         // TODO: expect var_args
         if let Some(var_args) = var_args {
             match self.lower_expr(var_args.expr, None) {
@@ -1121,6 +1150,12 @@ impl ASTLowerer {
         hir_args
     }
 
+    /// ```erg
+    /// x: Int or NoneType
+    /// if x != None:
+    ///     do: ... # x: Int (x != None)
+    ///     do: ... # x: NoneType (complement(x != None))
+    /// ```
     fn push_guard(&mut self, nth: usize, kind: ControlKind, t: &Type) {
         match t {
             Type::Guard(guard) => match nth {
@@ -1196,6 +1231,17 @@ impl ASTLowerer {
             .as_ref()
             .ok()
             .and_then(|vi| <&SubrType>::try_from(&vi.t).ok());
+        if let Some((subr_return_t, expect)) =
+            expect_subr.map(|subr| subr.return_t.as_ref()).zip(expect)
+        {
+            if let Err(_errs) = self
+                .module
+                .context
+                .sub_unify(subr_return_t, expect, &(), None)
+            {
+                // self.errs.extend(errs);
+            }
+        }
         let hir_args = self.lower_args(call.args, expect_subr, &mut errs);
         let mut vi = match self.module.context.get_call_t(
             &obj,
@@ -1245,11 +1291,15 @@ impl ASTLowerer {
             None
         };
         let mut call = hir::Call::new(obj, attr_name, hir_args);
-        /*if let Some((found, expect)) = call.signature_t().and_then(|sig| sig.return_t()).zip(expect) {
-            if let Err(errs) = self.module.context.sub_unify(found, expect, &call, None) {
-                self.errs.extend(errs);
+        if let Some((found, expect)) = call
+            .signature_t()
+            .and_then(|sig| sig.return_t())
+            .zip(expect)
+        {
+            if let Err(_errs) = self.module.context.sub_unify(found, expect, &call, None) {
+                // self.errs.extend(errs);
             }
-        }*/
+        }
         if pushed {
             self.module.context.higher_order_caller.pop();
         }
@@ -1464,6 +1514,7 @@ impl ASTLowerer {
         expect: Option<&Type>,
     ) -> LowerResult<hir::Lambda> {
         let expect = expect.and_then(|t| <&SubrType>::try_from(t).ok());
+        let return_t = expect.map(|subr| subr.return_t.as_ref());
         log!(info "entered {}({lambda})", fn_name!());
         let in_statement = PYTHON_MODE
             && self
@@ -1513,7 +1564,7 @@ impl ASTLowerer {
         if let Err(errs) = self.module.context.register_const(&lambda.body) {
             self.errs.extend(errs);
         }
-        let body = self.lower_block(lambda.body, None).map_err(|errs| {
+        let body = self.lower_block(lambda.body, return_t).map_err(|errs| {
             if !in_statement {
                 self.pop_append_errs();
             }
@@ -1646,7 +1697,15 @@ impl ASTLowerer {
         } else {
             ty
         };
-        Ok(hir::Lambda::new(id, params, lambda.op, body, t))
+        let return_t_spec = lambda.sig.return_t_spec.map(|t_spec| t_spec.t_spec);
+        Ok(hir::Lambda::new(
+            id,
+            params,
+            lambda.op,
+            return_t_spec,
+            body,
+            t,
+        ))
     }
 
     fn lower_def(&mut self, def: ast::Def) -> LowerResult<hir::Def> {
@@ -1851,7 +1910,11 @@ impl ASTLowerer {
                 if let Err(errs) = self.module.context.register_const(&body.block) {
                     self.errs.extend(errs);
                 }
-                match self.lower_block(body.block, None) {
+                let return_t = subr_t
+                    .return_t
+                    .has_no_unbound_var()
+                    .then_some(subr_t.return_t.as_ref());
+                match self.lower_block(body.block, return_t) {
                     Ok(block) => {
                         let found_body_t = self.module.context.squash_tyvar(block.t());
                         let vi = match self.module.context.outer.as_mut().unwrap().assign_subr(

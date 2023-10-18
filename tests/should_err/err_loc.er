@@ -8,3 +8,6 @@ for! zip([1+1], ["a"+"b"]), ((i, s),) => # i: Nat, s: Str
 
 for! {"a": 1}, s =>
     print! s + 1 # ERR
+
+arr as Array(Int) = [1, 2]
+_ = all map((i) -> i.method(), arr) # ERR

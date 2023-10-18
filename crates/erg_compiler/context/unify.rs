@@ -774,6 +774,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     for (lps, rps) in lsub.typarams().iter().zip(rsub.typarams().iter()) {
                         self.sub_unify_tp(lps, rps, None, false).map_err(|errs| {
                             sup_fv.undo();
+                            sub_fv.undo();
                             errs
                         })?;
                     }
@@ -784,6 +785,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     for (lps, rps) in lsup.typarams().iter().zip(rsup.typarams().iter()) {
                         self.sub_unify_tp(lps, rps, None, false).map_err(|errs| {
                             sup_fv.undo();
+                            sub_fv.undo();
                             errs
                         })?;
                     }

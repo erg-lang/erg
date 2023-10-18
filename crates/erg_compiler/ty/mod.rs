@@ -391,8 +391,7 @@ impl SubrType {
             || self
                 .var_params
                 .as_ref()
-                .map(|pt| pt.typ().contains_tvar(target))
-                .unwrap_or(false)
+                .map_or(false, |pt| pt.typ().contains_tvar(target))
             || self
                 .default_params
                 .iter()
@@ -407,8 +406,7 @@ impl SubrType {
             || self
                 .var_params
                 .as_ref()
-                .map(|pt| pt.typ().contains_type(target))
-                .unwrap_or(false)
+                .map_or(false, |pt| pt.typ().contains_type(target))
             || self
                 .default_params
                 .iter()
@@ -423,8 +421,7 @@ impl SubrType {
             || self
                 .var_params
                 .as_ref()
-                .map(|pt| pt.typ().contains_tp(target))
-                .unwrap_or(false)
+                .map_or(false, |pt| pt.typ().contains_tp(target))
             || self
                 .default_params
                 .iter()
@@ -475,10 +472,24 @@ impl SubrType {
             || self
                 .var_params
                 .as_ref()
-                .map(|pt| pt.typ().has_qvar())
-                .unwrap_or(false)
+                .map_or(false, |pt| pt.typ().has_qvar())
             || self.default_params.iter().any(|pt| pt.typ().has_qvar())
             || self.return_t.has_qvar()
+    }
+
+    pub fn has_unbound_var(&self) -> bool {
+        self.non_default_params
+            .iter()
+            .any(|pt| pt.typ().has_unbound_var())
+            || self
+                .var_params
+                .as_ref()
+                .map_or(false, |pt| pt.typ().has_unbound_var())
+            || self
+                .default_params
+                .iter()
+                .any(|pt| pt.typ().has_unbound_var())
+            || self.return_t.has_unbound_var()
     }
 
     pub fn has_undoable_linked_var(&self) -> bool {
@@ -488,8 +499,7 @@ impl SubrType {
             || self
                 .var_params
                 .as_ref()
-                .map(|pt| pt.typ().has_undoable_linked_var())
-                .unwrap_or(false)
+                .map_or(false, |pt| pt.typ().has_undoable_linked_var())
             || self
                 .default_params
                 .iter()
@@ -519,8 +529,7 @@ impl SubrType {
     pub fn self_t(&self) -> Option<&Type> {
         self.non_default_params.first().and_then(|p| {
             if p.name()
-                .map(|n| &n[..] == "self" || &n[..] == "Self")
-                .unwrap_or(false)
+                .map_or(false, |n| &n[..] == "self" || &n[..] == "Self")
             {
                 Some(p.typ())
             } else {
@@ -532,8 +541,7 @@ impl SubrType {
     pub fn mut_self_t(&mut self) -> Option<&mut Type> {
         self.non_default_params.first_mut().and_then(|p| {
             if p.name()
-                .map(|n| &n[..] == "self" || &n[..] == "Self")
-                .unwrap_or(false)
+                .map_or(false, |n| &n[..] == "self" || &n[..] == "Self")
             {
                 Some(p.typ_mut())
             } else {

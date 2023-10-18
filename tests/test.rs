@@ -1,6 +1,7 @@
 mod common;
 use common::{
-    expect_compile_success, expect_end_with, expect_error_location, expect_failure, expect_success,
+    expect_compile_success, expect_end_with, expect_error_location_and_msg, expect_failure,
+    expect_success,
 };
 use erg_common::error::Location;
 use erg_common::python_util::{env_python_version, module_exists, opt_which_python};
@@ -599,12 +600,16 @@ fn exec_visibility() -> Result<(), ()> {
 
 #[test]
 fn exec_err_loc() -> Result<(), ()> {
-    expect_error_location(
+    expect_error_location_and_msg(
         "tests/should_err/err_loc.er",
         vec![
-            Location::range(2, 11, 2, 16),
-            Location::range(7, 15, 7, 18),
-            Location::range(10, 11, 10, 16),
+            (Location::range(2, 11, 2, 16), None),
+            (Location::range(7, 11, 7, 12), None),
+            (
+                Location::range(13, 21, 13, 27),
+                Some("Int object has no attribute method"),
+            ),
+            (Location::range(10, 11, 10, 16), None),
         ],
     )
 }

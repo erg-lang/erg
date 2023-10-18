@@ -1910,6 +1910,13 @@ impl Params {
         )
     }
 
+    pub fn sigs(&self) -> impl Iterator<Item = &NonDefaultParamSignature> {
+        self.non_defaults
+            .iter()
+            .chain(self.var_params.as_deref())
+            .chain(self.defaults.iter().map(|d| &d.sig))
+    }
+
     pub fn deconstruct(self) -> RawParams {
         (
             self.non_defaults,
@@ -2015,6 +2022,7 @@ impl SubrSignature {
 pub struct Lambda {
     pub params: Params,
     pub op: Token,
+    pub return_t_spec: Option<TypeSpec>,
     pub body: Block,
     pub id: usize,
     pub t: Type,
@@ -2043,11 +2051,19 @@ impl_locational!(Lambda, params, body);
 impl_t!(Lambda);
 
 impl Lambda {
-    pub const fn new(id: usize, params: Params, op: Token, body: Block, t: Type) -> Self {
+    pub const fn new(
+        id: usize,
+        params: Params,
+        op: Token,
+        return_t_spec: Option<TypeSpec>,
+        body: Block,
+        t: Type,
+    ) -> Self {
         Self {
             id,
             params,
             op,
+            return_t_spec,
             body,
             t,
         }
@@ -2777,6 +2793,82 @@ impl Expr {
 
     pub fn type_asc_expr(self, t_spec: TypeSpecWithOp) -> Self {
         Self::TypeAsc(self.type_asc(t_spec))
+    }
+
+    /// Return the complexity of the expression in terms of type inference.
+    /// For function calls, type inference is performed sequentially, starting with the least complex argument.
+    pub fn complexity(&self) -> usize {
+        match self {
+            Self::Literal(_) | Self::TypeAsc(_) => 0,
+            Self::Accessor(Accessor::Ident(_)) => 1,
+            Self::Accessor(Accessor::Attr(attr)) => 1 + attr.obj.complexity(),
+            Self::Tuple(Tuple::Normal(tup)) => {
+                let mut sum = 0;
+                for elem in tup.elems.pos_args.iter() {
+                    sum += elem.expr.complexity();
+                }
+                sum
+            }
+            Self::Array(Array::Normal(arr)) => {
+                let mut sum = 0;
+                for elem in arr.elems.pos_args.iter() {
+                    sum += elem.expr.complexity();
+                }
+                sum
+            }
+            Self::Dict(Dict::Normal(dic)) => {
+                let mut sum = 0;
+                for kv in dic.kvs.iter() {
+                    sum += kv.key.complexity();
+                    sum += kv.value.complexity();
+                }
+                sum
+            }
+            Self::Set(Set::Normal(set)) => {
+                let mut sum = 0;
+                for elem in set.elems.pos_args.iter() {
+                    sum += elem.expr.complexity();
+                }
+                sum
+            }
+            Self::Record(rec) => {
+                let mut sum = 0;
+                for attr in rec.attrs.iter() {
+                    for chunk in attr.body.block.iter() {
+                        sum += chunk.complexity();
+                    }
+                }
+                sum
+            }
+            Self::BinOp(bin) => 1 + bin.lhs.complexity() + bin.rhs.complexity(),
+            Self::UnaryOp(unary) => 1 + unary.expr.complexity(),
+            Self::Call(call) => {
+                let mut sum = 1 + call.obj.complexity();
+                for arg in call.args.pos_args.iter() {
+                    sum += arg.expr.complexity();
+                }
+                if let Some(var_params) = call.args.var_args.as_ref() {
+                    sum += var_params.expr.complexity();
+                }
+                for kw_arg in call.args.kw_args.iter() {
+                    sum += kw_arg.expr.complexity();
+                }
+                sum
+            }
+            Self::Lambda(lambda) => {
+                let mut sum = 1
+                    + lambda.return_t_spec.is_none() as usize
+                    + lambda
+                        .params
+                        .sigs()
+                        .fold(0, |acc, sig| acc + sig.raw.t_spec.is_none() as usize);
+                for chunk in lambda.body.iter() {
+                    sum += chunk.complexity();
+                }
+                sum
+            }
+            _ => 5,
+        }
     }
 }
 

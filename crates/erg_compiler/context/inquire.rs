@@ -654,11 +654,15 @@ impl Context {
         ident: &Identifier,
         input: &Input,
         namespace: &Context,
+        expect: Option<&Type>,
     ) -> Triple<VarInfo, TyCheckError> {
         // get_attr_info(?T, aaa) == None
         // => ?T(<: Structural({ .aaa = ?U }))
         if PYTHON_MODE && obj.var_info().is_some_and(|vi| vi.is_untyped_parameter()) {
-            let t = free_var(self.level, Constraint::new_type_of(Type));
+            let constraint = expect.map_or(Constraint::new_type_of(Type), |t| {
+                Constraint::new_subtype_of(t.clone())
+            });
+            let t = free_var(self.level, constraint);
             if let Some(fv) = obj.ref_t().as_free() {
                 if fv.get_sub().is_some() {
                     let vis = self.instantiate_vis_modifier(&ident.vis).unwrap();
@@ -1666,22 +1670,32 @@ impl Context {
                     subr.non_default_params.iter()
                 };
                 let non_default_params_len = non_default_params.len();
-                let mut nth = 1;
                 if pos_args.len() >= non_default_params_len {
                     let (non_default_args, var_args) = pos_args.split_at(non_default_params_len);
-                    for (nd_arg, nd_param) in non_default_args.iter().zip(non_default_params) {
+                    let mut args = non_default_args
+                        .iter()
+                        .zip(non_default_params)
+                        .enumerate()
+                        .collect::<Vec<_>>();
+                    // TODO: remove `obj.local_name() != Some("__contains__")`
+                    if obj.local_name() != Some("__contains__") && subr.has_unbound_var() {
+                        args.sort_by(|(_, (l, _)), (_, (r, _))| {
+                            l.expr.complexity().cmp(&r.expr.complexity())
+                        });
+                    }
+                    for (i, (nd_arg, nd_param)) in args {
                         if let Err(mut es) = self.substitute_pos_arg(
                             &callee,
                             attr_name,
                             &nd_arg.expr,
-                            nth,
+                            i + 1,
                             nd_param,
                             &mut passed_params,
                         ) {
                             errs.append(&mut es);
                         }
-                        nth += 1;
                     }
+                    let mut nth = 1 + non_default_params_len;
                     if let Some(var_param) = subr.var_params.as_ref() {
                         for var_arg in var_args.iter() {
                             if let Err(mut es) = self.substitute_var_arg(
@@ -1736,7 +1750,9 @@ impl Context {
                         }
                     }
                 } else {
+                    let mut nth = 1;
                     // pos_args.len() < non_default_params_len
+                    // don't use `zip`
                     let mut params = non_default_params.chain(subr.default_params.iter());
                     for pos_arg in pos_args.iter() {
                         if let Err(mut es) = self.substitute_pos_arg(
