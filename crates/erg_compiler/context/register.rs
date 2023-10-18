@@ -24,7 +24,7 @@ use ast::{
     ConstIdentifier, Decorator, DefId, Identifier, OperationKind, PolyTypeSpec, PreDeclTypeSpec,
     VarName,
 };
-use erg_parser::ast;
+use erg_parser::ast::{self, TypeSpecWithOp};
 
 use crate::ty::constructors::{
     free_var, func, func0, func1, proc, ref_, ref_mut, tp_enum, unknown_len_array_t, v_enum,
@@ -50,7 +50,7 @@ use RegistrationMode::*;
 use super::eval::Substituter;
 use super::instantiate::TyVarCache;
 use super::instantiate_spec::ParamKind;
-use super::ParamSpec;
+use super::{ParamSpec, TraitImpl};
 
 pub fn valid_mod_name(name: &str) -> bool {
     !name.is_empty() && !name.starts_with('/') && name.trim() == name
@@ -929,6 +929,124 @@ impl Context {
         Ok(())
     }
 
+    pub(crate) fn get_class_and_impl_trait<'c>(
+        &mut self,
+        class_spec: &'c ast::TypeSpec,
+    ) -> TyCheckResult<(Type, Option<(Type, &'c TypeSpecWithOp)>)> {
+        let mut dummy_tv_cache = TyVarCache::new(self.level, self);
+        match class_spec {
+            ast::TypeSpec::TypeApp { spec, args } => {
+                match &args.args {
+                    ast::TypeAppArgsKind::Args(args) => {
+                        let (impl_trait, t_spec) = match &args.pos_args().first().unwrap().expr {
+                            // TODO: check `tasc.op`
+                            ast::Expr::TypeAscription(tasc) => (
+                                self.instantiate_typespec_full(
+                                    &tasc.t_spec.t_spec,
+                                    None,
+                                    &mut dummy_tv_cache,
+                                    RegistrationMode::Normal,
+                                    false,
+                                )?,
+                                &tasc.t_spec,
+                            ),
+                            other => {
+                                return Err(TyCheckErrors::from(TyCheckError::syntax_error(
+                                    self.cfg.input.clone(),
+                                    line!() as usize,
+                                    other.loc(),
+                                    self.caused_by(),
+                                    format!("expected type ascription, but found {}", other.name()),
+                                    None,
+                                )))
+                            }
+                        };
+                        Ok((
+                            self.instantiate_typespec_full(
+                                spec,
+                                None,
+                                &mut dummy_tv_cache,
+                                RegistrationMode::Normal,
+                                false,
+                            )?,
+                            Some((impl_trait, t_spec)),
+                        ))
+                    }
+                    ast::TypeAppArgsKind::SubtypeOf(trait_spec) => {
+                        let impl_trait = self.instantiate_typespec_full(
+                            &trait_spec.t_spec,
+                            None,
+                            &mut dummy_tv_cache,
+                            RegistrationMode::Normal,
+                            false,
+                        )?;
+                        Ok((
+                            self.instantiate_typespec_full(
+                                spec,
+                                None,
+                                &mut dummy_tv_cache,
+                                RegistrationMode::Normal,
+                                false,
+                            )?,
+                            Some((impl_trait, trait_spec.as_ref())),
+                        ))
+                    }
+                }
+            }
+            other => Ok((
+                self.instantiate_typespec_full(
+                    other,
+                    None,
+                    &mut dummy_tv_cache,
+                    RegistrationMode::Normal,
+                    false,
+                )?,
+                None,
+            )),
+        }
+    }
+
+    fn register_trait_impl(
+        &mut self,
+        class: &Type,
+        trait_: &Type,
+        trait_loc: &impl Locational,
+    ) -> TyCheckResult<()> {
+        // TODO: polymorphic trait
+        if let Some(mut impls) = self.trait_impls().get_mut(&trait_.qual_name()) {
+            impls.insert(TraitImpl::new(class.clone(), trait_.clone()));
+        } else {
+            self.trait_impls().register(
+                trait_.qual_name(),
+                set! {TraitImpl::new(class.clone(), trait_.clone())},
+            );
+        }
+        let trait_ctx = if let Some((_, trait_ctx)) = self.get_nominal_type_ctx(trait_) {
+            trait_ctx.clone()
+        } else {
+            // TODO: maybe parameters are wrong
+            return Err(TyCheckErrors::from(TyCheckError::no_var_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                trait_loc.loc(),
+                self.caused_by(),
+                &trait_.local_name(),
+                None,
+            )));
+        };
+        let Some((_, class_ctx)) = self.get_mut_nominal_type_ctx(class) else {
+            return Err(TyCheckErrors::from(TyCheckError::type_not_found(
+                self.cfg.input.clone(),
+                line!() as usize,
+                trait_loc.loc(),
+                self.caused_by(),
+                class,
+            )));
+        };
+        class_ctx.register_supertrait(trait_.clone(), &trait_ctx);
+        Ok(())
+    }
+
     /// Registers type definitions of types and constants; unlike `register_const`, this does not evaluate terms.
     pub(crate) fn preregister_const(&mut self, block: &ast::Block) -> TyCheckResult<()> {
         let mut total_errs = TyCheckErrors::empty();
@@ -981,6 +1099,19 @@ impl Context {
                 ast::Expr::ClassDef(class_def) => {
                     if let Err(errs) = self.register_const_def(&class_def.def) {
                         total_errs.extend(errs);
+                    }
+                    for methods in class_def.methods_list.iter() {
+                        let Ok((class, impl_trait)) = self.get_class_and_impl_trait(&methods.class)
+                        else {
+                            continue;
+                        };
+                        // assume the class has implemented the trait, regardless of whether the implementation is correct
+                        if let Some((trait_, trait_loc)) = &impl_trait {
+                            if let Err(errs) = self.register_trait_impl(&class, trait_, *trait_loc)
+                            {
+                                total_errs.extend(errs);
+                            }
+                        }
                     }
                 }
                 ast::Expr::PatchDef(patch_def) => {

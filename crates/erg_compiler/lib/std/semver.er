@@ -34,6 +34,10 @@
             _ -> panic "invalid semver string: \{s}"
     @Override
     __repr__ ref self = "SemVer(\{self.__str__()})"
+    compatible_with self, other =
+        if self.major == 0, do:
+            self.compatible_with::return self == other
+        self.major == other.major
 #[
     greater self, other: .Version =
         match [self.major > other.major, self.major >= other.major, self.minor > other.minor, self.minor >= other.minor, self.patch > other.patch]:

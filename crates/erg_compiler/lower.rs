@@ -25,7 +25,6 @@ use erg_parser::token::{Token, TokenKind};
 use erg_parser::Parser;
 
 use crate::artifact::{BuildRunnable, Buildable, CompleteArtifact, IncompleteArtifact};
-use crate::context::instantiate::TyVarCache;
 use crate::module::SharedCompilerResource;
 use crate::ty::constructors::{
     array_t, free_var, func, guard, mono, poly, proc, refinement, set_t, singleton, ty_tp,
@@ -40,7 +39,7 @@ use crate::ty::{
 
 use crate::context::{
     ClassDefType, Context, ContextKind, ContextProvider, ControlKind, ModuleContext,
-    RegistrationMode, TraitImpl,
+    RegistrationMode,
 };
 use crate::error::{
     CompileError, CompileErrors, CompileWarning, LowerError, LowerErrors, LowerResult,
@@ -2008,12 +2007,11 @@ impl ASTLowerer {
         log!(info "entered {}({class_def})", fn_name!());
         let mut hir_def = self.lower_def(class_def.def)?;
         let mut hir_methods = hir::Block::empty();
-        for mut methods in class_def.methods_list.into_iter() {
-            let (class, impl_trait) = self.get_class_and_impl_trait(&methods.class)?;
-            // assume the class has implemented the trait, regardless of whether the implementation is correct
-            if let Some((trait_, trait_loc)) = &impl_trait {
-                self.register_trait_impl(&class, trait_, *trait_loc)?;
-            }
+        for methods in class_def.methods_list.into_iter() {
+            let (class, impl_trait) = self
+                .module
+                .context
+                .get_class_and_impl_trait(&methods.class)?;
             if let Some((_, class_root)) = self.module.context.get_nominal_type_ctx(&class) {
                 if !class_root.kind.is_class() {
                     return Err(LowerErrors::from(LowerError::method_definition_error(
@@ -2039,7 +2037,7 @@ impl ASTLowerer {
             self.module
                 .context
                 .grow(&class.local_name(), kind, hir_def.sig.vis().clone(), None);
-            for attr in methods.attrs.iter_mut() {
+            for attr in methods.attrs.iter() {
                 match attr {
                     ast::ClassAttr::Def(def) => {
                         self.module
@@ -2157,83 +2155,6 @@ impl ASTLowerer {
         ))
     }
 
-    fn get_class_and_impl_trait<'c>(
-        &mut self,
-        class_spec: &'c ast::TypeSpec,
-    ) -> LowerResult<(Type, Option<(Type, &'c TypeSpecWithOp)>)> {
-        let mut dummy_tv_cache = TyVarCache::new(self.module.context.level, &self.module.context);
-        match class_spec {
-            ast::TypeSpec::TypeApp { spec, args } => {
-                match &args.args {
-                    ast::TypeAppArgsKind::Args(args) => {
-                        let (impl_trait, t_spec) = match &args.pos_args().first().unwrap().expr {
-                            // TODO: check `tasc.op`
-                            ast::Expr::TypeAscription(tasc) => (
-                                self.module.context.instantiate_typespec_full(
-                                    &tasc.t_spec.t_spec,
-                                    None,
-                                    &mut dummy_tv_cache,
-                                    RegistrationMode::Normal,
-                                    false,
-                                )?,
-                                &tasc.t_spec,
-                            ),
-                            other => {
-                                return Err(LowerErrors::from(LowerError::syntax_error(
-                                    self.input().clone(),
-                                    line!() as usize,
-                                    other.loc(),
-                                    self.module.context.caused_by(),
-                                    format!("expected type ascription, but found {}", other.name()),
-                                    None,
-                                )))
-                            }
-                        };
-                        Ok((
-                            self.module.context.instantiate_typespec_full(
-                                spec,
-                                None,
-                                &mut dummy_tv_cache,
-                                RegistrationMode::Normal,
-                                false,
-                            )?,
-                            Some((impl_trait, t_spec)),
-                        ))
-                    }
-                    ast::TypeAppArgsKind::SubtypeOf(trait_spec) => {
-                        let impl_trait = self.module.context.instantiate_typespec_full(
-                            &trait_spec.t_spec,
-                            None,
-                            &mut dummy_tv_cache,
-                            RegistrationMode::Normal,
-                            false,
-                        )?;
-                        Ok((
-                            self.module.context.instantiate_typespec_full(
-                                spec,
-                                None,
-                                &mut dummy_tv_cache,
-                                RegistrationMode::Normal,
-                                false,
-                            )?,
-                            Some((impl_trait, trait_spec.as_ref())),
-                        ))
-                    }
-                }
-            }
-            other => Ok((
-                self.module.context.instantiate_typespec_full(
-                    other,
-                    None,
-                    &mut dummy_tv_cache,
-                    RegistrationMode::Normal,
-                    false,
-                )?,
-                None,
-            )),
-        }
-    }
-
     fn lower_patch_def(&mut self, class_def: ast::PatchDef) -> LowerResult<hir::PatchDef> {
         log!(info "entered {}({class_def})", fn_name!());
         let base_t = {
@@ -2347,53 +2268,6 @@ impl ASTLowerer {
             }
         }
         Ok(hir::ReDef::new(attr, hir::Block::new(vec![expr])))
-    }
-
-    fn register_trait_impl(
-        &mut self,
-        class: &Type,
-        trait_: &Type,
-        trait_loc: &impl Locational,
-    ) -> LowerResult<()> {
-        // TODO: polymorphic trait
-        if let Some(mut impls) = self
-            .module
-            .context
-            .trait_impls()
-            .get_mut(&trait_.qual_name())
-        {
-            impls.insert(TraitImpl::new(class.clone(), trait_.clone()));
-        } else {
-            self.module.context.trait_impls().register(
-                trait_.qual_name(),
-                set! {TraitImpl::new(class.clone(), trait_.clone())},
-            );
-        }
-        let trait_ctx =
-            if let Some((_, trait_ctx)) = self.module.context.get_nominal_type_ctx(trait_) {
-                trait_ctx.clone()
-            } else {
-                // TODO: maybe parameters are wrong
-                return Err(LowerErrors::from(LowerError::no_var_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    trait_loc.loc(),
-                    self.module.context.caused_by(),
-                    &trait_.local_name(),
-                    None,
-                )));
-            };
-        let Some((_, class_ctx)) = self.module.context.get_mut_nominal_type_ctx(class) else {
-            return Err(LowerErrors::from(LowerError::type_not_found(
-                self.cfg.input.clone(),
-                line!() as usize,
-                trait_loc.loc(),
-                self.module.context.caused_by(),
-                class,
-            )));
-        };
-        class_ctx.register_supertrait(trait_.clone(), &trait_ctx);
-        Ok(())
     }
 
     /// HACK: Cannot be methodized this because `&self` has been taken immediately before.
