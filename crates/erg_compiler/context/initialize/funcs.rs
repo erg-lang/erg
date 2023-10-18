@@ -51,13 +51,19 @@ impl Context {
             NoneType,
         );
         let t_bin = nd_func(vec![kw(KW_N, Int)], None, Str);
-        // TODO: overload: Iterable(Int) -> Bytes
-        let t_bytes = func(
-            vec![],
-            None,
-            vec![kw(KW_STR, Str), kw(KW_ENCODING, Str)],
-            mono(BYTES),
-        );
+        let t_bytes = func0(mono(BYTES))
+            & func(
+                vec![kw(KW_STR, Str), kw(KW_ENCODING, Str)],
+                None,
+                vec![kw(KW_ERRORS, Str)],
+                mono(BYTES),
+            )
+            & nd_func(
+                // TODO: Bytes-like
+                vec![pos(poly(ITERABLE, vec![ty_tp(Nat)]) | Nat | mono(BYTES))],
+                None,
+                mono(BYTES),
+            );
         let t_bytes_array = func(
             vec![],
             None,
