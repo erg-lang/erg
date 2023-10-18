@@ -1678,7 +1678,9 @@ impl Context {
                         .enumerate()
                         .collect::<Vec<_>>();
                     // TODO: remove `obj.local_name() != Some("__contains__")`
-                    if obj.local_name() != Some("__contains__") && subr.has_unbound_var() {
+                    if obj.local_name() != Some("__contains__")
+                        && !subr.essential_qnames().is_empty()
+                    {
                         args.sort_by(|(_, (l, _)), (_, (r, _))| {
                             l.expr.complexity().cmp(&r.expr.complexity())
                         });

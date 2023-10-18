@@ -178,6 +178,11 @@ fn exec_infer_class() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_infer_method() -> Result<(), ()> {
+    expect_success("tests/should_ok/infer_method.er", 0)
+}
+
+#[test]
 fn exec_infer_trait() -> Result<(), ()> {
     expect_success("tests/should_ok/infer_trait.er", 0)
 }

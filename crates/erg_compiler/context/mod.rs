@@ -1301,6 +1301,12 @@ impl Context {
         &self.shared().promises
     }
 
+    pub fn current_caller(&self) -> Option<ControlKind> {
+        self.higher_order_caller
+            .last()
+            .and_then(|name| ControlKind::try_from(&name[..]).ok())
+    }
+
     pub fn control_kind(&self) -> Option<ControlKind> {
         for caller in self.higher_order_caller.iter().rev() {
             if let Ok(control) = ControlKind::try_from(&caller[..]) {

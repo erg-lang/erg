@@ -1095,9 +1095,9 @@ impl ASTLowerer {
         if self
             .module
             .context
-            .control_kind()
+            .current_caller()
             .map_or(true, |kind| !kind.is_if())
-            && expect.is_some_and(|subr| subr.has_unbound_var())
+            && expect.is_some_and(|subr| !subr.essential_qnames().is_empty())
         {
             pos_args
                 .sort_by(|(_, (l, _)), (_, (r, _))| l.expr.complexity().cmp(&r.expr.complexity()));
