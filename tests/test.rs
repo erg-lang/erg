@@ -52,6 +52,11 @@ fn exec_class_attr() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_closure() -> Result<(), ()> {
+    expect_success("tests/should_ok/closure.er", 0)
+}
+
+#[test]
 fn exec_collection() -> Result<(), ()> {
     expect_success("tests/should_ok/collection.er", 0)
 }

@@ -1185,6 +1185,7 @@ impl Context {
             TypeBoundSpecs::empty(),
             params,
             None,
+            vec![],
         );
         let sig = Signature::Subr(sig);
         let call = Identifier::private("p!").call(Args::empty());

@@ -38,6 +38,7 @@ use erg_parser::token::Token;
 use crate::context::instantiate::TyVarCache;
 use crate::context::instantiate_spec::ConstTemplate;
 use crate::error::{TyCheckError, TyCheckErrors};
+use crate::hir::Identifier;
 use crate::module::SharedModuleGraph;
 use crate::module::{
     SharedCompilerResource, SharedModuleCache, SharedModuleIndex, SharedPromises, SharedTraitImpls,
@@ -543,6 +544,7 @@ pub struct Context {
     pub(crate) higher_order_caller: Vec<Str>,
     pub(crate) guards: Vec<GuardType>,
     pub(crate) erg_to_py_names: Dict<Str, Str>,
+    pub(crate) captured_names: Vec<Identifier>,
     pub(crate) level: usize,
 }
 
@@ -742,6 +744,7 @@ impl Context {
             higher_order_caller: vec![],
             guards: vec![],
             erg_to_py_names: Dict::default(),
+            captured_names: vec![],
             level,
         }
     }

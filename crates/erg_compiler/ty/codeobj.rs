@@ -39,9 +39,9 @@ pub fn consts_into_bytes(consts: Vec<ValueObj>, python_ver: PythonVersion) -> Ve
 
 pub fn jump_abs_addr(minor_ver: u8, op: u8, idx: usize, arg: usize) -> usize {
     match minor_ver {
-        7..=9 => jump_abs_addr_309(Opcode309::from(op), idx, arg),
-        10 => jump_abs_addr_310(Opcode310::from(op), idx, arg),
-        11 => jump_abs_addr_311(Opcode311::from(op), idx, arg),
+        7..=9 => jump_abs_addr_309(Opcode309::try_from(op).unwrap(), idx, arg),
+        10 => jump_abs_addr_310(Opcode310::try_from(op).unwrap(), idx, arg),
+        11 => jump_abs_addr_311(Opcode311::try_from(op).unwrap(), idx, arg),
         n => todo!("unsupported version: {n}"),
     }
 }
@@ -601,7 +601,7 @@ impl CodeObj {
     }
 
     fn read_instr_308(&self, op: &u8, arg: usize, idx: usize, instrs: &mut String) {
-        let op308 = Opcode308::from(*op);
+        let op308 = Opcode308::try_from(*op).unwrap();
         let s_op = op308.to_string();
         write!(instrs, "{idx:>15} {s_op:<25}").unwrap();
         if let Ok(op) = CommonOpcode::try_from(*op) {
@@ -642,7 +642,7 @@ impl CodeObj {
     }
 
     fn read_instr_309(&self, op: &u8, arg: usize, idx: usize, instrs: &mut String) {
-        let op309 = Opcode309::from(*op);
+        let op309 = Opcode309::try_from(*op).unwrap();
         let s_op = op309.to_string();
         write!(instrs, "{idx:>15} {s_op:<25}").unwrap();
         if let Ok(op) = CommonOpcode::try_from(*op) {
@@ -683,7 +683,7 @@ impl CodeObj {
     }
 
     fn read_instr_310(&self, op: &u8, arg: usize, idx: usize, instrs: &mut String) {
-        let op310 = Opcode310::from(*op);
+        let op310 = Opcode310::try_from(*op).unwrap();
         let s_op = op310.to_string();
         write!(instrs, "{idx:>15} {s_op:<25}").unwrap();
         if let Ok(op) = CommonOpcode::try_from(*op) {
@@ -734,7 +734,7 @@ impl CodeObj {
     }
 
     fn read_instr_311(&self, op: &u8, arg: usize, idx: usize, instrs: &mut String) {
-        let op311 = Opcode311::from(*op);
+        let op311 = Opcode311::try_from(*op).unwrap();
         let s_op = op311.to_string();
         write!(instrs, "{idx:>15} {s_op:<26}").unwrap();
         if let Ok(op) = CommonOpcode::try_from(*op) {
@@ -745,7 +745,7 @@ impl CodeObj {
                 write!(instrs, "{arg} ({})", self.varnames.get(arg).unwrap()).unwrap();
             }
             Opcode311::MAKE_CELL | Opcode311::LOAD_CLOSURE => {
-                write!(instrs, "{arg} ({})", self.cellvars.get(arg).unwrap()).unwrap();
+                write!(instrs, "{arg} ({})", self.varnames.get(arg).unwrap()).unwrap();
             }
             Opcode311::POP_JUMP_FORWARD_IF_FALSE | Opcode311::POP_JUMP_FORWARD_IF_TRUE => {
                 write!(instrs, "{arg} (to {})", idx + arg * 2 + 2).unwrap();
@@ -770,7 +770,12 @@ impl CodeObj {
                 write!(instrs, "{arg} ({})", self.consts.get(arg).unwrap()).unwrap();
             }
             Opcode311::BINARY_OP => {
-                write!(instrs, "{arg} ({:?})", BinOpCode::from(arg as u8)).unwrap();
+                write!(
+                    instrs,
+                    "{arg} ({:?})",
+                    BinOpCode::try_from(arg as u8).unwrap()
+                )
+                .unwrap();
             }
             _ => {}
         }

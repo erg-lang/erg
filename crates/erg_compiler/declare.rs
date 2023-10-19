@@ -346,8 +346,14 @@ impl ASTLowerer {
                 } else {
                     None
                 };
-                let sig =
-                    hir::SubrSignature::new(decorators, ident, subr.bounds, params, ret_t_spec);
+                let sig = hir::SubrSignature::new(
+                    decorators,
+                    ident,
+                    subr.bounds,
+                    params,
+                    ret_t_spec,
+                    vec![],
+                );
                 Ok(hir::Signature::Subr(sig))
             }
         }
@@ -522,6 +528,7 @@ impl ASTLowerer {
             params,
             lambda.op,
             return_t_spec,
+            vec![],
             body,
             Type::Failure,
         ))

@@ -1398,10 +1398,11 @@ impl PyCodeGenerator {
             sig.params.guards,
             Some(name.clone()),
             params,
+            sig.captured_names.clone(),
             flags,
         );
         // code.flags += CodeObjFlags::Optimized as u32;
-        self.register_cellvars(&mut make_function_flag);
+        self.enclose_vars(&mut make_function_flag);
         let n_decos = sig.decorators.len();
         for deco in sig.decorators {
             self.emit_expr(deco);
@@ -1462,9 +1463,10 @@ impl PyCodeGenerator {
             lambda.params.guards,
             Some(format!("<lambda_{}>", lambda.id).into()),
             params,
+            lambda.captured_names.clone(),
             flags,
         );
-        self.register_cellvars(&mut make_function_flag);
+        self.enclose_vars(&mut make_function_flag);
         self.rewrite_captured_fast(&code);
         self.emit_load_const(code);
         if self.py_version.minor < Some(11) {
@@ -1481,18 +1483,25 @@ impl PyCodeGenerator {
         }
     }
 
-    fn register_cellvars(&mut self, flag: &mut usize) {
+    fn enclose_vars(&mut self, flag: &mut usize) {
         if !self.cur_block_codeobj().cellvars.is_empty() {
             let cellvars_len = self.cur_block_codeobj().cellvars.len();
-            for i in 0..cellvars_len {
+            let cellvars = self.cur_block_codeobj().cellvars.clone();
+            for (i, name) in cellvars.iter().enumerate() {
+                // Since 3.11, LOAD_CLOSURE is simply an alias for LOAD_FAST.
                 if self.py_version.minor >= Some(11) {
-                    self.write_instr(Opcode311::MAKE_CELL);
-                    self.write_arg(i);
+                    let idx = self
+                        .cur_block_codeobj()
+                        .varnames
+                        .iter()
+                        .position(|n| n == name)
+                        .unwrap();
                     self.write_instr(Opcode311::LOAD_CLOSURE);
+                    self.write_arg(idx);
                 } else {
                     self.write_instr(Opcode310::LOAD_CLOSURE);
+                    self.write_arg(i);
                 }
-                self.write_arg(i);
             }
             self.write_instr(BUILD_TUPLE);
             self.write_arg(cellvars_len);
@@ -2982,7 +2991,7 @@ impl PyCodeGenerator {
     /// Emits independent code blocks (e.g., linked other modules)
     fn emit_code(&mut self, code: Block) {
         let mut gen = self.inherit();
-        let code = gen.emit_block(code, vec![], None, vec![], 0);
+        let code = gen.emit_block(code, vec![], None, vec![], vec![], 0);
         self.emit_load_const(code);
     }
 
@@ -3370,6 +3379,7 @@ impl PyCodeGenerator {
             bounds,
             params,
             sig.t_spec_with_op().cloned(),
+            vec![],
         );
         let mut attrs = vec![];
         match new_first_param.map(|pt| pt.typ()) {
@@ -3455,6 +3465,7 @@ impl PyCodeGenerator {
                 bounds,
                 params,
                 sig.t_spec_with_op().cloned(),
+                vec![],
             );
             let arg = PosArg::new(Expr::Accessor(Accessor::private_with_line(
                 param_name, line,
@@ -3472,6 +3483,7 @@ impl PyCodeGenerator {
                 bounds,
                 params,
                 sig.t_spec_with_op().cloned(),
+                vec![],
             );
             let call = class_new.call_expr(Args::empty());
             let block = Block::new(vec![call]);
@@ -3486,6 +3498,7 @@ impl PyCodeGenerator {
         guards: Vec<GuardClause>,
         opt_name: Option<Str>,
         params: Vec<Str>,
+        captured_names: Vec<Identifier>,
         flags: u32,
     ) -> CodeObj {
         log!(info "entered {}", fn_name!());
@@ -3518,6 +3531,14 @@ impl PyCodeGenerator {
         } else {
             0
         };
+        let mut cells = vec![];
+        if self.py_version.minor >= Some(11) {
+            for captured in captured_names {
+                self.write_instr(Opcode311::MAKE_CELL);
+                cells.push((captured, self.lasti()));
+                self.write_arg(0);
+            }
+        }
         let init_stack_len = self.stack_len();
         for guard in guards {
             if let GuardClause::Bind(bind) = guard {
@@ -3566,6 +3587,18 @@ impl PyCodeGenerator {
             let code = self.cur_block_codeobj().code.get(idx_copy_free_vars);
             debug_assert_eq!(code, Some(&(Opcode311::COPY_FREE_VARS as u8)));
             self.edit_code(idx_copy_free_vars, CommonOpcode::NOP as usize);
+        }
+        for (cell, placeholder) in cells {
+            let name = escape_ident(cell);
+            let Some(idx) = self
+                .cur_block_codeobj()
+                .varnames
+                .iter()
+                .position(|v| v == &name)
+            else {
+                continue;
+            };
+            self.edit_code(placeholder, idx);
         }
         // end of flagging
         let unit = self.units.pop().unwrap();

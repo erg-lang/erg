@@ -915,6 +915,13 @@ impl ASTLowerer {
             }
         }
         let ident = hir::Identifier::new(ident, __name__, vi);
+        if !ident.vi.is_toplevel()
+            && ident.vi.def_namespace() != &self.module.context.name
+            && ident.inspect() != "self"
+            && ident.vi.kind.can_capture()
+        {
+            self.module.context.captured_names.push(ident.clone());
+        }
         Ok(ident)
     }
 
@@ -1653,6 +1660,7 @@ impl ASTLowerer {
         let default_param_tys = default_params
             .map(|(name, vi)| ParamTy::kw(name.as_ref().unwrap().inspect().clone(), vi.t.clone()))
             .collect();
+        let captured_names = mem::take(&mut self.module.context.captured_names);
         if in_statement {
             // For example, `i` in `for i in ...` is a parameter,
             // but should be treated as a local variable in the later analysis, so move it to locals
@@ -1702,6 +1710,7 @@ impl ASTLowerer {
             params,
             lambda.op,
             return_t_spec,
+            captured_names,
             body,
             t,
         ))
@@ -1936,8 +1945,14 @@ impl ASTLowerer {
                         } else {
                             None
                         };
+                        let captured_names = mem::take(&mut self.module.context.captured_names);
                         let sig = hir::SubrSignature::new(
-                            decorators, ident, sig.bounds, params, ret_t_spec,
+                            decorators,
+                            ident,
+                            sig.bounds,
+                            params,
+                            ret_t_spec,
+                            captured_names,
                         );
                         let body = hir::DefBody::new(body.op, block, body.id);
                         Ok(hir::Def::new(hir::Signature::Subr(sig), body))
@@ -1964,8 +1979,14 @@ impl ASTLowerer {
                         } else {
                             None
                         };
+                        let captured_names = mem::take(&mut self.module.context.captured_names);
                         let sig = hir::SubrSignature::new(
-                            decorators, ident, sig.bounds, params, ret_t_spec,
+                            decorators,
+                            ident,
+                            sig.bounds,
+                            params,
+                            ret_t_spec,
+                            captured_names,
                         );
                         let block =
                             hir::Block::new(vec![hir::Expr::Dummy(hir::Dummy::new(vec![]))]);
@@ -1994,8 +2015,15 @@ impl ASTLowerer {
                 } else {
                     None
                 };
-                let sig =
-                    hir::SubrSignature::new(decorators, ident, sig.bounds, params, ret_t_spec);
+                let captured_names = mem::take(&mut self.module.context.captured_names);
+                let sig = hir::SubrSignature::new(
+                    decorators,
+                    ident,
+                    sig.bounds,
+                    params,
+                    ret_t_spec,
+                    captured_names,
+                );
                 let body = hir::DefBody::new(body.op, block, body.id);
                 Ok(hir::Def::new(hir::Signature::Subr(sig), body))
             }
