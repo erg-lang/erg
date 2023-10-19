@@ -1,0 +1,4 @@
+func vers: Array(Int), version: Int =
+    all map(v -> v == version, vers)
+
+assert func([1, 1], 1)

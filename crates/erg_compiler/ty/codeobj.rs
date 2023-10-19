@@ -745,7 +745,7 @@ impl CodeObj {
                 write!(instrs, "{arg} ({})", self.varnames.get(arg).unwrap()).unwrap();
             }
             Opcode311::MAKE_CELL | Opcode311::LOAD_CLOSURE => {
-                write!(instrs, "{arg} ({})", self.cellvars.get(arg).unwrap()).unwrap();
+                write!(instrs, "{arg} ({})", self.varnames.get(arg).unwrap()).unwrap();
             }
             Opcode311::POP_JUMP_FORWARD_IF_FALSE | Opcode311::POP_JUMP_FORWARD_IF_TRUE => {
                 write!(instrs, "{arg} (to {})", idx + arg * 2 + 2).unwrap();

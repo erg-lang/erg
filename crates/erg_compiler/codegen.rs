@@ -1484,15 +1484,24 @@ impl PyCodeGenerator {
     fn register_cellvars(&mut self, flag: &mut usize) {
         if !self.cur_block_codeobj().cellvars.is_empty() {
             let cellvars_len = self.cur_block_codeobj().cellvars.len();
-            for i in 0..cellvars_len {
+            let cellvars = self.cur_block_codeobj().cellvars.clone();
+            for (i, name) in cellvars.iter().enumerate() {
+                // Since 3.11, LOAD_CLOSURE is simply an alias for LOAD_FAST.
                 if self.py_version.minor >= Some(11) {
+                    let idx = self
+                        .cur_block_codeobj()
+                        .varnames
+                        .iter()
+                        .position(|n| n == name)
+                        .unwrap();
                     self.write_instr(Opcode311::MAKE_CELL);
-                    self.write_arg(i);
+                    self.write_arg(idx);
                     self.write_instr(Opcode311::LOAD_CLOSURE);
+                    self.write_arg(idx);
                 } else {
                     self.write_instr(Opcode310::LOAD_CLOSURE);
+                    self.write_arg(i);
                 }
-                self.write_arg(i);
             }
             self.write_instr(BUILD_TUPLE);
             self.write_arg(cellvars_len);
