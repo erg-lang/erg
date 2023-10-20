@@ -39,6 +39,7 @@ use crate::{feature_error, hir};
 use crate::{unreachable_error, AccessKind};
 use RegistrationMode::*;
 
+use super::eval::UndoableLinkedList;
 use super::instantiate_spec::ParamKind;
 use super::{ContextKind, MethodPair};
 
@@ -760,6 +761,28 @@ impl Context {
                 return Triple::Err(err);
             }
             _ => {}
+        }
+        self.fallback_get_attr_info(obj, ident, input, namespace, expect)
+    }
+
+    fn fallback_get_attr_info(
+        &self,
+        obj: &hir::Expr,
+        ident: &Identifier,
+        input: &Input,
+        namespace: &Context,
+        expect: Option<&Type>,
+    ) -> Triple<VarInfo, TyCheckError> {
+        if let Ok(coerced) = self.coerce(obj.t(), &obj) {
+            if &coerced != obj.ref_t() {
+                let list = UndoableLinkedList::new();
+                obj.ref_t().undoable_coerce(&list);
+                if let Triple::Ok(vi) = self.get_attr_info(obj, ident, input, namespace, expect) {
+                    drop(list);
+                    obj.ref_t().coerce(None);
+                    return Triple::Ok(vi);
+                }
+            }
         }
         Triple::None
     }

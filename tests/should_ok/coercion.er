@@ -1,0 +1,7 @@
+func! pkgs: [{.a = Int}; _] =
+    arr = ![]
+    for! pkgs, pkg =>
+        arr.push! pkg.a
+    arr
+
+assert func!([{.a = 1}, {.a = 2}]) == [1, 2]
