@@ -5,3 +5,10 @@ func! pkgs: [{.a = Int}; _] =
     arr
 
 assert func!([{.a = 1}, {.a = 2}]) == [1, 2]
+
+.Name = Class { .name = Str }
+.Name.
+    parse(_: Str): Name = todo()
+.collect!(names: [{ .name = Str; }; _]) =
+    for! names, rec =>
+        discard .Name.parse(rec.name)
