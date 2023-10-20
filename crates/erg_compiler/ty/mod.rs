@@ -3295,6 +3295,13 @@ impl Type {
                 let t = fv.crack().clone();
                 t.eliminate(target)
             }
+            Self::FreeVar(ref fv) if fv.constraint_is_sandwiched() => {
+                let (sub, sup) = fv.get_subsup().unwrap();
+                let sub = sub.eliminate(target);
+                let sup = sup.eliminate(target);
+                self.update_tyvar(sub, sup, None, false);
+                self
+            }
             Self::And(l, r) => {
                 if l.addr_eq(target) {
                     return r.eliminate(target);
@@ -3555,9 +3562,10 @@ impl Type {
         if self.level() == Some(GENERIC_LEVEL) {
             panic!("{self} is fixed");
         }
+        let to = to.clone().eliminate(self);
         match self {
-            Self::FreeVar(fv) => fv.link(to),
-            Self::Refinement(refine) => refine.t.destructive_link(to),
+            Self::FreeVar(fv) => fv.link(&to),
+            Self::Refinement(refine) => refine.t.destructive_link(&to),
             _ => panic!("{self} is not a free variable"),
         }
     }
