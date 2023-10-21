@@ -147,6 +147,7 @@ pub const TRIGGER_CHARS: [&str; 4] = [".", ":", "(", " "];
 pub struct Flags {
     pub(crate) client_initialized: Arc<AtomicBool>,
     pub(crate) workspace_checked: Arc<AtomicBool>,
+    pub(crate) builtin_modules_loaded: Arc<AtomicBool>,
 }
 
 impl Flags {
@@ -156,6 +157,11 @@ impl Flags {
 
     pub fn workspace_checked(&self) -> bool {
         self.workspace_checked.load(Ordering::Relaxed)
+    }
+
+    #[allow(unused)]
+    pub fn builtin_modules_loaded(&self) -> bool {
+        self.builtin_modules_loaded.load(Ordering::Relaxed)
     }
 }
 
@@ -171,7 +177,7 @@ pub struct Server<Checker: BuildRunnable = PackageBuilder, Parser: Parsable = Si
     pub(crate) opt_features: Vec<OptionalFeatures>,
     pub(crate) file_cache: FileCache,
     pub(crate) comp_cache: CompletionCache,
-    pub(crate) flags: Flags,
+    pub flags: Flags,
     pub(crate) shared: SharedCompilerResource,
     pub(crate) channels: Option<SendChannels>,
     pub(crate) stdout_redirect: Option<mpsc::Sender<Value>>,
@@ -223,8 +229,9 @@ impl<C: BuildRunnable, P: Parsable> Clone for Server<C, P> {
 
 impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub fn new(cfg: ErgConfig, stdout_redirect: Option<mpsc::Sender<Value>>) -> Self {
+        let flags = Flags::default();
         Self {
-            comp_cache: CompletionCache::new(cfg.copy()),
+            comp_cache: CompletionCache::new(cfg.copy(), flags.clone()),
             shared: SharedCompilerResource::new(cfg.copy()),
             cfg,
             home: normalize_path(std::env::current_dir().unwrap_or_default()),
@@ -235,7 +242,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             opt_features: vec![],
             file_cache: FileCache::new(stdout_redirect.clone()),
             channels: None,
-            flags: Flags::default(),
+            flags,
             stdout_redirect,
             _parser: std::marker::PhantomData,
             _checker: std::marker::PhantomData,

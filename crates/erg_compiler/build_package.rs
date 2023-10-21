@@ -56,6 +56,7 @@ pub struct PackageBuilder<Parser: ASTBuildable = ASTBuilder, Builder: Buildable 
     _parser: PhantomData<fn() -> Parser>,
 }
 
+pub type PlainPackageBuilder = PackageBuilder<ASTBuilder, HIRBuilder>;
 pub type PackageTypeChecker = PackageBuilder<ASTBuilder, ASTLowerer>;
 pub type FullPackageBuilder = PackageBuilder<ASTBuilder, HIRBuilder>;
 
