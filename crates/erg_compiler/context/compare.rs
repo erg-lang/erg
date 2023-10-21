@@ -14,7 +14,9 @@ use crate::ty::free::{Constraint, FreeKind, FreeTyVar};
 use crate::ty::typaram::{TyParam, TyParamOrdering};
 use crate::ty::value::ValueObj;
 use crate::ty::value::ValueObj::Inf;
-use crate::ty::{Field, GuardType, Predicate, RefinementType, SubrKind, SubrType, Type};
+use crate::ty::{
+    Field, GuardType, Predicate, RefinementType, SubrKind, SubrType, Type, VisibilityModifier,
+};
 use Predicate as Pred;
 
 use TyParamOrdering::*;
@@ -1154,6 +1156,8 @@ impl Context {
     /// union(?T(<: Str), ?U(<: Int)) == ?T or ?U
     /// union(Array(Int, 2), Array(Str, 2)) == Array(Int or Str, 2)
     /// union(Array(Int, 2), Array(Str, 3)) == Array(Int, 2) or Array(Int, 3)
+    /// union({ .a = Int }, { .a = Str }) == { .a = Int or Str }
+    /// union({ .a = Int }, { .a = Int; .b = Int }) == { .a = Int }
     /// ```
     pub(crate) fn union(&self, lhs: &Type, rhs: &Type) -> Type {
         if lhs == rhs {
@@ -1172,6 +1176,27 @@ impl Context {
                     self.simple_union(lhs, rhs)
                 } else {
                     union
+                }
+            }
+            (Record(l), Record(r)) => {
+                let mut union = Dict::new();
+                for (l_k, l_v) in l.iter() {
+                    if let Some((r_k, r_v)) = r.get_key_value(l_k) {
+                        let field = match (&l_k.vis, &r_k.vis) {
+                            (VisibilityModifier::Private, _) | (_, VisibilityModifier::Private) => {
+                                Field::new(VisibilityModifier::Private, l_k.symbol.clone())
+                            }
+                            // TODO: scope unification
+                            (l, r) if l == r => l_k.clone(),
+                            _ => continue,
+                        };
+                        union.insert(field, self.union(l_v, r_v));
+                    }
+                }
+                if union.is_empty() {
+                    self.simple_union(lhs, rhs)
+                } else {
+                    Record(union)
                 }
             }
             (Structural(l), Structural(r)) => self.union(l, r).structuralize(),
