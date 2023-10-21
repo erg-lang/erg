@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use erg_common::spawn::safe_yield;
 use lsp_types::{
     CompletionResponse, DiagnosticSeverity, DocumentSymbolResponse, FoldingRange, FoldingRangeKind,
     GotoDefinitionResponse, HoverContents, InlayHintLabel, MarkedString,
@@ -62,6 +63,29 @@ fn test_neighbor_completion() -> Result<(), Box<dyn std::error::Error>> {
         assert!(items
             .iter()
             .any(|item| item.label == "neighbor (import from b)"));
+        Ok(())
+    } else {
+        Err(format!("not items: {resp:?}").into())
+    }
+}
+
+#[test]
+fn test_pymodule_completion() -> Result<(), Box<dyn std::error::Error>> {
+    let mut client = Server::bind_fake_client();
+    client.request_initialize()?;
+    client.notify_initialized()?;
+    let uri = NormalizedUrl::from_file_path(Path::new(FILE_A).canonicalize()?)?;
+    client.notify_open(FILE_A)?;
+    while !client.server.flags.builtin_modules_loaded() {
+        safe_yield();
+    }
+    client.notify_change(uri.clone().raw(), add_char(2, 0, "c"))?;
+    let resp = client.request_completion(uri.raw(), 2, 0, "c")?;
+    if let Some(CompletionResponse::Array(items)) = resp {
+        assert!(items.len() >= 100);
+        assert!(items
+            .iter()
+            .any(|item| item.label == "cos (import from math)"));
         Ok(())
     } else {
         Err(format!("not items: {resp:?}").into())

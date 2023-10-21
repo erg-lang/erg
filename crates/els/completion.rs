@@ -1,12 +1,10 @@
 use std::path::Path;
 
-use erg_common::consts::PYTHON_MODE;
-use erg_common::spawn::spawn_new_thread;
-use erg_compiler::erg_parser::parse::Parsable;
 use lsp_types::CompletionResponse;
 use serde_json::Value;
 
 use erg_common::config::ErgConfig;
+use erg_common::consts::PYTHON_MODE;
 use erg_common::dict::Dict;
 use erg_common::env::{erg_py_external_lib_path, erg_pystd_path};
 use erg_common::impl_u8_enum;
@@ -14,16 +12,18 @@ use erg_common::io::Input;
 use erg_common::python_util::{BUILTIN_PYTHON_MODS, EXT_COMMON_ALIAS, EXT_PYTHON_MODS};
 use erg_common::set::Set;
 use erg_common::shared::{MappedRwLockReadGuard, RwLockReadGuard, Shared};
+use erg_common::spawn::spawn_new_thread;
 use erg_common::traits::Locational;
 
 use erg_compiler::artifact::{BuildRunnable, Buildable};
+use erg_compiler::build_package::PlainPackageBuilder;
 use erg_compiler::context::Context;
+use erg_compiler::erg_parser::parse::Parsable;
 use erg_compiler::erg_parser::token::TokenKind;
 use erg_compiler::hir::Expr;
 use erg_compiler::module::SharedCompilerResource;
 use erg_compiler::ty::{HasType, ParamTy, Type};
 use erg_compiler::varinfo::{AbsLocation, VarInfo};
-use erg_compiler::HIRBuilder;
 use TokenKind::*;
 
 use lsp_types::{
@@ -31,7 +31,7 @@ use lsp_types::{
     MarkupContent, MarkupKind, Position, Range, TextEdit,
 };
 
-use crate::server::{ELSResult, RedirectableStdout, Server};
+use crate::server::{ELSResult, Flags, RedirectableStdout, Server};
 use crate::util::{self, loc_to_pos, NormalizedUrl};
 
 fn comp_item_kind(vi: &VarInfo) -> CompletionItemKind {
@@ -326,7 +326,7 @@ fn load_modules<'a>(
         ..cfg
     };
     let shared = SharedCompilerResource::new(cfg.clone());
-    let mut checker = HIRBuilder::inherit(cfg, shared.clone());
+    let mut checker = PlainPackageBuilder::inherit(cfg, shared.clone());
     let _res = checker.build(src, "exec");
     let mut cache = cache.borrow_mut();
     if cache.get("<module>").is_none() {
@@ -351,7 +351,7 @@ fn load_modules<'a>(
 }
 
 impl CompletionCache {
-    pub fn new(cfg: ErgConfig) -> Self {
+    pub fn new(cfg: ErgConfig, flags: Flags) -> Self {
         let cache = Shared::new(Dict::default());
         let clone = cache.clone();
         spawn_new_thread(
@@ -406,6 +406,9 @@ impl CompletionCache {
                     major_mods.into_iter().chain(py_specific_mods),
                 );
                 load_modules(cfg, clone, erg_py_external_lib_path(), ext_mods.into_iter());
+                flags
+                    .builtin_modules_loaded
+                    .store(true, std::sync::atomic::Ordering::Relaxed);
             },
             "load_modules",
         );

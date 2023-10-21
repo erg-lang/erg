@@ -39,6 +39,7 @@ use crate::{feature_error, hir};
 use crate::{unreachable_error, AccessKind};
 use RegistrationMode::*;
 
+use super::eval::UndoableLinkedList;
 use super::instantiate_spec::ParamKind;
 use super::{ContextKind, MethodPair};
 
@@ -714,15 +715,16 @@ impl Context {
         match self.get_bound_attr_from_nominal_t(obj, ident, input, namespace) {
             Triple::Ok(vi) => {
                 if let Some(self_t) = vi.t.self_t() {
-                    match self
-                        .sub_unify(obj.ref_t(), self_t, obj, Some(&"self".into()))
+                    let list = UndoableLinkedList::new();
+                    if let Err(errs) = self
+                        .undoable_sub_unify(obj.ref_t(), self_t, obj, &list, Some(&"self".into()))
                         .map_err(|mut e| e.remove(0))
                     {
-                        Ok(_) => {}
-                        Err(e) => {
-                            return Triple::Err(e);
-                        }
+                        return Triple::Err(errs);
                     }
+                    drop(list);
+                    self.sub_unify(obj.ref_t(), self_t, obj, Some(&"self".into()))
+                        .unwrap();
                 }
                 return Triple::Ok(vi);
             }
@@ -747,19 +749,46 @@ impl Context {
                 }
             }
         }
+        // REVIEW: get by name > coercion?
         match self.get_attr_type_by_name(obj, ident, namespace) {
             Triple::Ok(method) => {
-                if let Err(mut errs) =
-                    self.sub_unify(obj.ref_t(), &method.definition_type, obj, None)
+                let list = UndoableLinkedList::new();
+                if self
+                    .undoable_sub_unify(obj.ref_t(), &method.definition_type, obj, &list, None)
+                    .is_ok()
                 {
-                    return Triple::Err(errs.remove(0));
+                    drop(list);
+                    self.sub_unify(obj.ref_t(), &method.definition_type, obj, None)
+                        .unwrap();
+                    return Triple::Ok(method.method_info.clone());
                 }
-                return Triple::Ok(method.method_info.clone());
             }
             Triple::Err(err) if ERG_MODE => {
                 return Triple::Err(err);
             }
             _ => {}
+        }
+        self.fallback_get_attr_info(obj, ident, input, namespace, expect)
+    }
+
+    fn fallback_get_attr_info(
+        &self,
+        obj: &hir::Expr,
+        ident: &Identifier,
+        input: &Input,
+        namespace: &Context,
+        expect: Option<&Type>,
+    ) -> Triple<VarInfo, TyCheckError> {
+        if let Ok(coerced) = self.coerce(obj.t(), &obj) {
+            if &coerced != obj.ref_t() {
+                let list = UndoableLinkedList::new();
+                obj.ref_t().undoable_coerce(&list);
+                if let Triple::Ok(vi) = self.get_attr_info(obj, ident, input, namespace, expect) {
+                    drop(list);
+                    obj.ref_t().coerce(None);
+                    return Triple::Ok(vi);
+                }
+            }
         }
         Triple::None
     }
@@ -1175,9 +1204,12 @@ impl Context {
         match self.get_attr_type_by_name(obj, attr_name, namespace) {
             Triple::Ok(method) => {
                 let def_t = self.instantiate_def_type(&method.definition_type).unwrap();
-                self.sub_unify(obj.ref_t(), &def_t, obj, None)
+                let list = UndoableLinkedList::new();
+                self.undoable_sub_unify(obj.ref_t(), &def_t, obj, &list, None)
                     // HACK: change this func's return type to TyCheckResult<Type>
                     .map_err(|mut errs| errs.remove(0))?;
+                drop(list);
+                self.sub_unify(obj.ref_t(), &def_t, obj, None).unwrap();
                 return Ok(method.method_info.clone());
             }
             Triple::Err(err) => {
@@ -1296,9 +1328,12 @@ impl Context {
         match self.get_attr_type_by_name(obj, attr_name, namespace) {
             Triple::Ok(method) => {
                 let def_t = self.instantiate_def_type(&method.definition_type).unwrap();
-                self.sub_unify(obj.ref_t(), &def_t, obj, None)
+                let list = UndoableLinkedList::new();
+                self.undoable_sub_unify(obj.ref_t(), &def_t, obj, &list, None)
                     // HACK: change this func's return type to TyCheckResult<Type>
                     .map_err(|mut errs| errs.remove(0))?;
+                drop(list);
+                self.sub_unify(obj.ref_t(), &def_t, obj, None).unwrap();
                 return Ok(method.method_info.clone());
             }
             Triple::Err(err) => {

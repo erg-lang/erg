@@ -57,6 +57,11 @@ fn exec_closure() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_coercion() -> Result<(), ()> {
+    expect_success("tests/should_ok/coercion.er", 0)
+}
+
+#[test]
 fn exec_collection() -> Result<(), ()> {
     expect_success("tests/should_ok/collection.er", 0)
 }
