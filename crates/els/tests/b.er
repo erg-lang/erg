@@ -2,4 +2,6 @@
 
 .x = 1
 
-.C = Class { .x = Int }
+.C = Class { .a = Int }
+.C.
+    func self = self

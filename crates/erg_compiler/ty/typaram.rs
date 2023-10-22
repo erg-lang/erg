@@ -1543,6 +1543,76 @@ impl TyParam {
             _ => set! {},
         }
     }
+
+    pub fn dereference(&mut self) {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => {
+                let new = fv.crack().clone();
+                *self = new;
+                self.dereference();
+            }
+            Self::FreeVar(fv) if fv.is_generalized() => {
+                fv.update_init();
+            }
+            Self::Type(t) => t.dereference(),
+            Self::Value(ValueObj::Type(t)) => t.typ_mut().dereference(),
+            Self::App { args, .. } => {
+                for arg in args {
+                    arg.dereference();
+                }
+            }
+            Self::Proj { obj, .. } => obj.dereference(),
+            Self::ProjCall { obj, args, .. } => {
+                obj.dereference();
+                for arg in args {
+                    arg.dereference();
+                }
+            }
+            Self::Array(ts) | Self::Tuple(ts) => {
+                for t in ts {
+                    t.dereference();
+                }
+            }
+            Self::Set(ts) => {
+                let ts_ = std::mem::take(ts);
+                *ts = ts_
+                    .into_iter()
+                    .map(|mut t| {
+                        t.dereference();
+                        t
+                    })
+                    .collect();
+            }
+            Self::Dict(ts) => {
+                let ts_ = std::mem::take(ts);
+                *ts = ts_
+                    .into_iter()
+                    .map(|(mut k, mut v)| {
+                        k.dereference();
+                        v.dereference();
+                        (k, v)
+                    })
+                    .collect();
+            }
+            Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
+                for (_, t) in rec.iter_mut() {
+                    t.dereference();
+                }
+            }
+            Self::Lambda(lambda) => {
+                for t in &mut lambda.body {
+                    t.dereference();
+                }
+            }
+            Self::UnaryOp { val, .. } => val.dereference(),
+            Self::BinOp { lhs, rhs, .. } => {
+                lhs.dereference();
+                rhs.dereference();
+            }
+            Self::Erased(t) => t.dereference(),
+            _ => {}
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

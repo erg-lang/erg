@@ -35,18 +35,27 @@ fn test_completion() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = Server::bind_fake_client();
     client.request_initialize()?;
     client.notify_initialized()?;
-    let uri = NormalizedUrl::from_file_path(Path::new(FILE_A).canonicalize()?)?;
+    let uri_a = NormalizedUrl::from_file_path(Path::new(FILE_A).canonicalize()?)?;
+    let uri_b = NormalizedUrl::from_file_path(Path::new(FILE_B).canonicalize()?)?;
     client.notify_open(FILE_A)?;
-    client.notify_change(uri.clone().raw(), add_char(2, 0, "x"))?;
-    client.notify_change(uri.clone().raw(), add_char(2, 1, "."))?;
-    let resp = client.request_completion(uri.raw(), 2, 2, ".")?;
+    client.notify_change(uri_a.clone().raw(), add_char(2, 0, "x"))?;
+    client.notify_change(uri_a.clone().raw(), add_char(2, 1, "."))?;
+    let resp = client.request_completion(uri_a.raw(), 2, 2, ".")?;
     if let Some(CompletionResponse::Array(items)) = resp {
         assert!(items.len() >= 40);
         assert!(items.iter().any(|item| item.label == "abs"));
-        Ok(())
     } else {
-        Err(format!("not items: {resp:?}").into())
+        return Err(format!("not items: {resp:?}").into());
     }
+    client.notify_open(FILE_B)?;
+    client.notify_change(uri_b.clone().raw(), add_char(6, 20, "."))?;
+    let resp = client.request_completion(uri_b.raw(), 6, 21, ".")?;
+    if let Some(CompletionResponse::Array(items)) = resp {
+        assert!(items.iter().any(|item| item.label == "a"));
+    } else {
+        return Err(format!("not items: {resp:?}").into());
+    }
+    Ok(())
 }
 
 #[test]

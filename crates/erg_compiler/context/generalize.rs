@@ -1110,6 +1110,8 @@ impl Context {
                     let t = mem::take(acc.ref_mut_t().unwrap());
                     let mut dereferencer = Dereferencer::simple(self, qnames, acc);
                     *acc.ref_mut_t().unwrap() = dereferencer.deref_tyvar(t)?;
+                } else {
+                    acc.ref_mut_t().unwrap().dereference();
                 }
                 if let hir::Accessor::Attr(attr) = acc {
                     self.resolve_expr_t(&mut attr.obj, qnames)?;

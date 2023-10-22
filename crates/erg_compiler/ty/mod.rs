@@ -3757,6 +3757,90 @@ impl Type {
             _ => set! { self.clone() },
         }
     }
+
+    pub fn dereference(&mut self) {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => {
+                let new = fv.crack().clone();
+                *self = new;
+                self.dereference();
+            }
+            Self::FreeVar(fv) if fv.is_generalized() => {
+                fv.update_init();
+            }
+            // TODO: T(:> X, <: Y).dereference()
+            Self::Refinement(refine) => refine.t.dereference(),
+            Self::Ref(t) => {
+                t.dereference();
+            }
+            Self::RefMut { before, after } => {
+                before.dereference();
+                if let Some(after) = after.as_mut() {
+                    after.dereference();
+                }
+            }
+            Self::Subr(sub) => {
+                for nd in sub.non_default_params.iter_mut() {
+                    nd.typ_mut().dereference();
+                }
+                if let Some(var) = sub.var_params.as_mut() {
+                    var.typ_mut().dereference();
+                }
+                for d in sub.default_params.iter_mut() {
+                    d.typ_mut().dereference();
+                }
+                sub.return_t.dereference();
+            }
+            Self::Callable { param_ts, return_t } => {
+                for t in param_ts.iter_mut() {
+                    t.dereference();
+                }
+                return_t.dereference();
+            }
+            Self::And(l, r) | Self::Or(l, r) => {
+                l.dereference();
+                r.dereference();
+            }
+            Self::Not(ty) => {
+                ty.dereference();
+            }
+            Self::Bounded { sub, sup } => {
+                sub.dereference();
+                sup.dereference();
+            }
+            Self::Quantified(ty) | Self::Structural(ty) => {
+                ty.dereference();
+            }
+            Self::Record(rec) => {
+                for v in rec.values_mut() {
+                    v.dereference();
+                }
+            }
+            Self::NamedTuple(r) => {
+                for (_, v) in r.iter_mut() {
+                    v.dereference();
+                }
+            }
+            Self::Proj { lhs, .. } => {
+                lhs.dereference();
+            }
+            Self::ProjCall { lhs, args, .. } => {
+                lhs.dereference();
+                for arg in args.iter_mut() {
+                    arg.dereference();
+                }
+            }
+            Self::Poly { params, .. } => {
+                for param in params.iter_mut() {
+                    param.dereference();
+                }
+            }
+            Self::Guard(guard) => {
+                guard.to.dereference();
+            }
+            _ => {}
+        }
+    }
 }
 
 pub struct ReplaceTable<'t> {
