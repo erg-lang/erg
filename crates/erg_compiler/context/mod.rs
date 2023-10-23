@@ -113,7 +113,7 @@ impl ControlKind {
         matches!(self, Self::If | Self::While)
     }
     pub const fn makes_scope(&self) -> bool {
-        !matches!(self, Self::Assert)
+        !matches!(self, Self::Assert | Self::Discard)
     }
 }
 
@@ -544,7 +544,7 @@ pub struct Context {
     pub(crate) higher_order_caller: Vec<Str>,
     pub(crate) guards: Vec<GuardType>,
     pub(crate) erg_to_py_names: Dict<Str, Str>,
-    pub(crate) captured_names: Vec<Identifier>,
+    pub(crate) free_vars: Vec<Identifier>,
     pub(crate) level: usize,
 }
 
@@ -744,7 +744,7 @@ impl Context {
             higher_order_caller: vec![],
             guards: vec![],
             erg_to_py_names: Dict::default(),
-            captured_names: vec![],
+            free_vars: vec![],
             level,
         }
     }

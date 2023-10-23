@@ -353,6 +353,7 @@ impl ASTLowerer {
                     params,
                     ret_t_spec,
                     vec![],
+                    vec![],
                 );
                 Ok(hir::Signature::Subr(sig))
             }
@@ -529,7 +530,9 @@ impl ASTLowerer {
             lambda.op,
             return_t_spec,
             vec![],
+            vec![],
             body,
+            None,
             Type::Failure,
         ))
     }

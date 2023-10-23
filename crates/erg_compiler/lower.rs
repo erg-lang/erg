@@ -917,10 +917,9 @@ impl ASTLowerer {
         let ident = hir::Identifier::new(ident, __name__, vi);
         if !ident.vi.is_toplevel()
             && ident.vi.def_namespace() != &self.module.context.name
-            && ident.inspect() != "self"
             && ident.vi.kind.can_capture()
         {
-            self.module.context.captured_names.push(ident.clone());
+            self.module.context.free_vars.push(ident.clone());
         }
         Ok(ident)
     }
@@ -1660,7 +1659,7 @@ impl ASTLowerer {
         let default_param_tys = default_params
             .map(|(name, vi)| ParamTy::kw(name.as_ref().unwrap().inspect().clone(), vi.t.clone()))
             .collect();
-        let captured_names = mem::take(&mut self.module.context.captured_names);
+        let captured_names = mem::take(&mut self.module.context.free_vars);
         if in_statement {
             // For example, `i` in `for i in ...` is a parameter,
             // but should be treated as a local variable in the later analysis, so move it to locals
@@ -1705,13 +1704,17 @@ impl ASTLowerer {
             ty
         };
         let return_t_spec = lambda.sig.return_t_spec.map(|t_spec| t_spec.t_spec);
+        let cell_vars = self.collect_cell_vars(&body);
+        let block_of = self.module.context.current_caller();
         Ok(hir::Lambda::new(
             id,
             params,
             lambda.op,
             return_t_spec,
             captured_names,
+            cell_vars,
             body,
+            block_of,
             t,
         ))
     }
@@ -1881,6 +1884,55 @@ impl ASTLowerer {
         }
     }
 
+    fn collect_cell_vars(&self, block: &hir::Block) -> Vec<hir::Identifier> {
+        let mut cell_vars = vec![];
+        for chunk in block.iter() {
+            cell_vars.extend(self.collect_cell_vars_of(chunk));
+        }
+        cell_vars
+    }
+
+    fn collect_cell_vars_of(&self, expr: &hir::Expr) -> Vec<hir::Identifier> {
+        match expr {
+            hir::Expr::Def(hir::Def {
+                sig: hir::Signature::Subr(sig),
+                body,
+            }) => {
+                let mut cell_vars = sig
+                    .free_vars
+                    .iter()
+                    .filter(|name| name.vi.def_namespace() == &self.module.context.name)
+                    .cloned()
+                    .collect::<Vec<_>>();
+                for chunk in body.block.iter() {
+                    cell_vars.extend(self.collect_cell_vars_of(chunk));
+                }
+                cell_vars
+            }
+            hir::Expr::Lambda(lambda) => {
+                let mut cell_vars = if lambda.block_of.is_some_and(|control| control.makes_scope())
+                {
+                    vec![]
+                } else {
+                    lambda
+                        .free_vars
+                        .iter()
+                        .filter(|name| name.vi.def_namespace() == &self.module.context.name)
+                        .cloned()
+                        .collect::<Vec<_>>()
+                };
+                for chunk in lambda.body.iter() {
+                    cell_vars.extend(self.collect_cell_vars_of(chunk));
+                }
+                cell_vars
+            }
+            hir::Expr::Call(call) => call.args.iter().fold(vec![], |acc, expr| {
+                [acc, self.collect_cell_vars_of(expr)].concat()
+            }),
+            _ => vec![],
+        }
+    }
+
     // NOTE: Note that this is in the inner scope while being called.
     fn lower_subr_def(
         &mut self,
@@ -1945,14 +1997,10 @@ impl ASTLowerer {
                         } else {
                             None
                         };
-                        let captured_names = mem::take(&mut self.module.context.captured_names);
+                        let free_vars = mem::take(&mut self.module.context.free_vars);
+                        let cell_vars = self.collect_cell_vars(&block);
                         let sig = hir::SubrSignature::new(
-                            decorators,
-                            ident,
-                            sig.bounds,
-                            params,
-                            ret_t_spec,
-                            captured_names,
+                            decorators, ident, sig.bounds, params, ret_t_spec, free_vars, cell_vars,
                         );
                         let body = hir::DefBody::new(body.op, block, body.id);
                         Ok(hir::Def::new(hir::Signature::Subr(sig), body))
@@ -1979,7 +2027,7 @@ impl ASTLowerer {
                         } else {
                             None
                         };
-                        let captured_names = mem::take(&mut self.module.context.captured_names);
+                        let captured_names = mem::take(&mut self.module.context.free_vars);
                         let sig = hir::SubrSignature::new(
                             decorators,
                             ident,
@@ -1987,6 +2035,7 @@ impl ASTLowerer {
                             params,
                             ret_t_spec,
                             captured_names,
+                            vec![],
                         );
                         let block =
                             hir::Block::new(vec![hir::Expr::Dummy(hir::Dummy::new(vec![]))]);
@@ -2015,7 +2064,8 @@ impl ASTLowerer {
                 } else {
                     None
                 };
-                let captured_names = mem::take(&mut self.module.context.captured_names);
+                let captured_names = mem::take(&mut self.module.context.free_vars);
+                let cell_vars = self.collect_cell_vars(&block);
                 let sig = hir::SubrSignature::new(
                     decorators,
                     ident,
@@ -2023,6 +2073,7 @@ impl ASTLowerer {
                     params,
                     ret_t_spec,
                     captured_names,
+                    cell_vars,
                 );
                 let body = hir::DefBody::new(body.op, block, body.id);
                 Ok(hir::Def::new(hir::Signature::Subr(sig), body))

@@ -22,6 +22,7 @@ use erg_parser::ast::{
 };
 use erg_parser::token::{Token, TokenKind, DOT};
 
+use crate::context::ControlKind;
 use crate::ty::constructors::{dict_t, set_t, tuple_t};
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, ValueObj};
@@ -1954,7 +1955,8 @@ pub struct SubrSignature {
     pub bounds: TypeBoundSpecs,
     pub params: Params,
     pub return_t_spec: Option<TypeSpecWithOp>,
-    pub captured_names: Vec<Identifier>,
+    pub free_vars: Vec<Identifier>,
+    pub cell_vars: Vec<Identifier>,
 }
 
 impl NestedDisplay for SubrSignature {
@@ -2008,7 +2010,8 @@ impl SubrSignature {
         bounds: TypeBoundSpecs,
         params: Params,
         return_t_spec: Option<TypeSpecWithOp>,
-        captured_names: Vec<Identifier>,
+        free_vars: Vec<Identifier>,
+        cell_vars: Vec<Identifier>,
     ) -> Self {
         Self {
             decorators,
@@ -2016,7 +2019,8 @@ impl SubrSignature {
             bounds,
             params,
             return_t_spec,
-            captured_names,
+            free_vars,
+            cell_vars,
         }
     }
 
@@ -2034,9 +2038,11 @@ pub struct Lambda {
     pub params: Params,
     pub op: Token,
     pub return_t_spec: Option<TypeSpec>,
-    pub captured_names: Vec<Identifier>,
+    pub free_vars: Vec<Identifier>,
+    pub cell_vars: Vec<Identifier>,
     pub body: Block,
     pub id: usize,
+    pub block_of: Option<ControlKind>,
     pub t: Type,
 }
 
@@ -2063,13 +2069,16 @@ impl_locational!(Lambda, params, body);
 impl_t!(Lambda);
 
 impl Lambda {
+    #[allow(clippy::too_many_arguments)]
     pub const fn new(
         id: usize,
         params: Params,
         op: Token,
         return_t_spec: Option<TypeSpec>,
-        captured_names: Vec<Identifier>,
+        free_vars: Vec<Identifier>,
+        cell_vars: Vec<Identifier>,
         body: Block,
+        block_of: Option<ControlKind>,
         t: Type,
     ) -> Self {
         Self {
@@ -2077,8 +2086,10 @@ impl Lambda {
             params,
             op,
             return_t_spec,
-            captured_names,
+            free_vars,
+            cell_vars,
             body,
+            block_of,
             t,
         }
     }

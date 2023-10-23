@@ -19,10 +19,7 @@ use erg_common::option_enum_unwrap;
 use erg_common::python_util::{env_python_version, PythonVersion};
 use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
-use erg_common::{
-    debug_power_assert, fmt_option, fn_name, fn_name_full, impl_stream, log, set,
-    switch_unreachable,
-};
+use erg_common::{debug_power_assert, fmt_option, fn_name, fn_name_full, impl_stream, log, set};
 use erg_parser::ast::VisModifierSpec;
 use erg_parser::ast::{DefId, DefKind};
 use CommonOpcode::*;
@@ -132,7 +129,6 @@ pub struct PyCodeGenUnit {
     pub(crate) id: usize,
     pub(crate) py_version: PythonVersion,
     pub(crate) codeobj: CodeObj,
-    pub(crate) captured_vars: Vec<Str>,
     pub(crate) stack_len: u32, // the maximum stack size
     pub(crate) prev_lineno: u32,
     pub(crate) lasti: usize,
@@ -159,20 +155,41 @@ impl fmt::Display for PyCodeGenUnit {
 }
 
 impl PyCodeGenUnit {
+    #[allow(clippy::too_many_arguments)]
     pub fn new<S: Into<Str>, T: Into<Str>>(
         id: usize,
         py_version: PythonVersion,
         params: Vec<Str>,
+        free_vars: Vec<Str>,
+        cell_vars: Vec<Str>,
         filename: S,
         name: T,
         firstlineno: u32,
         flags: u32,
     ) -> Self {
+        let params = if py_version.minor >= Some(11) {
+            [params, free_vars.clone()].concat()
+        } else {
+            params
+        };
+        let nlocals = if py_version.minor >= Some(11) {
+            params.iter().filter(|n| !free_vars.contains(n)).count() as u32
+        } else {
+            params.len() as u32
+        };
         Self {
             id,
             py_version,
-            codeobj: CodeObj::empty(params, filename, name, firstlineno, flags),
-            captured_vars: vec![],
+            codeobj: CodeObj::empty(
+                nlocals,
+                params,
+                free_vars.clone(),
+                cell_vars.clone(),
+                filename,
+                name,
+                firstlineno,
+                flags,
+            ),
             stack_len: 0,
             prev_lineno: firstlineno,
             lasti: 0,
@@ -610,11 +627,24 @@ impl PyCodeGenerator {
             Some(Name::local(idx))
         } else if let Some(idx) = self
             .cur_block_codeobj()
+            .cellvars
+            .iter()
+            .position(|v| &**v == name)
+        {
+            Some(Name::deref(idx))
+        } else if let Some(idx) = self
+            .cur_block_codeobj()
             .varnames
             .iter()
             .position(|v| &**v == name)
         {
-            if self.cur_block().captured_vars.contains(&Str::rc(name)) {
+            if self.py_version.minor >= Some(11)
+                && self
+                    .cur_block_codeobj()
+                    .freevars
+                    .iter()
+                    .any(|f| &**f == name)
+            {
                 Some(Name::deref(idx))
             } else {
                 Some(Name::fast(idx))
@@ -628,72 +658,19 @@ impl PyCodeGenerator {
         }
     }
 
-    // local_searchで見つからなかった変数を探索する
-    fn rec_search(&mut self, name: &str) -> Option<StoreLoadKind> {
-        // search_name()を実行した後なのでcur_blockはskipする
-        for (nth_from_toplevel, block) in self.units.iter_mut().enumerate().rev().skip(1) {
-            let block_is_toplevel = nth_from_toplevel == 0;
-            if block.codeobj.cellvars.iter().any(|c| &**c == name) {
-                return Some(StoreLoadKind::Deref);
-            } else if let Some(idx) = block.codeobj.varnames.iter().position(|v| &**v == name) {
-                if block_is_toplevel {
-                    return Some(StoreLoadKind::Global);
-                } else {
-                    // the outer scope variable
-                    let cellvar_name = block.codeobj.varnames.get(idx).unwrap().clone();
-                    block.codeobj.cellvars.push(cellvar_name);
-                    return Some(StoreLoadKind::Deref);
-                }
-            }
-            if block_is_toplevel && block.codeobj.names.iter().any(|n| &**n == name) {
-                return Some(StoreLoadKind::Global);
-            }
-        }
-        // 見つからなかった変数(前方参照変数など)はグローバル
-        Some(StoreLoadKind::Global)
-    }
-
     fn register_name(&mut self, name: Str, kind: RegisterNameKind) -> Name {
-        let current_is_toplevel = self.cur_block() == self.toplevel_block();
-        match self.rec_search(&name) {
-            Some(st @ (StoreLoadKind::Local | StoreLoadKind::Global)) => {
-                if kind.is_fast() {
-                    self.mut_cur_block_codeobj().varnames.push(name);
-                    Name::fast(self.cur_block_codeobj().varnames.len() - 1)
-                } else {
-                    let st = if current_is_toplevel {
-                        StoreLoadKind::Local
-                    } else {
-                        st
-                    };
-                    self.mut_cur_block_codeobj().names.push(name);
-                    Name::new(st, self.cur_block_codeobj().names.len() - 1)
-                }
-            }
-            Some(StoreLoadKind::Deref) => {
-                self.mut_cur_block_codeobj().freevars.push(name.clone());
-                if self.py_version.minor >= Some(11) {
-                    // in 3.11 freevars are unified with varnames
-                    self.mut_cur_block_codeobj().varnames.push(name);
-                    Name::deref(self.cur_block_codeobj().varnames.len() - 1)
-                } else {
-                    // cellvarsのpushはrec_search()で行われる
-                    Name::deref(self.cur_block_codeobj().freevars.len() - 1)
-                }
-            }
-            None => {
-                // new variable
-                if current_is_toplevel {
-                    self.mut_cur_block_codeobj().names.push(name);
-                    Name::local(self.cur_block_codeobj().names.len() - 1)
-                } else {
-                    self.mut_cur_block_codeobj().varnames.push(name);
-                    Name::fast(self.cur_block_codeobj().varnames.len() - 1)
-                }
-            }
-            Some(_) => {
-                switch_unreachable!()
-            }
+        if kind.is_fast() {
+            self.mut_cur_block_codeobj().varnames.push(name);
+            Name::fast(self.cur_block_codeobj().varnames.len() - 1)
+        } else {
+            let current_is_toplevel = self.cur_block() == self.toplevel_block();
+            let st = if current_is_toplevel {
+                StoreLoadKind::Local
+            } else {
+                StoreLoadKind::Global
+            };
+            self.mut_cur_block_codeobj().names.push(name);
+            Name::new(st, self.cur_block_codeobj().names.len() - 1)
         }
     }
 
@@ -1176,6 +1153,8 @@ impl PyCodeGenerator {
             self.unit_size,
             self.py_version,
             vec![],
+            vec![],
+            vec![],
             Str::rc(self.cfg.input.enclosed_name()),
             &name,
             firstlineno,
@@ -1244,6 +1223,8 @@ impl PyCodeGenerator {
             self.units.push(PyCodeGenUnit::new(
                 self.unit_size,
                 self.py_version,
+                vec![],
+                vec![],
                 vec![],
                 Str::rc(self.cfg.input.enclosed_name()),
                 ident.inspect(),
@@ -1398,7 +1379,8 @@ impl PyCodeGenerator {
             sig.params.guards,
             Some(name.clone()),
             params,
-            sig.captured_names.clone(),
+            sig.free_vars.clone(),
+            sig.cell_vars,
             flags,
         );
         // code.flags += CodeObjFlags::Optimized as u32;
@@ -1407,7 +1389,6 @@ impl PyCodeGenerator {
         for deco in sig.decorators {
             self.emit_expr(deco);
         }
-        self.rewrite_captured_fast(&code);
         self.emit_load_const(code);
         if self.py_version.minor < Some(11) {
             if let Some(class) = class_name {
@@ -1463,11 +1444,11 @@ impl PyCodeGenerator {
             lambda.params.guards,
             Some(format!("<lambda_{}>", lambda.id).into()),
             params,
-            lambda.captured_names.clone(),
+            lambda.free_vars,
+            lambda.cell_vars,
             flags,
         );
         self.enclose_vars(&mut make_function_flag);
-        self.rewrite_captured_fast(&code);
         self.emit_load_const(code);
         if self.py_version.minor < Some(11) {
             self.emit_load_const(format!("<lambda_{}>", lambda.id));
@@ -1490,12 +1471,14 @@ impl PyCodeGenerator {
             for (i, name) in cellvars.iter().enumerate() {
                 // Since 3.11, LOAD_CLOSURE is simply an alias for LOAD_FAST.
                 if self.py_version.minor >= Some(11) {
-                    let idx = self
+                    let Some(idx) = self
                         .cur_block_codeobj()
                         .varnames
                         .iter()
                         .position(|n| n == name)
-                        .unwrap();
+                    else {
+                        continue;
+                    };
                     self.write_instr(Opcode311::LOAD_CLOSURE);
                     self.write_arg(idx);
                 } else {
@@ -1506,56 +1489,6 @@ impl PyCodeGenerator {
             self.write_instr(BUILD_TUPLE);
             self.write_arg(cellvars_len);
             *flag += MakeFunctionFlags::Closure as usize;
-        }
-    }
-
-    /// ```erg
-    /// f = i ->
-    ///     log i
-    ///     do i
-    /// ```
-    /// ↓
-    /// ```pyc
-    /// Disassembly of <code object f ...>
-    /// 0 LOAD_NAME                0 (print)
-    /// 2 LOAD_NAME                1 (Nat)
-    /// 4 LOAD_DEREF               0 (::i) # not LOAD_FAST!
-    /// 6 CALL_FUNCTION            1
-    /// 8 CALL_FUNCTION            1
-    /// 10 POP_TOP
-    /// 12 LOAD_CLOSURE             0 (::i)
-    /// 14 BUILD_TUPLE              1
-    /// 16 LOAD_CONST               0 (<code object ...>)
-    /// 18 LOAD_CONST               1 ("<lambda>")
-    /// 20 MAKE_FUNCTION            8 (closure)
-    /// 22 RETURN_VALUE
-    /// ```
-    fn rewrite_captured_fast(&mut self, code: &CodeObj) {
-        if self.py_version.minor >= Some(11) {
-            return;
-        }
-        let cellvars = self.cur_block_codeobj().cellvars.clone();
-        for cellvar in cellvars {
-            if code.freevars.iter().any(|n| n == &cellvar) {
-                self.mut_cur_block().captured_vars.push(cellvar);
-                let mut op_idx = 0;
-                while let Some([op, _arg]) = self
-                    .mut_cur_block_codeobj()
-                    .code
-                    .get_mut(op_idx..=op_idx + 1)
-                {
-                    match Opcode310::try_from(*op) {
-                        Ok(Opcode310::LOAD_FAST) => {
-                            *op = Opcode310::LOAD_DEREF as u8;
-                        }
-                        Ok(Opcode310::STORE_FAST) => {
-                            *op = Opcode310::STORE_DEREF as u8;
-                        }
-                        _ => {}
-                    }
-                    op_idx += 2;
-                }
-            }
         }
     }
 
@@ -2991,7 +2924,7 @@ impl PyCodeGenerator {
     /// Emits independent code blocks (e.g., linked other modules)
     fn emit_code(&mut self, code: Block) {
         let mut gen = self.inherit();
-        let code = gen.emit_block(code, vec![], None, vec![], vec![], 0);
+        let code = gen.emit_block(code, vec![], None, vec![], vec![], vec![], 0);
         self.emit_load_const(code);
     }
 
@@ -3283,6 +3216,8 @@ impl PyCodeGenerator {
             self.unit_size,
             self.py_version,
             vec![],
+            vec![],
+            vec![],
             Str::rc(self.cfg.input.enclosed_name()),
             &name,
             firstlineno,
@@ -3380,6 +3315,7 @@ impl PyCodeGenerator {
             params,
             sig.t_spec_with_op().cloned(),
             vec![],
+            vec![],
         );
         let mut attrs = vec![];
         match new_first_param.map(|pt| pt.typ()) {
@@ -3466,6 +3402,7 @@ impl PyCodeGenerator {
                 params,
                 sig.t_spec_with_op().cloned(),
                 vec![],
+                vec![],
             );
             let arg = PosArg::new(Expr::Accessor(Accessor::private_with_line(
                 param_name, line,
@@ -3484,6 +3421,7 @@ impl PyCodeGenerator {
                 params,
                 sig.t_spec_with_op().cloned(),
                 vec![],
+                vec![],
             );
             let call = class_new.call_expr(Args::empty());
             let block = Block::new(vec![call]);
@@ -3492,13 +3430,15 @@ impl PyCodeGenerator {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn emit_block(
         &mut self,
         block: Block,
         guards: Vec<GuardClause>,
         opt_name: Option<Str>,
         params: Vec<Str>,
-        captured_names: Vec<Identifier>,
+        free_vars: Vec<Identifier>,
+        cell_vars: Vec<Identifier>,
         flags: u32,
     ) -> CodeObj {
         log!(info "entered {}", fn_name!());
@@ -3512,10 +3452,20 @@ impl PyCodeGenerator {
             .first()
             .and_then(|first| first.ln_begin())
             .unwrap_or(0);
+        let free_vars_ = free_vars
+            .iter()
+            .map(|ident| escape_ident(ident.clone()))
+            .collect();
+        let cell_vars_ = cell_vars
+            .iter()
+            .map(|ident| escape_ident(ident.clone()))
+            .collect();
         self.units.push(PyCodeGenUnit::new(
             self.unit_size,
             self.py_version,
             params,
+            free_vars_,
+            cell_vars_,
             Str::rc(self.cfg.input.enclosed_name()),
             name,
             firstlineno,
@@ -3533,9 +3483,9 @@ impl PyCodeGenerator {
         };
         let mut cells = vec![];
         if self.py_version.minor >= Some(11) {
-            for captured in captured_names {
+            for free in free_vars {
                 self.write_instr(Opcode311::MAKE_CELL);
-                cells.push((captured, self.lasti()));
+                cells.push((free, self.lasti()));
                 self.write_arg(0);
             }
         }
@@ -3590,14 +3540,12 @@ impl PyCodeGenerator {
         }
         for (cell, placeholder) in cells {
             let name = escape_ident(cell);
-            let Some(idx) = self
+            let idx = self
                 .cur_block_codeobj()
                 .varnames
                 .iter()
                 .position(|v| v == &name)
-            else {
-                continue;
-            };
+                .unwrap();
             self.edit_code(placeholder, idx);
         }
         // end of flagging
@@ -3766,6 +3714,8 @@ impl PyCodeGenerator {
         self.units.push(PyCodeGenUnit::new(
             self.unit_size,
             self.py_version,
+            vec![],
+            vec![],
             vec![],
             Str::rc(self.cfg.input.enclosed_name()),
             "<module>",

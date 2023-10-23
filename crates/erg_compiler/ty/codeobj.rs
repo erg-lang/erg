@@ -271,8 +271,12 @@ impl Default for CodeObj {
 }
 
 impl CodeObj {
+    #[allow(clippy::too_many_arguments)]
     pub fn empty<S: Into<Str>, T: Into<Str>>(
-        params: Vec<Str>,
+        nlocals: u32,
+        varnames: Vec<Str>,
+        freevars: Vec<Str>,
+        cellvars: Vec<Str>,
         filename: S,
         name: T,
         firstlineno: u32,
@@ -281,18 +285,18 @@ impl CodeObj {
         let name = name.into();
         let var_args_defined = (flags & CodeObjFlags::VarArgs as u32 != 0) as u32;
         Self {
-            argcount: params.len() as u32 - var_args_defined,
+            argcount: nlocals - var_args_defined,
             posonlyargcount: 0,
             kwonlyargcount: 0,
-            nlocals: params.len() as u32,
+            nlocals,
             stacksize: 2, // Seems to be the default in CPython, but not sure why
             flags,        // CodeObjFlags::NoFree as u32,
             code: Vec::with_capacity(8),
             consts: Vec::with_capacity(4),
             names: Vec::with_capacity(3),
-            varnames: params,
-            freevars: Vec::new(),
-            cellvars: Vec::new(),
+            varnames,
+            freevars,
+            cellvars,
             filename: filename.into(),
             name: name.clone(),
             qualname: name,
@@ -609,10 +613,10 @@ impl CodeObj {
         }
         match op308 {
             Opcode308::STORE_DEREF | Opcode308::LOAD_DEREF => {
-                write!(instrs, "{arg} ({})", self.freevars.get(arg).unwrap()).unwrap();
+                write!(instrs, "{arg} ({})", self.freevars[arg]).unwrap();
             }
             Opcode308::LOAD_CLOSURE => {
-                write!(instrs, "{arg} ({})", self.cellvars.get(arg).unwrap()).unwrap();
+                write!(instrs, "{arg} ({})", self.cellvars[arg]).unwrap();
             }
             Opcode308::JUMP_ABSOLUTE => {
                 write!(instrs, "{arg} (to {})", arg).unwrap();
@@ -650,10 +654,10 @@ impl CodeObj {
         }
         match op309 {
             Opcode309::STORE_DEREF | Opcode309::LOAD_DEREF => {
-                write!(instrs, "{arg} ({})", self.freevars.get(arg).unwrap()).unwrap();
+                write!(instrs, "{arg} ({})", self.freevars[arg]).unwrap();
             }
             Opcode309::LOAD_CLOSURE => {
-                write!(instrs, "{arg} ({})", self.cellvars.get(arg).unwrap()).unwrap();
+                write!(instrs, "{arg} ({})", self.cellvars[arg]).unwrap();
             }
             Opcode309::JUMP_ABSOLUTE => {
                 write!(instrs, "{arg} (to {})", arg).unwrap();
@@ -690,19 +694,18 @@ impl CodeObj {
             self.dump_additional_info(op, arg, idx, instrs);
         }
         match op310 {
-            Opcode310::STORE_DEREF | Opcode310::LOAD_DEREF => {
+            Opcode310::LOAD_DEREF => {
                 write!(
                     instrs,
                     "{arg} ({})",
                     self.freevars
                         .get(arg)
-                        .or_else(|| self.varnames.get(arg))
-                        .unwrap()
+                        .unwrap_or_else(|| &self.cellvars[arg])
                 )
                 .unwrap();
             }
-            Opcode310::LOAD_CLOSURE => {
-                write!(instrs, "{arg} ({})", self.cellvars.get(arg).unwrap()).unwrap();
+            Opcode310::STORE_DEREF | Opcode310::LOAD_CLOSURE => {
+                write!(instrs, "{arg} ({})", self.cellvars[arg]).unwrap();
             }
             Opcode310::JUMP_ABSOLUTE => {
                 write!(instrs, "{arg} (to {})", arg * 2).unwrap();
@@ -742,10 +745,10 @@ impl CodeObj {
         }
         match op311 {
             Opcode311::STORE_DEREF | Opcode311::LOAD_DEREF => {
-                write!(instrs, "{arg} ({})", self.varnames.get(arg).unwrap()).unwrap();
+                write!(instrs, "{arg} ({})", self.varnames[arg]).unwrap();
             }
             Opcode311::MAKE_CELL | Opcode311::LOAD_CLOSURE => {
-                write!(instrs, "{arg} ({})", self.varnames.get(arg).unwrap()).unwrap();
+                write!(instrs, "{arg} ({})", self.varnames[arg]).unwrap();
             }
             Opcode311::POP_JUMP_FORWARD_IF_FALSE | Opcode311::POP_JUMP_FORWARD_IF_TRUE => {
                 write!(instrs, "{arg} (to {})", idx + arg * 2 + 2).unwrap();
@@ -767,7 +770,7 @@ impl CodeObj {
                 write!(instrs, "{arg}").unwrap();
             }
             Opcode311::KW_NAMES => {
-                write!(instrs, "{arg} ({})", self.consts.get(arg).unwrap()).unwrap();
+                write!(instrs, "{arg} ({})", self.consts[arg]).unwrap();
             }
             Opcode311::BINARY_OP => {
                 write!(
