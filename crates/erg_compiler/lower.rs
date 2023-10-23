@@ -917,7 +917,6 @@ impl ASTLowerer {
         let ident = hir::Identifier::new(ident, __name__, vi);
         if !ident.vi.is_toplevel()
             && ident.vi.def_namespace() != &self.module.context.name
-            && ident.inspect() != "self"
             && ident.vi.kind.can_capture()
         {
             self.module.context.captured_names.push(ident.clone());

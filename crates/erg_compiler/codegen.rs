@@ -601,6 +601,16 @@ impl PyCodeGenerator {
     }
 
     fn local_search(&self, name: &str, _acc_kind: AccessKind) -> Option<Name> {
+        if self.py_version.minor < Some(11) {
+            if let Some(idx) = self
+                .cur_block_codeobj()
+                .cellvars
+                .iter()
+                .position(|v| &**v == name)
+            {
+                return Some(Name::deref(idx));
+            }
+        }
         if let Some(idx) = self
             .cur_block_codeobj()
             .names
@@ -1537,19 +1547,33 @@ impl PyCodeGenerator {
         let cellvars = self.cur_block_codeobj().cellvars.clone();
         for cellvar in cellvars {
             if code.freevars.iter().any(|n| n == &cellvar) {
+                let old_idx = self
+                    .cur_block_codeobj()
+                    .varnames
+                    .iter()
+                    .position(|n| n == &cellvar)
+                    .unwrap();
+                let new_idx = self
+                    .cur_block_codeobj()
+                    .cellvars
+                    .iter()
+                    .position(|n| n == &cellvar)
+                    .unwrap();
                 self.mut_cur_block().captured_vars.push(cellvar);
                 let mut op_idx = 0;
-                while let Some([op, _arg]) = self
+                while let Some([op, arg]) = self
                     .mut_cur_block_codeobj()
                     .code
                     .get_mut(op_idx..=op_idx + 1)
                 {
                     match Opcode310::try_from(*op) {
-                        Ok(Opcode310::LOAD_FAST) => {
+                        Ok(Opcode310::LOAD_FAST) if *arg == old_idx as u8 => {
                             *op = Opcode310::LOAD_DEREF as u8;
+                            *arg = new_idx as u8;
                         }
-                        Ok(Opcode310::STORE_FAST) => {
+                        Ok(Opcode310::STORE_FAST) if *arg == old_idx as u8 => {
                             *op = Opcode310::STORE_DEREF as u8;
+                            *arg = new_idx as u8;
                         }
                         _ => {}
                     }
