@@ -52,11 +52,12 @@ macro_rules! impl_u8_enum {
 
         $crate::impl_display_from_debug!($Enum);
 
-        impl From<u8> for $Enum {
-            fn from(byte: u8) -> Self {
+        impl TryFrom<u8> for $Enum {
+            type Error = ();
+            fn try_from(byte: u8) -> Result<Self, Self::Error> {
                 match byte {
-                    $(v if v == $Enum::$Variant as u8 => $Enum::$Variant,)*
-                    _ => todo!("unknown: {byte}"),
+                    $($val => Ok($Enum::$Variant),)*
+                    _ => Err(()),
                 }
             }
         }
@@ -76,11 +77,12 @@ macro_rules! impl_u8_enum {
 
         $crate::impl_display_from_debug!($Enum);
 
-        impl From<u8> for $Enum {
-            fn from(byte: u8) -> Self {
+        impl TryFrom<u8> for $Enum {
+            type Error = ();
+            fn try_from(byte: u8) -> Result<Self, Self::Error> {
                 match byte {
-                    $($val => $Enum::$Variant,)*
-                    _ => todo!("unknown opcode: {byte}"),
+                    $($val => Ok($Enum::$Variant),)*
+                    _ => Err(()),
                 }
             }
         }
@@ -106,11 +108,12 @@ macro_rules! impl_u8_enum {
 
         $crate::impl_display_from_debug!($Enum);
 
-        impl From<$size> for $Enum {
-            fn from(byte: $size) -> Self {
+        impl TryFrom<$size> for $Enum {
+            type Error = ();
+            fn try_from(byte: $size) -> Result<Self, Self::Error> {
                 match byte {
-                    $($val => $Enum::$Variant,)*
-                    _ => todo!("unknown opcode: {byte}"),
+                    $($val => Ok($Enum::$Variant),)*
+                    _ => Err(()),
                 }
             }
         }

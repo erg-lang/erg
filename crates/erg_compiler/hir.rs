@@ -394,6 +394,14 @@ impl Args {
             .find(|kw| kw.keyword.inspect() == keyword)
             .map(|kw| &kw.expr)
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Expr> {
+        self.pos_args
+            .iter()
+            .map(|pos| &pos.expr)
+            .chain(self.var_args.iter().map(|var| &var.expr))
+            .chain(self.kw_args.iter().map(|kw| &kw.expr))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -1946,6 +1954,7 @@ pub struct SubrSignature {
     pub bounds: TypeBoundSpecs,
     pub params: Params,
     pub return_t_spec: Option<TypeSpecWithOp>,
+    pub captured_names: Vec<Identifier>,
 }
 
 impl NestedDisplay for SubrSignature {
@@ -1999,6 +2008,7 @@ impl SubrSignature {
         bounds: TypeBoundSpecs,
         params: Params,
         return_t_spec: Option<TypeSpecWithOp>,
+        captured_names: Vec<Identifier>,
     ) -> Self {
         Self {
             decorators,
@@ -2006,6 +2016,7 @@ impl SubrSignature {
             bounds,
             params,
             return_t_spec,
+            captured_names,
         }
     }
 
@@ -2023,6 +2034,7 @@ pub struct Lambda {
     pub params: Params,
     pub op: Token,
     pub return_t_spec: Option<TypeSpec>,
+    pub captured_names: Vec<Identifier>,
     pub body: Block,
     pub id: usize,
     pub t: Type,
@@ -2056,6 +2068,7 @@ impl Lambda {
         params: Params,
         op: Token,
         return_t_spec: Option<TypeSpec>,
+        captured_names: Vec<Identifier>,
         body: Block,
         t: Type,
     ) -> Self {
@@ -2064,6 +2077,7 @@ impl Lambda {
             params,
             op,
             return_t_spec,
+            captured_names,
             body,
             t,
         }

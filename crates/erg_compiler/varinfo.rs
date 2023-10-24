@@ -83,6 +83,13 @@ impl VarKind {
         matches!(self, Self::Defined(_))
     }
 
+    pub const fn can_capture(&self) -> bool {
+        matches!(
+            self,
+            Self::Defined(_) | Self::Declared | Self::Parameter { .. }
+        )
+    }
+
     pub const fn does_not_exist(&self) -> bool {
         matches!(self, Self::DoesNotExist)
     }
@@ -446,7 +453,8 @@ impl VarInfo {
     }
 
     pub fn is_toplevel(&self) -> bool {
-        self.vis.def_namespace.split_with(&[".", "::"]).len() == 1
+        let ns = Str::rc(self.vis.def_namespace.trim_start_matches("./"));
+        ns.split_with(&[".", "::"]).len() == 1
     }
 
     pub fn is_fast_value(&self) -> bool {
