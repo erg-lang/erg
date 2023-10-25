@@ -7,6 +7,7 @@ from _erg_result import is_ok
 from _erg_result import Error
 
 class Array(list):
+    @staticmethod
     def try_new(arr):  # -> Result[Array]
         if isinstance(arr, list):
             return Array(arr)
@@ -20,6 +21,8 @@ class Array(list):
             elem_t = cls.__args__[0]
             elems = []
             for elem in arr:
+                if not hasattr(elem_t, "try_new"):
+                    return Error("not a " + str(elem_t))
                 # TODO: nested check
                 elem = elem_t.try_new(elem)
                 if is_ok(elem):

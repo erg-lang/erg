@@ -1,4 +1,10 @@
 class Dict(dict):
+    @staticmethod
+    def try_new(dic):  # -> Result[Dict]
+        if isinstance(dic, dict):
+            return Dict(dic)
+        else:
+            return Error("not a dict")
     def concat(self, other):
         return Dict({**self, **other})
     def diff(self, other):

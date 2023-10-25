@@ -1666,6 +1666,39 @@ impl PyCodeGenerator {
                 self.emit_args_311(args, Name, false);
                 return;
             }
+            // short circuiting
+            TokenKind::OrOp => {
+                self.emit_expr(*bin.lhs);
+                let idx = self.lasti();
+                self.write_instr(EXTENDED_ARG);
+                self.write_arg(0);
+                self.write_instr(Opcode311::JUMP_IF_TRUE_OR_POP);
+                self.write_arg(0);
+                self.emit_expr(*bin.rhs);
+                let arg = match self.py_version.minor {
+                    Some(11) => self.lasti() - idx - 4,
+                    _ => self.lasti(),
+                };
+                self.fill_jump(idx + 1, arg);
+                self.stack_dec();
+                return;
+            }
+            TokenKind::AndOp => {
+                self.emit_expr(*bin.lhs);
+                let idx = self.lasti();
+                self.write_instr(EXTENDED_ARG);
+                self.write_arg(0);
+                self.write_instr(Opcode311::JUMP_IF_FALSE_OR_POP);
+                self.write_arg(0);
+                self.emit_expr(*bin.rhs);
+                let arg = match self.py_version.minor {
+                    Some(11) => self.lasti() - idx - 4,
+                    _ => self.lasti(),
+                };
+                self.fill_jump(idx + 1, arg);
+                self.stack_dec();
+                return;
+            }
             TokenKind::ContainsOp => {
                 // if no-std, always `x contains y == True`
                 if self.cfg.no_std {
@@ -2025,11 +2058,11 @@ impl PyCodeGenerator {
             self.write_arg(0);
             // else block
             let idx_else_begin = match self.py_version.minor {
-                Some(11) => self.lasti() - idx_pop_jump_if_false - 2,
-                Some(7..=10) => self.lasti() + 2,
-                _ => self.lasti() + 2,
+                Some(11) => self.lasti() - idx_pop_jump_if_false - 4,
+                Some(7..=10) => self.lasti(),
+                _ => self.lasti(),
             };
-            self.fill_jump(idx_pop_jump_if_false + 1, idx_else_begin - 2);
+            self.fill_jump(idx_pop_jump_if_false + 1, idx_else_begin);
             match args.remove(0) {
                 Expr::Lambda(lambda) => {
                     // let params = self.gen_param_names(&lambda.params);
@@ -2054,11 +2087,11 @@ impl PyCodeGenerator {
             self.write_arg(jump_to);
             // no else block
             let idx_end = if self.py_version.minor >= Some(11) {
-                self.lasti() - idx_pop_jump_if_false - 1
+                self.lasti() - idx_pop_jump_if_false - 3
             } else {
-                self.lasti() + 2
+                self.lasti()
             };
-            self.fill_jump(idx_pop_jump_if_false + 1, idx_end - 2);
+            self.fill_jump(idx_pop_jump_if_false + 1, idx_end);
             self.emit_load_const(ValueObj::None);
             while self.stack_len() != init_stack_len + 1 {
                 self.stack_dec();
@@ -2166,10 +2199,10 @@ impl PyCodeGenerator {
         self.fill_jump(idx + 1, arg);
         self.stack_dec();
         let idx_end = match self.py_version.minor {
-            Some(11) => self.lasti() - idx_while - 1,
-            _ => self.lasti() + 2,
+            Some(11) => self.lasti() - idx_while - 3,
+            _ => self.lasti(),
         };
-        self.fill_jump(idx_while + 1, idx_end - 2);
+        self.fill_jump(idx_while + 1, idx_end);
         self.emit_load_const(ValueObj::None);
         debug_assert_eq!(self.stack_len(), _init_stack_len + 1);
     }
