@@ -781,8 +781,12 @@ impl Context {
     ) -> Triple<VarInfo, TyCheckError> {
         if let Ok(coerced) = self.coerce(obj.t(), &obj) {
             if &coerced != obj.ref_t() {
+                let hash = get_hash(obj.ref_t());
                 let list = UndoableLinkedList::new();
                 obj.ref_t().undoable_coerce(&list);
+                if hash == get_hash(obj.ref_t()) {
+                    return Triple::None;
+                }
                 if let Triple::Ok(vi) = self.get_attr_info(obj, ident, input, namespace, expect) {
                     drop(list);
                     obj.ref_t().coerce(None);

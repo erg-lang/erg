@@ -11,7 +11,7 @@ use crate::context::Context;
 use crate::feature_error;
 use crate::ty::constructors::{and, mono, tuple_t, v_enum};
 use crate::ty::value::{EvalValueError, EvalValueResult, GenTypeObj, TypeObj, ValueObj};
-use crate::ty::{TyParam, Type, ValueArgs};
+use crate::ty::{Field, TyParam, Type, ValueArgs};
 use erg_common::error::{ErrorCore, ErrorKind, Location, SubMessage};
 use erg_common::style::{Color, StyledStr, StyledString, THEME};
 
@@ -597,4 +597,47 @@ pub(crate) fn as_dict(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyP
         .map(|(k, v)| (v_enum(set! {  k.symbol.into() }), v))
         .collect::<Dict<_, _>>();
     Ok(ValueObj::builtin_type(Type::from(dict)).into())
+}
+
+/// `{ {"x"}: Int, {"y"}: Str }.as_record() == { .x = Int, .y = Str }`
+pub(crate) fn as_record(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let slf = args
+        .remove_left_or_key("Self")
+        .ok_or_else(|| not_passed("Self"))?;
+    let fields = match ctx.convert_value_into_type(slf) {
+        Ok(Type::Poly { name, params }) if &name == "Dict" => {
+            Dict::try_from(params[0].clone()).unwrap()
+        }
+        Ok(other) => {
+            return Err(type_mismatch("Dict", other, "Self"));
+        }
+        Err(val) => {
+            return Err(type_mismatch("Dict", val, "Self"));
+        }
+    };
+    let mut dict = Dict::new();
+    for (k, v) in fields {
+        match (ctx.convert_tp_into_type(k), ctx.convert_tp_into_type(v)) {
+            (Ok(k_t), Ok(v_t)) => {
+                if let Some(values) = k_t.refinement_values() {
+                    for value in values {
+                        if let TyParam::Value(ValueObj::Str(field)) = value {
+                            dict.insert(Field::public(field.clone()), v_t.clone());
+                        } else {
+                            return Err(type_mismatch("Str", value, "Key"));
+                        }
+                    }
+                } else {
+                    return Err(type_mismatch("Str refinement type", k_t, "Key"));
+                }
+            }
+            (Ok(_), Err(err)) | (Err(err), Ok(_)) => {
+                return Err(type_mismatch("Type", err, "Self"));
+            }
+            (Err(k), Err(_v)) => {
+                return Err(type_mismatch("Type", k, "Self"));
+            }
+        };
+    }
+    Ok(ValueObj::builtin_type(Type::Record(dict)).into())
 }

@@ -6,3 +6,5 @@ for! {"a": 1, "b": 2}.values(), i =>
 dic = { "a": 1, "b": 2 }
 assert dic.concat({ "c": 3 }) == { "a": 1, "b": 2, "c": 3 }
 assert dic.diff({ "a": 1 }) == { "b": 2 }
+rec = dic.as_record()
+assert rec.a == 1 and rec.b == 2

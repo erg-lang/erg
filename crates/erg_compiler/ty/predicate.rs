@@ -505,4 +505,12 @@ impl Predicate {
             other => Self::Not(Box::new(other)),
         }
     }
+
+    pub fn possible_values(&self) -> Vec<&TyParam> {
+        match self {
+            Self::Or(lhs, rhs) => [lhs.possible_values(), rhs.possible_values()].concat(),
+            Self::Equal { rhs, .. } => vec![rhs],
+            _ => vec![],
+        }
+    }
 }

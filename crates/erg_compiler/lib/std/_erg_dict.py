@@ -25,3 +25,6 @@ class Dict(dict):
         if res != None:
             del self[key]
         return res
+    def as_record(self):
+        from collections import namedtuple
+        return namedtuple('Record', self.keys())(**self)

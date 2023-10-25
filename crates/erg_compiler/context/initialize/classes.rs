@@ -1810,6 +1810,15 @@ impl Context {
             None,
         )));
         dict_.register_builtin_const(ITEMS, Visibility::BUILTIN_PUBLIC, items);
+        let as_record_t =
+            fn0_met(dict_t.clone(), proj_call(D.clone(), FUNC_AS_RECORD, vec![])).quantify();
+        let as_record = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_AS_RECORD,
+            as_record,
+            as_record_t,
+            None,
+        )));
+        dict_.register_builtin_const(FUNC_AS_RECORD, Visibility::BUILTIN_PUBLIC, as_record);
         let Def = type_q("Default");
         let get_t = fn_met(
             dict_t.clone(),

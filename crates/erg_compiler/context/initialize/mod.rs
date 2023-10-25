@@ -273,6 +273,7 @@ const MEMORYVIEW: &str = "MemoryView";
 const FUNC_UNION: &str = "union";
 const FUNC_SHAPE: &str = "shape";
 const FUNC_AS_DICT: &str = "as_dict";
+const FUNC_AS_RECORD: &str = "as_record";
 const FUNC_INC: &str = "inc";
 const PROC_INC: &str = "inc!";
 const FUNC_DEC: &str = "dec";

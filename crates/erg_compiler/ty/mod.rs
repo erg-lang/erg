@@ -3045,6 +3045,14 @@ impl Type {
         }
     }
 
+    pub fn refinement_values(&self) -> Option<Vec<&TyParam>> {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.unsafe_crack().refinement_values(),
+            Self::Refinement(refine) => Some(refine.pred.possible_values()),
+            _ => None,
+        }
+    }
+
     pub fn container_len(&self) -> Option<usize> {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().container_len(),
