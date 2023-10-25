@@ -18,7 +18,7 @@ The difference from JavaScript object literals is that they are not accessible a
 This is because access to the value is determined at compile-time, and because dictionaries and records are different things. In other words, `{"name": "John"}` is a Dict and `{name = "John"}` is a record.
 So how should we use dictionaries and records?
 In general, we recommend using records. Records have the advantages of being checked at compile-time for the existence of elements and of being able to specify __visibility_.
-Specifying visibility is equivalent to specifying public/private in Java and other languages. For details, see [visibility](./20_visibility.md) for details.
+Specifying visibility is equivalent to specifying public/private in Java and other languages. For details, see [visibility](./21_visibility.md) for details.
 
 ```python,compile_fail
 a = {x = 1; .y = x + 1}
@@ -27,7 +27,7 @@ a.x # AttributeError: x is private
 # Hint: declare as `.x`.
 ```
 
-The above example may seem strange to someone familiar with JavaScript, but simply declaring `x` makes it inaccessible from the outside. `. `. `.
+The above example may seem strange to someone familiar with JavaScript. Simply declaring `x` makes it inaccessible from the outside, and adding `.` makes it accessible from the outside.
 
 You can also explicitly specify the type of an attribute.
 
@@ -135,7 +135,7 @@ empty_record: Structural {=}
 An empty record is different from an empty Dict `{:}` or empty set `{}`. In particular, note that it is the opposite of `{}` in meaning (in Python, `{}` is an empty dictionary, while in Erg it is `!{:}` in Erg).
 As an enumerated type, `{}` is an empty type that contains nothing in its elements. The `Never` type is a classification of this type.
 Conversely, the record class `{=}` has no required instance attribute, so all objects are elements of it. An `Object` is an alias of this.
-An `Object` (a patch of `Object`) is an element of `. __sizeof__` and other very basic provided methods.
+An `Object` (a patch of `Object`) is an element of `.__sizeof__` and other very basic provided methods.
 
 ```python
 AnyPatch = Patch Structural {=}
@@ -192,6 +192,19 @@ Person.
 john = Person.new {name = "John Smith"; age = 20}
 print! john + 1
 # TypeError: + is not implemented for Person, Int
+```
+
+# Conversion with Dict
+
+Dict, whose key is a string, and record can be mutually converted.
+To convert a dict to a record, use the `as_record` method, and to convert a record to a dict, use the `as_dict` method.
+However, `as_record` cannot be used if the key string cannot be determined at compile time. Also, the visibility of record attributes converted with `as_record` will be public.
+
+```python
+rec = {.name = "John Smith"; .age = 20}
+dic = {"name": "John Smith", "age": 20}
+assert rec.as_dict() == dic
+assert rec == dic.as_record()
 ```
 
 <p align='center'>

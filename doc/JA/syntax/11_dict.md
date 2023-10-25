@@ -2,14 +2,14 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/11_dict.md%26commit_hash%3De598201a939e24a41d3c26a828fdee01ad18eaf8)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/11_dict.md&commit_hash=e598201a939e24a41d3c26a828fdee01ad18eaf8)
 
-Dictはキーと値のペアを持つコレクションです。
+Dict(辞書)はキーと値のペアを持つコレクションです。
 
 ```python
 ids = {"Alice": 145, "Bob": 214, "Charlie": 301}
 assert ids["Alice"] == 145
 ```
 
-キーはHashableであるならば文字列でなくても構いません。
+キーはHashable(Hashトレイトを実装した型)であるならば文字列でなくても構いません。
 
 ```python
 # rangeオブジェクトをキーにするのは非推奨(スライスと混同される)
@@ -20,7 +20,7 @@ assert l[[]] == "empty"
 l = {0.0: "a", 1.0: "b"} # TypeError: Float is not Hashable
 ```
 
-Dictに順番は関係ありません。また、重複する要素を持つことも出来ません。この点でDictは[Set](./14_set.md)と似ています。
+Dictに順番は関係ありません。また、重複する要素を持つことも出来ません。この点でDictは[Set](./15_set.md)と似ています。
 Dictは値付きのSetと言うこともできるでしょう。
 
 ```python,compile_fail
