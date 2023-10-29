@@ -31,6 +31,7 @@ pub struct Unifier<'c, 'l, 'u, L: Locational> {
     ctx: &'c Context,
     loc: &'l L,
     undoable: Option<&'u UndoableLinkedList>,
+    change_generalized: bool,
     param_name: Option<Str>,
 }
 
@@ -39,12 +40,14 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
         ctx: &'c Context,
         loc: &'l L,
         undoable: Option<&'u UndoableLinkedList>,
+        change_generalized: bool,
         param_name: Option<Str>,
     ) -> Self {
         Self {
             ctx,
             loc,
             undoable,
+            change_generalized,
             param_name,
         }
     }
@@ -326,7 +329,11 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 }
                 Ok(())
             }
-            (TyParam::FreeVar(sub_fv), _) if sub_fv.is_generalized() => Ok(()),
+            (TyParam::FreeVar(sub_fv), _)
+                if !self.change_generalized && sub_fv.is_generalized() =>
+            {
+                Ok(())
+            }
             (TyParam::FreeVar(sub_fv), sup_tp) => {
                 match &*sub_fv.borrow() {
                     FreeKind::Linked(l) | FreeKind::UndoableLinked { t: l, .. } => {
@@ -366,7 +373,11 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     )))
                 }
             }
-            (_, TyParam::FreeVar(sup_fv)) if sup_fv.is_generalized() => Ok(()),
+            (_, TyParam::FreeVar(sup_fv))
+                if !self.change_generalized && sup_fv.is_generalized() =>
+            {
+                Ok(())
+            }
             (sub_tp, TyParam::FreeVar(sup_fv)) => {
                 match &*sup_fv.borrow() {
                     FreeKind::Linked(l) | FreeKind::UndoableLinked { t: l, .. } => {
@@ -760,7 +771,8 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             (FreeVar(sub_fv), FreeVar(sup_fv))
                 if sub_fv.constraint_is_sandwiched() && sup_fv.constraint_is_sandwiched() =>
             {
-                if sub_fv.is_generalized() || sup_fv.is_generalized() {
+                if !self.change_generalized && (sub_fv.is_generalized() || sup_fv.is_generalized())
+                {
                     log!(info "generalized:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
                     return Ok(());
                 }
@@ -860,7 +872,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 },
                 FreeVar(sup_fv),
             ) if sup_fv.constraint_is_sandwiched() => {
-                if sup_fv.is_generalized() {
+                if !self.change_generalized && sup_fv.is_generalized() {
                     log!(info "generalized:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
                     return Ok(());
                 }
@@ -958,7 +970,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             // e.g. Structural({ .method = (self: T) -> Int })/T
             (Structural(sub), FreeVar(sup_fv))
                 if sup_fv.is_unbound() && sub.contains_tvar(sup_fv) => {}
-            (_, FreeVar(sup_fv)) if sup_fv.is_generalized() => {}
+            (_, FreeVar(sup_fv)) if !self.change_generalized && sup_fv.is_generalized() => {}
             (_, FreeVar(sup_fv)) if sup_fv.is_unbound() => {
                 // * sub_unify(Nat, ?E(<: Eq(?E)))
                 // sub !<: l => OK (sub will widen)
@@ -1037,7 +1049,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             (FreeVar(sub_fv), Ref(sup)) if sub_fv.is_unbound() => {
                 self.sub_unify(maybe_sub, sup)?;
             }
-            (FreeVar(sub_fv), _) if sub_fv.is_generalized() => {}
+            (FreeVar(sub_fv), _) if !self.change_generalized && sub_fv.is_generalized() => {}
             (FreeVar(sub_fv), _) if sub_fv.is_unbound() => {
                 // sub !<: r => Error
                 // * sub_unify(?T(:> Int,   <: _), Nat): (/* Error */)
@@ -1165,7 +1177,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     .iter()
                     .zip(sup_subr.non_default_params.iter())
                     .try_for_each(|(sub, sup)| {
-                        if sub.typ().is_generalized() {
+                        if !self.change_generalized && sub.typ().is_generalized() {
                             Ok(())
                         }
                         // contravariant
@@ -1179,7 +1191,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                         .iter()
                         .find(|sub_pt| sub_pt.name() == sup_pt.name())
                     {
-                        if sup_pt.typ().is_generalized() {
+                        if !self.change_generalized && sup_pt.typ().is_generalized() {
                             continue;
                         }
                         // contravariant
@@ -1203,7 +1215,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     .zip(sup_subr.non_default_params.iter())
                     .try_for_each(|(sub, sup)| {
                         // contravariant
-                        if sup.typ().is_generalized() {
+                        if !self.change_generalized && sup.typ().is_generalized() {
                             Ok(())
                         } else {
                             self.sub_unify(sup.typ(), sub.typ())
@@ -1216,7 +1228,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                         .find(|sub_pt| sub_pt.name() == sup_pt.name())
                     {
                         // contravariant
-                        if sup_pt.typ().is_generalized() {
+                        if !self.change_generalized && sup_pt.typ().is_generalized() {
                             continue;
                         }
                         self.sub_unify(sup_pt.typ(), sub_pt.typ())?;
@@ -1555,7 +1567,7 @@ impl Context {
         maybe_sup: &Type,
         loc: &impl Locational,
     ) -> TyCheckResult<()> {
-        let unifier = Unifier::new(self, loc, None, None);
+        let unifier = Unifier::new(self, loc, None, false, None);
         unifier.occur(maybe_sub, maybe_sup)
     }
 
@@ -1567,7 +1579,7 @@ impl Context {
         loc: &impl Locational,
         is_structural: bool,
     ) -> TyCheckResult<()> {
-        let unifier = Unifier::new(self, loc, None, None);
+        let unifier = Unifier::new(self, loc, None, false, None);
         unifier.sub_unify_tp(maybe_sub, maybe_sup, variance, is_structural)
     }
 
@@ -1579,7 +1591,19 @@ impl Context {
         loc: &impl Locational,
         param_name: Option<&Str>,
     ) -> TyCheckResult<()> {
-        let unifier = Unifier::new(self, loc, None, param_name.cloned());
+        let unifier = Unifier::new(self, loc, None, false, param_name.cloned());
+        unifier.sub_unify(maybe_sub, maybe_sup)
+    }
+
+    /// This will rewrite generalized type variables.
+    pub(crate) fn force_sub_unify(
+        &self,
+        maybe_sub: &Type,
+        maybe_sup: &Type,
+        loc: &impl Locational,
+        param_name: Option<&Str>,
+    ) -> TyCheckResult<()> {
+        let unifier = Unifier::new(self, loc, None, true, param_name.cloned());
         unifier.sub_unify(maybe_sub, maybe_sup)
     }
 
@@ -1591,12 +1615,12 @@ impl Context {
         list: &UndoableLinkedList,
         param_name: Option<&Str>,
     ) -> TyCheckResult<()> {
-        let unifier = Unifier::new(self, loc, Some(list), param_name.cloned());
+        let unifier = Unifier::new(self, loc, Some(list), false, param_name.cloned());
         unifier.sub_unify(maybe_sub, maybe_sup)
     }
 
     pub(crate) fn unify(&self, lhs: &Type, rhs: &Type) -> Option<Type> {
-        let unifier = Unifier::new(self, &(), None, None);
+        let unifier = Unifier::new(self, &(), None, false, None);
         unifier.unify(lhs, rhs)
     }
 }

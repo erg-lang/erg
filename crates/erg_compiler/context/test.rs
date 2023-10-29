@@ -24,6 +24,22 @@ impl Context {
         }
     }
 
+    pub fn assert_attr_type(&self, receiver_t: &Type, attr: &str, ty: &Type) -> Result<(), ()> {
+        let Some(ctx) = self.get_nominal_type_ctx(receiver_t) else {
+            panic!("type not found: {receiver_t}");
+        };
+        let Some((_, vi)) = ctx.get_method_kv(attr) else {
+            panic!("attribute not found: {attr}");
+        };
+        println!("{attr}: {}", vi.t);
+        if vi.t.structural_eq(ty) {
+            Ok(())
+        } else {
+            println!("{attr} is not the type of {ty}");
+            Err(())
+        }
+    }
+
     pub fn test_refinement_subtyping(&self) -> Result<(), ()> {
         // Nat :> {I: Int | I >= 1} ?
         let lhs = Nat;

@@ -1956,25 +1956,26 @@ impl ASTLowerer {
 
     fn lower_subr_block(
         &mut self,
-        subr_t: SubrType,
+        registered_subr_t: SubrType,
         sig: ast::SubrSignature,
         decorators: Set<hir::Expr>,
         body: ast::DefBody,
     ) -> LowerResult<hir::Def> {
-        let params = self.lower_params(sig.params.clone(), Some(&subr_t))?;
+        let params = self.lower_params(sig.params.clone(), Some(&registered_subr_t))?;
         if let Err(errs) = self.module.context.register_const(&body.block) {
             self.errs.extend(errs);
         }
-        let return_t = subr_t
+        let return_t = registered_subr_t
             .return_t
             .has_no_unbound_var()
-            .then_some(subr_t.return_t.as_ref());
+            .then_some(registered_subr_t.return_t.as_ref());
         match self.lower_block(body.block, return_t) {
             Ok(block) => {
                 let found_body_t = self.module.context.squash_tyvar(block.t());
                 let vi = match self.module.context.outer.as_mut().unwrap().assign_subr(
                     &sig,
                     body.id,
+                    &params,
                     &found_body_t,
                     block.last().unwrap(),
                 ) {
@@ -2009,6 +2010,7 @@ impl ASTLowerer {
                 let vi = match self.module.context.outer.as_mut().unwrap().assign_subr(
                     &sig,
                     ast::DefId(0),
+                    &params,
                     &Type::Failure,
                     &sig,
                 ) {

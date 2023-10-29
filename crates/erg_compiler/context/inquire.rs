@@ -199,6 +199,21 @@ impl Context {
             .map(|(opt_name, vi)| (opt_name.as_ref().unwrap(), vi))
     }
 
+    pub fn get_method_kv(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
+        #[cfg(feature = "py_compat")]
+        let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
+        self.get_var_kv(name)
+            .or_else(|| {
+                for methods in self.methods_list.iter() {
+                    if let Some(vi) = methods.get_method_kv(name) {
+                        return Some(vi);
+                    }
+                }
+                None
+            })
+            .or_else(|| self.get_outer().and_then(|ctx| ctx.get_method_kv(name)))
+    }
+
     pub fn get_singular_ctxs_by_hir_expr(
         &self,
         obj: &hir::Expr,

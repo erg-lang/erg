@@ -25,3 +25,8 @@ f! t =
     for! arr, t =>
         result.extend! f! t
     result
+
+c_new x, y = C.new x, y
+C = Class Int
+C.
+    new x, y = Self::__new__ x + y

@@ -741,6 +741,91 @@ impl Context {
         }
     }
 
+    fn unify_params_t(
+        &self,
+        sig: &ast::SubrSignature,
+        registered_t: &SubrType,
+        params: &hir::Params,
+        body_t: &Type,
+        body_loc: &impl Locational,
+    ) -> TyCheckResult<()> {
+        let name = &sig.ident.name;
+        let mut errs = TyCheckErrors::empty();
+        for (param, pt) in params
+            .non_defaults
+            .iter()
+            .zip(registered_t.non_default_params.iter())
+        {
+            pt.typ().lower();
+            if let Err(es) = self.force_sub_unify(&param.vi.t, pt.typ(), param, None) {
+                errs.extend(es);
+            }
+            pt.typ().lift();
+        }
+        // TODO: var_params: [Int; _], pt: Int
+        /*if let Some((var_params, pt)) = params.var_params.as_deref().zip(registered_t.var_params.as_ref()) {
+            pt.typ().lower();
+            if let Err(es) = self.force_sub_unify(&var_params.vi.t, pt.typ(), var_params, None) {
+                errs.extend(es);
+            }
+            pt.typ().lift();
+        }*/
+        for (param, pt) in params
+            .defaults
+            .iter()
+            .zip(registered_t.default_params.iter())
+        {
+            pt.typ().lower();
+            if let Err(es) = self.force_sub_unify(&param.sig.vi.t, pt.typ(), param, None) {
+                errs.extend(es);
+            }
+            pt.typ().lift();
+        }
+        let spec_ret_t = registered_t.return_t.as_ref();
+        // spec_ret_t.lower();
+        let unify_return_result = if let Some(t_spec) = sig.return_t_spec.as_ref() {
+            self.force_sub_unify(body_t, spec_ret_t, t_spec, None)
+        } else {
+            self.force_sub_unify(body_t, spec_ret_t, body_loc, None)
+        };
+        // spec_ret_t.lift();
+        if let Err(unify_errs) = unify_return_result {
+            let es = TyCheckErrors::new(
+                unify_errs
+                    .into_iter()
+                    .map(|e| {
+                        let expect = if cfg!(feature = "debug") {
+                            spec_ret_t.clone()
+                        } else {
+                            self.readable_type(spec_ret_t.clone())
+                        };
+                        let found = if cfg!(feature = "debug") {
+                            body_t.clone()
+                        } else {
+                            self.readable_type(body_t.clone())
+                        };
+                        TyCheckError::return_type_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            e.core.get_loc_with_fallback(),
+                            e.caused_by,
+                            readable_name(name.inspect()),
+                            &expect,
+                            &found,
+                            // e.core.get_hint().map(|s| s.to_string()),
+                        )
+                    })
+                    .collect(),
+            );
+            errs.extend(es);
+        }
+        if errs.is_empty() {
+            Ok(())
+        } else {
+            Err(errs)
+        }
+    }
+
     /// ## Errors
     /// * TypeError: if `return_t` != typeof `body`
     /// * AssignError: if `name` has already been registered
@@ -748,6 +833,7 @@ impl Context {
         &mut self,
         sig: &ast::SubrSignature,
         id: DefId,
+        params: &hir::Params,
         body_t: &Type,
         body_loc: &impl Locational,
     ) -> Result<VarInfo, (TyCheckErrors, VarInfo)> {
@@ -772,63 +858,27 @@ impl Context {
         };
         let name = &sig.ident.name;
         // FIXME: constでない関数
-        let t = self.get_current_scope_var(name).map(|vi| &vi.t).unwrap();
-        debug_assert!(t.is_subr(), "{t} is not subr");
-        let empty = vec![];
-        let non_default_params = t.non_default_params().unwrap_or(&empty);
-        let var_args = t.var_params();
-        let default_params = t.default_params().unwrap_or(&empty);
-        if let Some(spec_ret_t) = t.return_t() {
-            let unify_result = if let Some(t_spec) = sig.return_t_spec.as_ref() {
-                self.sub_unify(body_t, spec_ret_t, t_spec, None)
-            } else {
-                self.sub_unify(body_t, spec_ret_t, body_loc, None)
-            };
-            if let Err(unify_errs) = unify_result {
-                let es = TyCheckErrors::new(
-                    unify_errs
-                        .into_iter()
-                        .map(|e| {
-                            let expect = if cfg!(feature = "debug") {
-                                spec_ret_t.clone()
-                            } else {
-                                self.readable_type(spec_ret_t.clone())
-                            };
-                            let found = if cfg!(feature = "debug") {
-                                body_t.clone()
-                            } else {
-                                self.readable_type(body_t.clone())
-                            };
-                            TyCheckError::return_type_error(
-                                self.cfg.input.clone(),
-                                line!() as usize,
-                                e.core.get_loc_with_fallback(),
-                                e.caused_by,
-                                readable_name(name.inspect()),
-                                &expect,
-                                &found,
-                                // e.core.get_hint().map(|s| s.to_string()),
-                            )
-                        })
-                        .collect(),
-                );
-                errs.extend(es);
-            }
+        let subr_t = self.get_current_scope_var(name).map(|vi| &vi.t).unwrap();
+        let Ok(subr_t) = <&SubrType>::try_from(subr_t) else {
+            panic!("{subr_t} is not subr");
+        };
+        if let Err(es) = self.unify_params_t(sig, subr_t, params, body_t, body_loc) {
+            errs.extend(es);
         }
         // NOTE: not `body_t.clone()` because the body may contain `return`
-        let return_t = t.return_t().unwrap().clone();
+        let return_t = subr_t.return_t.as_ref().clone();
         let sub_t = if sig.ident.is_procedural() {
             proc(
-                non_default_params.clone(),
-                var_args.cloned(),
-                default_params.clone(),
+                subr_t.non_default_params.clone(),
+                subr_t.var_params.as_deref().cloned(),
+                subr_t.default_params.clone(),
                 return_t,
             )
         } else {
             func(
-                non_default_params.clone(),
-                var_args.cloned(),
-                default_params.clone(),
+                subr_t.non_default_params.clone(),
+                subr_t.var_params.as_deref().cloned(),
+                subr_t.default_params.clone(),
                 return_t,
             )
         };

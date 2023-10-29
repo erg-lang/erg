@@ -23,7 +23,7 @@ static UNBOUND_ID: AtomicUsize = AtomicUsize::new(0);
 pub trait HasLevel {
     fn level(&self) -> Option<Level>;
     fn set_level(&self, lev: Level);
-    fn lower(&self, level: Level) {
+    fn set_lower(&self, level: Level) {
         if self.level() < Some(level) {
             self.set_level(level);
         }
@@ -31,6 +31,11 @@ pub trait HasLevel {
     fn lift(&self) {
         if let Some(lev) = self.level() {
             self.set_level(lev.saturating_add(1));
+        }
+    }
+    fn lower(&self) {
+        if let Some(lev) = self.level() {
+            self.set_level(lev.saturating_sub(1));
         }
     }
     fn generalize(&self) {

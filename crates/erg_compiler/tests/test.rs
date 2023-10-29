@@ -1,3 +1,5 @@
+use std::vec;
+
 use erg_common::config::ErgConfig;
 use erg_common::error::MultiErrorDisplay;
 use erg_common::io::Output;
@@ -79,6 +81,12 @@ fn _test_infer_types() -> Result<(), ()> {
     let t = type_q("T");
     let f_t = proc1(t.clone(), unknown_len_array_mut(t)).quantify();
     module.context.assert_var_type("f!", &f_t)?;
+    let r = type_q("R");
+    let add_r = poly("Add", vec![ty_tp(r.clone())]);
+    let c = mono("<module>::C");
+    let c_new_t = func2(add_r, r, c.clone()).quantify();
+    module.context.assert_var_type("c_new", &c_new_t)?;
+    module.context.assert_attr_type(&c, "new", &c_new_t)?;
     Ok(())
 }
 
