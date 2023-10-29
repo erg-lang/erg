@@ -1912,87 +1912,11 @@ impl ASTLowerer {
             decorators.insert(deco);
         }
         match registered_t {
-            Type::Subr(subr_t) => {
-                let params = self.lower_params(sig.params.clone(), Some(&subr_t))?;
-                if let Err(errs) = self.module.context.register_const(&body.block) {
-                    self.errs.extend(errs);
-                }
-                let return_t = subr_t
-                    .return_t
-                    .has_no_unbound_var()
-                    .then_some(subr_t.return_t.as_ref());
-                match self.lower_block(body.block, return_t) {
-                    Ok(block) => {
-                        let found_body_t = self.module.context.squash_tyvar(block.t());
-                        let vi = match self.module.context.outer.as_mut().unwrap().assign_subr(
-                            &sig,
-                            body.id,
-                            &found_body_t,
-                            block.last().unwrap(),
-                        ) {
-                            Ok(vi) => vi,
-                            Err((errs, vi)) => {
-                                self.errs.extend(errs);
-                                vi
-                            }
-                        };
-                        let ident = hir::Identifier::new(sig.ident, None, vi);
-                        let ret_t_spec = if let Some(ts) = sig.return_t_spec {
-                            let spec_t = self.module.context.instantiate_typespec(&ts.t_spec)?;
-                            let expr = self.fake_lower_expr(*ts.t_spec_as_expr.clone())?;
-                            Some(hir::TypeSpecWithOp::new(ts, expr, spec_t))
-                        } else {
-                            None
-                        };
-                        let captured_names = mem::take(&mut self.module.context.captured_names);
-                        let sig = hir::SubrSignature::new(
-                            decorators,
-                            ident,
-                            sig.bounds,
-                            params,
-                            ret_t_spec,
-                            captured_names,
-                        );
-                        let body = hir::DefBody::new(body.op, block, body.id);
-                        Ok(hir::Def::new(hir::Signature::Subr(sig), body))
-                    }
-                    Err(errs) => {
-                        self.errs.extend(errs);
-                        let vi = match self.module.context.outer.as_mut().unwrap().assign_subr(
-                            &sig,
-                            ast::DefId(0),
-                            &Type::Failure,
-                            &sig,
-                        ) {
-                            Ok(vi) => vi,
-                            Err((errs, vi)) => {
-                                self.errs.extend(errs);
-                                vi
-                            }
-                        };
-                        let ident = hir::Identifier::new(sig.ident, None, vi);
-                        let ret_t_spec = if let Some(ts) = sig.return_t_spec {
-                            let spec_t = self.module.context.instantiate_typespec(&ts.t_spec)?;
-                            let expr = self.fake_lower_expr(*ts.t_spec_as_expr.clone())?;
-                            Some(hir::TypeSpecWithOp::new(ts, expr, spec_t))
-                        } else {
-                            None
-                        };
-                        let captured_names = mem::take(&mut self.module.context.captured_names);
-                        let sig = hir::SubrSignature::new(
-                            decorators,
-                            ident,
-                            sig.bounds,
-                            params,
-                            ret_t_spec,
-                            captured_names,
-                        );
-                        let block =
-                            hir::Block::new(vec![hir::Expr::Dummy(hir::Dummy::new(vec![]))]);
-                        let body = hir::DefBody::new(body.op, block, body.id);
-                        Ok(hir::Def::new(hir::Signature::Subr(sig), body))
-                    }
-                }
+            Type::Subr(subr_t) => self.lower_subr_block(subr_t, sig, decorators, body),
+            quant @ Type::Quantified(_) => {
+                let instance = self.module.context.instantiate_dummy(quant)?;
+                let subr_t = SubrType::try_from(instance).unwrap();
+                self.lower_subr_block(subr_t, sig, decorators, body)
             }
             Type::Failure => {
                 let params = self.lower_params(sig.params, None)?;
@@ -2030,6 +1954,94 @@ impl ASTLowerer {
         }
     }
 
+    fn lower_subr_block(
+        &mut self,
+        subr_t: SubrType,
+        sig: ast::SubrSignature,
+        decorators: Set<hir::Expr>,
+        body: ast::DefBody,
+    ) -> LowerResult<hir::Def> {
+        let params = self.lower_params(sig.params.clone(), Some(&subr_t))?;
+        if let Err(errs) = self.module.context.register_const(&body.block) {
+            self.errs.extend(errs);
+        }
+        let return_t = subr_t
+            .return_t
+            .has_no_unbound_var()
+            .then_some(subr_t.return_t.as_ref());
+        match self.lower_block(body.block, return_t) {
+            Ok(block) => {
+                let found_body_t = self.module.context.squash_tyvar(block.t());
+                let vi = match self.module.context.outer.as_mut().unwrap().assign_subr(
+                    &sig,
+                    body.id,
+                    &found_body_t,
+                    block.last().unwrap(),
+                ) {
+                    Ok(vi) => vi,
+                    Err((errs, vi)) => {
+                        self.errs.extend(errs);
+                        vi
+                    }
+                };
+                let ident = hir::Identifier::new(sig.ident, None, vi);
+                let ret_t_spec = if let Some(ts) = sig.return_t_spec {
+                    let spec_t = self.module.context.instantiate_typespec(&ts.t_spec)?;
+                    let expr = self.fake_lower_expr(*ts.t_spec_as_expr.clone())?;
+                    Some(hir::TypeSpecWithOp::new(ts, expr, spec_t))
+                } else {
+                    None
+                };
+                let captured_names = mem::take(&mut self.module.context.captured_names);
+                let sig = hir::SubrSignature::new(
+                    decorators,
+                    ident,
+                    sig.bounds,
+                    params,
+                    ret_t_spec,
+                    captured_names,
+                );
+                let body = hir::DefBody::new(body.op, block, body.id);
+                Ok(hir::Def::new(hir::Signature::Subr(sig), body))
+            }
+            Err(errs) => {
+                self.errs.extend(errs);
+                let vi = match self.module.context.outer.as_mut().unwrap().assign_subr(
+                    &sig,
+                    ast::DefId(0),
+                    &Type::Failure,
+                    &sig,
+                ) {
+                    Ok(vi) => vi,
+                    Err((errs, vi)) => {
+                        self.errs.extend(errs);
+                        vi
+                    }
+                };
+                let ident = hir::Identifier::new(sig.ident, None, vi);
+                let ret_t_spec = if let Some(ts) = sig.return_t_spec {
+                    let spec_t = self.module.context.instantiate_typespec(&ts.t_spec)?;
+                    let expr = self.fake_lower_expr(*ts.t_spec_as_expr.clone())?;
+                    Some(hir::TypeSpecWithOp::new(ts, expr, spec_t))
+                } else {
+                    None
+                };
+                let captured_names = mem::take(&mut self.module.context.captured_names);
+                let sig = hir::SubrSignature::new(
+                    decorators,
+                    ident,
+                    sig.bounds,
+                    params,
+                    ret_t_spec,
+                    captured_names,
+                );
+                let block = hir::Block::new(vec![hir::Expr::Dummy(hir::Dummy::new(vec![]))]);
+                let body = hir::DefBody::new(body.op, block, body.id);
+                Ok(hir::Def::new(hir::Signature::Subr(sig), body))
+            }
+        }
+    }
+
     fn lower_class_def(&mut self, class_def: ast::ClassDef) -> LowerResult<hir::ClassDef> {
         log!(info "entered {}({class_def})", fn_name!());
         let mut hir_def = self.lower_def(class_def.def)?;
@@ -2060,20 +2072,20 @@ impl ASTLowerer {
                     self.module.context.get_similar_name(&class.local_name()),
                 )));
             }
-            let kind = ContextKind::MethodDefs(impl_trait.as_ref().map(|(t, _)| t.clone()));
-            self.module
+            let methods_list = &mut self
+                .module
                 .context
-                .grow(&class.local_name(), kind, hir_def.sig.vis().clone(), None);
+                .get_mut_nominal_type_ctx(&class)
+                .unwrap()
+                .methods_list;
+            let methods_idx = methods_list.iter().position(|m| m.id == methods.id);
+            let methods_ctx = methods_idx
+                .map(|idx| methods_list.remove(idx))
+                .unwrap_or_else(|| todo!());
+            self.module.context.replace(methods_ctx.ctx);
             for attr in methods.attrs.iter() {
                 match attr {
                     ast::ClassAttr::Def(def) => {
-                        self.module
-                            .context
-                            .register_const_def(def)
-                            .map_err(|errs| {
-                                self.pop_append_errs();
-                                errs
-                            })?;
                         if let Some(ident) = def.sig.ident() {
                             if self
                                 .module

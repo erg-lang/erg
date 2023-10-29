@@ -5,12 +5,18 @@ _ = Test!
 
 # forward reference
 C = Class { .x = D }
+C|<: Eq|.
+    `==` self, other = self.x == other.x
+C.
+    foo self, x = self.x.foo(x)
 D = Class { .y = Int }
 D.
     new y = Self::__new__ { .y; }
     @staticmethod
     foo x = x + 1
     one = Self.new 1
+D|<: Eq|.
+    `==` self, other = self.y == other.y
 
 d = D.new 1
 assert d.foo(1) == 2

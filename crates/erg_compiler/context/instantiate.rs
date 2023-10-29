@@ -887,6 +887,10 @@ impl Context {
                 }
                 Ok(t)
             }
+            Subr(subr) if subr.has_qvar() => {
+                log!(err "{subr} has qvar");
+                self.instantiate(Type::Subr(subr).quantify(), callee)
+            }
             // rank-1制限により、通常の型(rank-0型)の内側に量化型は存在しない
             other => Ok(other),
         }

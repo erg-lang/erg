@@ -24,7 +24,7 @@ use ast::{
     ConstIdentifier, Decorator, DefId, Identifier, OperationKind, PolyTypeSpec, PreDeclTypeSpec,
     VarName,
 };
-use erg_parser::ast::{self, TypeSpecWithOp};
+use erg_parser::ast::{self, ClassAttr, TypeSpecWithOp};
 
 use crate::ty::constructors::{
     free_var, func, func0, func1, proc, ref_, ref_mut, tp_enum, unknown_len_array_t, v_enum,
@@ -1100,6 +1100,9 @@ impl Context {
                     if let Err(errs) = self.register_const_def(&class_def.def) {
                         total_errs.extend(errs);
                     }
+                    let vis = self
+                        .instantiate_vis_modifier(class_def.def.sig.vis())
+                        .unwrap_or(VisibilityModifier::Public);
                     for methods in class_def.methods_list.iter() {
                         let Ok((class, impl_trait)) = self.get_class_and_impl_trait(&methods.class)
                         else {
@@ -1112,6 +1115,29 @@ impl Context {
                                 total_errs.extend(errs);
                             }
                         }
+                        let kind =
+                            ContextKind::MethodDefs(impl_trait.as_ref().map(|(t, _)| t.clone()));
+                        self.grow(&class.local_name(), kind, vis.clone(), None);
+                        for attr in methods.attrs.iter() {
+                            if let ClassAttr::Def(def) = attr {
+                                if let Err(errs) = self.register_const_def(def) {
+                                    total_errs.extend(errs);
+                                }
+                            }
+                        }
+                        let ctx = self.pop();
+                        let Some(class_root) = self.get_mut_nominal_type_ctx(&class) else {
+                            log!(err "class not found: {class}");
+                            continue;
+                        };
+                        let typ = if let Some((impl_trait, _)) = impl_trait {
+                            ClassDefType::impl_trait(class, impl_trait)
+                        } else {
+                            ClassDefType::Simple(class)
+                        };
+                        class_root
+                            .methods_list
+                            .push(MethodContext::new(methods.id, typ, ctx));
                     }
                 }
                 ast::Expr::PatchDef(patch_def) => {

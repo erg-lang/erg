@@ -1227,6 +1227,15 @@ impl Context {
         self.kind = kind;
     }
 
+    pub(crate) fn replace(&mut self, new: Self) {
+        let old = mem::take(self);
+        *self = new;
+        self.outer = Some(Box::new(old));
+        self.cfg = self.get_outer().unwrap().cfg.clone();
+        self.shared = self.get_outer().unwrap().shared.clone();
+        self.higher_order_caller = self.get_outer().unwrap().higher_order_caller.clone();
+    }
+
     pub(crate) fn clear_invalid_vars(&mut self) {
         self.locals.retain(|_, v| v.t != Failure);
         self.decls.retain(|_, v| v.t != Failure);
