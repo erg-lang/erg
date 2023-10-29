@@ -50,7 +50,7 @@ use RegistrationMode::*;
 use super::eval::Substituter;
 use super::instantiate::TyVarCache;
 use super::instantiate_spec::ParamKind;
-use super::{ParamSpec, TraitImpl};
+use super::{MethodContext, ParamSpec, TraitImpl, TypeContext};
 
 pub fn valid_mod_name(name: &str) -> bool {
     !name.is_empty() && !name.starts_with('/') && name.trim() == name
@@ -1021,7 +1021,7 @@ impl Context {
                 set! {TraitImpl::new(class.clone(), trait_.clone())},
             );
         }
-        let trait_ctx = if let Some((_, trait_ctx)) = self.get_nominal_type_ctx(trait_) {
+        let trait_ctx = if let Some(trait_ctx) = self.get_nominal_type_ctx(trait_) {
             trait_ctx.clone()
         } else {
             // TODO: maybe parameters are wrong
@@ -1034,7 +1034,7 @@ impl Context {
                 None,
             )));
         };
-        let Some((_, class_ctx)) = self.get_mut_nominal_type_ctx(class) else {
+        let Some(class_ctx) = self.get_mut_nominal_type_ctx(class) else {
             return Err(TyCheckErrors::from(TyCheckError::type_not_found(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -1444,12 +1444,15 @@ impl Context {
             unreachable!()
         };
         self.super_traits.push(trait_.clone());
-        self.methods_list
-            .push((ClassDefType::impl_trait(class, trait_), methods));
+        self.methods_list.push(MethodContext::new(
+            DefId(0),
+            ClassDefType::impl_trait(class, trait_),
+            methods,
+        ));
     }
 
     pub(crate) fn register_marker_trait(&mut self, ctx: &Self, trait_: Type) -> CompileResult<()> {
-        let (typ, trait_ctx) = ctx.get_nominal_type_ctx(&trait_).ok_or_else(|| {
+        let trait_ctx = ctx.get_nominal_type_ctx(&trait_).ok_or_else(|| {
             CompileError::type_not_found(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -1458,8 +1461,8 @@ impl Context {
                 &trait_,
             )
         })?;
-        if typ.has_qvar() {
-            let _substituter = Substituter::substitute_typarams(ctx, typ, &trait_)?;
+        if trait_ctx.typ.has_qvar() {
+            let _substituter = Substituter::substitute_typarams(ctx, &trait_ctx.typ, &trait_)?;
             self.super_traits.push(trait_);
             let mut tv_cache = TyVarCache::new(ctx.level, ctx);
             let traits = trait_ctx.super_classes.iter().cloned().map(|ty| {
@@ -1596,7 +1599,7 @@ impl Context {
                         self.level,
                     );
                     for sup in super_classes.into_iter() {
-                        let (_, sup_ctx) = self.get_nominal_type_ctx(&sup).ok_or_else(|| {
+                        let sup_ctx = self.get_nominal_type_ctx(&sup).ok_or_else(|| {
                             TyCheckErrors::from(TyCheckError::type_not_found(
                                 self.cfg.input.clone(),
                                 line!() as usize,
@@ -1650,8 +1653,11 @@ impl Context {
                             Visibility::BUILTIN_PUBLIC,
                             None,
                         )?;
-                        ctx.methods_list
-                            .push((ClassDefType::Simple(gen.typ().clone()), methods));
+                        ctx.methods_list.push(MethodContext::new(
+                            DefId(0),
+                            ClassDefType::Simple(gen.typ().clone()),
+                            methods,
+                        ));
                         self.register_gen_mono_type(ident, gen, ctx, Const)
                     } else {
                         let class_name = gen.base_or_sup().unwrap().typ().local_name();
@@ -1725,7 +1731,7 @@ impl Context {
                         self.register_instance_attrs(&mut ctx, additional)?;
                     }
                     for sup in super_classes.into_iter() {
-                        if let Some((_, sup_ctx)) = self.get_nominal_type_ctx(&sup) {
+                        if let Some(sup_ctx) = self.get_nominal_type_ctx(&sup) {
                             ctx.register_supertrait(sup, sup_ctx);
                         } else {
                             log!(err "{sup} not found");
@@ -1852,8 +1858,11 @@ impl Context {
                 Some("__call__".into()),
             )?;
         }
-        ctx.methods_list
-            .push((ClassDefType::Simple(gen.typ().clone()), methods));
+        ctx.methods_list.push(MethodContext::new(
+            DefId(0),
+            ClassDefType::Simple(gen.typ().clone()),
+            methods,
+        ));
         Ok(())
     }
 
@@ -1937,7 +1946,8 @@ impl Context {
             self.decls.insert(name.clone(), vi);
             self.consts.insert(name.clone(), val);
             self.register_methods(&t, &ctx);
-            self.mono_types.insert(name.clone(), (t, ctx));
+            self.mono_types
+                .insert(name.clone(), TypeContext::new(t, ctx));
             Ok(())
         }
     }
@@ -1991,7 +2001,8 @@ impl Context {
             self.decls.insert(name.clone(), vi);
             self.consts.insert(name.clone(), val);
             self.register_methods(&t, &ctx);
-            self.poly_types.insert(name.clone(), (t, ctx));
+            self.poly_types
+                .insert(name.clone(), TypeContext::new(t, ctx));
             Ok(())
         }
     }

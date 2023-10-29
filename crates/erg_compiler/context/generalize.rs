@@ -629,7 +629,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
             }
             Type::Poly { name, mut params } => {
                 let typ = poly(&name, params.clone());
-                let (_, ctx) = self.ctx.get_nominal_type_ctx(&typ).ok_or_else(|| {
+                let ctx = self.ctx.get_nominal_type_ctx(&typ).ok_or_else(|| {
                     TyCheckError::type_not_found(
                         self.ctx.cfg.input.clone(),
                         line!() as usize,
@@ -772,7 +772,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 },
             ) if ln == rn => {
                 let typ = poly(ln, lps.clone());
-                let (_, ctx) = self.ctx.get_nominal_type_ctx(&typ).ok_or_else(|| {
+                let ctx = self.ctx.get_nominal_type_ctx(&typ).ok_or_else(|| {
                     TyCheckError::type_not_found(
                         self.ctx.cfg.input.clone(),
                         line!() as usize,
@@ -1061,7 +1061,7 @@ impl Context {
                 vi.t = t;
             }
         }
-        for (_, methods) in methods_list.iter_mut() {
+        for methods in methods_list.iter_mut() {
             methods.resolve_ctx_vars();
         }
         self.locals = locals;

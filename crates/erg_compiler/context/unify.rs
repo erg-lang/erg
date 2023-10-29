@@ -1432,7 +1432,8 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
         sup_params: &[TyParam],
     ) -> TyCheckResult<()> {
         debug_assert_ne!(maybe_sub.qual_name(), maybe_sup.qual_name());
-        if let Some((sub_def_t, sub_ctx)) = self.ctx.get_nominal_type_ctx(maybe_sub) {
+        if let Some(sub_ctx) = self.ctx.get_nominal_type_ctx(maybe_sub) {
+            let sub_def_t = &sub_ctx.typ;
             // e.g.
             // maybe_sub: Zip(Int, Str)
             // sub_def_t: Zip(T, U) ==> Zip(Int, Str)
@@ -1461,7 +1462,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 let variances = self
                     .ctx
                     .get_nominal_type_ctx(&sub_instance)
-                    .map(|(_, ctx)| ctx.type_params_variance().into_iter().map(Some).collect())
+                    .map(|ctx| ctx.type_params_variance().into_iter().map(Some).collect())
                     .unwrap_or(vec![None; sup_params.len()]);
                 for ((l_maybe_sub, r_maybe_sup), variance) in sub_instance
                     .typarams()

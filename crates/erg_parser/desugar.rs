@@ -386,6 +386,7 @@ impl Desugarer {
                 }
                 let new_attrs = ClassAttrs::from(new_attrs);
                 Expr::Methods(Methods::new(
+                    method_defs.id,
                     method_defs.class,
                     *method_defs.class_as_expr,
                     method_defs.vis,
@@ -800,6 +801,7 @@ impl Desugarer {
                         }
                     }
                     let methods = Methods::new(
+                        methods.id,
                         methods.class,
                         *methods.class_as_expr,
                         methods.vis,

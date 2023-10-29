@@ -17,7 +17,7 @@ use erg_common::traits::{ExitStatus, Locational, NoTypeDisplay, Runnable, Stream
 use erg_common::triple::Triple;
 use erg_common::{fmt_option, fn_name, log, switch_lang, Str};
 
-use erg_parser::ast::{self, AscriptionKind, InlineModule, VisModifierSpec};
+use erg_parser::ast::{self, AscriptionKind, DefId, InlineModule, VisModifierSpec};
 use erg_parser::ast::{OperationKind, TypeSpecWithOp, VarName, AST};
 use erg_parser::build_ast::ASTBuilder;
 use erg_parser::desugar::Desugarer;
@@ -38,8 +38,8 @@ use crate::ty::{
 };
 
 use crate::context::{
-    ClassDefType, Context, ContextKind, ContextProvider, ControlKind, ModuleContext,
-    RegistrationMode,
+    ClassDefType, Context, ContextKind, ContextProvider, ControlKind, MethodContext, ModuleContext,
+    RegistrationMode, TypeContext,
 };
 use crate::error::{
     CompileError, CompileErrors, CompileWarning, LowerError, LowerErrors, LowerResult,
@@ -2039,7 +2039,7 @@ impl ASTLowerer {
                 .module
                 .context
                 .get_class_and_impl_trait(&methods.class)?;
-            if let Some((_, class_root)) = self.module.context.get_nominal_type_ctx(&class) {
+            if let Some(class_root) = self.module.context.get_nominal_type_ctx(&class) {
                 if !class_root.kind.is_class() {
                     return Err(LowerErrors::from(LowerError::method_definition_error(
                         self.cfg.input.clone(),
@@ -2134,10 +2134,10 @@ impl ASTLowerer {
             if let Err(err) = self.check_trait_impl(impl_trait.clone(), &class) {
                 self.errs.push(err);
             }
-            self.check_collision_and_push(class, impl_trait.map(|(t, _)| t));
+            self.check_collision_and_push(methods.id, class, impl_trait.map(|(t, _)| t));
         }
         let class = self.module.context.gen_type(&hir_def.sig.ident().raw);
-        let Some((_, class_ctx)) = self.module.context.get_nominal_type_ctx(&class) else {
+        let Some(class_ctx) = self.module.context.get_nominal_type_ctx(&class) else {
             return Err(LowerErrors::from(LowerError::type_not_found(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -2256,7 +2256,7 @@ impl ASTLowerer {
             if let Err(errs) = self.module.context.check_decls() {
                 self.errs.extend(errs);
             }
-            self.push_patch();
+            self.push_patch(methods.id);
         }
         Ok(hir::PatchDef::new(hir_def.sig, base, hir_methods))
     }
@@ -2337,7 +2337,7 @@ impl ASTLowerer {
                         .context
                         .methods_list
                         .iter()
-                        .flat_map(|(_, c)| c.locals.iter()),
+                        .flat_map(|c| c.locals.iter()),
                 ) {
                     if let Some(sup_vi) = sup.get_current_scope_var(method_name) {
                         // must `@Override`
@@ -2413,7 +2413,10 @@ impl ASTLowerer {
         &self,
         impl_trait: &Type,
         class: &Type,
-        (trait_type, trait_ctx): (&Type, &Context),
+        TypeContext {
+            typ: trait_type,
+            ctx: trait_ctx,
+        }: &TypeContext,
         t_spec: &TypeSpecWithOp,
     ) -> (Set<&VarName>, CompileErrors) {
         let mut errors = CompileErrors::empty();
@@ -2460,15 +2463,15 @@ impl ASTLowerer {
         (unverified_names, errors)
     }
 
-    fn check_collision_and_push(&mut self, class: Type, impl_trait: Option<Type>) {
+    fn check_collision_and_push(&mut self, id: DefId, class: Type, impl_trait: Option<Type>) {
         let methods = self.module.context.pop();
         self.module.context.register_methods(&class, &methods);
-        let Some((_, class_root)) = self.module.context.get_mut_nominal_type_ctx(&class) else {
+        let Some(class_root) = self.module.context.get_mut_nominal_type_ctx(&class) else {
             log!(err "{class} not found");
             return;
         };
         for (newly_defined_name, vi) in methods.locals.clone().into_iter() {
-            for (_, already_defined_methods) in class_root.methods_list.iter_mut() {
+            for already_defined_methods in class_root.methods_list.iter_mut() {
                 // TODO: 特殊化なら同じ名前でもOK
                 // TODO: 定義のメソッドもエラー表示
                 if let Some((_already_defined_name, already_defined_vi)) =
@@ -2497,10 +2500,12 @@ impl ASTLowerer {
         } else {
             ClassDefType::Simple(class)
         };
-        class_root.methods_list.push((typ, methods));
+        class_root
+            .methods_list
+            .push(MethodContext::new(id, typ, methods));
     }
 
-    fn push_patch(&mut self) {
+    fn push_patch(&mut self, id: DefId) {
         let methods = self.module.context.pop();
         let ContextKind::PatchMethodDefs(base) = &methods.kind else {
             unreachable!()
@@ -2513,7 +2518,7 @@ impl ASTLowerer {
             .get_mut(patch_name)
             .unwrap_or_else(|| todo!("{} not found", methods.name));
         for (newly_defined_name, vi) in methods.locals.clone().into_iter() {
-            for (_, already_defined_methods) in patch_root.methods_list.iter_mut() {
+            for already_defined_methods in patch_root.methods_list.iter_mut() {
                 // TODO: 特殊化なら同じ名前でもOK
                 // TODO: 定義のメソッドもエラー表示
                 if let Some((_already_defined_name, already_defined_vi)) =
@@ -2537,9 +2542,11 @@ impl ASTLowerer {
                 }
             }
         }
-        patch_root
-            .methods_list
-            .push((ClassDefType::Simple(base.clone()), methods));
+        patch_root.methods_list.push(MethodContext::new(
+            id,
+            ClassDefType::Simple(base.clone()),
+            methods,
+        ));
     }
 
     fn get_require_or_sup_or_base(expr: hir::Expr) -> Option<hir::Expr> {

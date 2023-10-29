@@ -4749,6 +4749,7 @@ impl ReDef {
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Methods {
+    pub id: DefId,
     pub class: TypeSpec,
     pub class_as_expr: Box<Expr>,
     pub vis: VisModifierSpec, // `.` or `::`
@@ -4767,12 +4768,14 @@ impl_locational!(Methods, class, attrs);
 
 impl Methods {
     pub fn new(
+        id: DefId,
         class: TypeSpec,
         class_as_expr: Expr,
         vis: VisModifierSpec,
         attrs: ClassAttrs,
     ) -> Self {
         Self {
+            id,
             class,
             class_as_expr: Box::new(class_as_expr),
             vis,

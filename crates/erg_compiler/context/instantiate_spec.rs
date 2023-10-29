@@ -500,9 +500,9 @@ impl Context {
                 }
                 let ctxs = self.get_singular_ctxs(namespace.as_ref(), self)?;
                 for ctx in ctxs {
-                    if let Some((typ, _)) = ctx.rec_local_get_type(t.inspect()) {
+                    if let Some(ctx) = ctx.rec_local_get_type(t.inspect()) {
                         // TODO: visibility check
-                        return Ok(typ.clone());
+                        return Ok(ctx.typ.clone());
                     }
                 }
                 Err(TyCheckErrors::from(TyCheckError::no_var_error(
@@ -579,11 +579,11 @@ impl Context {
                         self.inc_ref(ident.inspect(), vi, ident, self);
                     }
                     Ok(typ)
-                } else if let Some((typ, _)) = self.get_type_and_ctx(ident.inspect()) {
+                } else if let Some(ctx) = self.get_type_ctx(ident.inspect()) {
                     if let Some((_, vi)) = self.get_var_info(ident.inspect()) {
                         self.inc_ref(ident.inspect(), vi, ident, self);
                     }
-                    Ok(typ.clone())
+                    Ok(ctx.typ.clone())
                 } else if not_found_is_qvar {
                     let tyvar = named_free_var(Str::rc(other), self.level, Constraint::Uninited);
                     tmp_tv_cache.push_or_init_tyvar(&ident.name, &tyvar, self);
@@ -613,10 +613,10 @@ impl Context {
     ) -> TyCheckResult<Type> {
         match poly_spec.acc.to_string().trim_start_matches([':', '.']) {
             "Array" => {
-                let ctx = self
+                let ctx = &self
                     .get_nominal_type_ctx(&array_t(Type::Obj, TyParam::Failure))
                     .unwrap()
-                    .1;
+                    .ctx;
                 // TODO: kw
                 let mut args = poly_spec.args.pos_args();
                 if let Some(first) = args.next() {
@@ -747,7 +747,7 @@ impl Context {
                 Ok(Type::NamedTuple(ts))
             }
             other => {
-                let Some((typ, ctx)) = self.get_type_and_ctx(&Str::rc(other)) else {
+                let Some(ctx) = self.get_type_ctx(&Str::rc(other)) else {
                     return Err(TyCheckErrors::from(TyCheckError::no_type_error(
                         self.cfg.input.clone(),
                         line!() as usize,
@@ -810,7 +810,7 @@ impl Context {
                     }
                 }
                 // FIXME: non-builtin
-                Ok(poly(typ.qual_name(), new_params))
+                Ok(poly(ctx.typ.qual_name(), new_params))
             }
         }
     }
@@ -923,7 +923,7 @@ impl Context {
                     .and_then(|ctxs| ctxs.first().copied())
                     .or_else(|| {
                         let typ = self.get_tp_t(&obj).ok()?;
-                        self.get_nominal_type_ctx(&typ).map(|(_, ctx)| ctx)
+                        self.get_nominal_type_ctx(&typ).map(|ctx| &ctx.ctx)
                     })
                     .unwrap_or(self);
                 let mut args = vec![];

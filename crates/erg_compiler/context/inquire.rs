@@ -41,7 +41,7 @@ use RegistrationMode::*;
 
 use super::eval::UndoableLinkedList;
 use super::instantiate_spec::ParamKind;
-use super::{ContextKind, MethodPair};
+use super::{ContextKind, MethodPair, TypeContext};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SubstituteResult {
@@ -91,7 +91,7 @@ impl Context {
             .get(search_name)
             .or_else(|| self.decls.get(search_name))
             .or_else(|| {
-                for (_, methods) in self.methods_list.iter() {
+                for methods in self.methods_list.iter() {
                     if let Some(vi) = methods.get_current_scope_non_param(name) {
                         return Some(vi);
                     }
@@ -128,7 +128,7 @@ impl Context {
                     .map(|(_, vi)| vi)
             })
             .or_else(|| {
-                for (_, methods) in self.methods_list.iter() {
+                for methods in self.methods_list.iter() {
                     if let Some(vi) = methods.get_current_scope_var(name) {
                         return Some(vi);
                     }
@@ -165,7 +165,7 @@ impl Context {
                     .map(|(_, vi)| vi)
             })
             .or_else(|| {
-                for (_, methods) in self.methods_list.iter_mut() {
+                for methods in self.methods_list.iter_mut() {
                     if let Some(vi) = methods.get_mut_current_scope_var(name) {
                         return Some(vi);
                     }
@@ -211,7 +211,7 @@ impl Context {
                     if let Predicate::Equal { rhs, .. } = refine.pred.as_ref() {
                         if let Ok(t) = <&Type>::try_from(rhs) {
                             if let Some(ctxs) = self.get_nominal_super_type_ctxs(t) {
-                                return Ok(ctxs);
+                                return Ok(ctxs.into_iter().map(|ctx| &ctx.ctx).collect());
                             }
                         }
                     }
@@ -247,8 +247,9 @@ impl Context {
         self.get_mod(ident.inspect())
             .map(|ctx| vec![ctx])
             .or_else(|| {
-                let (typ, _) = self.get_type_and_ctx(ident.inspect())?;
-                self.get_nominal_super_type_ctxs(typ)
+                let ctx = self.get_type_ctx(ident.inspect())?;
+                self.get_nominal_super_type_ctxs(&ctx.typ)
+                    .map(|ctxs| ctxs.into_iter().map(|ctx| &ctx.ctx).collect())
             })
             .or_else(|| self.rec_get_patch(ident.inspect()).map(|ctx| vec![ctx]))
             .ok_or_else(|| {
@@ -273,14 +274,14 @@ impl Context {
         namespace: &Str,
     ) -> SingleTyCheckResult<&mut Context> {
         self.get_mut_singular_ctxs_and_t_by_ident(ident, namespace)
-            .map(|(_, ctx)| ctx)
+            .map(|ctx| &mut ctx.ctx)
     }
 
     pub(crate) fn get_mut_singular_ctxs_and_t_by_ident(
         &mut self,
         ident: &ast::Identifier,
         namespace: &Str,
-    ) -> SingleTyCheckResult<(&Type, &mut Context)> {
+    ) -> SingleTyCheckResult<&mut TypeContext> {
         let err = TyCheckError::no_var_error(
             self.cfg.input.clone(),
             line!() as usize,
@@ -330,7 +331,7 @@ impl Context {
         &mut self,
         obj: &ast::Expr,
         namespace: &Str,
-    ) -> SingleTyCheckResult<(&Type, &mut Context)> {
+    ) -> SingleTyCheckResult<&mut TypeContext> {
         match obj {
             ast::Expr::Accessor(ast::Accessor::Ident(ident)) => {
                 self.get_mut_singular_ctxs_and_t_by_ident(ident, namespace)
@@ -365,7 +366,7 @@ impl Context {
         namespace: &Str,
     ) -> SingleTyCheckResult<&mut Context> {
         self.get_mut_singular_ctx_and_t(obj, namespace)
-            .map(|(_, ctx)| ctx)
+            .map(|ctx| &mut ctx.ctx)
     }
 
     fn get_match_call_t(
@@ -571,7 +572,7 @@ impl Context {
                 self.get_similar_name(ident.inspect()),
             ));
         }
-        for (_, method_ctx) in self.methods_list.iter() {
+        for method_ctx in self.methods_list.iter() {
             match method_ctx.rec_get_var_info(ident, acc_kind, input, namespace) {
                 Triple::Ok(vi) => {
                     return Triple::Ok(vi);
@@ -740,7 +741,7 @@ impl Context {
                     Err(e) => Triple::Err(e),
                 };
             }
-            for (_, methods_ctx) in patch.methods_list.iter() {
+            for methods_ctx in patch.methods_list.iter() {
                 if let Some(vi) = methods_ctx.get_current_scope_non_param(&ident.name) {
                     return match self.validate_visibility(ident, vi, input, namespace) {
                         Ok(_) => Triple::Ok(vi.clone()),
@@ -1163,7 +1164,7 @@ impl Context {
                 self.validate_visibility(attr_name, vi, input, namespace)?;
                 return Ok(vi.clone());
             }
-            for (_, methods_ctx) in ctx.methods_list.iter() {
+            for methods_ctx in ctx.methods_list.iter() {
                 if let Some(vi) = methods_ctx.get_current_scope_non_param(&attr_name.name) {
                     self.validate_visibility(attr_name, vi, input, namespace)?;
                     return Ok(vi.clone());
@@ -1187,7 +1188,7 @@ impl Context {
                     self.validate_visibility(attr_name, vi, input, namespace)?;
                     return Ok(vi.clone());
                 }
-                for (_, method_ctx) in ctx.methods_list.iter() {
+                for method_ctx in ctx.methods_list.iter() {
                     if let Some(vi) = method_ctx.get_current_scope_non_param(&attr_name.name) {
                         self.validate_visibility(attr_name, vi, input, namespace)?;
                         return Ok(vi.clone());
@@ -1226,7 +1227,7 @@ impl Context {
                 self.validate_visibility(attr_name, vi, input, namespace)?;
                 return Ok(vi.clone());
             }
-            for (_, methods_ctx) in patch.methods_list.iter() {
+            for methods_ctx in patch.methods_list.iter() {
                 if let Some(vi) = methods_ctx.get_current_scope_non_param(&attr_name.name) {
                     self.validate_visibility(attr_name, vi, input, namespace)?;
                     return Ok(vi.clone());
@@ -1287,7 +1288,7 @@ impl Context {
                 self.validate_visibility(attr_name, vi, input, namespace)?;
                 return Ok(vi.clone());
             }
-            for (_, methods_ctx) in ctx.methods_list.iter() {
+            for methods_ctx in ctx.methods_list.iter() {
                 if let Some(vi) = methods_ctx.get_current_scope_non_param(&attr_name.name) {
                     self.validate_visibility(attr_name, vi, input, namespace)?;
                     return Ok(vi.clone());
@@ -1311,7 +1312,7 @@ impl Context {
                     self.validate_visibility(attr_name, vi, input, namespace)?;
                     return Ok(vi.clone());
                 }
-                for (_, method_ctx) in ctx.methods_list.iter() {
+                for method_ctx in ctx.methods_list.iter() {
                     if let Some(vi) = method_ctx.get_current_scope_non_param(&attr_name.name) {
                         self.validate_visibility(attr_name, vi, input, namespace)?;
                         return Ok(vi.clone());
@@ -1350,7 +1351,7 @@ impl Context {
                 self.validate_visibility(attr_name, vi, input, namespace)?;
                 return Ok(vi.clone());
             }
-            for (_, methods_ctx) in patch.methods_list.iter() {
+            for methods_ctx in patch.methods_list.iter() {
                 if let Some(vi) = methods_ctx.get_current_scope_non_param(&attr_name.name) {
                     self.validate_visibility(attr_name, vi, input, namespace)?;
                     return Ok(vi.clone());
@@ -2560,7 +2561,7 @@ impl Context {
         opt_max
     }
 
-    pub fn get_nominal_super_type_ctxs<'a>(&'a self, t: &Type) -> Option<Vec<&'a Context>> {
+    pub fn get_nominal_super_type_ctxs<'a>(&'a self, t: &Type) -> Option<Vec<&'a TypeContext>> {
         match t {
             Type::FreeVar(fv) if fv.is_linked() => self.get_nominal_super_type_ctxs(&fv.crack()),
             Type::FreeVar(fv) => {
@@ -2592,7 +2593,7 @@ impl Context {
                 (Type::Refinement(l), Type::Refinement(r)) if l.t == r.t => {
                     self.get_nominal_super_type_ctxs(&l.t)
                 }
-                _ => self.get_nominal_type_ctx(&Obj).map(|(_, ctx)| vec![ctx]),
+                _ => self.get_nominal_type_ctx(&Obj).map(|ctx| vec![ctx]),
             },
             _ => self
                 .get_simple_nominal_super_type_ctxs(t)
@@ -2604,12 +2605,12 @@ impl Context {
     fn get_simple_nominal_super_type_ctxs<'a>(
         &'a self,
         t: &Type,
-    ) -> Option<impl Iterator<Item = &'a Context>> {
-        let (_, ctx) = self.get_nominal_type_ctx(t)?;
+    ) -> Option<impl Iterator<Item = &'a TypeContext>> {
+        let ctx = self.get_nominal_type_ctx(t)?;
         let sups = ctx.super_classes.iter().chain(ctx.super_traits.iter());
         let mut sup_ctxs = vec![];
         for sup in sups {
-            if let Some((_, ctx)) = self.get_nominal_type_ctx(sup) {
+            if let Some(ctx) = self.get_nominal_type_ctx(sup) {
                 sup_ctxs.push(ctx);
             } else if DEBUG_MODE {
                 todo!("no ctx for {sup}");
@@ -2620,7 +2621,7 @@ impl Context {
 
     pub(crate) fn _get_super_traits(&self, typ: &Type) -> Option<impl Iterator<Item = Type>> {
         self.get_nominal_type_ctx(typ)
-            .map(|(_, ctx)| ctx.super_traits.clone().into_iter())
+            .map(|ctx| ctx.super_traits.clone().into_iter())
     }
 
     /// include `typ` itself.
@@ -2629,13 +2630,15 @@ impl Context {
         &self,
         typ: &Type,
     ) -> Option<impl Iterator<Item = Type> + Clone> {
-        self.get_nominal_type_ctx(typ).map(|(t, ctx)| {
+        self.get_nominal_type_ctx(typ).map(|ctx| {
             let super_classes = ctx.super_classes.clone();
             let derefined = typ.derefine();
             if typ != &derefined {
-                vec![t.clone(), derefined].into_iter().chain(super_classes)
+                vec![ctx.typ.clone(), derefined]
+                    .into_iter()
+                    .chain(super_classes)
             } else {
-                vec![t.clone()].into_iter().chain(super_classes)
+                vec![ctx.typ.clone()].into_iter().chain(super_classes)
             }
         })
     }
@@ -2644,17 +2647,17 @@ impl Context {
         &self,
         typ: &Type,
     ) -> Option<impl Iterator<Item = Type> + Clone> {
-        self.get_nominal_type_ctx(typ).map(|(t, ctx)| {
+        self.get_nominal_type_ctx(typ).map(|ctx| {
             let super_classes = ctx.super_classes.clone();
             let super_traits = ctx.super_traits.clone();
             let derefined = typ.derefine();
             if typ != &derefined {
-                vec![t.clone(), derefined]
+                vec![ctx.typ.clone(), derefined]
                     .into_iter()
                     .chain(super_classes)
                     .chain(super_traits)
             } else {
-                vec![t.clone()]
+                vec![ctx.typ.clone()]
                     .into_iter()
                     .chain(super_classes)
                     .chain(super_traits)
@@ -2663,10 +2666,7 @@ impl Context {
     }
 
     // TODO: Never
-    pub(crate) fn get_nominal_type_ctx<'a>(
-        &'a self,
-        typ: &Type,
-    ) -> Option<(&'a Type, &'a Context)> {
+    pub(crate) fn get_nominal_type_ctx<'a>(&'a self, typ: &Type) -> Option<&'a TypeContext> {
         match typ {
             Type::FreeVar(fv) if fv.is_linked() => {
                 if let Some(res) = self.get_nominal_type_ctx(&fv.crack()) {
@@ -2694,31 +2694,31 @@ impl Context {
                 }
             }
             Type::Quantified(_) => {
-                if let Some((t, ctx)) = self
+                if let Some(ctx) = self
                     .get_builtins()
                     .unwrap_or(self)
                     .rec_local_get_mono_type("QuantifiedFunc")
                 {
-                    return Some((t, ctx));
+                    return Some(ctx);
                 }
             }
             Type::Subr(subr) => match subr.kind {
                 SubrKind::Func => {
-                    if let Some((t, ctx)) = self
+                    if let Some(ctx) = self
                         .get_builtins()
                         .unwrap_or(self)
                         .rec_local_get_mono_type("Func")
                     {
-                        return Some((t, ctx));
+                        return Some(ctx);
                     }
                 }
                 SubrKind::Proc => {
-                    if let Some((t, ctx)) = self
+                    if let Some(ctx) = self
                         .get_builtins()
                         .unwrap_or(self)
                         .rec_local_get_mono_type("Proc")
                     {
-                        return Some((t, ctx));
+                        return Some(ctx);
                     }
                 }
             },
@@ -2753,8 +2753,8 @@ impl Context {
             }
             // FIXME: `F()`などの場合、実際は引数が省略されていてもmonomorphicになる
             other if other.is_monomorphic() => {
-                if let Some((t, ctx)) = self.rec_local_get_mono_type(&other.local_name()) {
-                    return Some((t, ctx));
+                if let Some(ctx) = self.rec_local_get_mono_type(&other.local_name()) {
+                    return Some(ctx);
                 }
             }
             Type::Ref(t) | Type::RefMut { before: t, .. } => {
@@ -2799,7 +2799,7 @@ impl Context {
     pub(crate) fn get_mut_nominal_type_ctx<'a>(
         &'a mut self,
         typ: &Type,
-    ) -> Option<(&'a Type, &'a mut Context)> {
+    ) -> Option<&'a mut TypeContext> {
         match typ {
             Type::FreeVar(fv) if fv.is_linked() => {
                 if let Some(res) = self.get_mut_nominal_type_ctx(&fv.crack()) {
@@ -2823,19 +2823,19 @@ impl Context {
                 }
             }
             Type::Mono(_) => {
-                if let Some((t, ctx)) = self.rec_get_mut_mono_type(&typ.local_name()) {
-                    return Some((t, ctx));
+                if let Some(ctx) = self.rec_get_mut_mono_type(&typ.local_name()) {
+                    return Some(ctx);
                 }
             }
             Type::Poly { .. } => {
-                if let Some((t, ctx)) = self.rec_get_mut_poly_type(&typ.local_name()) {
-                    return Some((t, ctx));
+                if let Some(ctx) = self.rec_get_mut_poly_type(&typ.local_name()) {
+                    return Some(ctx);
                 }
             }
             // FIXME: `F()`などの場合、実際は引数が省略されていてもmonomorphicになる
             other if other.is_monomorphic() => {
-                if let Some((t, ctx)) = self.rec_get_mut_mono_type(&other.local_name()) {
-                    return Some((t, ctx));
+                if let Some(ctx) = self.rec_get_mut_mono_type(&other.local_name()) {
+                    return Some(ctx);
                 }
             }
             Type::Ref(t) | Type::RefMut { before: t, .. } => {
@@ -2948,7 +2948,7 @@ impl Context {
         if let Some(val) = self.consts.get(name) {
             return Some(val);
         }
-        for (_, ctx) in self.methods_list.iter() {
+        for ctx in self.methods_list.iter() {
             if let Some(val) = ctx.consts.get(name) {
                 return Some(val);
             }
@@ -3027,30 +3027,30 @@ impl Context {
         self.get_mod_with_path(self.get_namespace_path(namespace)?.as_path())
     }
 
-    pub(crate) fn get_mono_type(&self, name: &Str) -> Option<(&Type, &Context)> {
-        if let Some((t, ctx)) = self.rec_local_get_mono_type(name) {
-            return Some((t, ctx));
+    pub(crate) fn get_mono_type(&self, name: &Str) -> Option<&TypeContext> {
+        if let Some(ctx) = self.rec_local_get_mono_type(name) {
+            return Some(ctx);
         }
         let typ = Type::Mono(Str::rc(name));
         if self.name.starts_with(&typ.namespace()[..]) {
-            if let Some((t, ctx)) = self.rec_local_get_mono_type(&typ.local_name()) {
-                return Some((t, ctx));
+            if let Some(ctx) = self.rec_local_get_mono_type(&typ.local_name()) {
+                return Some(ctx);
             }
         }
         if let Some(ctx) = self.get_namespace(&typ.namespace()) {
-            if let Some((t, ctx)) = ctx.rec_local_get_mono_type(&typ.local_name()) {
-                return Some((t, ctx));
+            if let Some(ctx) = ctx.rec_local_get_mono_type(&typ.local_name()) {
+                return Some(ctx);
             }
         }
         None
     }
 
     /// you should use `get_mono_type` instead of this
-    pub(crate) fn rec_local_get_mono_type(&self, name: &str) -> Option<(&Type, &Context)> {
+    pub(crate) fn rec_local_get_mono_type(&self, name: &str) -> Option<&TypeContext> {
         #[cfg(feature = "py_compat")]
         let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
-        if let Some((t, ctx)) = self.mono_types.get(name) {
-            Some((t, ctx))
+        if let Some(ctx) = self.mono_types.get(name) {
+            Some(ctx)
         } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
             outer.rec_local_get_mono_type(name)
         } else {
@@ -3058,11 +3058,11 @@ impl Context {
         }
     }
 
-    pub(crate) fn rec_local_get_poly_type(&self, name: &str) -> Option<(&Type, &Context)> {
+    pub(crate) fn rec_local_get_poly_type(&self, name: &str) -> Option<&TypeContext> {
         #[cfg(feature = "py_compat")]
         let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
-        if let Some((t, ctx)) = self.poly_types.get(name) {
-            Some((t, ctx))
+        if let Some(ctx) = self.poly_types.get(name) {
+            Some(ctx)
         } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
             outer.rec_local_get_poly_type(name)
         } else {
@@ -3070,29 +3070,29 @@ impl Context {
         }
     }
 
-    pub(crate) fn get_poly_type(&self, name: &Str) -> Option<(&Type, &Context)> {
-        if let Some((t, ctx)) = self.rec_local_get_poly_type(name) {
-            return Some((t, ctx));
+    pub(crate) fn get_poly_type(&self, name: &Str) -> Option<&TypeContext> {
+        if let Some(ctx) = self.rec_local_get_poly_type(name) {
+            return Some(ctx);
         }
         let typ = Type::Mono(Str::rc(name));
         if self.name.starts_with(&typ.namespace()[..]) {
-            if let Some((t, ctx)) = self.rec_local_get_poly_type(&typ.local_name()) {
-                return Some((t, ctx));
+            if let Some(ctx) = self.rec_local_get_poly_type(&typ.local_name()) {
+                return Some(ctx);
             }
         }
         if let Some(ctx) = self.get_namespace(&typ.namespace()) {
-            if let Some((t, ctx)) = ctx.rec_local_get_poly_type(&typ.local_name()) {
-                return Some((t, ctx));
+            if let Some(ctx) = ctx.rec_local_get_poly_type(&typ.local_name()) {
+                return Some(ctx);
             }
         }
         None
     }
 
-    fn rec_get_mut_mono_type(&mut self, name: &str) -> Option<(&mut Type, &mut Context)> {
+    fn rec_get_mut_mono_type(&mut self, name: &str) -> Option<&mut TypeContext> {
         #[cfg(feature = "py_compat")]
         let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
-        if let Some((t, ctx)) = self.mono_types.get_mut(name) {
-            Some((t, ctx))
+        if let Some(ctx) = self.mono_types.get_mut(name) {
+            Some(ctx)
         } else if let Some(outer) = self.outer.as_mut() {
             // builtins cannot be got as mutable
             outer.rec_get_mut_mono_type(name)
@@ -3101,11 +3101,11 @@ impl Context {
         }
     }
 
-    fn rec_get_mut_poly_type(&mut self, name: &str) -> Option<(&mut Type, &mut Context)> {
+    fn rec_get_mut_poly_type(&mut self, name: &str) -> Option<&mut TypeContext> {
         #[cfg(feature = "py_compat")]
         let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
-        if let Some((t, ctx)) = self.poly_types.get_mut(name) {
-            Some((t, ctx))
+        if let Some(ctx) = self.poly_types.get_mut(name) {
+            Some(ctx)
         } else if let Some(outer) = self.outer.as_mut() {
             outer.rec_get_mut_poly_type(name)
         } else {
@@ -3113,13 +3113,13 @@ impl Context {
         }
     }
 
-    pub(crate) fn rec_get_mut_type(&mut self, name: &str) -> Option<(&Type, &mut Context)> {
+    pub(crate) fn rec_get_mut_type(&mut self, name: &str) -> Option<&mut TypeContext> {
         #[cfg(feature = "py_compat")]
         let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
-        if let Some((t, ctx)) = self.mono_types.get_mut(name) {
-            Some((t, ctx))
-        } else if let Some((t, ctx)) = self.poly_types.get_mut(name) {
-            Some((t, ctx))
+        if let Some(ctx) = self.mono_types.get_mut(name) {
+            Some(ctx)
+        } else if let Some(ctx) = self.poly_types.get_mut(name) {
+            Some(ctx)
         } else if let Some(outer) = self.outer.as_mut() {
             outer.rec_get_mut_type(name)
         } else {
@@ -3127,37 +3127,37 @@ impl Context {
         }
     }
 
-    pub(crate) fn get_type_and_ctx(&self, name: &str) -> Option<(&Type, &Context)> {
-        if let Some((t, ctx)) = self.rec_local_get_type(name) {
-            return Some((t, ctx));
+    pub(crate) fn get_type_ctx(&self, name: &str) -> Option<&TypeContext> {
+        if let Some(ctx) = self.rec_local_get_type(name) {
+            return Some(ctx);
         }
         let typ = Type::Mono(Str::rc(name));
         if self.name.starts_with(&typ.namespace()[..]) {
-            if let Some((t, ctx)) = self.rec_local_get_type(&typ.local_name()) {
-                return Some((t, ctx));
+            if let Some(ctx) = self.rec_local_get_type(&typ.local_name()) {
+                return Some(ctx);
             }
         }
         if let Some(ctx) = self.get_namespace(&typ.namespace()) {
-            if let Some((t, ctx)) = ctx.rec_local_get_type(&typ.local_name()) {
-                return Some((t, ctx));
+            if let Some(ctx) = ctx.rec_local_get_type(&typ.local_name()) {
+                return Some(ctx);
             }
         }
         None
     }
 
     pub fn get_type_info_by_str(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
-        self.get_type_and_ctx(name)
-            .and_then(|(t, _)| self.get_type_info(t))
+        self.get_type_ctx(name)
+            .and_then(|ctx| self.get_type_info(&ctx.typ))
     }
 
     /// you should use `get_type` instead of this
-    pub(crate) fn rec_local_get_type(&self, name: &str) -> Option<(&Type, &Context)> {
+    pub(crate) fn rec_local_get_type(&self, name: &str) -> Option<&TypeContext> {
         #[cfg(feature = "py_compat")]
         let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
-        if let Some((t, ctx)) = self.mono_types.get(name) {
-            Some((t, ctx))
-        } else if let Some((t, ctx)) = self.poly_types.get(name) {
-            Some((t, ctx))
+        if let Some(ctx) = self.mono_types.get(name) {
+            Some(ctx)
+        } else if let Some(ctx) = self.poly_types.get(name) {
+            Some(ctx)
         } else if let Some(value) = self.consts.get(name) {
             value
                 .as_type(self)
@@ -3404,7 +3404,7 @@ impl Context {
             Type::Refinement(refine) => self.is_class(&refine.t),
             Type::Ref(t) | Type::RefMut { before: t, .. } => self.is_class(t),
             _ => {
-                if let Some((_, ctx)) = self.get_nominal_type_ctx(typ) {
+                if let Some(ctx) = self.get_nominal_type_ctx(typ) {
                     ctx.kind.is_class()
                 } else {
                     // TODO: unknown types
@@ -3427,7 +3427,7 @@ impl Context {
             Type::Refinement(refine) => self.is_trait(&refine.t),
             Type::Ref(t) | Type::RefMut { before: t, .. } => self.is_trait(t),
             _ => {
-                if let Some((_, ctx)) = self.get_nominal_type_ctx(typ) {
+                if let Some(ctx) = self.get_nominal_type_ctx(typ) {
                     ctx.kind.is_trait()
                 } else {
                     false
@@ -3531,11 +3531,11 @@ impl Context {
         // Array(Nat, 2) !<: Array!(Int, _)
         let base_def_t = self
             .get_nominal_type_ctx(base)
-            .map(|(t, _)| t)
+            .map(|ctx| &ctx.typ)
             .unwrap_or(&Type::Obj);
         let assert_def_t = self
             .get_nominal_type_ctx(&guard.to)
-            .map(|(t, _)| t)
+            .map(|ctx| &ctx.typ)
             .unwrap_or(&Type::Obj);
         if self.related(base_def_t, assert_def_t) {
             // FIXME: Vec(_), Array(Int, 2) -> Vec(2)
@@ -3568,9 +3568,9 @@ impl Context {
         }
         if self.kind.is_method_def() {
             self.get_nominal_type_ctx(&mono(&self.name))
-                .and_then(|(_, ctx)| ctx.get_instance_attr(name))
+                .and_then(|ctx| ctx.get_instance_attr(name))
         } else {
-            self.methods_list.iter().find_map(|(_, ctx)| {
+            self.methods_list.iter().find_map(|ctx| {
                 if ctx.kind.is_trait_impl() {
                     None
                 } else {
@@ -3597,9 +3597,9 @@ impl Context {
         }
         if self.kind.is_method_def() {
             self.get_mut_nominal_type_ctx(&mono(&self.name))
-                .and_then(|(_, ctx)| ctx.remove_class_attr(name))
+                .and_then(|ctx| ctx.remove_class_attr(name))
         } else {
-            self.methods_list.iter_mut().find_map(|(_, ctx)| {
+            self.methods_list.iter_mut().find_map(|ctx| {
                 if ctx.kind.is_trait_impl() {
                     None
                 } else {

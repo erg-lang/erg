@@ -267,7 +267,8 @@ impl Context {
         rhs: &Type,
         get_types: impl Fn(&'c Context) -> &'c [Type],
     ) -> (Credibility, bool) {
-        if let Some((typ, ty_ctx)) = self.get_nominal_type_ctx(rhs) {
+        if let Some(ty_ctx) = self.get_nominal_type_ctx(rhs) {
+            let typ = &ty_ctx.typ;
             let substitute = typ.has_qvar();
             let overwrite = typ.has_undoable_linked_var();
             let _substituter = if overwrite {
@@ -792,7 +793,7 @@ impl Context {
             Type::Refinement(refine) => self.fields(&refine.t),
             Type::Structural(t) => self.fields(t),
             other => {
-                let Some((_, ctx)) = self.get_nominal_type_ctx(other) else {
+                let Some(ctx) = self.get_nominal_type_ctx(other) else {
                     return Dict::new();
                 };
                 let mod_fields = if other.is_module() {
@@ -833,7 +834,7 @@ impl Context {
             erg_common::fmt_vec(lparams),
             erg_common::fmt_vec(rparams)
         );
-        let (_, ctx) = self
+        let ctx = self
             .get_nominal_type_ctx(typ)
             .unwrap_or_else(|| panic!("{typ} is not found"));
         let variances = ctx.type_params_variance();

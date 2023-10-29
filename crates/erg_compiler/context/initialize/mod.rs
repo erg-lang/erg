@@ -22,7 +22,7 @@ use erg_common::log;
 use erg_common::Str;
 use erg_common::{set, unique_in_place};
 
-use erg_parser::ast::VarName;
+use erg_parser::ast::{DefId, VarName};
 
 use crate::context::initialize::const_func::*;
 use crate::context::instantiate_spec::ConstTemplate;
@@ -42,6 +42,8 @@ use Mutability::*;
 use ParamSpec as PS;
 use Type::*;
 use VarKind::*;
+
+use super::{MethodContext, TypeContext};
 
 const NUM: &str = "Num";
 
@@ -861,7 +863,7 @@ impl Context {
             self.locals.insert(name.clone(), vi);
             self.consts.insert(name.clone(), val);
             self.register_methods(&t, &ctx);
-            self.mono_types.insert(name, (t, ctx));
+            self.mono_types.insert(name, TypeContext::new(t, ctx));
         }
     }
 
@@ -874,8 +876,10 @@ impl Context {
         muty: Mutability,
         py_name: Option<&'static str>,
     ) {
-        if let Some((_, root_ctx)) = self.poly_types.get_mut(&t.local_name()) {
-            root_ctx.methods_list.push((ClassDefType::Simple(t), ctx));
+        if let Some(root_ctx) = self.poly_types.get_mut(&t.local_name()) {
+            root_ctx
+                .methods_list
+                .push(MethodContext::new(DefId(0), ClassDefType::Simple(t), ctx));
         } else {
             let ret_val = match ctx.kind {
                 ContextKind::Class => ValueObj::builtin_class(t.clone()),
@@ -938,7 +942,7 @@ impl Context {
             }
             self.consts.insert(name.clone(), ValueObj::Subr(subr));
             self.register_methods(&t, &ctx);
-            self.poly_types.insert(name, (t, ctx));
+            self.poly_types.insert(name, TypeContext::new(t, ctx));
         }
     }
 
@@ -973,7 +977,7 @@ impl Context {
                 );
             }
         }
-        for (_, methods) in ctx.methods_list.iter() {
+        for methods in ctx.methods_list.iter() {
             self.register_methods(t, methods);
         }
     }
@@ -1143,7 +1147,7 @@ impl Context {
             Accessor, Args, Block, Def, DefBody, Expr, Identifier, Module, Params, Signature,
             SubrSignature, VarSignature, HIR,
         };
-        use erg_parser::ast::{DefId, NonDefaultParamSignature, TypeBoundSpecs};
+        use erg_parser::ast::{NonDefaultParamSignature, TypeBoundSpecs};
         use erg_parser::token::Token;
 
         let path = NormalizedPathBuf::from(Path::new("unsound"));

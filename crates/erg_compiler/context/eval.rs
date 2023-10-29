@@ -514,7 +514,7 @@ impl Context {
                     if let Some(val) = ctx.consts.get(ident.inspect()) {
                         return Ok(val.clone());
                     }
-                    for (_, methods) in ctx.methods_list.iter() {
+                    for methods in ctx.methods_list.iter() {
                         if let Some(v) = methods.consts.get(ident.inspect()) {
                             return Ok(v.clone());
                         }
@@ -1763,8 +1763,8 @@ impl Context {
                 Triple::Err(err) => return Err(err),
                 Triple::None => {}
             }
-            for (class, methods) in ty_ctx.methods_list.iter() {
-                match (&class, &opt_sup) {
+            for methods in ty_ctx.methods_list.iter() {
+                match (&methods.typ, &opt_sup) {
                     (ClassDefType::ImplTrait { impl_trait, .. }, Some(sup)) => {
                         if !self.supertype_of(impl_trait, sup) {
                             continue;
@@ -2213,7 +2213,7 @@ impl Context {
             // obj: [T; N]|<: Add([T; M])|.Output == ValueObj::Type(<type [T; M+N]>)
             if let ValueObj::Type(quant_projected_t) = obj {
                 let projected_t = quant_projected_t.into_typ();
-                let (quant_sub, _) = self.get_type_and_ctx(&sub.qual_name()).unwrap();
+                let quant_sub = &self.get_type_ctx(&sub.qual_name()).unwrap().typ;
                 let _sup_subs = if let Some((sup, quant_sup)) = opt_sup.zip(methods.impl_of()) {
                     // T -> Int, M -> 2
                     match Substituter::substitute_typarams(self, &quant_sup, sup) {
@@ -2385,7 +2385,7 @@ impl Context {
             if let Ok(obj) = ty_ctx.get_const_local(&Token::symbol(&attr_name), &self.name) {
                 return self.do_proj_call_t(obj, lhs, args, t_loc);
             }
-            for (_class, methods) in ty_ctx.methods_list.iter() {
+            for methods in ty_ctx.methods_list.iter() {
                 if let Ok(obj) = methods.get_const_local(&Token::symbol(&attr_name), &self.name) {
                     return self.do_proj_call_t(obj, lhs, args, t_loc);
                 }
@@ -2462,7 +2462,7 @@ impl Context {
             if let Ok(obj) = ty_ctx.get_const_local(&Token::symbol(&attr_name), &self.name) {
                 return self.do_proj_call(obj, lhs, args, t_loc);
             }
-            for (_class, methods) in ty_ctx.methods_list.iter() {
+            for methods in ty_ctx.methods_list.iter() {
                 if let Ok(obj) = methods.get_const_local(&Token::symbol(&attr_name), &self.name) {
                     return self.do_proj_call(obj, lhs, args, t_loc);
                 }

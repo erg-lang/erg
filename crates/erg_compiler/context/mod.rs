@@ -16,6 +16,7 @@ pub mod unify;
 
 use std::fmt;
 use std::mem;
+use std::ops::{Deref, DerefMut};
 use std::option::Option; // conflicting to Type::Option
 use std::path::Path;
 
@@ -186,6 +187,59 @@ impl ClassDefType {
             ClassDefType::ImplTrait { impl_trait, .. } => impl_trait == trait_,
             _ => false,
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct MethodContext {
+    pub id: DefId,
+    pub typ: ClassDefType,
+    pub ctx: Context,
+}
+
+impl Deref for MethodContext {
+    type Target = Context;
+
+    fn deref(&self) -> &Self::Target {
+        &self.ctx
+    }
+}
+
+impl DerefMut for MethodContext {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.ctx
+    }
+}
+
+impl MethodContext {
+    pub const fn new(id: DefId, typ: ClassDefType, ctx: Context) -> Self {
+        Self { id, typ, ctx }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct TypeContext {
+    pub typ: Type,
+    pub ctx: Context,
+}
+
+impl Deref for TypeContext {
+    type Target = Context;
+
+    fn deref(&self) -> &Self::Target {
+        &self.ctx
+    }
+}
+
+impl DerefMut for TypeContext {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.ctx
+    }
+}
+
+impl TypeContext {
+    pub const fn new(typ: Type, ctx: Context) -> Self {
+        Self { typ, ctx }
     }
 }
 
@@ -503,7 +557,7 @@ pub struct Context {
     pub(crate) super_traits: Vec<Type>,  // if self is not a trait, means implemented traits
     // method definitions, if the context is a type
     // specializations are included and needs to be separated out
-    pub(crate) methods_list: Vec<(ClassDefType, Context)>,
+    pub(crate) methods_list: Vec<MethodContext>,
     // K: method name, V: types defines the method
     // If it is declared in a trait, it takes precedence over the class.
     pub(crate) method_to_traits: Dict<Str, Vec<MethodPair>>,
@@ -531,11 +585,11 @@ pub struct Context {
     pub(crate) locals: Dict<VarName, VarInfo>,
     pub(crate) consts: Dict<VarName, ValueObj>,
     // {"Nat": ctx, "Int": ctx, ...}
-    pub(crate) mono_types: Dict<VarName, (Type, Context)>,
+    pub(crate) mono_types: Dict<VarName, TypeContext>,
     // Implementation Contexts for Polymorphic Types
     // Vec<TyParam> are specialization parameters
     // e.g. {"Array": [(Array(Nat), ctx), (Array(Int), ctx), (Array(Str), ctx), (Array(Obj), ctx), (Array('T), ctx)], ...}
-    pub(crate) poly_types: Dict<VarName, (Type, Context)>,
+    pub(crate) poly_types: Dict<VarName, TypeContext>,
     // patches can be accessed like normal records
     // but when used as a fallback to a type, values are traversed instead of accessing by keys
     pub(crate) patches: Dict<VarName, Context>,
@@ -585,10 +639,10 @@ impl ContextProvider for Context {
 
     fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context> {
         self.get_mod(receiver_name)
-            .or_else(|| self.rec_local_get_type(receiver_name).map(|(_, ctx)| ctx))
+            .or_else(|| self.rec_local_get_type(receiver_name).map(|ctx| &ctx.ctx))
             .or_else(|| {
                 let (_, vi) = self.get_var_info(receiver_name)?;
-                self.get_nominal_type_ctx(&vi.t).map(|(_, ctx)| ctx)
+                self.get_nominal_type_ctx(&vi.t).map(|ctx| &ctx.ctx)
             })
     }
 
@@ -618,7 +672,7 @@ impl Context {
                 receiver_ctx
                     .super_classes
                     .iter()
-                    .flat_map(|t| self.get_nominal_type_ctx(t).map(|(_, ctx)| ctx)),
+                    .flat_map(|t| self.get_nominal_type_ctx(t).map(|ctx| &ctx.ctx)),
             );
         }
         ctxs
@@ -1247,10 +1301,10 @@ impl Context {
         attrs.guaranteed_extend(
             self.methods_list
                 .iter()
-                .flat_map(|(_, ctx)| ctx.type_dir(namespace)),
+                .flat_map(|ctx| ctx.type_dir(namespace)),
         );
         for sup in self.super_classes.iter() {
-            if let Some((_, sup_ctx)) = namespace.get_nominal_type_ctx(sup) {
+            if let Some(sup_ctx) = namespace.get_nominal_type_ctx(sup) {
                 if sup_ctx.name == self.name {
                     continue;
                 }
@@ -1321,21 +1375,22 @@ impl Context {
 
     pub(crate) fn check_types(&self) {
         if DEBUG_MODE {
-            for (_, (t, ctx)) in self.poly_types.iter() {
-                if t.has_undoable_linked_var() {
-                    panic!("{t} has undoable linked vars");
+            for (_, ctx) in self.poly_types.iter() {
+                if ctx.typ.has_undoable_linked_var() {
+                    panic!("{} has undoable linked vars", ctx.typ);
                 }
                 ctx.check_types();
             }
-            for (typ, methods) in self.methods_list.iter() {
-                if typ.get_class().has_undoable_linked_var() {
-                    panic!("{typ} has undoable linked vars");
+            for methods in self.methods_list.iter() {
+                if methods.typ.get_class().has_undoable_linked_var() {
+                    panic!("{} has undoable linked vars", methods.typ);
                 }
-                if typ
+                if methods
+                    .typ
                     .get_impl_trait()
                     .is_some_and(|t| t.has_undoable_linked_var())
                 {
-                    panic!("{typ} has undoable linked vars");
+                    panic!("{} has undoable linked vars", methods.typ);
                 }
                 methods.check_types();
             }

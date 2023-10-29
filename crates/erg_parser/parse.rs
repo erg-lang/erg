@@ -1624,7 +1624,8 @@ impl Parser {
             self.stack_dec(fn_name!())
         })?;
         debug_exit_info!(self);
-        Ok(Methods::new(t_spec, class, vis, attrs))
+        self.counter.inc();
+        Ok(Methods::new(self.counter, t_spec, class, vis, attrs))
     }
 
     fn try_reduce_do_block(&mut self) -> ParseResult<Lambda> {

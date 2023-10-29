@@ -895,7 +895,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                         .context
                         .get_nominal_super_type_ctxs(expr.ref_t())
                         .unwrap_or(vec![]);
-                    ctxs.extend(type_ctxs);
+                    ctxs.extend(type_ctxs.into_iter().map(|ctx| &ctx.ctx));
                     if let Ok(singular_ctxs) = module
                         .context
                         .get_singular_ctxs_by_hir_expr(expr, &module.context)

@@ -4,11 +4,11 @@ use erg_common::consts::PYTHON_MODE;
 use erg_common::traits::{Locational, Runnable, Stream};
 use erg_common::{enum_unwrap, fn_name, log, set, Str, Triple};
 
-use erg_parser::ast::{self, AscriptionKind, Identifier, TypeAppArgsKind, VarName, AST};
+use erg_parser::ast::{self, AscriptionKind, DefId, Identifier, TypeAppArgsKind, VarName, AST};
 use erg_parser::desugar::Desugarer;
 
 use crate::context::instantiate::TyVarCache;
-use crate::context::{ClassDefType, Context, MethodPair, TraitImpl};
+use crate::context::{ClassDefType, Context, MethodContext, MethodPair, TraitImpl};
 use crate::lower::ASTLowerer;
 use crate::ty::constructors::{array_t, mono, mono_q_tp, poly, v_enum};
 use crate::ty::free::{Constraint, HasLevel};
@@ -595,8 +595,8 @@ impl ASTLowerer {
 
     fn get_tv_ctx(&self, ident: &ast::Identifier, args: &ast::Args) -> TyVarCache {
         let mut tv_ctx = TyVarCache::new(self.module.context.level, &self.module.context);
-        if let Some((t, _)) = self.module.context.get_type_and_ctx(ident.inspect()) {
-            for (tp, arg) in t.typarams().iter().zip(args.pos_args()) {
+        if let Some(ctx) = self.module.context.get_type_ctx(ident.inspect()) {
+            for (tp, arg) in ctx.typ.typarams().iter().zip(args.pos_args()) {
                 if let ast::Expr::Accessor(ast::Accessor::Ident(ident)) = &arg.expr {
                     tv_ctx.push_or_init_typaram(&ident.name, tp, &self.module.context);
                 }
@@ -684,18 +684,18 @@ impl ASTLowerer {
                 } else {
                     None
                 };
-                let (class, ctx) = self.module.context.get_mut_singular_ctx_and_t(
+                let ctx = self.module.context.get_mut_singular_ctx_and_t(
                     attr.obj.as_ref(),
                     &self.module.context.name.clone(),
                 )?;
-                let class = class.clone();
+                let class = ctx.typ.clone();
                 let ctx = if let Some(impl_trait) = impl_trait {
                     match ctx
                         .methods_list
                         .iter_mut()
-                        .find(|(class, _ctx)| class.is_impl_of(&impl_trait))
+                        .find(|ctx| ctx.typ.is_impl_of(&impl_trait))
                     {
-                        Some((_, impl_ctx)) => impl_ctx,
+                        Some(impl_ctx) => impl_ctx,
                         None => {
                             let impl_ctx = Context::methods(
                                 Some(impl_trait.clone()),
@@ -710,11 +710,12 @@ impl ASTLowerer {
                             {
                                 impls.insert(TraitImpl::new(class.clone(), impl_trait.clone()));
                             }
-                            ctx.methods_list.push((
+                            ctx.methods_list.push(MethodContext::new(
+                                DefId(0),
                                 ClassDefType::impl_trait(class.clone(), impl_trait),
                                 impl_ctx,
                             ));
-                            &mut ctx.methods_list.iter_mut().last().unwrap().1
+                            &mut ctx.methods_list.iter_mut().last().unwrap().ctx
                         }
                     }
                 } else {
@@ -897,15 +898,15 @@ impl ASTLowerer {
         } else {
             ident.inspect().clone()
         };
-        if let Some((_, ctx)) = self.module.context.rec_get_mut_type(&name) {
+        if let Some(ctx) = self.module.context.rec_get_mut_type(&name) {
             let mut tmp = mem::take(ctx);
             tmp.register_marker_trait(&self.module.context, trait_.clone())
                 .map_err(|err| {
-                    let ctx = self.module.context.rec_get_mut_type(&name).unwrap().1;
+                    let ctx = self.module.context.rec_get_mut_type(&name).unwrap();
                     mem::swap(ctx, &mut tmp);
                     err
                 })?;
-            let ctx = self.module.context.rec_get_mut_type(&name).unwrap().1;
+            let ctx = self.module.context.rec_get_mut_type(&name).unwrap();
             mem::swap(ctx, &mut tmp);
             Ok(())
         } else {
