@@ -50,6 +50,9 @@
     __eq__ self, other: .SemVer =
         self.major == other.major and self.minor == other.minor and self.patch == other.patch and self.pre == other.pre
 
+.SemVerPrefix = Class { "~", "==", "<", ">", "<=", "<=", }
+.SemVerSpec = Class { .prefix = .SemVerPrefix; .version = .SemVer }
+
 if! __name__ == "__main__", do!:
     v = .SemVer.new(0, 0, 1)
     assert v.minor == 0

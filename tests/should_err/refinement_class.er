@@ -1,0 +1,7 @@
+Suite = Class { "Heart", "Diamond", "Spade", "Club" }
+
+_ = Suite.new "Invalid" # ERR
+
+Month = Class 1..12
+
+_ = Month.new 13 # ERR

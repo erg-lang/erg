@@ -49,6 +49,10 @@ pub enum OpKind {
     BitXor,
     Shl,
     Shr,
+    ClosedRange,
+    LeftOpenRange,
+    RightOpenRange,
+    OpenRange,
 }
 
 impl fmt::Display for OpKind {
@@ -79,6 +83,10 @@ impl fmt::Display for OpKind {
             Self::BitXor => write!(f, "^^"),
             Self::Shl => write!(f, "<<"),
             Self::Shr => write!(f, ">>"),
+            Self::ClosedRange => write!(f, ".."),
+            Self::LeftOpenRange => write!(f, "<.."),
+            Self::RightOpenRange => write!(f, "..<"),
+            Self::OpenRange => write!(f, "<..<"),
         }
     }
 }
@@ -109,6 +117,10 @@ impl TryFrom<TokenKind> for OpKind {
             TokenKind::BitXor => Ok(Self::BitXor),
             TokenKind::Shl => Ok(Self::Shl),
             TokenKind::Shr => Ok(Self::Shr),
+            TokenKind::Closed => Ok(Self::ClosedRange),
+            TokenKind::LeftOpen => Ok(Self::LeftOpenRange),
+            TokenKind::RightOpen => Ok(Self::RightOpenRange),
+            TokenKind::Open => Ok(Self::OpenRange),
             _ => Err(()),
         }
     }

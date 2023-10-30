@@ -955,6 +955,7 @@ impl ValueObj {
         ValueObj::Type(TypeObj::Generated(gen))
     }
 
+    /// closed range (..)
     pub fn range(start: Self, end: Self) -> Self {
         Self::DataClass {
             name: "Range".into(),

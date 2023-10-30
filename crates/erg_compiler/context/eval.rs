@@ -20,8 +20,9 @@ use erg_parser::desugar::Desugarer;
 use erg_parser::token::{Token, TokenKind};
 
 use crate::ty::constructors::{
-    array_t, bounded, dict_t, mono, mono_q, named_free_var, poly, proj, proj_call, ref_, ref_mut,
-    refinement, set_t, subr_t, subtypeof, tp_enum, tuple_t, unknown_len_array_t, v_enum,
+    array_t, bounded, closed_range, dict_t, mono, mono_q, named_free_var, poly, proj, proj_call,
+    ref_, ref_mut, refinement, set_t, subr_t, subtypeof, tp_enum, tuple_t, unknown_len_array_t,
+    v_enum,
 };
 use crate::ty::free::HasLevel;
 use crate::ty::typaram::{OpKind, TyParam};
@@ -93,6 +94,10 @@ fn op_to_name(op: OpKind) -> &'static str {
         OpKind::BitXor => "__bitxor__",
         OpKind::Shl => "__shl__",
         OpKind::Shr => "__shr__",
+        OpKind::ClosedRange => "__rng__",
+        OpKind::LeftOpenRange => "__lorng__",
+        OpKind::RightOpenRange => "__rorng__",
+        OpKind::OpenRange => "__orng__",
     }
 }
 
@@ -413,6 +418,10 @@ impl Context {
             TokenKind::PrePlus => Ok(OpKind::Pos),
             TokenKind::PreMinus => Ok(OpKind::Neg),
             TokenKind::PreBitNot => Ok(OpKind::Invert),
+            TokenKind::Closed => Ok(OpKind::ClosedRange),
+            TokenKind::LeftOpen => Ok(OpKind::LeftOpenRange),
+            TokenKind::RightOpen => Ok(OpKind::RightOpenRange),
+            TokenKind::Open => Ok(OpKind::OpenRange),
             _other => Err(EvalErrors::from(EvalError::not_const_expr(
                 self.cfg.input.clone(),
                 line!() as usize,
@@ -1134,6 +1143,7 @@ impl Context {
                     line!(),
                 ))),
             },
+            ClosedRange => Ok(ValueObj::range(lhs, rhs)),
             _other => Err(EvalErrors::from(EvalError::unreachable(
                 self.cfg.input.clone(),
                 fn_name!(),
@@ -2014,6 +2024,11 @@ impl Context {
                 Ok(dict_t(TyParam::Dict(dic)))
             }
             ValueObj::Subr(subr) => subr.as_type(self).ok_or(ValueObj::Subr(subr)),
+            ValueObj::DataClass { name, fields } if &name == "Range" => {
+                let start = fields["start"].clone();
+                let end = fields["end"].clone();
+                Ok(closed_range(start.class(), start, end))
+            }
             other => Err(other),
         }
     }

@@ -1,0 +1,17 @@
+Suite = Class { "Heart", "Diamond", "Spade", "Club" }
+Suite.
+    is_heart self = self::base == "Heart"
+
+h = Suite.new "Heart"
+d = Suite.new "Diamond"
+assert h.is_heart()
+assert not d.is_heart()
+
+Month = Class 1..12
+Month.
+    is_first_half self = self::base <= 6
+
+jan = Month.new 1
+dec = Month.new 12
+assert jan.is_first_half()
+assert not dec.is_first_half()

@@ -139,6 +139,28 @@ where
     Q: TryInto<TyParam, Error = QErr>,
     QErr: fmt::Debug,
 {
+    interval(op, Type::Int, l, r)
+}
+
+#[inline]
+pub fn closed_range<P, PErr, Q, QErr>(t: Type, l: P, r: Q) -> Type
+where
+    P: TryInto<TyParam, Error = PErr>,
+    PErr: fmt::Debug,
+    Q: TryInto<TyParam, Error = QErr>,
+    QErr: fmt::Debug,
+{
+    interval(IntervalOp::Closed, t, l, r)
+}
+
+#[inline]
+pub fn interval<P, PErr, Q, QErr>(op: IntervalOp, t: Type, l: P, r: Q) -> Type
+where
+    P: TryInto<TyParam, Error = PErr>,
+    PErr: fmt::Debug,
+    Q: TryInto<TyParam, Error = QErr>,
+    QErr: fmt::Debug,
+{
     let l = l.try_into().unwrap_or_else(|l| todo!("{l:?}"));
     let r = r.try_into().unwrap_or_else(|r| todo!("{r:?}"));
     let name = FRESH_GEN.fresh_varname();
@@ -161,7 +183,7 @@ where
             Predicate::le(name.clone(), r),
         ),
         IntervalOp::Open if l == TyParam::value(NegInf) && r == TyParam::value(Inf) => {
-            return refinement(name, Type::Int, Predicate::TRUE)
+            return refinement(name, t, Predicate::TRUE)
         }
         // l<..<r => {I: classof(l) | I >= l+ε and I <= r-ε}
         IntervalOp::Open => Predicate::and(
@@ -169,7 +191,7 @@ where
             Predicate::le(name.clone(), TyParam::pred(r)),
         ),
     };
-    refinement(name, Type::Int, pred)
+    refinement(name, t, pred)
 }
 
 pub fn iter(t: Type) -> Type {
