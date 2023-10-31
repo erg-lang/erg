@@ -22,9 +22,15 @@ Card.
 c = Card.new { .suite = Suite.new "Heart"; .number = Number.new 1 }
 assert c.is_ace_of_heart()
 
-Nat8 = Inherit 1..255
+Nat8 = Inherit 0..255
 Nat8.
     as_ascii self = chr self
+    satuating_add self, other: Nat =
+        if self + other >= 0 and self + other <= 255:
+            do: Nat8.new self + other
+            do: Nat8.new 255
 
 n = Nat8.new 97
+_: Nat = n + 2
 assert n.as_ascii() == "a"
+assert n.satuating_add(300) == 255

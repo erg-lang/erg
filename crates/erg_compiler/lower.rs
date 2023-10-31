@@ -924,7 +924,45 @@ impl ASTLowerer {
         Ok(ident)
     }
 
-    fn get_guard_type(&self, op: &Token, lhs: &ast::Expr, rhs: &ast::Expr) -> Option<Type> {
+    fn get_guard_type(&self, expr: &ast::Expr) -> Option<Type> {
+        match expr {
+            ast::Expr::BinOp(bin) => {
+                let lhs = &bin.args[0];
+                let rhs = &bin.args[1];
+                self.get_bin_guard_type(&bin.op, lhs, rhs)
+            }
+            ast::Expr::Call(call) => self.get_call_guard_type(call),
+            _ => None,
+        }
+    }
+
+    fn get_call_guard_type(&self, call: &ast::Call) -> Option<Type> {
+        if let (ast::Expr::Accessor(ast::Accessor::Ident(ident)), None, Some(lhs), Some(rhs)) = (
+            call.obj.as_ref(),
+            &call.attr_name,
+            call.args.nth_or_key(0, "object"),
+            call.args.nth_or_key(1, "classinfo"),
+        ) {
+            self.get_bin_guard_type(ident.name.token(), lhs, rhs)
+        } else {
+            None
+        }
+    }
+
+    fn get_bin_guard_type(&self, op: &Token, lhs: &ast::Expr, rhs: &ast::Expr) -> Option<Type> {
+        match op.kind {
+            TokenKind::AndOp => {
+                let lhs = self.get_guard_type(lhs)?;
+                let rhs = self.get_guard_type(rhs)?;
+                return Some(self.module.context.intersection(&lhs, &rhs));
+            }
+            TokenKind::OrOp => {
+                let lhs = self.get_guard_type(lhs)?;
+                let rhs = self.get_guard_type(rhs)?;
+                return Some(self.module.context.union(&lhs, &rhs));
+            }
+            _ => {}
+        }
         let target = if op.kind == TokenKind::ContainsOp {
             expr_to_cast_target(rhs)
         } else {
@@ -942,43 +980,43 @@ impl ASTLowerer {
                 Some(guard(namespace, target, to))
             }
             TokenKind::IsOp | TokenKind::DblEq => {
-                let value = self.module.context.expr_to_value(rhs.clone())?;
-                Some(guard(namespace, target, v_enum(set! { value })))
+                let rhs = self.module.context.expr_to_value(rhs.clone())?;
+                Some(guard(namespace, target, v_enum(set! { rhs })))
             }
             TokenKind::IsNotOp | TokenKind::NotEq => {
-                let value = self.module.context.expr_to_value(rhs.clone())?;
-                let ty = guard(namespace, target, v_enum(set! { value }));
+                let rhs = self.module.context.expr_to_value(rhs.clone())?;
+                let ty = guard(namespace, target, v_enum(set! { rhs }));
                 Some(self.module.context.complement(&ty))
             }
             TokenKind::Gre => {
-                let value = self.module.context.expr_to_value(rhs.clone())?;
-                let t = value.class();
+                let rhs = self.module.context.expr_to_tp(rhs.clone())?;
+                let t = self.module.context.get_tp_t(&rhs).unwrap_or(Type::Obj);
                 let varname = self.fresh_gen.fresh_varname();
-                let pred = Predicate::gt(varname.clone(), TyParam::value(value));
+                let pred = Predicate::gt(varname.clone(), rhs);
                 let refine = refinement(varname, t, pred);
                 Some(guard(namespace, target, refine))
             }
             TokenKind::GreEq => {
-                let value = self.module.context.expr_to_value(rhs.clone())?;
-                let t = value.class();
+                let rhs = self.module.context.expr_to_tp(rhs.clone())?;
+                let t = self.module.context.get_tp_t(&rhs).unwrap_or(Type::Obj);
                 let varname = self.fresh_gen.fresh_varname();
-                let pred = Predicate::ge(varname.clone(), TyParam::value(value));
+                let pred = Predicate::ge(varname.clone(), rhs);
                 let refine = refinement(varname, t, pred);
                 Some(guard(namespace, target, refine))
             }
             TokenKind::Less => {
-                let value = self.module.context.expr_to_value(rhs.clone())?;
-                let t = value.class();
+                let rhs = self.module.context.expr_to_tp(rhs.clone())?;
+                let t = self.module.context.get_tp_t(&rhs).unwrap_or(Type::Obj);
                 let varname = self.fresh_gen.fresh_varname();
-                let pred = Predicate::lt(varname.clone(), TyParam::value(value));
+                let pred = Predicate::lt(varname.clone(), rhs);
                 let refine = refinement(varname, t, pred);
                 Some(guard(namespace, target, refine))
             }
             TokenKind::LessEq => {
-                let value = self.module.context.expr_to_value(rhs.clone())?;
-                let t = value.class();
+                let rhs = self.module.context.expr_to_tp(rhs.clone())?;
+                let t = self.module.context.get_tp_t(&rhs).unwrap_or(Type::Obj);
                 let varname = self.fresh_gen.fresh_varname();
-                let pred = Predicate::le(varname.clone(), TyParam::value(value));
+                let pred = Predicate::le(varname.clone(), rhs);
                 let refine = refinement(varname, t, pred);
                 Some(guard(namespace, target, refine))
             }
@@ -991,7 +1029,7 @@ impl ASTLowerer {
         let mut args = bin.args.into_iter();
         let lhs = *args.next().unwrap();
         let rhs = *args.next().unwrap();
-        let guard = self.get_guard_type(&bin.op, &lhs, &rhs);
+        let guard = self.get_bin_guard_type(&bin.op, &lhs, &rhs);
         let lhs = self.lower_expr(lhs, None).unwrap_or_else(|errs| {
             self.errs.extend(errs);
             hir::Expr::Dummy(hir::Dummy::new(vec![]))
@@ -1165,7 +1203,7 @@ impl ASTLowerer {
         match t {
             Type::Guard(guard) => match nth {
                 0 if kind.is_conditional() => {
-                    self.module.context.guards.push(guard.clone());
+                    self.replace_or_push_guard(guard.clone());
                 }
                 1 if kind.is_if() => {
                     let guard = GuardType::new(
@@ -1173,7 +1211,7 @@ impl ASTLowerer {
                         guard.target.clone(),
                         self.module.context.complement(&guard.to),
                     );
-                    self.module.context.guards.push(guard);
+                    self.replace_or_push_guard(guard);
                 }
                 _ => {}
             },
@@ -1182,6 +1220,18 @@ impl ASTLowerer {
                 self.push_guard(nth, kind, rhs);
             }
             _ => {}
+        }
+    }
+
+    fn replace_or_push_guard(&mut self, guard: GuardType) {
+        if let Some(idx) = self.module.context.guards.iter().position(|existing| {
+            existing.namespace == guard.namespace
+                && existing.target == guard.target
+                && self.module.context.supertype_of(&existing.to, &guard.to)
+        }) {
+            self.module.context.guards[idx] = guard;
+        } else {
+            self.module.context.guards.push(guard);
         }
     }
 
@@ -1200,21 +1250,7 @@ impl ASTLowerer {
             false
         };
         let mut errs = LowerErrors::empty();
-        let guard = if let (
-            ast::Expr::Accessor(ast::Accessor::Ident(ident)),
-            None,
-            Some(lhs),
-            Some(rhs),
-        ) = (
-            call.obj.as_ref(),
-            &call.attr_name,
-            call.args.nth_or_key(0, "object"),
-            call.args.nth_or_key(1, "classinfo"),
-        ) {
-            self.get_guard_type(ident.name.token(), lhs, rhs)
-        } else {
-            None
-        };
+        let guard = self.get_call_guard_type(&call);
         let mut obj = match self.lower_expr(*call.obj, None) {
             Ok(obj) => obj,
             Err(es) => {
@@ -2754,7 +2790,8 @@ impl ASTLowerer {
             }
         };
         if let Some(casted) = casted {
-            if self.module.context.subtype_of(&casted, expr.ref_t()) {
+            if expr.ref_t().is_projection() || self.module.context.subtype_of(&casted, expr.ref_t())
+            {
                 if let Some(ref_mut_t) = expr.ref_mut_t() {
                     *ref_mut_t = casted;
                 }

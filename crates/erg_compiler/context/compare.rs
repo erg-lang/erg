@@ -1211,6 +1211,14 @@ impl Context {
                     Record(union)
                 }
             }
+            (Guard(l), Guard(r)) => {
+                if l.namespace == r.namespace && l.target == r.target {
+                    let to = self.union(&l.to, &r.to);
+                    Guard(GuardType::new(l.namespace.clone(), l.target.clone(), to))
+                } else {
+                    or(lhs.clone(), rhs.clone())
+                }
+            }
             (Structural(l), Structural(r)) => self.union(l, r).structuralize(),
             // Int..Obj or Nat..Obj ==> Int..Obj
             // Str..Obj or Int..Obj ==> Str..Obj or Int..Obj
@@ -1384,7 +1392,14 @@ impl Context {
                     .unwrap_or_else(Type::Refinement)
             }
             (Structural(l), Structural(r)) => self.intersection(l, r).structuralize(),
-            (Guard(_), Guard(_)) => and(lhs.clone(), rhs.clone()),
+            (Guard(l), Guard(r)) => {
+                if l.namespace == r.namespace && l.target == r.target {
+                    let to = self.intersection(&l.to, &r.to);
+                    Guard(GuardType::new(l.namespace.clone(), l.target.clone(), to))
+                } else {
+                    and(lhs.clone(), rhs.clone())
+                }
+            }
             // {.i = Int} and {.s = Str} == {.i = Int; .s = Str}
             (Record(l), Record(r)) => Type::Record(l.clone().concat(r.clone())),
             // {i = Int; j = Int} and not {i = Int} == {j = Int}

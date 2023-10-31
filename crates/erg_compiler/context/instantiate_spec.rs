@@ -1768,4 +1768,11 @@ impl Context {
             .ok()
             .and_then(|tp| ValueObj::try_from(tp).ok())
     }
+
+    pub(crate) fn expr_to_tp(&self, expr: ast::Expr) -> Option<TyParam> {
+        let const_expr = Parser::validate_const_expr(expr).ok()?;
+        let mut dummy = TyVarCache::new(self.level, self);
+        self.instantiate_const_expr(&const_expr, None, &mut dummy, false)
+            .ok()
+    }
 }

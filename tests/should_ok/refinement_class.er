@@ -15,3 +15,16 @@ jan = Month.new 1
 dec = Month.new 12
 assert jan.is_first_half()
 assert not dec.is_first_half()
+
+Nat8 = Inherit 0..255
+Nat8.
+    as_ascii self = chr self
+    satuating_add self, other: Nat =
+        if self + other >= 0 and self + other <= 255:
+            do: Nat8.new self + other
+            do: Nat8.new 255
+
+n = Nat8.new 97
+_: Nat = n + 2
+assert n.as_ascii() == "a"
+assert n.satuating_add(300) == 255
