@@ -2716,6 +2716,14 @@ impl Expr {
         }
     }
 
+    pub fn is_acc(&self) -> bool {
+        match self {
+            Self::Accessor(_) => true,
+            Self::TypeAsc(tasc) => tasc.expr.is_acc(),
+            _ => false,
+        }
+    }
+
     pub fn last_name(&self) -> Option<&VarName> {
         match self {
             Expr::Accessor(acc) => Some(acc.last_name()),
@@ -2883,6 +2891,13 @@ impl Expr {
             }
             _ => 5,
         }
+    }
+
+    // TODO: structural types
+    pub fn try_from_type(typ: Type) -> Result<Expr, Type> {
+        Ok(Expr::Accessor(Accessor::Ident(
+            Identifier::public_with_line(Token::DUMMY, typ.local_name(), 0),
+        )))
     }
 }
 

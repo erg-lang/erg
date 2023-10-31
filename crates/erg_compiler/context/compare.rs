@@ -3,6 +3,7 @@ use std::option::Option; // conflicting to Type::Option
 
 use erg_common::consts::DEBUG_MODE;
 use erg_common::dict::Dict;
+use erg_common::set::Set;
 use erg_common::style::colors::DEBUG_ERROR;
 use erg_common::traits::StructuralEq;
 use erg_common::{assume_unreachable, log};
@@ -524,46 +525,53 @@ impl Context {
                 }
                 true
             }
-            (Type, Record(rec)) => {
+            (Bool, Guard { .. }) => true,
+            (Mono(n), NamedTuple(_)) => &n[..] == "GenericNamedTuple" || &n[..] == "GenericTuple",
+            (Mono(n), Record(_)) => &n[..] == "Record",
+            (ty @ (Type | ClassType | TraitType), Record(rec)) => {
                 for (_, t) in rec.iter() {
-                    if !self.supertype_of(&Type, t) {
+                    if !self.supertype_of(ty, t) {
                         return false;
                     }
                 }
                 true
             }
-            (Bool, Guard { .. }) => true,
-            (Mono(n), NamedTuple(_)) => &n[..] == "GenericNamedTuple" || &n[..] == "GenericTuple",
-            (Mono(n), Record(_)) => &n[..] == "Record",
-            (Type, Subr(subr)) => self.supertype_of(&Type, &subr.return_t),
-            (Type, Poly { name, params }) if &name[..] == "Set" => {
+            (ty @ (Type | ClassType | TraitType), Subr(subr)) => {
+                self.supertype_of(ty, &subr.return_t)
+            }
+            (Type | ClassType | TraitType, Poly { name, params }) if &name[..] == "Set" => {
                 self.convert_tp_into_value(params[0].clone()).is_ok()
             }
-            (Type, Poly { name, params })
+            (Type | ClassType, Poly { name, params }) if &name[..] == "Range" => {
+                self.convert_tp_into_value(params[0].clone()).is_ok()
+            }
+            (ty @ (Type | ClassType | TraitType), Poly { name, params })
                 if &name[..] == "Array" || &name[..] == "UnsizedArray" || &name[..] == "Set" =>
             {
                 let elem_t = self.convert_tp_into_type(params[0].clone()).unwrap();
-                self.supertype_of(&Type, &elem_t)
+                self.supertype_of(ty, &elem_t)
             }
-            (Type, Poly { name, params }) if &name[..] == "Tuple" => {
+            (ty @ (Type | ClassType | TraitType), Poly { name, params })
+                if &name[..] == "Tuple" =>
+            {
                 // Type :> Tuple Ts == Type :> Ts
                 // e.g. Type :> Tuple [Int, Str] == false
                 //      Type :> Tuple [Type, Type] == true
                 if let Ok(arr_t) = self.convert_tp_into_type(params[0].clone()) {
-                    return self.supertype_of(&Type, &arr_t);
+                    return self.supertype_of(ty, &arr_t);
                 } else if let Ok(tps) = Vec::try_from(params[0].clone()) {
                     for tp in tps {
                         let Ok(t) = self.convert_tp_into_type(tp) else {
                             return false;
                         };
-                        if !self.supertype_of(&Type, &t) {
+                        if !self.supertype_of(ty, &t) {
                             return false;
                         }
                     }
                 }
                 true
             }
-            (Type, Poly { name, params }) if &name[..] == "Dict" => {
+            (ty @ (Type | ClassType | TraitType), Poly { name, params }) if &name[..] == "Dict" => {
                 // Type :> Dict T == Type :> T
                 // e.g.
                 //      Type :> Dict {"a": 1} == false
@@ -583,7 +591,7 @@ impl Context {
                     let Ok(v) = self.convert_tp_into_type(v) else {
                         return false;
                     };
-                    if !self.supertype_of(&Type, &k) || !self.supertype_of(&Type, &v) {
+                    if !self.supertype_of(ty, &k) || !self.supertype_of(ty, &v) {
                         return false;
                     }
                 }
@@ -1547,6 +1555,37 @@ impl Context {
         }
     }
 
+    // {I >= 0} :> {I >= 1}
+    // mode == "and", reduced: {I >= 0}, pred: {I >= 1}
+    // => reduced: {I >= 1} ((I >= 0 and I >= 1) == I >= 1)
+    // mode == "and", reduced: {I >= 1}, pred: {I >= 0}
+    // => reduced: {I >= 1}
+    // mode == "or", reduced: {I >= 0}, pred: {I >= 1}
+    // => reduced: {I >= 0} ((I >= 0 or I >= 1) == I >= 0)
+    fn reduce_preds<'s>(&self, mode: &str, preds: Set<&'s Predicate>) -> Set<&'s Predicate> {
+        let mut reduced = Set::<&'s Predicate>::new();
+        for pred in preds {
+            // remove unnecessary pred
+            // TODO: remove all unnecessary preds
+            if let Some(&old) = reduced.iter().find(|existing| match mode {
+                "and" => self.is_super_pred_of(existing, pred),
+                "or" => self.is_sub_pred_of(existing, pred),
+                _ => unreachable!(),
+            }) {
+                reduced.remove(old);
+            }
+            // insert if necessary
+            if reduced.iter().all(|existing| match mode {
+                "and" => !self.is_sub_pred_of(existing, pred),
+                "or" => !self.is_super_pred_of(existing, pred),
+                _ => unreachable!(),
+            }) {
+                reduced.insert(pred);
+            }
+        }
+        reduced
+    }
+
     /// see doc/LANG/compiler/refinement_subtyping.md
     /// ```python
     /// assert is_super_pred({I >= 0}, {I == 0})
@@ -1610,8 +1649,8 @@ impl Context {
             // NG: (self.is_super_pred_of(l1, l2) && self.is_super_pred_of(r1, r2))
             //     || (self.is_super_pred_of(l1, r2) && self.is_super_pred_of(r1, l2))
             (Pred::And(_, _), Pred::And(_, _)) => {
-                let lhs_ands = lhs.ands();
-                let rhs_ands = rhs.ands();
+                let lhs_ands = self.reduce_preds("and", lhs.ands());
+                let rhs_ands = self.reduce_preds("and", rhs.ands());
                 for r_val in rhs_ands.iter() {
                     if lhs_ands
                         .get_by(r_val, |l, r| self.is_super_pred_of(l, r))
@@ -1627,8 +1666,8 @@ impl Context {
             // NG: (self.is_super_pred_of(l1, l2) && self.is_super_pred_of(r1, r2))
             //     || (self.is_super_pred_of(l1, r2) && self.is_super_pred_of(r1, l2))
             (Pred::Or(_, _), Pred::Or(_, _)) => {
-                let lhs_ors = lhs.ors();
-                let rhs_ors = rhs.ors();
+                let lhs_ors = self.reduce_preds("or", lhs.ors());
+                let rhs_ors = self.reduce_preds("or", rhs.ors());
                 for r_val in rhs_ors.iter() {
                     if lhs_ors
                         .get_by(r_val, |l, r| self.is_super_pred_of(l, r))
@@ -1654,6 +1693,10 @@ impl Context {
                 false
             }
         }
+    }
+
+    fn is_sub_pred_of(&self, lhs: &Predicate, rhs: &Predicate) -> bool {
+        self.is_super_pred_of(rhs, lhs)
     }
 
     pub(crate) fn is_sub_constraint_of(&self, l: &Constraint, r: &Constraint) -> bool {

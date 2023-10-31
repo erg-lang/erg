@@ -1,0 +1,30 @@
+_: {"a", "b", "c"} = "a" # OK
+_: {"a", "b", "c"} = "d" # ERR
+
+# 1..12 == {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12} as type
+_: 1..12 = 1 # OK
+_: 1..12 = 13 # ERR
+
+Suite = Class { "Heart", "Spade", "Club", "Diamond" }
+Suite.
+    is_heart self = self::base == "Heart"
+Number = Class 1..13
+Number.
+    is_ace self = self::base == 1
+Card = Class { .suite = Suite; .number = Number }
+Card.
+    from_str_and_num suite: Str, num: Nat =
+        assert suite in {"Heart", "Spade", "Club", "Diamond"}
+        assert num in 1..13
+        Card.new { .suite = Suite.new suite; .number = Number.new num }
+    is_ace_of_heart self = self.suite.is_heart() and self.number.is_ace()
+
+c = Card.new { .suite = Suite.new "Heart"; .number = Number.new 1 }
+assert c.is_ace_of_heart()
+
+Nat8 = Inherit 1..255
+Nat8.
+    as_ascii self = chr self
+
+n = Nat8.new 97
+assert n.as_ascii() == "a"

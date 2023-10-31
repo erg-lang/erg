@@ -1350,12 +1350,19 @@ impl PyCodeGenerator {
     // fn emit_poly_type_def(&mut self, sig: SubrSignature, body: DefBody) {}
 
     /// Y = Inherit X => class Y(X): ...
+    /// N = Inherit 1..10 => class N(Nat): ...
     fn emit_require_type(&mut self, obj: GenTypeObj, require_or_sup: Option<Expr>) -> usize {
         log!(info "entered {} ({obj}, {})", fn_name!(), fmt_option!(require_or_sup));
         match obj {
             GenTypeObj::Class(_) => 0,
-            GenTypeObj::Subclass(_) => {
-                self.emit_expr(require_or_sup.unwrap());
+            GenTypeObj::Subclass(typ) => {
+                let require_or_sup = require_or_sup.unwrap();
+                let typ = if require_or_sup.is_acc() {
+                    require_or_sup
+                } else {
+                    Expr::try_from_type(typ.sup.typ().derefine()).unwrap_or(require_or_sup)
+                };
+                self.emit_expr(typ);
                 1 // TODO: not always 1
             }
             _ => todo!(),

@@ -100,9 +100,9 @@ pub fn module_from_path<P: Into<PathBuf>>(path: P) -> Type {
     module(TyParam::Value(s))
 }
 
-pub fn v_enum(s: Set<ValueObj>) -> Type {
+pub fn try_v_enum(s: Set<ValueObj>) -> Result<Type, Set<ValueObj>> {
     if !is_homogeneous(&s) {
-        panic!("{s} is not homogeneous");
+        return Err(s);
     }
     let name = FRESH_GEN.fresh_varname();
     let t = inner_class(&s);
@@ -111,7 +111,11 @@ pub fn v_enum(s: Set<ValueObj>) -> Type {
         .map(|o| Predicate::eq(name.clone(), TyParam::value(o)))
         .fold(Predicate::FALSE, |acc, p| acc | p);
     let refine = RefinementType::new(name, t, preds);
-    Type::Refinement(refine)
+    Ok(Type::Refinement(refine))
+}
+
+pub fn v_enum(s: Set<ValueObj>) -> Type {
+    try_v_enum(s).unwrap_or_else(|set| panic!("not homogeneous: {}", set))
 }
 
 pub fn tp_enum(ty: Type, s: Set<TyParam>) -> Type {

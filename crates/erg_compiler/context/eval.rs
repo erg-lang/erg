@@ -21,8 +21,8 @@ use erg_parser::token::{Token, TokenKind};
 
 use crate::ty::constructors::{
     array_t, bounded, closed_range, dict_t, mono, mono_q, named_free_var, poly, proj, proj_call,
-    ref_, ref_mut, refinement, set_t, subr_t, subtypeof, tp_enum, tuple_t, unknown_len_array_t,
-    v_enum,
+    ref_, ref_mut, refinement, set_t, subr_t, subtypeof, tp_enum, try_v_enum, tuple_t,
+    unknown_len_array_t, v_enum,
 };
 use crate::ty::free::HasLevel;
 use crate::ty::typaram::{OpKind, TyParam};
@@ -2015,7 +2015,7 @@ impl Context {
                 let elem = self.convert_value_into_type(*elem)?;
                 Ok(unknown_len_array_t(elem))
             }
-            ValueObj::Set(set) => Ok(v_enum(set)),
+            ValueObj::Set(set) => try_v_enum(set).map_err(ValueObj::Set),
             ValueObj::Dict(dic) => {
                 let dic = dic
                     .into_iter()
