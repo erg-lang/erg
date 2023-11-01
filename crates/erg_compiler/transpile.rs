@@ -29,7 +29,7 @@ use crate::link_hir::HIRLinker;
 use crate::module::SharedCompilerResource;
 use crate::ty::typaram::OpKind;
 use crate::ty::value::ValueObj;
-use crate::ty::{Field, Type};
+use crate::ty::{Field, Type, VisibilityModifier};
 use crate::varinfo::{AbsLocation, VarInfo};
 
 /// patch method -> function
@@ -489,7 +489,7 @@ impl PyScriptGenerator {
         s.replace('\n', "\\n")
             .replace('\r', "\\r")
             .replace('\t', "\\t")
-            .replace('\'', "\\'")
+            // .replace('\'', "\\'")
             .replace('\0', "\\0")
     }
 
@@ -600,9 +600,9 @@ impl PyScriptGenerator {
             if attr.body.block.len() > 1 {
                 let name = format!("instant_block_{}__", self.fresh_var_n);
                 self.fresh_var_n += 1;
-                let mut code = format!("def {name}():\n");
-                code += &self.transpile_block(attr.body.block, Return);
-                self.prelude += &code;
+                let mut instant = format!("def {name}():\n");
+                instant += &self.transpile_block(attr.body.block, Return);
+                self.prelude += &instant;
                 values += &format!("{name}(),");
             } else {
                 let expr = attr.body.block.remove(0);
@@ -717,13 +717,17 @@ impl PyScriptGenerator {
                     todo!()
                 };
                 let non_default = block.params.non_defaults.get(0).unwrap();
-                let param = match &non_default.raw.pat {
+                let param_token = match &non_default.raw.pat {
                     ParamPattern::VarName(name) => name.token(),
                     ParamPattern::Discard(token) => token,
                     _ => unreachable!(),
                 };
-                code += &format!("{}__ ", replace_non_symbolic(&param.content));
-                code += &format!("in {}:\n", self.transpile_expr(iter));
+                code += &Self::transpile_name(
+                    &VisibilityModifier::Private,
+                    param_token.inspect(),
+                    &non_default.vi,
+                );
+                code += &format!(" in {}:\n", self.transpile_expr(iter));
                 code += &self.transpile_block(block.body, Discard);
                 code
             }
@@ -815,11 +819,11 @@ impl PyScriptGenerator {
             let target = arm.params.non_defaults.get(0).unwrap();
             match &target.raw.pat {
                 ParamPattern::VarName(param) => {
-                    let param = if &param.token().content == "_" {
-                        "_".to_string()
-                    } else {
-                        replace_non_symbolic(&param.token().content) + "__"
-                    };
+                    let param = Self::transpile_name(
+                        &VisibilityModifier::Private,
+                        param.inspect(),
+                        &target.vi,
+                    );
                     match target.raw.t_spec.as_ref().map(|t| &t.t_spec) {
                         Some(TypeSpec::Enum(enum_t)) => {
                             let values = ValueObj::vec_from_const_args(enum_t.clone());
@@ -927,15 +931,26 @@ impl PyScriptGenerator {
     }
 
     fn transpile_ident(ident: Identifier) -> String {
-        if let Some(py_name) = ident.vi.py_name {
-            return demangle(&py_name);
+        Self::transpile_name(ident.vis(), ident.inspect(), &ident.vi)
+    }
+
+    fn transpile_name(vis: &VisibilityModifier, name: &Str, vi: &VarInfo) -> String {
+        if let Some(py_name) = &vi.py_name {
+            return demangle(py_name);
         }
-        let name = ident.inspect().to_string();
-        let name = replace_non_symbolic(&name);
-        if ident.vis().is_public() || &name == "_" {
-            name
+        let name = replace_non_symbolic(name);
+        if vis.is_public() || &name == "_" {
+            name.to_string()
         } else {
-            format!("{name}__")
+            let def_line = vi.def_loc.loc.ln_begin().unwrap_or(0);
+            let def_col = vi.def_loc.loc.col_begin().unwrap_or(0);
+            let line_mangling = match (def_line, def_col) {
+                (0, 0) => "".to_string(),
+                (0, _) => format!("_C{def_col}"),
+                (_, 0) => format!("_L{def_line}"),
+                (_, _) => format!("_L{def_line}_C{def_col}"),
+            };
+            format!("{name}{line_mangling}")
         }
     }
 
@@ -944,7 +959,12 @@ impl PyScriptGenerator {
         for non_default in params.non_defaults {
             match non_default.raw.pat {
                 ParamPattern::VarName(param) => {
-                    code += &format!("{}__,", replace_non_symbolic(&param.into_token().content));
+                    code += &Self::transpile_name(
+                        &VisibilityModifier::Private,
+                        param.inspect(),
+                        &non_default.vi,
+                    );
+                    code += ",";
                 }
                 ParamPattern::Discard(_) => {
                     code += &format!("_{},", self.fresh_var_n);
@@ -957,8 +977,12 @@ impl PyScriptGenerator {
             match default.sig.raw.pat {
                 ParamPattern::VarName(param) => {
                     code += &format!(
-                        "{}__ = {},",
-                        replace_non_symbolic(&param.into_token().content),
+                        "{} = {},",
+                        Self::transpile_name(
+                            &VisibilityModifier::Private,
+                            param.inspect(),
+                            &default.sig.vi
+                        ),
                         self.transpile_expr(default.default_val),
                     );
                 }
@@ -1034,10 +1058,10 @@ impl PyScriptGenerator {
                 if def.body.block.len() > 1 {
                     let name = format!("instant_block_{}__", self.fresh_var_n);
                     self.fresh_var_n += 1;
-                    let mut code = format!("def {name}():\n");
-                    code += &self.transpile_block(def.body.block, Return);
-                    self.prelude += &code;
-                    format!("{name}()")
+                    let mut instant = format!("def {name}():\n");
+                    instant += &self.transpile_block(def.body.block, Return);
+                    self.prelude += &instant;
+                    code + &format!("{name}()")
                 } else {
                     let expr = def.body.block.remove(0);
                     code += &self.transpile_expr(expr);
@@ -1108,10 +1132,10 @@ impl PyScriptGenerator {
         if redef.block.len() > 1 {
             let name = format!("instant_block_{}__", self.fresh_var_n);
             self.fresh_var_n += 1;
-            let mut code = format!("def {name}():\n");
-            code += &self.transpile_block(redef.block, Return);
-            self.prelude += &code;
-            format!("{name}()")
+            let mut instant = format!("def {name}():\n");
+            instant += &self.transpile_block(redef.block, Return);
+            self.prelude += &instant;
+            code + &format!("{name}()")
         } else {
             let expr = redef.block.remove(0);
             code += &self.transpile_expr(expr);

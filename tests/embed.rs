@@ -95,6 +95,36 @@ print!(i, end:=\"\")
 }
 
 #[test]
+fn test_transpiler_embedding4() -> Result<(), ()> {
+    if env_python_version().minor < Some(10) {
+        println!("skipped: {}", fn_name!());
+        return Ok(());
+    }
+    let mut trans = Transpiler::default();
+    let res = trans
+        .transpile(
+            "
+func x, y =
+    z = 1 + y
+    x + z
+
+z = 2
+print! func(z, 0), end:=\"\"
+print! z, end:=\"\"
+"
+            .into(),
+            "exec",
+        )
+        .map_err(|es| {
+            es.errors.write_all_stderr();
+        })?;
+    let res = exec_py_code_with_output(res.object.code(), &[]).map_err(|_| ())?;
+    assert!(res.status.success());
+    assert_eq!(res.stdout, b"32");
+    Ok(())
+}
+
+#[test]
 fn test_builder() -> Result<(), ()> {
     let mods = ["math", "time"];
     let src = mods.into_iter().fold("".to_string(), |acc, module| {
