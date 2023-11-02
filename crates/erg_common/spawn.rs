@@ -3,9 +3,9 @@ pub use backtrace_on_stack_overflow;
 use std::thread::{self, JoinHandle};
 
 const STACK_SIZE: usize = if cfg!(feature = "large_thread") {
-    8 * 1024 * 1024
+    16 * 1024 * 1024
 } else {
-    4 * 1024 * 1024
+    8 * 1024 * 1024
 };
 
 #[macro_export]
