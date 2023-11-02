@@ -5,14 +5,14 @@ use erg_common::traits::{ExitStatus, Runnable, Stream};
 use erg_common::Str;
 
 use erg_parser::ast::{VarName, AST};
-use erg_parser::build_ast::ASTBuilder;
+use erg_parser::build_ast::{ASTBuildable, ASTBuilder as DefaultASTBuilder};
 
 use crate::artifact::{BuildRunnable, Buildable, CompleteArtifact, IncompleteArtifact};
 use crate::context::{Context, ContextKind, ContextProvider, ModuleContext};
 use crate::effectcheck::SideEffectChecker;
 use crate::error::{CompileError, CompileErrors, LowerWarnings};
 use crate::link_hir::HIRLinker;
-use crate::lower::ASTLowerer;
+use crate::lower::GenericASTLowerer;
 use crate::module::SharedCompilerResource;
 use crate::ownercheck::OwnershipChecker;
 use crate::ty::VisibilityModifier;
@@ -22,24 +22,26 @@ use crate::varinfo::VarInfo;
 ///
 /// NOTE: This does not perform dependency resolution, use `PackageBuilder` to build a package
 #[derive(Debug)]
-pub struct HIRBuilder {
-    pub(crate) lowerer: ASTLowerer,
+pub struct GenericHIRBuilder<ASTBuilder: ASTBuildable = DefaultASTBuilder> {
+    pub(crate) lowerer: GenericASTLowerer<ASTBuilder>,
     ownership_checker: OwnershipChecker,
 }
 
-impl Default for HIRBuilder {
+pub type HIRBuilder = GenericHIRBuilder<DefaultASTBuilder>;
+
+impl<ASTBuilder: ASTBuildable> Default for GenericHIRBuilder<ASTBuilder> {
     fn default() -> Self {
-        HIRBuilder::new(ErgConfig::default())
+        GenericHIRBuilder::new(ErgConfig::default())
     }
 }
 
-impl Runnable for HIRBuilder {
+impl<ASTBuilder: ASTBuildable> Runnable for GenericHIRBuilder<ASTBuilder> {
     type Err = CompileError;
     type Errs = CompileErrors;
     const NAME: &'static str = "Erg HIR builder";
 
     fn new(cfg: ErgConfig) -> Self {
-        HIRBuilder::new_with_cache(
+        GenericHIRBuilder::new_with_cache(
             cfg.copy(),
             Str::ever("<module>"),
             SharedCompilerResource::new(cfg),
@@ -71,7 +73,7 @@ impl Runnable for HIRBuilder {
     fn exec(&mut self) -> Result<ExitStatus, Self::Errs> {
         let mut builder = ASTBuilder::new(self.cfg().copy());
         let artifact = builder
-            .build(self.cfg_mut().input.read())
+            .build_ast(self.cfg_mut().input.read())
             .map_err(|arti| arti.errors)?;
         artifact.warns.write_all_stderr();
         let artifact = self
@@ -84,7 +86,7 @@ impl Runnable for HIRBuilder {
 
     fn eval(&mut self, src: String) -> Result<String, Self::Errs> {
         let mut builder = ASTBuilder::new(self.cfg().copy());
-        let artifact = builder.build(src).map_err(|arti| arti.errors)?;
+        let artifact = builder.build_ast(src).map_err(|arti| arti.errors)?;
         artifact.warns.write_all_stderr();
         let artifact = self
             .check(artifact.ast, "eval")
@@ -94,7 +96,7 @@ impl Runnable for HIRBuilder {
     }
 }
 
-impl Buildable for HIRBuilder {
+impl<ASTBuilder: ASTBuildable> Buildable for GenericHIRBuilder<ASTBuilder> {
     fn inherit(cfg: ErgConfig, shared: SharedCompilerResource) -> Self {
         let mod_name = Str::from(cfg.input.file_stem());
         Self::new_with_cache(cfg, mod_name, shared)
@@ -120,9 +122,9 @@ impl Buildable for HIRBuilder {
     }
 }
 
-impl BuildRunnable for HIRBuilder {}
+impl<ASTBuilder: ASTBuildable + 'static> BuildRunnable for GenericHIRBuilder<ASTBuilder> {}
 
-impl ContextProvider for HIRBuilder {
+impl<ASTBuilder: ASTBuildable> ContextProvider for GenericHIRBuilder<ASTBuilder> {
     fn dir(&self) -> Dict<&VarName, &VarInfo> {
         self.lowerer.dir()
     }
@@ -136,14 +138,14 @@ impl ContextProvider for HIRBuilder {
     }
 }
 
-impl HIRBuilder {
+impl<ASTBuilder: ASTBuildable> GenericHIRBuilder<ASTBuilder> {
     pub fn new_with_cache<S: Into<Str>>(
         cfg: ErgConfig,
         mod_name: S,
         shared: SharedCompilerResource,
     ) -> Self {
         Self {
-            lowerer: ASTLowerer::new_with_cache(cfg.copy(), mod_name, shared),
+            lowerer: GenericASTLowerer::new_with_cache(cfg.copy(), mod_name, shared),
             ownership_checker: OwnershipChecker::new(cfg),
         }
     }
@@ -157,7 +159,7 @@ impl HIRBuilder {
         );
         Self {
             ownership_checker: OwnershipChecker::new(mod_ctx.get_top_cfg()),
-            lowerer: ASTLowerer::new_with_ctx(mod_ctx),
+            lowerer: GenericASTLowerer::new_with_ctx(mod_ctx),
         }
     }
 
@@ -184,7 +186,7 @@ impl HIRBuilder {
     ) -> Result<CompleteArtifact, IncompleteArtifact> {
         let mut ast_builder = ASTBuilder::new(self.cfg().copy());
         let artifact = ast_builder
-            .build(src)
+            .build_ast(src)
             .map_err(|iart| IncompleteArtifact::new(None, iart.errors.into(), iart.warns.into()))?;
         self.lowerer
             .warns

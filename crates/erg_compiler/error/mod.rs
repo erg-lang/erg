@@ -186,6 +186,15 @@ impl From<ParserRunnerError> for CompileError {
     }
 }
 
+impl From<CompileError> for ParserRunnerError {
+    fn from(err: CompileError) -> Self {
+        Self {
+            core: *err.core,
+            input: err.input,
+        }
+    }
+}
+
 impl ErrorDisplay for CompileError {
     fn core(&self) -> &ErrorCore {
         &self.core
@@ -509,6 +518,12 @@ impl_stream!(CompileErrors, CompileError);
 impl From<ParserRunnerErrors> for CompileErrors {
     fn from(err: ParserRunnerErrors) -> Self {
         Self(err.into_iter().map(CompileError::from).collect())
+    }
+}
+
+impl From<CompileErrors> for ParserRunnerErrors {
+    fn from(err: CompileErrors) -> Self {
+        Self::new(err.into_iter().map(|e| e.into()).collect())
     }
 }
 

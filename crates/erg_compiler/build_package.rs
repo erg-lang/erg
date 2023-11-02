@@ -15,7 +15,7 @@ use erg_common::str::Str;
 use erg_common::traits::{ExitStatus, Runnable, Stream};
 
 use erg_parser::ast::{Expr, InlineModule, VarName, AST};
-use erg_parser::build_ast::{ASTBuildable, ASTBuilder};
+use erg_parser::build_ast::{ASTBuildable, ASTBuilder as DefaultASTBuilder};
 use erg_parser::parse::SimpleParser;
 
 use crate::artifact::{
@@ -23,11 +23,11 @@ use crate::artifact::{
 };
 use crate::context::{Context, ContextProvider, ModuleContext};
 use crate::error::{CompileError, CompileErrors};
-use crate::lower::ASTLowerer;
+use crate::lower::GenericASTLowerer;
 use crate::module::SharedCompilerResource;
 use crate::ty::ValueObj;
 use crate::varinfo::VarInfo;
-use crate::HIRBuilder;
+use crate::GenericHIRBuilder;
 
 #[derive(Debug)]
 pub enum ResolveError {
@@ -45,35 +45,42 @@ pub type ResolveResult<T> = Result<T, ResolveError>;
 /// Invariant condition: `build_module` must be idempotent.
 /// That is, the only thing that may differ as a result of analyzing the same package is the elapsed time.
 #[derive(Debug)]
-pub struct PackageBuilder<Parser: ASTBuildable = ASTBuilder, Builder: Buildable = HIRBuilder> {
+pub struct GenericPackageBuilder<
+    ASTBuilder: ASTBuildable = DefaultASTBuilder,
+    HIRBuilder: Buildable = GenericHIRBuilder,
+> {
     cfg: ErgConfig,
     shared: SharedCompilerResource,
-    pub(crate) main_builder: Builder,
+    pub(crate) main_builder: HIRBuilder,
     cyclic: Vec<NormalizedPathBuf>,
     submodules: Vec<NormalizedPathBuf>,
     asts: Dict<NormalizedPathBuf, (Str, AST)>,
     parse_errors: ErrorArtifact,
-    _parser: PhantomData<fn() -> Parser>,
+    _parser: PhantomData<fn() -> ASTBuilder>,
 }
 
-pub type PlainPackageBuilder = PackageBuilder<ASTBuilder, HIRBuilder>;
-pub type PackageTypeChecker = PackageBuilder<ASTBuilder, ASTLowerer>;
-pub type FullPackageBuilder = PackageBuilder<ASTBuilder, HIRBuilder>;
+pub type PackageBuilder = GenericPackageBuilder<DefaultASTBuilder, GenericHIRBuilder>;
+pub type PackageTypeChecker =
+    GenericPackageBuilder<DefaultASTBuilder, GenericASTLowerer<DefaultASTBuilder>>;
 
-impl<Parser: ASTBuildable, Builder: Buildable> Default for PackageBuilder<Parser, Builder> {
+impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable> Default
+    for GenericPackageBuilder<ASTBuilder, HIRBuilder>
+{
     fn default() -> Self {
         let cfg = ErgConfig::default();
-        PackageBuilder::new(cfg.copy(), SharedCompilerResource::new(cfg))
+        GenericPackageBuilder::new(cfg.copy(), SharedCompilerResource::new(cfg))
     }
 }
 
-impl<Parser: ASTBuildable, Builder: BuildRunnable> Runnable for PackageBuilder<Parser, Builder> {
+impl<ASTBuilder: ASTBuildable, HIRBuilder: BuildRunnable> Runnable
+    for GenericPackageBuilder<ASTBuilder, HIRBuilder>
+{
     type Err = CompileError;
     type Errs = CompileErrors;
     const NAME: &'static str = "Erg package builder";
 
     fn new(cfg: ErgConfig) -> Self {
-        PackageBuilder::new(cfg.copy(), SharedCompilerResource::new(cfg))
+        GenericPackageBuilder::new(cfg.copy(), SharedCompilerResource::new(cfg))
     }
 
     #[inline]
@@ -114,7 +121,9 @@ impl<Parser: ASTBuildable, Builder: BuildRunnable> Runnable for PackageBuilder<P
     }
 }
 
-impl<Parser: ASTBuildable, Builder: Buildable> Buildable for PackageBuilder<Parser, Builder> {
+impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable> Buildable
+    for GenericPackageBuilder<ASTBuilder, HIRBuilder>
+{
     fn inherit(cfg: ErgConfig, shared: SharedCompilerResource) -> Self {
         let mod_name = Str::from(cfg.input.file_stem());
         Self::new_with_cache(cfg, mod_name, shared)
@@ -140,13 +149,13 @@ impl<Parser: ASTBuildable, Builder: Buildable> Buildable for PackageBuilder<Pars
     }
 }
 
-impl<Parser: ASTBuildable + 'static, Builder: BuildRunnable + 'static> BuildRunnable
-    for PackageBuilder<Parser, Builder>
+impl<ASTBuilder: ASTBuildable + 'static, HIRBuilder: BuildRunnable + 'static> BuildRunnable
+    for GenericPackageBuilder<ASTBuilder, HIRBuilder>
 {
 }
 
-impl<Parser: ASTBuildable, Builder: Buildable + ContextProvider> ContextProvider
-    for PackageBuilder<Parser, Builder>
+impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable + ContextProvider> ContextProvider
+    for GenericPackageBuilder<ASTBuilder, HIRBuilder>
 {
     fn dir(&self) -> Dict<&VarName, &VarInfo> {
         self.main_builder.dir()
@@ -161,7 +170,9 @@ impl<Parser: ASTBuildable, Builder: Buildable + ContextProvider> ContextProvider
     }
 }
 
-impl<Parser: ASTBuildable, Builder: Buildable> PackageBuilder<Parser, Builder> {
+impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
+    GenericPackageBuilder<ASTBuilder, HIRBuilder>
+{
     pub fn new(cfg: ErgConfig, shared: SharedCompilerResource) -> Self {
         Self::new_with_cache(cfg, "<module>".into(), shared)
     }
@@ -173,7 +184,7 @@ impl<Parser: ASTBuildable, Builder: Buildable> PackageBuilder<Parser, Builder> {
         Self {
             cfg: cfg.copy(),
             shared: shared.clone(),
-            main_builder: Builder::inherit_with_name(cfg, mod_name, shared),
+            main_builder: HIRBuilder::inherit_with_name(cfg, mod_name, shared),
             cyclic: vec![],
             submodules: vec![],
             asts: Dict::new(),
@@ -187,7 +198,7 @@ impl<Parser: ASTBuildable, Builder: Buildable> PackageBuilder<Parser, Builder> {
         src: String,
         mode: &str,
     ) -> Result<CompleteArtifact, IncompleteArtifact> {
-        let mut ast_builder = Parser::new(self.cfg.copy());
+        let mut ast_builder = ASTBuilder::new(self.cfg.copy());
         let artifact = ast_builder
             .build_ast(src)
             .map_err(|err| IncompleteArtifact::new(None, err.errors.into(), err.warns.into()))?;
@@ -242,6 +253,20 @@ impl<Parser: ASTBuildable, Builder: Buildable> PackageBuilder<Parser, Builder> {
                     }
                 }
             }
+            Expr::Dummy(chunks) => {
+                for chunk in chunks.iter_mut() {
+                    if let Err(err) = self.check_import(chunk, cfg) {
+                        result = Err(err);
+                    }
+                }
+            }
+            Expr::Compound(chunks) => {
+                for chunk in chunks.iter_mut() {
+                    if let Err(err) = self.check_import(chunk, cfg) {
+                        result = Err(err);
+                    }
+                }
+            }
             _ => {}
         }
         result
@@ -284,7 +309,7 @@ impl<Parser: ASTBuildable, Builder: Buildable> PackageBuilder<Parser, Builder> {
         };
         let import_path = NormalizedPathBuf::from(import_path.clone());
         self.shared.graph.add_node_if_none(&import_path);
-        let mut ast_builder = Parser::new(cfg.copy());
+        let mut ast_builder = ASTBuilder::new(cfg.copy());
         let mut ast = match ast_builder.build_ast(src) {
             Ok(art) => {
                 self.parse_errors
@@ -397,19 +422,19 @@ impl<Parser: ASTBuildable, Builder: Buildable> PackageBuilder<Parser, Builder> {
             return;
         }
         let run = move || {
-            let mut builder = HIRBuilder::new_with_cache(cfg, name, shared.clone());
+            let mut builder = HIRBuilder::inherit_with_name(cfg, name, shared.clone());
             let cache = if mode == "exec" {
                 &shared.mod_cache
             } else {
                 &shared.py_mod_cache
             };
-            match builder.check(ast, mode) {
+            match builder.build_from_ast(ast, mode) {
                 Ok(artifact) => {
                     cache.register(
                         _path.clone(),
                         raw_ast,
                         Some(artifact.object),
-                        builder.pop_mod_ctx().unwrap(),
+                        builder.pop_context().unwrap(),
                     );
                     shared.warns.extend(artifact.warns);
                 }
@@ -418,7 +443,7 @@ impl<Parser: ASTBuildable, Builder: Buildable> PackageBuilder<Parser, Builder> {
                         _path.clone(),
                         raw_ast,
                         artifact.object,
-                        builder.pop_mod_ctx().unwrap(),
+                        builder.pop_context().unwrap(),
                     );
                     shared.warns.extend(artifact.warns);
                     shared.errors.extend(artifact.errors);
@@ -463,15 +488,15 @@ impl<Parser: ASTBuildable, Builder: Buildable> PackageBuilder<Parser, Builder> {
             None
         };
         let mut builder =
-            HIRBuilder::new_with_cache(cfg, self.mod_name(&path), self.shared.clone());
-        match builder.check(ast, "declare") {
+            HIRBuilder::inherit_with_name(cfg, self.mod_name(&path), self.shared.clone());
+        match builder.build_from_ast(ast, "declare") {
             Ok(artifact) => {
-                let ctx = builder.pop_mod_ctx().unwrap();
+                let ctx = builder.pop_context().unwrap();
                 py_mod_cache.register(path.clone(), raw_ast, Some(artifact.object), ctx);
                 self.shared.warns.extend(artifact.warns);
             }
             Err(artifact) => {
-                let ctx = builder.pop_mod_ctx().unwrap();
+                let ctx = builder.pop_context().unwrap();
                 py_mod_cache.register(path, raw_ast, artifact.object, ctx);
                 self.shared.warns.extend(artifact.warns);
                 self.shared.errors.extend(artifact.errors);

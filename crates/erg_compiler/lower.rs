@@ -1,6 +1,7 @@
 //! implements `ASTLowerer`.
 //!
 //! ASTLowerer(ASTからHIRへの変換器)を実装
+use std::marker::PhantomData;
 use std::mem;
 use std::path::Path;
 
@@ -19,7 +20,7 @@ use erg_common::{fmt_option, fn_name, log, switch_lang, Str};
 
 use erg_parser::ast::{self, AscriptionKind, DefId, InlineModule, VisModifierSpec};
 use erg_parser::ast::{OperationKind, TypeSpecWithOp, VarName, AST};
-use erg_parser::build_ast::ASTBuilder;
+use erg_parser::build_ast::{ASTBuildable, ASTBuilder as DefaultASTBuilder};
 use erg_parser::desugar::Desugarer;
 use erg_parser::token::{Token, TokenKind};
 use erg_parser::Parser;
@@ -45,12 +46,12 @@ use crate::error::{
     CompileError, CompileErrors, CompileWarning, LowerError, LowerErrors, LowerResult,
     LowerWarning, LowerWarnings, SingleLowerResult,
 };
+use crate::hir;
 use crate::hir::HIR;
 use crate::link_ast::ASTLinker;
 use crate::varinfo::{VarInfo, VarKind};
-use crate::AccessKind;
 use crate::{feature_error, unreachable_error};
-use crate::{hir, HIRBuilder};
+use crate::{AccessKind, GenericHIRBuilder};
 
 use VisibilityModifier::*;
 
@@ -66,15 +67,18 @@ pub fn expr_to_cast_target(expr: &ast::Expr) -> CastTarget {
 
 /// Checks & infers types of an AST, and convert (lower) it into a HIR
 #[derive(Debug)]
-pub struct ASTLowerer {
+pub struct GenericASTLowerer<ASTBuilder: ASTBuildable = DefaultASTBuilder> {
     pub(crate) cfg: ErgConfig,
     pub(crate) module: ModuleContext,
     pub(crate) errs: LowerErrors,
     pub(crate) warns: LowerWarnings,
     fresh_gen: FreshNameGenerator,
+    _parser: PhantomData<fn() -> ASTBuilder>,
 }
 
-impl Default for ASTLowerer {
+pub type ASTLowerer = GenericASTLowerer<DefaultASTBuilder>;
+
+impl<A: ASTBuildable> Default for GenericASTLowerer<A> {
     fn default() -> Self {
         Self::new_with_cache(
             ErgConfig::default(),
@@ -84,7 +88,7 @@ impl Default for ASTLowerer {
     }
 }
 
-impl Runnable for ASTLowerer {
+impl<ASTBuilder: ASTBuildable> Runnable for GenericASTLowerer<ASTBuilder> {
     type Err = CompileError;
     type Errs = CompileErrors;
     const NAME: &'static str = "Erg lowerer";
@@ -123,7 +127,7 @@ impl Runnable for ASTLowerer {
     fn exec(&mut self) -> Result<ExitStatus, Self::Errs> {
         let mut ast_builder = ASTBuilder::new(self.cfg.copy());
         let artifact = ast_builder
-            .build(self.cfg.input.read())
+            .build_ast(self.cfg.input.read())
             .map_err(|artifact| artifact.errors)?;
         artifact.warns.write_all_to(&mut self.cfg.output);
         let artifact = self
@@ -137,7 +141,9 @@ impl Runnable for ASTLowerer {
 
     fn eval(&mut self, src: String) -> Result<String, Self::Errs> {
         let mut ast_builder = ASTBuilder::new(self.cfg.copy());
-        let artifact = ast_builder.build(src).map_err(|artifact| artifact.errors)?;
+        let artifact = ast_builder
+            .build_ast(src)
+            .map_err(|artifact| artifact.errors)?;
         artifact.warns.write_all_stderr();
         let artifact = self
             .lower(artifact.ast, "eval")
@@ -147,7 +153,7 @@ impl Runnable for ASTLowerer {
     }
 }
 
-impl ContextProvider for ASTLowerer {
+impl<A: ASTBuildable> ContextProvider for GenericASTLowerer<A> {
     fn dir(&self) -> Dict<&VarName, &VarInfo> {
         self.module.context.dir()
     }
@@ -161,7 +167,7 @@ impl ContextProvider for ASTLowerer {
     }
 }
 
-impl Buildable for ASTLowerer {
+impl<ASTBuilder: ASTBuildable> Buildable for GenericASTLowerer<ASTBuilder> {
     fn inherit(cfg: ErgConfig, shared: SharedCompilerResource) -> Self {
         let mod_name = Str::from(cfg.input.file_stem());
         Self::new_with_cache(cfg, mod_name, shared)
@@ -177,7 +183,7 @@ impl Buildable for ASTLowerer {
         mode: &str,
     ) -> Result<CompleteArtifact<HIR>, IncompleteArtifact<HIR>> {
         let mut ast_builder = ASTBuilder::new(self.cfg.copy());
-        let artifact = ast_builder.build(src).map_err(|artifact| {
+        let artifact = ast_builder.build_ast(src).map_err(|artifact| {
             IncompleteArtifact::new(None, artifact.errors.into(), artifact.warns.into())
         })?;
         self.lower(artifact.ast, mode)
@@ -199,9 +205,9 @@ impl Buildable for ASTLowerer {
     }
 }
 
-impl BuildRunnable for ASTLowerer {}
+impl<A: ASTBuildable + 'static> BuildRunnable for GenericASTLowerer<A> {}
 
-impl ASTLowerer {
+impl<ASTBuilder: ASTBuildable> GenericASTLowerer<ASTBuilder> {
     pub fn new_with_cache<S: Into<Str>>(
         cfg: ErgConfig,
         mod_name: S,
@@ -215,6 +221,7 @@ impl ASTLowerer {
             errs: LowerErrors::empty(),
             warns: LowerWarnings::empty(),
             fresh_gen: FreshNameGenerator::new("lower"),
+            _parser: PhantomData,
         }
     }
 
@@ -225,6 +232,7 @@ impl ASTLowerer {
             errs: LowerErrors::empty(),
             warns: LowerWarnings::empty(),
             fresh_gen: FreshNameGenerator::new("lower"),
+            _parser: PhantomData,
         }
     }
 
@@ -266,7 +274,7 @@ impl ASTLowerer {
     }
 }
 
-impl ASTLowerer {
+impl<A: ASTBuildable> GenericASTLowerer<A> {
     pub(crate) fn lower_literal(
         &mut self,
         lit: ast::Literal,
@@ -2893,7 +2901,7 @@ impl ASTLowerer {
         };
         let parent = self.get_mod_ctx().context.get_module().unwrap().clone();
         let mod_ctx = ModuleContext::new(parent, dict! {});
-        let mut builder = HIRBuilder::new_with_ctx(mod_ctx);
+        let mut builder = GenericHIRBuilder::<A>::new_with_ctx(mod_ctx);
         builder.lowerer.module.context.cfg.input = inline.input.clone();
         builder.cfg_mut().input = inline.input.clone();
         let mode = if path.to_string_lossy().ends_with("d.er") {

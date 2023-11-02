@@ -6,7 +6,7 @@ use erg_common::config::{ErgConfig, ErgMode::*};
 use erg_common::spawn::exec_new_thread;
 use erg_common::traits::{ExitStatus, Runnable};
 
-use erg_compiler::build_package::{FullPackageBuilder, PackageTypeChecker};
+use erg_compiler::build_package::{PackageBuilder, PackageTypeChecker};
 use erg_compiler::transpile::Transpiler;
 use erg_compiler::ty::deserialize::Deserializer;
 use erg_compiler::Compiler;
@@ -20,7 +20,7 @@ fn run() {
         Lex => LexerRunner::run(cfg),
         Parse => ParserRunner::run(cfg),
         TypeCheck => PackageTypeChecker::run(cfg),
-        FullCheck => FullPackageBuilder::run(cfg),
+        FullCheck => PackageBuilder::run(cfg),
         Transpile => Transpiler::run(cfg),
         Compile | Execute => Compiler::run(cfg),
         Read => Deserializer::run(cfg),

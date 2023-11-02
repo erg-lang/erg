@@ -8,7 +8,7 @@ use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::traits::{Locational, Runnable, Stream};
 use erg_common::Str;
 use erg_parser::ast::AST;
-use erg_parser::build_ast::ASTBuilder;
+use erg_parser::build_ast::ASTBuildable;
 use erg_parser::lex::Lexer;
 
 use crate::context::ContextKind;
@@ -19,10 +19,10 @@ use crate::error::{
     CompileErrors, LowerError, LowerResult, LowerWarning, LowerWarnings, SingleLowerResult,
 };
 use crate::hir::{self, Expr, Signature, HIR};
-use crate::lower::ASTLowerer;
+use crate::lower::GenericASTLowerer;
 use crate::varinfo::VarInfo;
 
-impl ASTLowerer {
+impl<ASTBuilder: ASTBuildable> GenericASTLowerer<ASTBuilder> {
     pub(crate) fn var_result_t_check(
         &self,
         loc: &impl Locational,
@@ -221,7 +221,7 @@ impl ASTLowerer {
                     } else {
                         format!("{}{code}", "\n".repeat(first_line as usize))
                     };
-                    match ASTBuilder::new(self.cfg().clone()).build(code) {
+                    match ASTBuilder::new(self.cfg().clone()).build_ast(code) {
                         Ok(artifact) => {
                             self.check_doc_ast(artifact.ast);
                         }

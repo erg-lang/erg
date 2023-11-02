@@ -16,7 +16,7 @@ use erg_common::spawn::spawn_new_thread;
 use erg_common::traits::Locational;
 
 use erg_compiler::artifact::{BuildRunnable, Buildable};
-use erg_compiler::build_package::PlainPackageBuilder;
+use erg_compiler::build_package::PackageBuilder;
 use erg_compiler::context::Context;
 use erg_compiler::erg_parser::parse::Parsable;
 use erg_compiler::erg_parser::token::TokenKind;
@@ -326,7 +326,7 @@ fn load_modules<'a>(
         ..cfg
     };
     let shared = SharedCompilerResource::new(cfg.clone());
-    let mut checker = PlainPackageBuilder::inherit(cfg, shared.clone());
+    let mut checker = PackageBuilder::inherit(cfg, shared.clone());
     let _res = checker.build(src, "exec");
     let mut cache = cache.borrow_mut();
     if cache.get("<module>").is_none() {

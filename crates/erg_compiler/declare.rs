@@ -5,11 +5,12 @@ use erg_common::traits::{Locational, Runnable, Stream};
 use erg_common::{enum_unwrap, fn_name, log, set, Str, Triple};
 
 use erg_parser::ast::{self, AscriptionKind, DefId, Identifier, TypeAppArgsKind, VarName, AST};
+use erg_parser::build_ast::ASTBuildable;
 use erg_parser::desugar::Desugarer;
 
 use crate::context::instantiate::TyVarCache;
 use crate::context::{ClassDefType, Context, MethodContext, MethodPair, TraitImpl};
-use crate::lower::ASTLowerer;
+use crate::lower::GenericASTLowerer;
 use crate::ty::constructors::{array_t, mono, mono_q_tp, poly, v_enum};
 use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
@@ -21,7 +22,7 @@ use crate::hir::HIR;
 use crate::varinfo::{Mutability, VarInfo, VarKind};
 use crate::{feature_error, hir};
 
-impl ASTLowerer {
+impl<A: ASTBuildable> GenericASTLowerer<A> {
     fn declare_var(
         &mut self,
         sig: ast::VarSignature,

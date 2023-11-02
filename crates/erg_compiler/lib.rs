@@ -27,6 +27,6 @@ pub mod transpile;
 pub mod ty;
 pub mod varinfo;
 
-pub use build_hir::HIRBuilder;
+pub use build_hir::{GenericHIRBuilder, HIRBuilder};
 pub use erg_parser::build_ast::ASTBuilder;
 pub use transpile::Transpiler;
