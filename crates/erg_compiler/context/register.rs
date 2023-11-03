@@ -1,16 +1,9 @@
-use std::fmt;
-use std::fs::{metadata, remove_file, File};
-use std::io::{BufRead, BufReader};
 use std::option::Option;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
-use std::thread::sleep;
-use std::time::{Duration, SystemTime};
 
-use erg_common::config::ErgMode;
 use erg_common::consts::{ERG_MODE, PYTHON_MODE};
 use erg_common::dict::Dict;
-use erg_common::env::{is_pystd_main_module, is_std_decl_path};
+use erg_common::env::is_pystd_main_module;
 use erg_common::erg_util::BUILTIN_ERG_MODS;
 use erg_common::levenshtein::get_similar_name;
 use erg_common::pathutil::{DirKind, FileKind};
@@ -55,106 +48,6 @@ use super::{MethodContext, ParamSpec, TraitImpl, TypeContext};
 pub fn valid_mod_name(name: &str) -> bool {
     !name.is_empty() && !name.starts_with('/') && name.trim() == name
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum CheckStatus {
-    Succeed,
-    Failed,
-    Ongoing,
-}
-
-impl fmt::Display for CheckStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            CheckStatus::Succeed => write!(f, "succeed"),
-            CheckStatus::Failed => write!(f, "failed"),
-            CheckStatus::Ongoing => write!(f, "ongoing"),
-        }
-    }
-}
-
-impl std::str::FromStr for CheckStatus {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "succeed" => Ok(CheckStatus::Succeed),
-            "failed" => Ok(CheckStatus::Failed),
-            "ongoing" => Ok(CheckStatus::Ongoing),
-            _ => Err(format!("invalid status: {s}")),
-        }
-    }
-}
-
-/// format:
-/// ```python
-/// #[pylyzer] succeed foo.py 1234567890
-/// ```
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct PylyzerStatus {
-    pub status: CheckStatus,
-    pub file: PathBuf,
-    pub timestamp: SystemTime,
-    pub hash: u64,
-}
-
-impl fmt::Display for PylyzerStatus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "##[pylyzer] {} {} {} {}",
-            self.status,
-            self.file.display(),
-            self.timestamp
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
-            self.hash,
-        )
-    }
-}
-
-impl std::str::FromStr for PylyzerStatus {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut iter = s.split_whitespace();
-        let pylyzer = iter.next().ok_or("no pylyzer")?;
-        if pylyzer != "##[pylyzer]" {
-            return Err("not pylyzer".to_string());
-        }
-        let status = iter.next().ok_or("no succeed")?;
-        let status = status.parse()?;
-        let file = iter.next().ok_or("no file")?;
-        let file = PathBuf::from(file);
-        let timestamp = iter.next().ok_or("no timestamp")?;
-        let timestamp = SystemTime::UNIX_EPOCH
-            .checked_add(std::time::Duration::from_secs(
-                timestamp
-                    .parse()
-                    .map_err(|e| format!("timestamp parse error: {e}"))?,
-            ))
-            .ok_or("timestamp overflow")?;
-        let hash = iter.next().ok_or("no hash")?;
-        let hash = hash.parse().map_err(|e| format!("hash parse error: {e}"))?;
-        Ok(PylyzerStatus {
-            status,
-            file,
-            timestamp,
-            hash,
-        })
-    }
-}
-
-enum Availability {
-    Available,
-    InProgress,
-    NotFound,
-    Unreadable,
-    OutOfDate,
-}
-
-use Availability::*;
 
 const UBAR: &Str = &Str::ever("_");
 
@@ -2264,55 +2157,11 @@ impl Context {
         get_similar_name(BUILTIN_ERG_MODS.into_iter(), name).map(Str::rc)
     }
 
-    fn analysis_in_progress(path: &Path) -> bool {
-        let Ok(meta) = metadata(path) else {
-            return false;
-        };
-        !is_std_decl_path(path) && meta.len() == 0
-    }
-
-    fn availability(path: &Path) -> Availability {
-        let Ok(file) = File::open(path) else {
-            return Availability::NotFound;
-        };
-        if is_std_decl_path(path) {
-            return Availability::Available;
-        }
-        let mut line = "".to_string();
-        let Ok(_) = BufReader::new(file).read_line(&mut line) else {
-            return Availability::Unreadable;
-        };
-        if line.is_empty() {
-            return Availability::InProgress;
-        }
-        let Ok(status) = line.parse::<PylyzerStatus>() else {
-            return Availability::Available;
-        };
-        let Some(meta) = metadata(&status.file).ok() else {
-            return Availability::NotFound;
-        };
-        let dummy_hash = meta.len();
-        if status.hash != dummy_hash {
-            Availability::OutOfDate
-        } else {
-            Availability::Available
-        }
-    }
-
     fn get_decl_path(&self, __name__: &Str, loc: &impl Locational) -> CompileResult<PathBuf> {
         match self.cfg.input.resolve_decl_path(Path::new(&__name__[..])) {
             Some(path) => {
                 if self.cfg.input.decl_file_is(&path) {
                     return Ok(path);
-                }
-                for _ in 0..600 {
-                    if !Self::analysis_in_progress(&path) {
-                        break;
-                    }
-                    sleep(Duration::from_millis(100));
-                }
-                if matches!(Self::availability(&path), OutOfDate | NotFound | Unreadable) {
-                    let _ = self.try_gen_py_decl_file(__name__);
                 }
                 if is_pystd_main_module(path.as_path())
                     && !BUILTIN_PYTHON_MODS.contains(&&__name__[..])
@@ -2329,9 +2178,6 @@ impl Context {
                 Ok(path)
             }
             None => {
-                if let Ok(path) = self.try_gen_py_decl_file(__name__) {
-                    return Ok(path);
-                }
                 let err = TyCheckError::import_error(
                     self.cfg.input.clone(),
                     line!() as usize,
@@ -2346,44 +2192,6 @@ impl Context {
                 Err(TyCheckErrors::from(err))
             }
         }
-    }
-
-    fn try_gen_py_decl_file(&self, __name__: &Str) -> Result<PathBuf, ()> {
-        if let Ok(path) = self.cfg.input.resolve_py(Path::new(&__name__[..])) {
-            if self.cfg.input.path() == path.as_path() {
-                return Ok(path);
-            }
-            let (out, err) = if self.cfg.mode == ErgMode::LanguageServer || self.cfg.quiet_repl {
-                (Stdio::null(), Stdio::null())
-            } else {
-                (Stdio::inherit(), Stdio::inherit())
-            };
-            // pylyzer is a static analysis tool for Python (https://github.com/mtshiba/pylyzer).
-            // It can convert a Python script to an Erg AST for code analysis.
-            // There is also an option to output the analysis result as `d.er`. Use this if the system have pylyzer installed.
-            // A type definition file may be generated even if not all type checks succeed.
-            if let Ok(status) = Command::new("pylyzer")
-                .arg("--dump-decl")
-                .arg(path.to_str().unwrap())
-                .stdout(out)
-                .stderr(err)
-                .spawn()
-                .and_then(|mut child| child.wait())
-            {
-                if let Some(path) = self.cfg.input.resolve_decl_path(Path::new(&__name__[..])) {
-                    let size = metadata(&path).unwrap().len();
-                    // if pylyzer crashed
-                    if !status.success() && size == 0 {
-                        // The presence of the decl file indicates that the analysis is in progress or completed,
-                        // so if pylyzer crashes in the middle of the analysis, delete the file.
-                        remove_file(&path).unwrap();
-                    } else {
-                        return Ok(path);
-                    }
-                }
-            }
-        }
-        Err(())
     }
 
     fn import_py_mod(&self, __name__: &Str, loc: &impl Locational) -> CompileResult<PathBuf> {

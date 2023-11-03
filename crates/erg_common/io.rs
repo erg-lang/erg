@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process;
 use std::process::Stdio;
 
-use crate::consts::{ERG_MODE, EXPERIMENTAL_MODE};
+use crate::consts::EXPERIMENTAL_MODE;
 use crate::env::{
     erg_path, erg_py_external_lib_path, erg_pystd_path, erg_std_path, python_site_packages,
 };
@@ -450,10 +450,8 @@ impl Input {
     }
 
     pub fn resolve_py(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
-        if ERG_MODE || path.starts_with("./") {
-            if let Ok(path) = self.resolve_local_py(path) {
-                return Ok(path);
-            }
+        if let Ok(path) = self.resolve_local_py(path) {
+            return Ok(path);
         }
         for sys_path in self.sys_path()? {
             let mut dir = sys_path;
