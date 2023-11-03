@@ -661,11 +661,10 @@ impl ExitStatus {
 
 /// This trait implements REPL (Read-Eval-Print-Loop) automatically
 /// The `exec` method is called for file input, etc.
-pub trait Runnable: Sized + Default {
+pub trait Runnable: Sized + Default + New {
     type Err: ErrorDisplay;
     type Errs: MultiErrorDisplay<Self::Err>;
     const NAME: &'static str;
-    fn new(cfg: ErgConfig) -> Self;
     fn cfg(&self) -> &ErgConfig;
     fn cfg_mut(&mut self) -> &mut ErgConfig;
     fn finish(&mut self); // called when the :exit command is received.
@@ -1307,4 +1306,8 @@ impl<T: Clone> OptionalTranspose for Option<Vec<T>> {
             None => vec![None; fill],
         }
     }
+}
+
+pub trait New {
+    fn new(cfg: ErgConfig) -> Self;
 }

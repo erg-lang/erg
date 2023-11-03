@@ -13,8 +13,8 @@ use erg_common::error::{Location, MultiErrorDisplay};
 use erg_common::fresh::FreshNameGenerator;
 use erg_common::set;
 use erg_common::set::Set;
-use erg_common::traits::OptionalTranspose;
 use erg_common::traits::{ExitStatus, Locational, NoTypeDisplay, Runnable, Stream};
+use erg_common::traits::{New, OptionalTranspose};
 use erg_common::triple::Triple;
 use erg_common::{fmt_option, fn_name, log, switch_lang, Str};
 
@@ -88,6 +88,16 @@ impl<A: ASTBuildable> Default for GenericASTLowerer<A> {
     }
 }
 
+impl<A: ASTBuildable> New for GenericASTLowerer<A> {
+    fn new(cfg: ErgConfig) -> Self {
+        Self::new_with_cache(
+            cfg.copy(),
+            Str::ever("<module>"),
+            SharedCompilerResource::new(cfg),
+        )
+    }
+}
+
 impl<ASTBuilder: ASTBuildable> Runnable for GenericASTLowerer<ASTBuilder> {
     type Err = CompileError;
     type Errs = CompileErrors;
@@ -100,14 +110,6 @@ impl<ASTBuilder: ASTBuildable> Runnable for GenericASTLowerer<ASTBuilder> {
     #[inline]
     fn cfg_mut(&mut self) -> &mut ErgConfig {
         &mut self.cfg
-    }
-
-    fn new(cfg: ErgConfig) -> Self {
-        Self::new_with_cache(
-            cfg.copy(),
-            Str::ever("<module>"),
-            SharedCompilerResource::new(cfg),
-        )
     }
 
     #[inline]
@@ -208,6 +210,10 @@ impl<ASTBuilder: ASTBuildable> Buildable for GenericASTLowerer<ASTBuilder> {
 impl<A: ASTBuildable + 'static> BuildRunnable for GenericASTLowerer<A> {}
 
 impl<ASTBuilder: ASTBuildable> GenericASTLowerer<ASTBuilder> {
+    pub fn new(cfg: ErgConfig) -> Self {
+        New::new(cfg)
+    }
+
     pub fn new_with_cache<S: Into<Str>>(
         cfg: ErgConfig,
         mod_name: S,

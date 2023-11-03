@@ -7,7 +7,7 @@ use erg_common::dict::Dict as HashMap;
 use erg_common::error::MultiErrorDisplay;
 use erg_common::log;
 use erg_common::set::Set as HashSet;
-use erg_common::traits::{ExitStatus, Locational, Runnable, Stream};
+use erg_common::traits::{ExitStatus, Locational, New, Runnable, Stream};
 use erg_common::Str;
 
 use erg_parser::ast::{ParamPattern, TypeSpec, VarName, AST};
@@ -151,11 +151,7 @@ impl Default for Transpiler {
     }
 }
 
-impl Runnable for Transpiler {
-    type Err = CompileError;
-    type Errs = CompileErrors;
-    const NAME: &'static str = "Erg transpiler";
-
+impl New for Transpiler {
     fn new(cfg: ErgConfig) -> Self {
         let shared = SharedCompilerResource::new(cfg.copy());
         Self {
@@ -165,6 +161,12 @@ impl Runnable for Transpiler {
             cfg,
         }
     }
+}
+
+impl Runnable for Transpiler {
+    type Err = CompileError;
+    type Errs = CompileErrors;
+    const NAME: &'static str = "Erg transpiler";
 
     #[inline]
     fn cfg(&self) -> &ErgConfig {
@@ -261,6 +263,10 @@ impl Buildable<TranspiledFile> for Transpiler {
 impl BuildRunnable<TranspiledFile> for Transpiler {}
 
 impl Transpiler {
+    pub fn new(cfg: ErgConfig) -> Self {
+        New::new(cfg)
+    }
+
     pub fn new_with_cache(cfg: ErgConfig, mod_name: Str, shared: SharedCompilerResource) -> Self {
         Self {
             shared: shared.clone(),

@@ -3,7 +3,7 @@ use erg_common::consts::DEBUG_MODE;
 use erg_common::error::MultiErrorDisplay;
 use erg_common::io::Input;
 use erg_common::spawn::exec_new_thread;
-use erg_common::traits::{Runnable, Stream};
+use erg_common::traits::Stream;
 
 use erg_parser::error::{ErrorArtifact, ParseWarnings, ParserRunnerErrors};
 use erg_parser::lex::Lexer;

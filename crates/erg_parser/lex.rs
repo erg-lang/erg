@@ -1,7 +1,7 @@
 //! defines and implements `Lexer` (Tokenizer).
 use std::cmp::Ordering;
 
-use erg_common::traits::ExitStatus;
+use erg_common::traits::{ExitStatus, New};
 use unicode_xid::UnicodeXID;
 
 use erg_common::cache::CacheSet;
@@ -49,15 +49,17 @@ pub struct LexerRunner {
     cfg: ErgConfig,
 }
 
-impl Runnable for LexerRunner {
-    type Err = LexerRunnerError;
-    type Errs = LexerRunnerErrors;
-    const NAME: &'static str = "Erg lexer";
-
+impl New for LexerRunner {
     #[inline]
     fn new(cfg: ErgConfig) -> Self {
         Self { cfg }
     }
+}
+
+impl Runnable for LexerRunner {
+    type Err = LexerRunnerError;
+    type Errs = LexerRunnerErrors;
+    const NAME: &'static str = "Erg lexer";
 
     #[inline]
     fn cfg(&self) -> &ErgConfig {

@@ -9,7 +9,7 @@ use erg_common::error::Location;
 use erg_common::io::{Input, InputKind};
 use erg_common::set::Set as HashSet;
 use erg_common::str::Str;
-use erg_common::traits::{DequeStream, ExitStatus, Locational, Runnable, Stream};
+use erg_common::traits::{DequeStream, ExitStatus, Locational, New, Runnable, Stream};
 use erg_common::{
     caused_by, debug_power_assert, enum_unwrap, fn_name, impl_display_for_enum,
     impl_locational_for_enum, log, set, switch_lang, switch_unreachable,
@@ -420,15 +420,17 @@ pub struct ParserRunner {
     cfg: ErgConfig,
 }
 
-impl Runnable for ParserRunner {
-    type Err = ParserRunnerError;
-    type Errs = ParserRunnerErrors;
-    const NAME: &'static str = "Erg parser";
-
+impl New for ParserRunner {
     #[inline]
     fn new(cfg: ErgConfig) -> Self {
         Self { cfg }
     }
+}
+
+impl Runnable for ParserRunner {
+    type Err = ParserRunnerError;
+    type Errs = ParserRunnerErrors;
+    const NAME: &'static str = "Erg parser";
 
     #[inline]
     fn cfg(&self) -> &ErgConfig {
@@ -462,6 +464,11 @@ impl Runnable for ParserRunner {
 }
 
 impl ParserRunner {
+    #[inline]
+    pub fn new(cfg: ErgConfig) -> Self {
+        New::new(cfg)
+    }
+
     pub fn parse_token_stream(
         &mut self,
         ts: TokenStream,

@@ -1,3 +1,4 @@
+use std::ffi::OsStr;
 use std::marker::PhantomData;
 use std::path::Path;
 
@@ -12,7 +13,7 @@ use erg_common::log;
 use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::spawn::spawn_new_thread;
 use erg_common::str::Str;
-use erg_common::traits::{ExitStatus, Runnable, Stream};
+use erg_common::traits::{ExitStatus, New, Runnable, Stream};
 
 use erg_parser::ast::{Expr, InlineModule, VarName, AST};
 use erg_parser::build_ast::{ASTBuildable, ASTBuilder as DefaultASTBuilder};
@@ -72,16 +73,18 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable> Default
     }
 }
 
+impl<A: ASTBuildable, H: BuildRunnable> New for GenericPackageBuilder<A, H> {
+    fn new(cfg: ErgConfig) -> Self {
+        GenericPackageBuilder::new(cfg.copy(), SharedCompilerResource::new(cfg))
+    }
+}
+
 impl<ASTBuilder: ASTBuildable, HIRBuilder: BuildRunnable> Runnable
     for GenericPackageBuilder<ASTBuilder, HIRBuilder>
 {
     type Err = CompileError;
     type Errs = CompileErrors;
     const NAME: &'static str = "Erg package builder";
-
-    fn new(cfg: ErgConfig) -> Self {
-        GenericPackageBuilder::new(cfg.copy(), SharedCompilerResource::new(cfg))
-    }
 
     #[inline]
     fn cfg(&self) -> &ErgConfig {
@@ -285,10 +288,10 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         let ValueObj::Str(__name__) = &mod_name.value else {
             return Ok(());
         };
-        if call
-            .additional_operation()
-            .is_some_and(|op| op.is_erg_import())
-            && __name__ == "unsound"
+        if __name__ == "unsound"
+            && call
+                .additional_operation()
+                .is_some_and(|op| op.is_erg_import())
         {
             if let Some(mod_ctx) = self.get_context() {
                 mod_ctx.context.build_module_unsound();
@@ -309,8 +312,14 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         };
         let import_path = NormalizedPathBuf::from(import_path.clone());
         self.shared.graph.add_node_if_none(&import_path);
-        let mut ast_builder = ASTBuilder::new(cfg.copy());
-        let mut ast = match ast_builder.build_ast(src) {
+        let result = if import_path.extension() == Some(OsStr::new("er")) {
+            let mut ast_builder = DefaultASTBuilder::new(cfg.copy());
+            ast_builder.build_ast(src)
+        } else {
+            let mut ast_builder = ASTBuilder::new(cfg.copy());
+            ast_builder.build_ast(src)
+        };
+        let mut ast = match result {
             Ok(art) => {
                 self.parse_errors
                     .warns

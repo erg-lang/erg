@@ -1,7 +1,7 @@
 use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
 use erg_common::error::MultiErrorDisplay;
-use erg_common::traits::{ExitStatus, Runnable, Stream};
+use erg_common::traits::{ExitStatus, New, Runnable, Stream};
 use erg_common::Str;
 
 use erg_parser::ast::{VarName, AST};
@@ -35,11 +35,7 @@ impl<ASTBuilder: ASTBuildable> Default for GenericHIRBuilder<ASTBuilder> {
     }
 }
 
-impl<ASTBuilder: ASTBuildable> Runnable for GenericHIRBuilder<ASTBuilder> {
-    type Err = CompileError;
-    type Errs = CompileErrors;
-    const NAME: &'static str = "Erg HIR builder";
-
+impl<A: ASTBuildable> New for GenericHIRBuilder<A> {
     fn new(cfg: ErgConfig) -> Self {
         GenericHIRBuilder::new_with_cache(
             cfg.copy(),
@@ -47,6 +43,12 @@ impl<ASTBuilder: ASTBuildable> Runnable for GenericHIRBuilder<ASTBuilder> {
             SharedCompilerResource::new(cfg),
         )
     }
+}
+
+impl<ASTBuilder: ASTBuildable> Runnable for GenericHIRBuilder<ASTBuilder> {
+    type Err = CompileError;
+    type Errs = CompileErrors;
+    const NAME: &'static str = "Erg HIR builder";
 
     #[inline]
     fn cfg(&self) -> &ErgConfig {
@@ -139,6 +141,10 @@ impl<ASTBuilder: ASTBuildable> ContextProvider for GenericHIRBuilder<ASTBuilder>
 }
 
 impl<ASTBuilder: ASTBuildable> GenericHIRBuilder<ASTBuilder> {
+    pub fn new(cfg: ErgConfig) -> Self {
+        New::new(cfg)
+    }
+
     pub fn new_with_cache<S: Into<Str>>(
         cfg: ErgConfig,
         mod_name: S,

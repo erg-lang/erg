@@ -8,7 +8,7 @@ use std::time::Duration;
 use erg_common::config::ErgConfig;
 use erg_common::error::MultiErrorDisplay;
 use erg_common::python_util::spawn_py;
-use erg_common::traits::{ExitStatus, Runnable, Stream};
+use erg_common::traits::{ExitStatus, New, Runnable, Stream};
 
 use erg_compiler::hir::Expr;
 use erg_compiler::ty::HasType;
@@ -195,20 +195,7 @@ impl Drop for DummyVM {
     }
 }
 
-impl Runnable for DummyVM {
-    type Err = EvalError;
-    type Errs = EvalErrors;
-    const NAME: &'static str = "Erg interpreter";
-
-    #[inline]
-    fn cfg(&self) -> &ErgConfig {
-        &self.compiler.cfg
-    }
-    #[inline]
-    fn cfg_mut(&mut self) -> &mut ErgConfig {
-        &mut self.compiler.cfg
-    }
-
+impl New for DummyVM {
     fn new(cfg: ErgConfig) -> Self {
         let stream = if cfg.input.is_repl() {
             if !cfg.quiet_repl {
@@ -247,6 +234,21 @@ impl Runnable for DummyVM {
             compiler: Compiler::new(cfg),
             stream,
         }
+    }
+}
+
+impl Runnable for DummyVM {
+    type Err = EvalError;
+    type Errs = EvalErrors;
+    const NAME: &'static str = "Erg interpreter";
+
+    #[inline]
+    fn cfg(&self) -> &ErgConfig {
+        &self.compiler.cfg
+    }
+    #[inline]
+    fn cfg_mut(&mut self) -> &mut ErgConfig {
+        &mut self.compiler.cfg
     }
 
     fn finish(&mut self) {
@@ -380,6 +382,10 @@ impl Runnable for DummyVM {
 }
 
 impl DummyVM {
+    pub fn new(cfg: ErgConfig) -> Self {
+        New::new(cfg)
+    }
+
     /// Execute the script specified in the configuration.
     pub fn exec(&mut self) -> Result<ExitStatus, EvalErrors> {
         Runnable::exec(self)

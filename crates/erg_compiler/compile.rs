@@ -7,7 +7,7 @@ use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
 use erg_common::error::MultiErrorDisplay;
 use erg_common::log;
-use erg_common::traits::{ExitStatus, Runnable, Stream};
+use erg_common::traits::{ExitStatus, New, Runnable, Stream};
 use erg_parser::ast::VarName;
 
 use crate::artifact::{CompleteArtifact, ErrorArtifact};
@@ -123,11 +123,7 @@ impl Default for Compiler {
     }
 }
 
-impl Runnable for Compiler {
-    type Err = CompileError;
-    type Errs = CompileErrors;
-    const NAME: &'static str = "Erg compiler";
-
+impl New for Compiler {
     fn new(cfg: ErgConfig) -> Self {
         let shared = SharedCompilerResource::new(cfg.copy());
         Self {
@@ -137,6 +133,12 @@ impl Runnable for Compiler {
             cfg,
         }
     }
+}
+
+impl Runnable for Compiler {
+    type Err = CompileError;
+    type Errs = CompileErrors;
+    const NAME: &'static str = "Erg compiler";
 
     #[inline]
     fn cfg(&self) -> &ErgConfig {
@@ -199,6 +201,10 @@ impl ContextProvider for Compiler {
 }
 
 impl Compiler {
+    pub fn new(cfg: ErgConfig) -> Self {
+        New::new(cfg)
+    }
+
     pub fn compile_and_dump_as_pyc<P: AsRef<Path>>(
         &mut self,
         pyc_path: P,

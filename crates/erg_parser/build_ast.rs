@@ -1,5 +1,5 @@
 use erg_common::config::ErgConfig;
-use erg_common::traits::{ExitStatus, Runnable};
+use erg_common::traits::{ExitStatus, New, Runnable};
 use erg_common::Str;
 
 use crate::ast::AST;
@@ -7,8 +7,7 @@ use crate::desugar::Desugarer;
 use crate::error::{CompleteArtifact, IncompleteArtifact, ParserRunnerError, ParserRunnerErrors};
 use crate::parse::ParserRunner;
 
-pub trait ASTBuildable {
-    fn new(cfg: ErgConfig) -> Self;
+pub trait ASTBuildable: New {
     fn build_ast(
         &mut self,
         src: String,
@@ -24,17 +23,19 @@ pub struct ASTBuilder {
     runner: ParserRunner,
 }
 
-impl Runnable for ASTBuilder {
-    type Err = ParserRunnerError;
-    type Errs = ParserRunnerErrors;
-    const NAME: &'static str = "Erg AST builder";
-
+impl New for ASTBuilder {
     #[inline]
     fn new(cfg: ErgConfig) -> Self {
         Self {
             runner: ParserRunner::new(cfg),
         }
     }
+}
+
+impl Runnable for ASTBuilder {
+    type Err = ParserRunnerError;
+    type Errs = ParserRunnerErrors;
+    const NAME: &'static str = "Erg AST builder";
 
     #[inline]
     fn cfg(&self) -> &ErgConfig {
@@ -68,12 +69,6 @@ impl Runnable for ASTBuilder {
 }
 
 impl ASTBuildable for ASTBuilder {
-    fn new(cfg: ErgConfig) -> Self {
-        Self {
-            runner: ParserRunner::new(cfg),
-        }
-    }
-
     fn build_ast(
         &mut self,
         src: String,
@@ -86,6 +81,11 @@ impl ASTBuildable for ASTBuilder {
 }
 
 impl ASTBuilder {
+    #[inline]
+    pub fn new(cfg: ErgConfig) -> Self {
+        New::new(cfg)
+    }
+
     pub fn build(
         &mut self,
         src: String,

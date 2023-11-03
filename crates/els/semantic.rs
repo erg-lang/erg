@@ -1,6 +1,6 @@
 use erg_common::dict::Dict;
 use erg_common::error::Location;
-use erg_common::traits::{Locational, Runnable};
+use erg_common::traits::Locational;
 
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::erg_parser::ast::{
