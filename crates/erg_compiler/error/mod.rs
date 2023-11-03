@@ -186,6 +186,12 @@ impl From<ParserRunnerError> for CompileError {
     }
 }
 
+impl From<CompileError> for ParserRunnerErrors {
+    fn from(err: CompileError) -> Self {
+        Self::new(vec![err.into()])
+    }
+}
+
 impl From<CompileError> for ParserRunnerError {
     fn from(err: CompileError) -> Self {
         Self {

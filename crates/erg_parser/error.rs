@@ -609,6 +609,12 @@ impl ParserRunnerError {
     }
 }
 
+impl From<ParserRunnerError> for LexError {
+    fn from(err: ParserRunnerError) -> Self {
+        Self::new(err.core)
+    }
+}
+
 #[derive(Debug)]
 pub struct ParserRunnerErrors(Vec<ParserRunnerError>);
 
@@ -617,6 +623,12 @@ impl std::error::Error for ParserRunnerErrors {}
 impl_stream!(ParserRunnerErrors, ParserRunnerError);
 
 impl MultiErrorDisplay<ParserRunnerError> for ParserRunnerErrors {}
+
+impl From<ParserRunnerErrors> for LexErrors {
+    fn from(errs: ParserRunnerErrors) -> Self {
+        Self(errs.0.into_iter().map(LexError::from).collect())
+    }
+}
 
 impl fmt::Display for ParserRunnerErrors {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
