@@ -227,8 +227,7 @@ impl<'s, C: BuildRunnable, P: Parsable> InlayHintGenerator<'s, C, P> {
 
     fn get_class_def_hint(&self, class_def: &ClassDef) -> Vec<InlayHint> {
         class_def
-            .methods
-            .iter()
+            .all_methods()
             .flat_map(|expr| self.get_expr_hint(expr))
             .collect()
     }

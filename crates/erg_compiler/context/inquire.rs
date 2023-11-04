@@ -3405,7 +3405,7 @@ impl Context {
         candidates.collect()
     }
 
-    pub(crate) fn is_class(&self, typ: &Type) -> bool {
+    pub fn is_class(&self, typ: &Type) -> bool {
         match typ {
             Type::And(_l, _r) => false,
             Type::Never => true,
@@ -3429,7 +3429,7 @@ impl Context {
         }
     }
 
-    pub(crate) fn is_trait(&self, typ: &Type) -> bool {
+    pub fn is_trait(&self, typ: &Type) -> bool {
         match typ {
             Type::Never => false,
             Type::FreeVar(fv) if fv.is_linked() => self.is_class(&fv.crack()),

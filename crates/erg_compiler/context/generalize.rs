@@ -1295,7 +1295,7 @@ impl Context {
                 }
             }
             hir::Expr::ClassDef(class_def) => {
-                for def in class_def.methods.iter_mut() {
+                for def in class_def.all_methods_mut() {
                     self.resolve_expr_t(def, qnames)?;
                 }
                 Ok(())

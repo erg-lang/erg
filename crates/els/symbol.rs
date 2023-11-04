@@ -163,7 +163,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                         res.extend(symbol);
                     }
                 }
-                for method in def.methods.iter() {
+                for method in def.all_methods() {
                     let symbol = self.symbol(method);
                     res.extend(symbol);
                 }

@@ -41,22 +41,22 @@ impl HIRDesugarer {
         match chunk {
             Expr::ClassDef(class_def) => {
                 let class = Expr::Accessor(Accessor::Ident(class_def.sig.ident().clone()));
-                let methods = std::mem::take(class_def.methods.ref_mut_payload());
-                let (methods, static_members): (Vec<_>, Vec<_>) = methods
-                    .into_iter()
-                    .partition(|attr| matches!(attr, Expr::Def(def) if def.sig.is_subr()));
-                class_def.methods.extend(methods);
-                let static_members = static_members
-                    .into_iter()
-                    .map(|expr| match expr {
+                let mut static_members = vec![];
+                for methods_ in class_def.methods_list.iter_mut() {
+                    let block = std::mem::take(&mut methods_.defs);
+                    let (methods, statics): (Vec<_>, Vec<_>) = block
+                        .into_iter()
+                        .partition(|attr| matches!(attr, Expr::Def(def) if def.sig.is_subr()));
+                    methods_.defs.extend(methods);
+                    static_members.extend(statics.into_iter().map(|expr| match expr {
                         Expr::Def(def) => {
                             let acc = class.clone().attr(def.sig.into_ident());
                             let redef = ReDef::new(acc, def.body.block);
                             Expr::ReDef(redef)
                         }
                         _ => expr,
-                    })
-                    .collect::<Vec<_>>();
+                    }));
+                }
                 if !static_members.is_empty() {
                     *chunk = Expr::Compound(Block::new(
                         [vec![std::mem::take(chunk)], static_members].concat(),

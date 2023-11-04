@@ -3339,7 +3339,7 @@ impl PyCodeGenerator {
         log!(info "entered {}", fn_name!());
         let name = class.sig.ident().inspect().clone();
         self.unit_size += 1;
-        let firstlineno = match class.methods.get(0).and_then(|def| def.ln_begin()) {
+        let firstlineno = match class.methods_list.get(0).and_then(|def| def.ln_begin()) {
             Some(l) => l,
             None => class.sig.ln_begin().unwrap_or(0),
         };
@@ -3362,8 +3362,9 @@ impl PyCodeGenerator {
         if class.need_to_gen_new {
             self.emit_new_func(&class.sig, class.__new__);
         }
-        if !class.methods.is_empty() {
-            self.emit_simple_block(class.methods);
+        let methods = ClassDef::take_all_methods(class.methods_list);
+        if !methods.is_empty() {
+            self.emit_simple_block(methods);
         }
         if self.stack_len() == init_stack_len {
             self.emit_load_const(ValueObj::None);

@@ -2301,14 +2301,19 @@ impl Def {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Methods {
-    pub class: TypeSpec,
-    pub vis: Token,        // `.` or `::`
-    pub defs: RecordAttrs, // TODO: allow declaration
+    pub class: Type,
+    pub impl_trait: Option<Type>,
+    pub defs: Block,
 }
 
 impl NestedDisplay for Methods {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        writeln!(f, "{}{}", self.class, self.vis.content)?;
+        writeln!(
+            f,
+            "{} {}",
+            self.class,
+            fmt_option!("|<: ", &self.impl_trait, "|"),
+        )?;
         self.defs.fmt_nest(f, level + 1)
     }
 }
@@ -2317,16 +2322,16 @@ impl NestedDisplay for Methods {
 impl NoTypeDisplay for Methods {
     fn to_string_notype(&self) -> String {
         format!(
-            "{}{} {}",
+            "{} {} {}",
             self.class,
-            self.vis.content,
+            fmt_option!("|<: ", &self.impl_trait, "|"),
             self.defs.to_string_notype()
         )
     }
 }
 
 impl_display_from_nested!(Methods);
-impl_locational!(Methods, class, defs);
+impl_locational!(Methods, defs);
 
 impl HasType for Methods {
     #[inline]
@@ -2348,8 +2353,12 @@ impl HasType for Methods {
 }
 
 impl Methods {
-    pub const fn new(class: TypeSpec, vis: Token, defs: RecordAttrs) -> Self {
-        Self { class, vis, defs }
+    pub const fn new(class: Type, impl_trait: Option<Type>, defs: Block) -> Self {
+        Self {
+            class,
+            impl_trait,
+            defs,
+        }
     }
 }
 
@@ -2361,26 +2370,32 @@ pub struct ClassDef {
     /// The type of `new` that is automatically defined if not defined
     pub need_to_gen_new: bool,
     pub __new__: Type,
-    pub methods: Block,
+    pub methods_list: Vec<Methods>,
 }
 
 impl NestedDisplay for ClassDef {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         self.sig.fmt_nest(f, level)?;
         writeln!(f, ":")?;
-        self.methods.fmt_nest(f, level + 1)
+        fmt_lines(self.methods_list.iter(), f, level)
     }
 }
 
 // TODO
 impl NoTypeDisplay for ClassDef {
     fn to_string_notype(&self) -> String {
-        format!("{}: {}", self.sig, self.methods.to_string_notype())
+        let methods = self
+            .methods_list
+            .iter()
+            .map(|m| m.to_string_notype())
+            .collect::<Vec<_>>()
+            .join("\n");
+        format!("{}: {methods}", self.sig)
     }
 }
 
 impl_display_from_nested!(ClassDef);
-impl_locational!(ClassDef, sig, lossy methods);
+impl_locational!(ClassDef, sig, lossy methods_list);
 
 impl HasType for ClassDef {
     #[inline]
@@ -2408,7 +2423,7 @@ impl ClassDef {
         require_or_sup: Option<Expr>,
         need_to_gen_new: bool,
         __new__: Type,
-        methods: Block,
+        methods_list: Vec<Methods>,
     ) -> Self {
         Self {
             obj,
@@ -2416,8 +2431,24 @@ impl ClassDef {
             require_or_sup: require_or_sup.map(Box::new),
             need_to_gen_new,
             __new__,
-            methods,
+            methods_list,
         }
+    }
+
+    pub fn all_methods(&self) -> impl Iterator<Item = &Expr> {
+        self.methods_list.iter().flat_map(|m| m.defs.iter())
+    }
+
+    pub fn all_methods_mut(&mut self) -> impl Iterator<Item = &mut Expr> {
+        self.methods_list.iter_mut().flat_map(|m| m.defs.iter_mut())
+    }
+
+    pub fn take_all_methods(methods_list: Vec<Methods>) -> Block {
+        let mut joined = Block::empty();
+        for methods in methods_list {
+            joined.extend(methods.defs);
+        }
+        joined
     }
 }
 

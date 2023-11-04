@@ -2097,8 +2097,9 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
     fn lower_class_def(&mut self, class_def: ast::ClassDef) -> LowerResult<hir::ClassDef> {
         log!(info "entered {}({class_def})", fn_name!());
         let mut hir_def = self.lower_def(class_def.def)?;
-        let mut hir_methods = hir::Block::empty();
+        let mut hir_methods_list = vec![];
         for methods in class_def.methods_list.into_iter() {
+            let mut hir_methods = hir::Block::empty();
             let (class, impl_trait) = self
                 .module
                 .context
@@ -2198,7 +2199,9 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             if let Err(err) = self.check_trait_impl(impl_trait.clone(), &class) {
                 self.errs.push(err);
             }
-            self.check_collision_and_push(methods.id, class, impl_trait.map(|(t, _)| t));
+            let impl_trait = impl_trait.map(|(t, _)| t);
+            self.check_collision_and_push(methods.id, class.clone(), impl_trait.clone());
+            hir_methods_list.push(hir::Methods::new(class, impl_trait, hir_methods));
         }
         let class = self.module.context.gen_type(&hir_def.sig.ident().raw);
         let Some(class_ctx) = self.module.context.get_nominal_type_ctx(&class) else {
@@ -2242,7 +2245,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             require_or_sup,
             need_to_gen_new,
             __new__.t.clone(),
-            hir_methods,
+            hir_methods_list,
         ))
     }
 

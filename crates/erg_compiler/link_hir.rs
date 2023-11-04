@@ -197,7 +197,7 @@ impl<'a> HIRLinker<'a> {
                 }
             }
             Expr::ClassDef(class_def) => {
-                for def in class_def.methods.iter_mut() {
+                for def in class_def.all_methods_mut() {
                     Self::resolve_pymod_path(def);
                 }
             }
@@ -332,7 +332,7 @@ impl<'a> HIRLinker<'a> {
                 }
             }
             Expr::ClassDef(class_def) => {
-                for def in class_def.methods.iter_mut() {
+                for def in class_def.all_methods_mut() {
                     self.replace_import(def);
                 }
             }

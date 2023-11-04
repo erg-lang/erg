@@ -122,7 +122,7 @@ impl<ASTBuilder: ASTBuildable> GenericASTLowerer<ASTBuilder> {
                 }
             }
             hir::Expr::ClassDef(class_def) => {
-                for chunk in class_def.methods.iter() {
+                for chunk in class_def.all_methods() {
                     if let Err(ws) = self.expr_use_check(chunk) {
                         warns.extend(ws);
                     }
@@ -233,7 +233,7 @@ impl<ASTBuilder: ASTBuildable> GenericASTLowerer<ASTBuilder> {
                 }
             }
             Expr::ClassDef(class_def) => {
-                for chunk in class_def.methods.iter() {
+                for chunk in class_def.all_methods() {
                     self.check_doc_comment(chunk);
                 }
             }
@@ -298,7 +298,7 @@ impl<ASTBuilder: ASTBuildable> GenericASTLowerer<ASTBuilder> {
     fn warn_implicit_union_chunk(&mut self, chunk: &Expr) {
         match chunk {
             Expr::ClassDef(class_def) => {
-                for chunk in class_def.methods.iter() {
+                for chunk in class_def.all_methods() {
                     self.warn_implicit_union_chunk(chunk);
                 }
             }

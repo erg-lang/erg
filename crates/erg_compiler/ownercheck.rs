@@ -131,7 +131,7 @@ impl OwnershipChecker {
                 if let Some(req_sup) = &class_def.require_or_sup {
                     self.check_expr(req_sup, Ownership::Owned, false);
                 }
-                for def in class_def.methods.iter() {
+                for def in class_def.all_methods() {
                     self.check_expr(def, Ownership::Owned, true);
                 }
             }

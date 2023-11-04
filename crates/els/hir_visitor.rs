@@ -186,7 +186,7 @@ impl<'a> HIRVisitor<'a> {
     ) -> Option<Vec<Str>> {
         let ns = class_def.sig.ident().to_string_notype();
         cur_ns.push(Str::from(ns));
-        self.get_exprs_ns(cur_ns, class_def.methods.iter(), pos)
+        self.get_exprs_ns(cur_ns, class_def.all_methods(), pos)
     }
 
     fn get_patch_def_ns(
@@ -282,7 +282,9 @@ impl<'a> HIRVisitor<'a> {
             Expr::Tuple(tuple) => self.get_expr_from_tuple(expr, tuple, pos),
             Expr::TypeAsc(type_asc) => self.get_expr(&type_asc.expr, pos),
             Expr::Dummy(dummy) => self.get_expr_from_dummy(dummy, pos),
-            Expr::Compound(block) | Expr::Code(block) => self.get_expr_from_block(block, pos),
+            Expr::Compound(block) | Expr::Code(block) => {
+                self.get_expr_from_block(block.iter(), pos)
+            }
             Expr::ReDef(redef) => self.get_expr_from_redef(expr, redef, pos),
             Expr::Import(_) => None,
         }
@@ -362,7 +364,7 @@ impl<'a> HIRVisitor<'a> {
         pos: Position,
     ) -> Option<&Expr> {
         self.return_expr_if_same(expr, def.sig.ident().raw.name.token(), pos)
-            .or_else(|| self.get_expr_from_block(&def.body.block, pos))
+            .or_else(|| self.get_expr_from_block(def.body.block.iter(), pos))
             .or_else(|| self.return_expr_if_contains(expr, pos, def))
     }
 
@@ -376,12 +378,16 @@ impl<'a> HIRVisitor<'a> {
             .require_or_sup
             .as_ref()
             .and_then(|req_sup| self.get_expr(req_sup, pos))
-            .or_else(|| self.get_expr_from_block(&class_def.methods, pos))
+            .or_else(|| self.get_expr_from_block(class_def.all_methods(), pos))
             .or_else(|| self.return_expr_if_contains(expr, pos, class_def))
     }
 
-    fn get_expr_from_block<'e>(&'e self, block: &'e Block, pos: Position) -> Option<&Expr> {
-        for chunk in block.iter() {
+    fn get_expr_from_block<'e>(
+        &'e self,
+        block: impl Iterator<Item = &'e Expr>,
+        pos: Position,
+    ) -> Option<&Expr> {
+        for chunk in block {
             if let Some(expr) = self.get_expr(chunk, pos) {
                 return Some(expr);
             }
@@ -396,7 +402,7 @@ impl<'a> HIRVisitor<'a> {
         pos: Position,
     ) -> Option<&Expr> {
         self.get_expr_from_acc(expr, &redef.attr, pos)
-            .or_else(|| self.get_expr_from_block(&redef.block, pos))
+            .or_else(|| self.get_expr_from_block(redef.block.iter(), pos))
     }
 
     fn get_expr_from_dummy<'e>(&'e self, dummy: &'e Dummy, pos: Position) -> Option<&Expr> {
@@ -416,7 +422,7 @@ impl<'a> HIRVisitor<'a> {
     ) -> Option<&Expr> {
         self.return_expr_if_same(expr, patch_def.sig.name().token(), pos)
             .or_else(|| self.get_expr(&patch_def.base, pos))
-            .or_else(|| self.get_expr_from_block(&patch_def.methods, pos))
+            .or_else(|| self.get_expr_from_block(patch_def.methods.iter(), pos))
             .or_else(|| self.return_expr_if_contains(expr, pos, patch_def))
     }
 
@@ -431,7 +437,7 @@ impl<'a> HIRVisitor<'a> {
         {
             return Some(expr);
         }
-        self.get_expr_from_block(&lambda.body, pos)
+        self.get_expr_from_block(lambda.body.iter(), pos)
     }
 
     fn get_expr_from_array<'e>(
@@ -487,7 +493,7 @@ impl<'a> HIRVisitor<'a> {
             return Some(expr);
         }
         for field in record.attrs.iter() {
-            if let Some(expr) = self.get_expr_from_block(&field.body.block, pos) {
+            if let Some(expr) = self.get_expr_from_block(field.body.block.iter(), pos) {
                 return Some(expr);
             }
         }
@@ -577,7 +583,7 @@ impl<'a> HIRVisitor<'a> {
             Expr::Tuple(tuple) => self.get_tuple_info(tuple, token),
             Expr::TypeAsc(type_asc) => self.get_tasc_info(type_asc, token),
             Expr::Dummy(dummy) => self.get_dummy_info(dummy, token),
-            Expr::Compound(block) | Expr::Code(block) => self.get_block_info(block, token),
+            Expr::Compound(block) | Expr::Code(block) => self.get_block_info(block.iter(), token),
             Expr::ReDef(redef) => self.get_redef_info(redef, token),
             Expr::Import(_) => None,
         }
@@ -690,7 +696,7 @@ impl<'a> HIRVisitor<'a> {
 
     fn get_def_info(&self, def: &Def, token: &Token) -> Option<VarInfo> {
         self.get_sig_info(&def.sig, token)
-            .or_else(|| self.get_block_info(&def.body.block, token))
+            .or_else(|| self.get_block_info(def.body.block.iter(), token))
     }
 
     fn get_class_def_info(&self, class_def: &ClassDef, token: &Token) -> Option<VarInfo> {
@@ -699,17 +705,21 @@ impl<'a> HIRVisitor<'a> {
             .as_ref()
             .and_then(|req_sup| self.get_expr_info(req_sup, token))
             .or_else(|| self.get_sig_info(&class_def.sig, token))
-            .or_else(|| self.get_block_info(&class_def.methods, token))
+            .or_else(|| self.get_block_info(class_def.all_methods(), token))
     }
 
     fn get_patch_def_info(&self, patch_def: &PatchDef, token: &Token) -> Option<VarInfo> {
         self.get_expr_info(&patch_def.base, token)
             .or_else(|| self.get_sig_info(&patch_def.sig, token))
-            .or_else(|| self.get_block_info(&patch_def.methods, token))
+            .or_else(|| self.get_block_info(patch_def.methods.iter(), token))
     }
 
-    fn get_block_info(&self, block: &Block, token: &Token) -> Option<VarInfo> {
-        for chunk in block.iter() {
+    fn get_block_info<'e>(
+        &self,
+        block: impl Iterator<Item = &'e Expr>,
+        token: &Token,
+    ) -> Option<VarInfo> {
+        for chunk in block {
             if let Some(expr) = self.get_expr_info(chunk, token) {
                 return Some(expr);
             }
@@ -719,7 +729,7 @@ impl<'a> HIRVisitor<'a> {
 
     fn get_redef_info(&self, redef: &ReDef, token: &Token) -> Option<VarInfo> {
         self.get_acc_info(&redef.attr, token)
-            .or_else(|| self.get_block_info(&redef.block, token))
+            .or_else(|| self.get_block_info(redef.block.iter(), token))
     }
 
     fn get_dummy_info(&self, dummy: &Dummy, token: &Token) -> Option<VarInfo> {
@@ -733,7 +743,7 @@ impl<'a> HIRVisitor<'a> {
 
     fn get_lambda_info(&self, lambda: &Lambda, token: &Token) -> Option<VarInfo> {
         self.get_params_info(&lambda.params, token)
-            .or_else(|| self.get_block_info(&lambda.body, token))
+            .or_else(|| self.get_block_info(lambda.body.iter(), token))
     }
 
     fn get_array_info(&self, arr: &Array, token: &Token) -> Option<VarInfo> {

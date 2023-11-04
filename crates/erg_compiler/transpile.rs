@@ -1112,7 +1112,8 @@ impl PyScriptGenerator {
             code += &"    ".repeat(self.level + 1);
             code += &format!("def new(x): return {class_name}.__call__(x)\n");
         }
-        code += &self.transpile_block(classdef.methods, Discard);
+        let methods = ClassDef::take_all_methods(classdef.methods_list);
+        code += &self.transpile_block(methods, Discard);
         code
     }
 
