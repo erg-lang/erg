@@ -410,6 +410,7 @@ const FUNC_HASATTR: &str = "hasattr";
 const FUNC_GETATTR: &str = "getattr";
 const FUNC_SETATTR: &str = "setattr";
 const FUNC_DELATTR: &str = "delattr";
+const FUNC_NEARLY_EQ: &str = "nearly_eq";
 
 const OP_EQ: &str = "__eq__";
 const OP_HASH: &str = "__hash__";
@@ -575,6 +576,7 @@ const KW_WHENCE: &str = "whence";
 const KW_CHARS: &str = "chars";
 const KW_OTHER: &str = "other";
 const KW_CONFLICT_RESOLVER: &str = "conflict_resolver";
+const KW_EPSILON: &str = "epsilon";
 
 pub fn builtins_path() -> PathBuf {
     erg_pystd_path().join("builtins.d.er")

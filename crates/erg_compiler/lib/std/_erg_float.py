@@ -14,6 +14,9 @@ class Float(float):
     def mutate(self):
         return FloatMut(self)
 
+    def __abs__(self):
+        return Float(float.__abs__(self))
+
     def __add__(self, other):
         return then__(float.__add__(self, other), Float)
 
@@ -56,6 +59,8 @@ class Float(float):
     def __neg__(self):
         return then__(float.__neg__(self), Float)
 
+    def nearly_eq(self, other, epsilon=EPSILON):
+        return abs(self - other) < epsilon
 
 class FloatMut:  # inherits Float
     value: Float

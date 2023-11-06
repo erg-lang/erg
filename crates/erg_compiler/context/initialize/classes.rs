@@ -148,6 +148,19 @@ impl Context {
         float.register_py_builtin(OP_GE, fn1_met(Float, Float, Bool), Some(OP_GE), 0);
         float.register_py_builtin(OP_LT, fn1_met(Float, Float, Bool), Some(OP_LT), 0);
         float.register_py_builtin(OP_LE, fn1_met(Float, Float, Bool), Some(OP_LE), 0);
+        let t_nearly_eq = fn_met(
+            Float,
+            vec![kw(KW_OTHER, Float)],
+            None,
+            vec![kw(KW_EPSILON, Float)],
+            Bool,
+        );
+        float.register_builtin_erg_impl(
+            FUNC_NEARLY_EQ,
+            t_nearly_eq,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
         let t_call = func1(Obj, Float);
         float.register_builtin_erg_impl(
             FUNDAMENTAL_CALL,

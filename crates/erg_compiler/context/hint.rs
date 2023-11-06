@@ -134,28 +134,36 @@ impl Context {
                 switch_lang!(
                     "japanese" => {
                         hint.push_str("Floatは等価関係が定義されていません。");
-                        hint.push_str_with_color_and_attr("l == R", ERR, ATTR);
+                        hint.push_str_with_color_and_attr("l == r", ERR, ATTR);
                         hint.push_str("ではなく、");
                         hint.push_str_with_color_and_attr("l - r <= Float.EPSILON", HINT, ATTR);
+                        hint.push_str("あるいは");
+                        hint.push_str_with_color_and_attr("l.nearly_eq(r)", HINT, ATTR);
                         hint.push_str("を使用してください");
                     },
                     "simplified_chinese" => {
                         hint.push_str("Float没有定义等价关系。你应该使用");
-                        hint.push_str_with_color_and_attr("l == R", ERR, ATTR);
-                        hint.push_str("而不是");
                         hint.push_str_with_color_and_attr("l - r <= Float.EPSILON", HINT, ATTR);
+                        hint.push_str("或者");
+                        hint.push_str_with_color_and_attr("l.nearly_eq(r)", HINT, ATTR);
+                        hint.push_str("而不是");
+                        hint.push_str_with_color_and_attr("l == r", ERR, ATTR);
                     },
                     "traditional_chinese" => {
                         hint.push_str("Float沒有定義等價關係。你應該使用");
-                        hint.push_str_with_color_and_attr("l == R", ERR, ATTR);
-                        hint.push_str(" instead of ");
                         hint.push_str_with_color_and_attr("l - r <= Float.EPSILON", HINT, ATTR);
+                        hint.push_str("或者");
+                        hint.push_str_with_color_and_attr("l.nearly_eq(r)", HINT, ATTR);
+                        hint.push_str("而不是");
+                        hint.push_str_with_color_and_attr("l == r", ERR, ATTR);
                     },
                     "english" => {
-                        hint.push_str("Float has no equivalence relation defined. you should use ");
-                        hint.push_str_with_color_and_attr("l == R", ERR, ATTR);
-                        hint.push_str(" instead of ");
+                        hint.push_str("Float has no equivalence relation defined. You should use ");
                         hint.push_str_with_color_and_attr("l - r <= Float.EPSILON", HINT, ATTR);
+                        hint.push_str(" or ");
+                        hint.push_str_with_color_and_attr("l.nearly_eq(r)", HINT, ATTR);
+                        hint.push_str(" instead of ");
+                        hint.push_str_with_color_and_attr("l == r", ERR, ATTR);
                     },
                 );
                 Some(hint.to_string())
