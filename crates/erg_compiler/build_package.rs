@@ -253,7 +253,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable> Buildable
         ast: AST,
         mode: &str,
     ) -> Result<CompleteArtifact<crate::hir::HIR>, IncompleteArtifact<crate::hir::HIR>> {
-        self.build_module(ast, mode)
+        self.build_root(ast, mode)
     }
     fn pop_context(&mut self) -> Option<ModuleContext> {
         self.main_builder.pop_context()
@@ -316,10 +316,18 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         let artifact = ast_builder
             .build_ast(src)
             .map_err(|err| IncompleteArtifact::new(None, err.errors.into(), err.warns.into()))?;
-        self.build_module(artifact.ast, mode)
+        self.build_root(artifact.ast, mode)
     }
 
-    pub fn build_module(
+    pub fn build_module(&mut self) -> Result<CompleteArtifact, IncompleteArtifact> {
+        let mut ast_builder = ASTBuilder::new(self.cfg.copy());
+        let artifact = ast_builder
+            .build_ast(self.cfg.input.read())
+            .map_err(|err| IncompleteArtifact::new(None, err.errors.into(), err.warns.into()))?;
+        self.build_root(artifact.ast, "exec")
+    }
+
+    pub fn build_root(
         &mut self,
         mut ast: AST,
         mode: &str,

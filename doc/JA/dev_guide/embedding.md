@@ -60,7 +60,20 @@ use erg_compiler::HIRBuilder;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut builder = HIRBuilder::default();
     let artifact = builder.build("print! \"Hello, world!\"", "exec")?;
-    println!("{}", artifact.hir);
+    println!("HIR: {}", artifact.object);
+    Ok(())
+}
+```
+
+モジュールの依存解決も行いたい場合は`PackageBuilder`を使います。
+
+```rust
+use erg_compiler::PackageBuilder;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut builder = PackageBuilder::default();
+    let artifact = builder.build("print! \"Hello, world!\"", "exec")?;
+    println!("HIR: {}", artifact.object);
     Ok(())
 }
 ```
