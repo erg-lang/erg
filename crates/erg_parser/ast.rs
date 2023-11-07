@@ -608,6 +608,10 @@ impl NormalArray {
             elems,
         }
     }
+
+    pub fn get(&self, index: usize) -> Option<&Expr> {
+        self.elems.pos_args.get(index).map(|a| &a.expr)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -694,6 +698,15 @@ pub enum Array {
 impl_nested_display_for_enum!(Array; Normal, WithLength, Comprehension);
 impl_display_for_enum!(Array; Normal, WithLength, Comprehension);
 impl_locational_for_enum!(Array; Normal, WithLength, Comprehension);
+
+impl Array {
+    pub fn get(&self, index: usize) -> Option<&Expr> {
+        match self {
+            Self::Normal(array) => array.get(index),
+            _ => None,
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NormalTuple {
@@ -935,6 +948,28 @@ impl From<NormalRecord> for Expr {
     }
 }
 
+impl From<MixedRecord> for NormalRecord {
+    fn from(value: MixedRecord) -> Self {
+        let mut attrs = vec![];
+        for attr in value.attrs.into_iter() {
+            match attr {
+                RecordAttrOrIdent::Ident(ident) => {
+                    let pat = VarPattern::Ident(ident.clone());
+                    let sig = Signature::Var(VarSignature::new(pat, None));
+                    let block = Block::new(vec![Expr::Accessor(Accessor::Ident(ident))]);
+                    let body = DefBody::new(Token::DUMMY, block, DefId(0));
+                    let def = Def::new(sig, body);
+                    attrs.push(def);
+                }
+                RecordAttrOrIdent::Attr(def) => {
+                    attrs.push(def);
+                }
+            }
+        }
+        Self::new(value.l_brace, value.r_brace, RecordAttrs::new(attrs))
+    }
+}
+
 impl NormalRecord {
     pub const fn new(l_brace: Token, r_brace: Token, attrs: RecordAttrs) -> Self {
         Self {
@@ -942,6 +977,28 @@ impl NormalRecord {
             r_brace,
             attrs,
         }
+    }
+
+    pub fn get(&self, name: &str) -> Option<&Expr> {
+        for attr in self.attrs.iter() {
+            if let Signature::Var(var) = &attr.sig {
+                if var.inspect().is_some_and(|n| n == name) {
+                    return attr.body.block.last();
+                }
+            }
+        }
+        None
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Def> {
+        self.attrs.iter()
+    }
+
+    pub fn keys(&self) -> impl Iterator<Item = &Identifier> {
+        self.attrs.iter().filter_map(|attr| match &attr.sig {
+            Signature::Var(var) => var.pat.ident(),
+            Signature::Subr(subr) => Some(&subr.ident),
+        })
     }
 }
 
@@ -986,6 +1043,20 @@ impl Record {
             Self::Mixed(record) => (&record.l_brace, &record.r_brace),
         }
     }
+
+    pub fn normalize(self) -> NormalRecord {
+        match self {
+            Self::Normal(normal) => normal,
+            Self::Mixed(mixed) => NormalRecord::from(mixed),
+        }
+    }
+
+    pub fn keys(&self) -> Vec<&Identifier> {
+        match self {
+            Self::Normal(normal) => normal.keys().collect(),
+            Self::Mixed(mixed) => mixed.keys().collect(),
+        }
+    }
 }
 
 /// Record can be defined with shorthend/normal mixed style, i.e. {x; y=expr; z; ...}
@@ -1016,6 +1087,13 @@ impl MixedRecord {
             r_brace,
             attrs,
         }
+    }
+
+    pub fn keys(&self) -> impl Iterator<Item = &Identifier> {
+        self.attrs.iter().filter_map(|attr| match attr {
+            RecordAttrOrIdent::Attr(attr) => attr.sig.ident(),
+            RecordAttrOrIdent::Ident(ident) => Some(ident),
+        })
     }
 }
 
@@ -4537,6 +4615,10 @@ impl Signature {
         matches!(self, Self::Subr(_))
     }
 
+    pub const fn is_var(&self) -> bool {
+        matches!(self, Self::Var(_))
+    }
+
     pub fn vis(&self) -> &VisModifierSpec {
         match self {
             Self::Var(var) => var.vis(),
@@ -4713,7 +4795,11 @@ impl Def {
     }
 
     pub const fn is_subr(&self) -> bool {
-        matches!(&self.sig, Signature::Subr(_))
+        self.sig.is_subr()
+    }
+
+    pub const fn is_var(&self) -> bool {
+        self.sig.is_var()
     }
 
     pub fn def_kind(&self) -> DefKind {

@@ -13,5 +13,7 @@ pub mod lex;
 pub mod parse;
 pub mod token;
 pub mod typespec;
+pub mod visitor;
 
 pub use parse::{Parser, ParserRunner};
+pub use visitor::ASTVisitor;
