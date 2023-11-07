@@ -1,4 +1,4 @@
-use erg_common::consts::{DEBUG_MODE, ERG_MODE, PYTHON_MODE};
+use erg_common::consts::{DEBUG_MODE, ERG_MODE, GAL, PYTHON_MODE};
 #[allow(unused_imports)]
 use erg_common::log;
 
@@ -509,6 +509,15 @@ impl Context {
         if DEBUG_MODE {
             self.register_builtin_py_impl(
                 PY,
+                t_pyimport.clone(),
+                Immutable,
+                vis.clone(),
+                Some(FUNDAMENTAL_IMPORT),
+            );
+        }
+        if GAL {
+            self.register_builtin_py_impl(
+                RSIMPORT,
                 t_pyimport.clone(),
                 Immutable,
                 vis.clone(),

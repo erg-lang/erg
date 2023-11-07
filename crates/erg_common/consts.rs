@@ -9,3 +9,4 @@ pub const ELS: bool = cfg!(feature = "els");
 pub const DEBUG_MODE: bool = cfg!(feature = "debug");
 pub const EXPERIMENTAL_MODE: bool = cfg!(feature = "experimental");
 pub const BACKTRACE_MODE: bool = cfg!(feature = "backtrace");
+pub const GAL: bool = cfg!(feature = "gal");

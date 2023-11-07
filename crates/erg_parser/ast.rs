@@ -24,6 +24,7 @@ use crate::token::{Token, TokenKind, EQUAL};
 pub enum OperationKind {
     Import,
     PyImport,
+    RsImport,
     Del,
     Assert,
     Class,
@@ -43,7 +44,7 @@ impl OperationKind {
         matches!(self, Self::PyImport)
     }
     pub const fn is_import(&self) -> bool {
-        matches!(self, Self::Import | Self::PyImport)
+        matches!(self, Self::Import | Self::PyImport | Self::RsImport)
     }
 }
 
@@ -1315,6 +1316,7 @@ impl Call {
         self.obj.get_name().and_then(|s| match &s[..] {
             "import" => Some(OperationKind::Import),
             "pyimport" | "py" | "__import__" => Some(OperationKind::PyImport),
+            "rsimport" => Some(OperationKind::RsImport),
             "Del" => Some(OperationKind::Del),
             "Class" => Some(OperationKind::Class),
             "Inherit" => Some(OperationKind::Inherit),
@@ -4597,6 +4599,7 @@ pub enum DefKind {
     StructuralTrait,
     ErgImport,
     PyImport,
+    RsImport,
     Patch,
     /// type alias included
     Other,
@@ -4623,8 +4626,12 @@ impl DefKind {
         matches!(self, Self::PyImport)
     }
 
+    pub const fn is_rs_import(&self) -> bool {
+        matches!(self, Self::RsImport)
+    }
+
     pub const fn is_import(&self) -> bool {
-        self.is_erg_import() || self.is_py_import()
+        self.is_erg_import() || self.is_py_import() || self.is_rs_import()
     }
 
     pub const fn is_other(&self) -> bool {
@@ -4671,6 +4678,7 @@ impl DefBody {
                 Some("Patch") => DefKind::Patch,
                 Some("import") => DefKind::ErgImport,
                 Some("pyimport") | Some("py") | Some("__import__") => DefKind::PyImport,
+                Some("rsimport") => DefKind::RsImport,
                 _ => DefKind::Other,
             },
             _ => DefKind::Other,

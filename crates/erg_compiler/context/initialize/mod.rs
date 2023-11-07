@@ -481,6 +481,7 @@ const NOT_IMPLEMENTED: &str = "NotImplemented";
 const ELLIPSIS: &str = "Ellipsis";
 const SITEBUILTINS_PRINTER: &str = "_sitebuiltins._Printer";
 const PY: &str = "py";
+const RSIMPORT: &str = "rsimport";
 const PYIMPORT: &str = "pyimport";
 const PYCOMPILE: &str = "pycompile";
 const F_BUILTINS: &str = "f_builtins";

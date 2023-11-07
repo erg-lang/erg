@@ -1491,6 +1491,7 @@ impl Call {
         self.obj.show_acc().and_then(|s| match &s[..] {
             "import" => Some(OperationKind::Import),
             "pyimport" | "py" | "__import__" => Some(OperationKind::PyImport),
+            "rsimport" => Some(OperationKind::RsImport),
             "Del" => Some(OperationKind::Del),
             "assert" => Some(OperationKind::Assert),
             _ => {
@@ -2274,6 +2275,7 @@ impl Def {
                 Some("Patch") => DefKind::Patch,
                 Some("import") => DefKind::ErgImport,
                 Some("pyimport") | Some("__import__") => DefKind::PyImport,
+                Some("rsimport") => DefKind::RsImport,
                 #[cfg(feature = "debug")]
                 Some("py") => DefKind::PyImport,
                 _ => DefKind::Other,

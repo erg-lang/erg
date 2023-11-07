@@ -35,6 +35,7 @@ large_thread = [
     "erg_parser/large_thread",
 ]
 py_compat = ["erg_common/py_compat"]
+gal = ["erg_common/gal"]
 els = ["erg_common/els"]
 no_std = ["erg_common/no_std"]
 full-repl = ["erg_common/full-repl"]
