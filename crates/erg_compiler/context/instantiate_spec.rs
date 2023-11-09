@@ -530,6 +530,8 @@ impl Context {
             "Nat" => Ok(Type::Nat),
             "Int" => Ok(Type::Int),
             "Ratio" => Ok(Type::Ratio),
+            "Imag" => Ok(Type::Imag),
+            "Complex" => Ok(Type::Complex),
             "Float" => Ok(Type::Float),
             "Str" => Ok(Type::Str),
             "Bool" => Ok(Type::Bool),

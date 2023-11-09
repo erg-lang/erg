@@ -2320,7 +2320,7 @@ impl Parser {
                 debug_exit_info!(self);
                 Ok(Expr::Lambda(lambda))
             }
-            Some(t) if t.category_is(TC::Literal) => {
+            Some(t) if t.category_is(TC::Literal) || t.is(ImLit) => {
                 let lit = self
                     .try_reduce_lit()
                     .map_err(|_| self.stack_dec(fn_name!()))?;
@@ -3459,6 +3459,10 @@ impl Parser {
     fn try_reduce_lit(&mut self) -> ParseResult<Literal> {
         debug_call_info!(self);
         match self.peek() {
+            Some(t) if t.is(ImLit) => {
+                let _ = self.lpop();
+                Ok(Literal::im(line!()))
+            }
             Some(t) if t.category_is(TC::Literal) => Ok(Literal::from(self.lpop())),
             Some(other) => {
                 let caused_by = caused_by!();

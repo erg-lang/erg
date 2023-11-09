@@ -107,6 +107,11 @@ impl Literal {
         Self { token }
     }
 
+    pub fn im(line: u32) -> Self {
+        let token = Token::new(TokenKind::ImLit, Str::from("1".to_string()), line, 0);
+        Self { token }
+    }
+
     #[inline]
     pub fn is(&self, kind: TokenKind) -> bool {
         self.token.is(kind)

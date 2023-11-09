@@ -136,6 +136,7 @@ const MUT_FLOAT: &str = "Float!";
 const EPSILON: &str = "EPSILON";
 const REAL: &str = "real";
 const IMAG: &str = "imag";
+const MUT_IMAG: &str = "imag!";
 const FUNC_AS_INTEGER_RATIO: &str = "as_integer_ratio";
 const FUNC_CONJUGATE: &str = "conjugate";
 const FUNC_IS_INTEGER: &str = "is_integer";
