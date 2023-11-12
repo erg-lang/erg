@@ -124,7 +124,10 @@ fn exec_empty_check() -> Result<(), ()> {
 #[test]
 fn exec_external() -> Result<(), ()> {
     let py_command = opt_which_python().unwrap();
-    if module_exists(&py_command, "matplotlib") && module_exists(&py_command, "tqdm") {
+    if module_exists(&py_command, "matplotlib")
+        && module_exists(&py_command, "tqdm")
+        && module_exists(&py_command, "jinja2")
+    {
         expect_success("tests/should_ok/external.er", 0)
     } else {
         expect_compile_success("tests/should_ok/external.er", 0)
