@@ -259,7 +259,7 @@ pub struct SubrType {
     pub non_default_params: Vec<ParamTy>,
     pub var_params: Option<Box<ParamTy>>, // TODO: need to have a position (var_params can be specified after default_params)
     pub default_params: Vec<ParamTy>,
-    // var_kw_params: Option<(Str, Box<Type>)>,
+    pub kw_var_params: Option<Box<ParamTy>>,
     pub return_t: Box<Type>,
 }
 
@@ -329,6 +329,16 @@ impl LimitedDisplay for SubrType {
             write!(f, "{} := ", pt.name().unwrap())?;
             pt.typ().limited_fmt(f, limit - 1)?;
         }
+        if let Some(kw_var_params) = &self.kw_var_params {
+            if !self.non_default_params.is_empty() || !self.default_params.is_empty() {
+                write!(f, ", ")?;
+            }
+            write!(f, "**")?;
+            if let Some(name) = kw_var_params.name() {
+                write!(f, "{}: ", name)?;
+            }
+            kw_var_params.typ().limited_fmt(f, limit - 1)?;
+        }
         write!(f, ") {} ", self.kind.arrow())?;
         self.return_t.limited_fmt(f, limit - 1)
     }
@@ -363,7 +373,16 @@ impl StructuralEq for SubrType {
             .zip(other.var_params.iter())
             .all(|(l, r)| l.typ().structural_eq(r.typ()));
         let return_t_judge = self.return_t.structural_eq(&other.return_t);
-        non_defaults_judge && var_params_judge && return_t_judge && kw_check()
+        let kw_var_params_judge = self
+            .kw_var_params
+            .iter()
+            .zip(other.kw_var_params.iter())
+            .all(|(l, r)| l.typ().structural_eq(r.typ()));
+        non_defaults_judge
+            && var_params_judge
+            && kw_var_params_judge
+            && return_t_judge
+            && kw_check()
     }
 }
 
@@ -373,6 +392,7 @@ impl SubrType {
         non_default_params: Vec<ParamTy>,
         var_params: Option<ParamTy>,
         default_params: Vec<ParamTy>,
+        kw_var_params: Option<ParamTy>,
         return_t: Type,
     ) -> Self {
         Self {
@@ -380,6 +400,7 @@ impl SubrType {
             non_default_params,
             var_params: var_params.map(Box::new),
             default_params,
+            kw_var_params: kw_var_params.map(Box::new),
             return_t: Box::new(return_t),
         }
     }
@@ -591,6 +612,10 @@ impl SubrType {
             .chain(self.default_params.iter())
             .map(|pt| pt.name().map_or("_", |s| &s[..]))
     }
+
+    pub fn is_no_var(&self) -> bool {
+        self.var_params.is_none() && self.kw_var_params.is_none()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -746,6 +771,7 @@ pub struct ArgsOwnership {
     pub non_defaults: Vec<(Option<Str>, Ownership)>,
     pub var_params: Option<(Option<Str>, Ownership)>,
     pub defaults: Vec<(Str, Ownership)>,
+    pub kw_var_params: Option<(Option<Str>, Ownership)>,
 }
 
 impl fmt::Display for ArgsOwnership {
@@ -782,11 +808,13 @@ impl ArgsOwnership {
         non_defaults: Vec<(Option<Str>, Ownership)>,
         var_params: Option<(Option<Str>, Ownership)>,
         defaults: Vec<(Str, Ownership)>,
+        kw_var_params: Option<(Option<Str>, Ownership)>,
     ) -> Self {
         Self {
             non_defaults,
             var_params,
             defaults,
+            kw_var_params,
         }
     }
 }
@@ -2357,7 +2385,11 @@ impl Type {
                     };
                     d_args.push((d_param.name().unwrap().clone(), ownership));
                 }
-                ArgsOwnership::new(nd_args, var_args, d_args)
+                let kw_var_args = subr
+                    .kw_var_params
+                    .as_ref()
+                    .map(|t| (t.name().cloned(), t.typ().ownership()));
+                ArgsOwnership::new(nd_args, var_args, d_args, kw_var_args)
             }
             Self::Quantified(quant) => quant.args_ownership(),
             other => todo!("{other}"),
@@ -3364,12 +3396,17 @@ impl Type {
                             .map_type(|t| t.replace(&Self::Failure, &Self::Obj))
                     })
                     .collect();
+                let kw_var_params = subr.kw_var_params.as_ref().map(|pt| {
+                    pt.clone()
+                        .map_type(|t| t.replace(&Self::Failure, &Self::Obj))
+                });
                 let return_t = subr.return_t.clone().replace(&Self::Failure, &Self::Never);
                 subr_t(
                     subr.kind,
                     non_default_params,
                     var_params,
                     default_params,
+                    kw_var_params,
                     return_t,
                 )
             }

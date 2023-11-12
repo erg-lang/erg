@@ -161,6 +161,7 @@ impl OwnershipChecker {
                 } else {
                     args_owns.non_defaults.len()
                 };
+                let defaults_len = args_owns.defaults.len();
                 if call.args.pos_args.len() > non_defaults_len {
                     let (non_default_args, var_args) =
                         call.args.pos_args.split_at(non_defaults_len);
@@ -180,21 +181,34 @@ impl OwnershipChecker {
                         }
                     }
                 }
-                for kw_arg in call.args.kw_args.iter() {
-                    if let Some((_, ownership)) = args_owns
-                        .defaults
-                        .iter()
-                        .find(|(k, _)| k == kw_arg.keyword.inspect())
-                    {
-                        self.check_expr(&kw_arg.expr, *ownership, false);
-                    } else if let Some((_, ownership)) = args_owns
-                        .non_defaults
-                        .iter()
-                        .find(|(k, _)| k.as_ref() == Some(kw_arg.keyword.inspect()))
-                    {
-                        self.check_expr(&kw_arg.expr, *ownership, false);
+                if call.args.kw_args.len() > defaults_len {
+                    let (default_args, kw_var_args) = call.args.kw_args.split_at(defaults_len);
+                    for kw_arg in default_args.iter() {
+                        if let Some((_, ownership)) = args_owns
+                            .defaults
+                            .iter()
+                            .find(|(k, _)| k == kw_arg.keyword.inspect())
+                        {
+                            self.check_expr(&kw_arg.expr, *ownership, false);
+                        } else if let Some((_, ownership)) = args_owns
+                            .non_defaults
+                            .iter()
+                            .find(|(k, _)| k.as_ref() == Some(kw_arg.keyword.inspect()))
+                        {
+                            self.check_expr(&kw_arg.expr, *ownership, false);
+                        } else {
+                            todo!()
+                        }
+                    }
+                    if let Some((_, ownership)) = args_owns.kw_var_params.as_ref() {
+                        for var_arg in kw_var_args.iter() {
+                            self.check_expr(&var_arg.expr, *ownership, false);
+                        }
                     } else {
-                        todo!()
+                        let kw_args = kw_var_args;
+                        for (arg, (_, ownership)) in kw_args.iter().zip(args_owns.defaults.iter()) {
+                            self.check_expr(&arg.expr, *ownership, false);
+                        }
                     }
                 }
             }

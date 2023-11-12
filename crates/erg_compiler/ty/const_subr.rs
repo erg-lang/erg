@@ -262,11 +262,13 @@ impl ConstSubr {
                     if let Predicate::Equal { rhs, .. } = refine.pred.as_ref() {
                         let return_t = ctx.convert_tp_into_type(rhs.clone()).ok()?;
                         let var_params = subr.var_params.as_ref().map(|t| t.as_ref());
+                        let kw_var_params = subr.kw_var_params.as_ref().map(|t| t.as_ref());
                         let subr_t = subr_t(
                             subr.kind,
                             subr.non_default_params.clone(),
                             var_params.cloned(),
                             subr.default_params.clone(),
+                            kw_var_params.cloned(),
                             return_t,
                         );
                         let subr_t = if subr_t.has_qvar() {

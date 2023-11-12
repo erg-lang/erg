@@ -90,12 +90,7 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_CONJUGATE),
         );
-        let t = func(
-            vec![],
-            None,
-            vec![kw(REAL, Float), kw(IMAG, Float)],
-            Complex,
-        );
+        let t = no_var_func(vec![], vec![kw(REAL, Float), kw(IMAG, Float)], Complex);
         complex.register_builtin_py_impl(
             FUNDAMENTAL_CALL,
             t,
@@ -153,6 +148,7 @@ impl Context {
             vec![kw(KW_OTHER, Float)],
             None,
             vec![kw(KW_EPSILON, Float)],
+            None,
             Bool,
         );
         float.register_builtin_erg_impl(
@@ -442,7 +438,7 @@ impl Context {
             38,
         );
         int.register_py_builtin(FUNC_BIT_COUNT, fn0_met(Int, Nat), Some(FUNC_BIT_COUNT), 27);
-        let t_from_bytes = func(
+        let t_from_bytes = no_var_func(
             vec![kw(
                 BYTES,
                 or(
@@ -450,7 +446,6 @@ impl Context {
                     array_t(Type::from(value(0)..=value(255)), TyParam::erased(Nat)),
                 ),
             )],
-            None,
             vec![kw(
                 FUNC_BYTEORDER,
                 v_enum(
@@ -460,9 +455,8 @@ impl Context {
             Int,
         );
         int.register_py_builtin(FUNC_FROM_BYTES, t_from_bytes, Some(FUNC_FROM_BYTES), 40);
-        let t_to_bytes = func(
+        let t_to_bytes = no_var_func(
             vec![kw(KW_SELF, Int)],
-            None,
             vec![
                 kw(KW_LENGTH, Nat),
                 kw(
@@ -475,7 +469,7 @@ impl Context {
             mono(BYTES),
         );
         int.register_py_builtin(FUNC_TO_BYTES, t_to_bytes, Some(FUNC_TO_BYTES), 55);
-        let t_call = func(vec![pos(Obj)], None, vec![kw("base", Nat)], Int);
+        let t_call = no_var_func(vec![pos(Obj)], vec![kw("base", Nat)], Int);
         int.register_builtin_erg_impl(
             FUNDAMENTAL_CALL,
             t_call,
@@ -614,7 +608,7 @@ impl Context {
             Some(FUNC_TIMES),
             13,
         );
-        let t_call = func(vec![pos(Obj)], None, vec![kw("base", Nat)], Nat);
+        let t_call = no_var_func(vec![pos(Obj)], vec![kw("base", Nat)], Nat);
         nat.register_builtin_erg_impl(
             FUNDAMENTAL_CALL,
             t_call,
@@ -763,6 +757,7 @@ impl Context {
                 vec![kw(KW_PAT, Str), kw(KW_INTO, Str)],
                 None,
                 vec![],
+                None,
                 Str,
             ),
             Immutable,
@@ -775,6 +770,7 @@ impl Context {
                 vec![],
                 None,
                 vec![kw(KW_ENCODING, Str), kw(KW_ERRORS, Str)],
+                None,
                 mono(BYTES),
             ),
             Some(FUNC_ENCODE),
@@ -782,25 +778,25 @@ impl Context {
         );
         str_.register_builtin_erg_impl(
             FUNC_FORMAT,
-            fn_met(Str, vec![], Some(kw(KW_ARGS, Obj)), vec![], Str),
+            fn_met(Str, vec![], Some(kw(KW_ARGS, Obj)), vec![], None, Str),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
         str_.register_builtin_erg_impl(
             FUNC_LOWER,
-            fn_met(Str, vec![], None, vec![], Str),
+            fn_met(Str, vec![], None, vec![], None, Str),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
         str_.register_builtin_erg_impl(
             FUNC_UPPER,
-            fn_met(Str, vec![], None, vec![], Str),
+            fn_met(Str, vec![], None, vec![], None, Str),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
         str_.register_builtin_erg_impl(
             FUNC_TO_INT,
-            fn_met(Str, vec![], None, vec![], or(Int, NoneType)),
+            fn_met(Str, vec![], None, vec![], None, or(Int, NoneType)),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
@@ -824,6 +820,7 @@ impl Context {
                 vec![kw(KW_SEP, Str)],
                 None,
                 vec![kw(KW_MAXSPLIT, Nat)],
+                None,
                 unknown_len_array_t(Str),
             ),
             Immutable,
@@ -837,6 +834,7 @@ impl Context {
                 vec![],
                 None,
                 vec![kw(KW_KEEPENDS, Bool)],
+                None,
                 unknown_len_array_t(Str),
             ),
             Immutable,
@@ -857,6 +855,7 @@ impl Context {
                 vec![kw(KW_SUB, Str)],
                 None,
                 vec![kw(KW_START, Nat), kw(KW_END, Nat)],
+                None,
                 or(Nat, Never),
             ),
             Some(FUNC_INDEX),
@@ -869,6 +868,7 @@ impl Context {
                 vec![kw(KW_SUB, Str)],
                 None,
                 vec![kw(KW_START, Nat), kw(KW_END, Nat)],
+                None,
                 or(Nat, Never),
             ),
             Immutable,
@@ -882,6 +882,7 @@ impl Context {
                 vec![kw(KW_SUB, Str)],
                 None,
                 vec![kw(KW_START, Nat), kw(KW_END, Nat)],
+                None,
                 or(Nat, v_enum(set! {(-1).into()})),
             ),
             Some(FUNC_FIND),
@@ -894,6 +895,7 @@ impl Context {
                 vec![kw(KW_SUB, Str)],
                 None,
                 vec![kw(KW_START, Nat), kw(KW_END, Nat)],
+                None,
                 or(Nat, v_enum(set! {(-1).into()})),
             ),
             Immutable,
@@ -907,6 +909,7 @@ impl Context {
                 vec![kw(KW_SUB, Str)],
                 None,
                 vec![kw(KW_START, Nat), kw(KW_END, Nat)],
+                None,
                 Nat,
             ),
             Some(FUNC_COUNT),
@@ -926,7 +929,14 @@ impl Context {
         );
         str_.register_builtin_py_impl(
             FUNC_STRIP,
-            fn_met(Str, vec![], None, vec![kw(KW_CHARS, Str | NoneType)], Str),
+            fn_met(
+                Str,
+                vec![],
+                None,
+                vec![kw(KW_CHARS, Str | NoneType)],
+                None,
+                Str,
+            ),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_STRIP),
@@ -1038,7 +1048,7 @@ impl Context {
         );
         str_.register_marker_trait(self, poly(INDEXABLE, vec![ty_tp(Nat), ty_tp(Str)]))
             .unwrap();
-        let t_call = func(vec![], None, vec![kw("object", Obj)], Str);
+        let t_call = func(vec![], None, vec![kw("object", Obj)], None, Str);
         str_.register_builtin_erg_impl(
             FUNDAMENTAL_CALL,
             t_call,
@@ -1415,22 +1425,20 @@ impl Context {
             .register_marker_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
             .unwrap();
         let arr_t = array_t(T.clone(), N.clone());
-        let t = fn_met(
+        let t = no_var_fn_met(
             arr_t.clone(),
             vec![kw(KW_RHS, array_t(T.clone(), M.clone()))],
-            None,
             vec![],
             array_t(T.clone(), N.clone() + M.clone()),
         )
         .quantify();
         array_.register_py_builtin(FUNC_CONCAT, t.clone(), Some(OP_ADD), 9);
         let t_count =
-            fn_met(arr_t.clone(), vec![kw(KW_X, T.clone())], None, vec![], Nat).quantify();
+            no_var_fn_met(arr_t.clone(), vec![kw(KW_X, T.clone())], vec![], Nat).quantify();
         array_.register_py_builtin(FUNC_COUNT, t_count, Some(FUNC_COUNT), 17);
-        let t_get = fn_met(
+        let t_get = no_var_fn_met(
             arr_t.clone(),
             vec![pos(Nat)],
-            None,
             vec![ParamTy::kw_default(KW_DEFAULT.into(), U.clone(), NoneType)],
             or(T.clone(), U.clone()),
         )
@@ -1451,10 +1459,9 @@ impl Context {
             ValueObj::builtin_class(out_t),
         );
         array_.register_trait(arr_t.clone(), array_add);
-        let t = fn_met(
+        let t = no_var_fn_met(
             arr_t.clone(),
             vec![kw(KW_ELEM, T.clone())],
-            None,
             vec![],
             array_t(T.clone(), N.clone() + value(1usize)),
         )
@@ -1587,10 +1594,9 @@ impl Context {
             ]),
         );
         array_.register_py_builtin(FUNC_PARTITION, t.quantify(), Some(FUNC_PARTITION), 37);
-        let t = fn_met(
+        let t = no_var_fn_met(
             array_t(T.clone(), TyParam::erased(Nat)),
             vec![],
-            None,
             vec![kw(
                 "same_bucket",
                 or(func2(T.clone(), T.clone(), Bool), NoneType),
@@ -1633,10 +1639,9 @@ impl Context {
         set_.register_superclass(mono(GENERIC_SET), &generic_set);
         set_.register_marker_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
             .unwrap();
-        let t = fn_met(
+        let t = no_var_fn_met(
             set_t.clone(),
             vec![kw(KW_RHS, set_t.clone())],
-            None,
             vec![],
             set_t.clone(),
         )
@@ -1833,10 +1838,9 @@ impl Context {
         )));
         dict_.register_builtin_const(FUNC_AS_RECORD, Visibility::BUILTIN_PUBLIC, as_record);
         let Def = type_q("Default");
-        let get_t = fn_met(
+        let get_t = no_var_fn_met(
             dict_t.clone(),
             vec![kw("key", T.clone())],
-            None,
             vec![kw_default("default", Def.clone(), NoneType)],
             or(
                 proj_call(D.clone(), FUNDAMENTAL_GETITEM, vec![ty_tp(T.clone())]),
@@ -2261,7 +2265,7 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             ValueObj::builtin_class(Obj),
         );
-        let f_t = kw(KW_FUNC, func(vec![kw(KW_OLD, Int)], None, vec![], Int));
+        let f_t = kw(KW_FUNC, no_var_func(vec![kw(KW_OLD, Int)], vec![], Int));
         let t = pr_met(
             ref_mut(mono(MUTABLE_OBJ), None),
             vec![f_t],
@@ -2285,7 +2289,7 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             ValueObj::builtin_class(Float),
         );
-        let f_t = kw(KW_FUNC, func(vec![kw(KW_OLD, Float)], None, vec![], Float));
+        let f_t = kw(KW_FUNC, no_var_func(vec![kw(KW_OLD, Float)], vec![], Float));
         let t = pr_met(
             ref_mut(mono(MUT_FLOAT), None),
             vec![f_t],
@@ -2310,7 +2314,7 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             ValueObj::builtin_class(Ratio),
         );
-        let f_t = kw(KW_FUNC, func(vec![kw(KW_OLD, Ratio)], None, vec![], Ratio));
+        let f_t = kw(KW_FUNC, no_var_func(vec![kw(KW_OLD, Ratio)], vec![], Ratio));
         let t = pr_met(
             ref_mut(mono(MUT_RATIO), None),
             vec![f_t],
@@ -2351,7 +2355,7 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             ValueObj::builtin_class(Int),
         );
-        let f_t = kw(KW_FUNC, func(vec![kw(KW_OLD, Int)], None, vec![], Int));
+        let f_t = kw(KW_FUNC, no_var_func(vec![kw(KW_OLD, Int)], vec![], Int));
         let t = pr_met(
             ref_mut(mono(MUT_INT), None),
             vec![f_t],
@@ -2377,7 +2381,7 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             ValueObj::builtin_class(Nat),
         );
-        let f_t = kw(KW_FUNC, func(vec![kw(KW_OLD, Nat)], None, vec![], Nat));
+        let f_t = kw(KW_FUNC, no_var_func(vec![kw(KW_OLD, Nat)], vec![], Nat));
         let t = pr_met(
             ref_mut(mono(MUT_NAT), None),
             vec![f_t],
@@ -2403,7 +2407,7 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             ValueObj::builtin_class(Bool),
         );
-        let f_t = kw(KW_FUNC, func(vec![kw(KW_OLD, Bool)], None, vec![], Bool));
+        let f_t = kw(KW_FUNC, no_var_func(vec![kw(KW_OLD, Bool)], vec![], Bool));
         let t = pr_met(
             ref_mut(mono(MUT_BOOL), None),
             vec![f_t],
@@ -2436,7 +2440,7 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             ValueObj::builtin_class(Str),
         );
-        let f_t = kw(KW_FUNC, func(vec![kw(KW_OLD, Str)], None, vec![], Str));
+        let f_t = kw(KW_FUNC, no_var_func(vec![kw(KW_OLD, Str)], vec![], Str));
         let t = pr_met(
             ref_mut(mono(MUT_STR), None),
             vec![f_t],
@@ -2642,7 +2646,7 @@ impl Context {
             None,
             vec![kw(
                 KW_KEY,
-                func(vec![kw(KW_X, T.clone())], None, vec![], mono(ORD)),
+                no_var_func(vec![kw(KW_X, T.clone())], vec![], mono(ORD)),
             )],
             NoneType,
         )
@@ -2670,7 +2674,7 @@ impl Context {
         array_mut_.register_py_builtin(PROC_UPDATE_NTH, t_update_nth, Some(FUNC_UPDATE_NTH), 105);
         let f_t = kw(
             KW_FUNC,
-            func(vec![kw(KW_OLD, arr_t.clone())], None, vec![], arr_t.clone()),
+            no_var_func(vec![kw(KW_OLD, arr_t.clone())], vec![], arr_t.clone()),
         );
         let t = pr_met(
             ref_mut(array_mut_t.clone(), None),
@@ -2885,7 +2889,7 @@ impl Context {
         );
         let f_t = kw(
             KW_FUNC,
-            func(vec![kw(KW_OLD, set_t.clone())], None, vec![], set_t.clone()),
+            no_var_func(vec![kw(KW_OLD, set_t.clone())], vec![], set_t.clone()),
         );
         let t = pr_met(
             ref_mut(set_mut_t.clone(), None),

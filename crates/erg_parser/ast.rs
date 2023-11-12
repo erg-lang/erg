@@ -2637,6 +2637,7 @@ pub struct SubrTypeSpec {
     pub non_defaults: Vec<ParamTySpec>,
     pub var_params: Option<Box<ParamTySpec>>,
     pub defaults: Vec<DefaultParamTySpec>,
+    pub kw_var_params: Option<Box<ParamTySpec>>,
     pub arrow: Token,
     pub return_t: Box<TypeSpec>,
 }
@@ -2648,10 +2649,11 @@ impl fmt::Display for SubrTypeSpec {
         }
         write!(
             f,
-            "({}, {}, {}) {} {}",
+            "({}, {}{}{}) {} {}",
             fmt_vec(&self.non_defaults),
-            fmt_option!(pre "*", &self.var_params),
+            fmt_option!("*", &self.var_params, ", "),
             fmt_vec(&self.defaults),
+            fmt_option!(pre ", **", &self.kw_var_params),
             self.arrow.content,
             self.return_t
         )
@@ -2677,12 +2679,14 @@ impl Locational for SubrTypeSpec {
 }
 
 impl SubrTypeSpec {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         bounds: TypeBoundSpecs,
         lparen: Option<Token>,
         non_defaults: Vec<ParamTySpec>,
         var_params: Option<ParamTySpec>,
         defaults: Vec<DefaultParamTySpec>,
+        kw_var_params: Option<ParamTySpec>,
         arrow: Token,
         return_t: TypeSpec,
     ) -> Self {
@@ -2692,6 +2696,7 @@ impl SubrTypeSpec {
             non_defaults,
             var_params: var_params.map(Box::new),
             defaults,
+            kw_var_params: kw_var_params.map(Box::new),
             arrow,
             return_t: Box::new(return_t),
         }

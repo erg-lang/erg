@@ -179,6 +179,7 @@ pub struct TyParamLambda {
     pub nd_params: Vec<ParamTy>,
     pub var_params: Option<ParamTy>,
     pub d_params: Vec<ParamTy>,
+    pub kw_var_params: Option<ParamTy>,
     pub body: Vec<TyParam>,
 }
 
@@ -216,6 +217,7 @@ impl TyParamLambda {
         nd_params: Vec<ParamTy>,
         var_params: Option<ParamTy>,
         d_params: Vec<ParamTy>,
+        kw_var_params: Option<ParamTy>,
         body: Vec<TyParam>,
     ) -> Self {
         Self {
@@ -223,6 +225,7 @@ impl TyParamLambda {
             nd_params,
             var_params,
             d_params,
+            kw_var_params,
             body,
         }
     }

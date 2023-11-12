@@ -35,7 +35,7 @@ impl Context {
         let mut mutable = Self::builtin_mono_trait(MUTABLE, 2);
         let Slf = mono_q(SELF, subtypeof(mono(IMMUTIZABLE)));
         let immut_t = proj(Slf.clone(), IMMUT_TYPE);
-        let f_t = func(vec![kw(KW_OLD, immut_t.clone())], None, vec![], immut_t);
+        let f_t = no_var_func(vec![kw(KW_OLD, immut_t.clone())], vec![], immut_t);
         let t = pr1_met(ref_mut(Slf, None), f_t, NoneType).quantify();
         mutable.register_builtin_erg_decl(PROC_UPDATE, t, Visibility::BUILTIN_PUBLIC);
         // REVIEW: Immutatable?
@@ -339,14 +339,13 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNDAMENTAL_ENTER),
         );
-        let t = fn_met(
+        let t = no_var_fn_met(
             Slf,
             vec![
                 kw(EXC_TYPE, ClassType),
                 kw(EXC_VALUE, Obj),
                 kw(TRACEBACK, Obj), // TODO:
             ],
-            None,
             vec![],
             NoneType,
         )

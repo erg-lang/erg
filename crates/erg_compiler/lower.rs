@@ -1676,6 +1676,13 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     &default.sig,
                 );
             }
+            if let Some(kw_var_param) = params.kw_var_params.as_deref() {
+                self.inc_ref(
+                    kw_var_param.inspect().unwrap_or(&"_".into()),
+                    &kw_var_param.vi,
+                    kw_var_param,
+                );
+            }
         }
         let (non_default_params, default_params): (Vec<_>, Vec<_>) = self
             .module
@@ -1757,6 +1764,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 non_default_param_tys,
                 var_params,
                 default_param_tys,
+                None,
                 body.t(),
             )
         } else {
@@ -1764,6 +1772,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 non_default_param_tys,
                 var_params,
                 default_param_tys,
+                None,
                 body.t(),
             )
         };

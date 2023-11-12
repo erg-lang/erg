@@ -902,9 +902,8 @@ impl Context {
                 .iter()
                 .filter_map(|ps| ps.has_default().then_some(ParamTy::from(ps)))
                 .collect::<Vec<_>>();
-            let meta_t = func(
+            let meta_t = no_var_func(
                 nd_params.clone(),
-                None,
                 d_params.clone(),
                 v_enum(set! { ret_val }),
             )
