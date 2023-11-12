@@ -8,7 +8,6 @@ use erg_common::config::ErgConfig;
 use erg_common::error::Location;
 use erg_common::io::{Input, InputKind};
 use erg_common::set::Set as HashSet;
-use erg_common::spawn::exec_new_thread;
 use erg_common::str::Str;
 use erg_common::traits::{DequeStream, ExitStatus, Locational, New, Runnable, Stream};
 use erg_common::{
@@ -110,8 +109,9 @@ impl Parsable for SimpleParser {
         let ts = Lexer::from_str(code).lex()?;
         let mut parser = Parser::new(ts);
         let mut desugarer = Desugarer::new();
-        let res = exec_new_thread(move || parser.parse(), fn_name!());
-        let artifact = res.map_err(|iart| iart.map_mod(|module| desugarer.desugar(module)))?;
+        let artifact = parser
+            .parse()
+            .map_err(|iart| iart.map_mod(|module| desugarer.desugar(module)))?;
         Ok(artifact.map(|module| desugarer.desugar(module)))
     }
 }
