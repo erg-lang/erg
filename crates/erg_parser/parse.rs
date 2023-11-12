@@ -1285,7 +1285,7 @@ impl Parser {
                     debug_exit_info!(self);
                     Ok(ArgKind::Kw(KwArg::new(kw, None, expr)))
                 } else {
-                    let expr: Expr = self
+                    let expr = self
                         .try_reduce_expr(false, in_type_args, false, false)
                         .map_err(|_| {
                             if let Some(err) = self.errs.last_mut() {
