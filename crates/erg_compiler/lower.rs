@@ -1131,11 +1131,12 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         expect: Option<&SubrType>,
         errs: &mut LowerErrors,
     ) -> hir::Args {
-        let (pos_args, var_args, kw_args, paren) = args.deconstruct();
+        let (pos_args, var_args, kw_args, kw_var, paren) = args.deconstruct();
         let mut hir_args = hir::Args::new(
             Vec::with_capacity(pos_args.len()),
             None,
             Vec::with_capacity(kw_args.len()),
+            None,
             paren,
         );
         let pos_params = expect
@@ -1201,6 +1202,16 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                         arg.keyword,
                         hir::Expr::Dummy(hir::Dummy::empty()),
                     ));
+                }
+            }
+        }
+        if let Some(kw_var) = kw_var {
+            match self.lower_expr(kw_var.expr, None) {
+                Ok(expr) => hir_args.kw_var = Some(Box::new(hir::PosArg::new(expr))),
+                Err(es) => {
+                    errs.extend(es);
+                    let dummy = hir::Expr::Dummy(hir::Dummy::empty());
+                    hir_args.kw_var = Some(Box::new(hir::PosArg::new(dummy)));
                 }
             }
         }
@@ -1523,10 +1534,21 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 Err(es) => errs.extend(es),
             }
         }
+        let hir_kw_var_params = match params.kw_var_params {
+            Some(kw_var_params) => match self.lower_non_default_param(*kw_var_params) {
+                Ok(sig) => Some(Box::new(sig)),
+                Err(es) => {
+                    errs.extend(es);
+                    None
+                }
+            },
+            None => None,
+        };
         let mut hir_params = hir::Params::new(
             hir_non_defaults,
             hir_var_params,
             hir_defaults,
+            hir_kw_var_params,
             vec![],
             params.parens,
         );

@@ -3432,7 +3432,7 @@ impl PyCodeGenerator {
                 "?".into(),
             );
             let param = NonDefaultParamSignature::new(raw, vi, None);
-            let params = Params::new(vec![self_param, param], None, vec![], vec![], None);
+            let params = Params::new(vec![self_param, param], None, vec![], None, vec![], None);
             (param_name, params)
         } else {
             ("_".into(), Params::single(self_param))

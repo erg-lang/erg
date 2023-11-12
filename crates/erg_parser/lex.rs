@@ -1416,10 +1416,17 @@ impl Iterator for Lexer /*<'a>*/ {
                 }
             },
             Some('*') => match self.peek_cur_ch() {
-                // TODO: infix/prefix
                 Some('*') => {
                     self.consume();
-                    self.accept(Pow, "**")
+                    let kind = match self.op_fix() {
+                        Some(OpFix::Infix) => Pow,
+                        Some(OpFix::Prefix) => PreDblStar,
+                        _ => {
+                            let token = self.emit_token(Illegal, "*");
+                            return Some(Err(LexError::simple_syntax_error(0, token.loc())));
+                        }
+                    };
+                    self.accept(kind, "**")
                 }
                 _ => {
                     let kind = match self.op_fix() {

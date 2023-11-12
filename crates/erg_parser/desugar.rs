@@ -100,7 +100,7 @@ impl Desugarer {
     }
 
     fn desugar_args(mut desugar: impl FnMut(Expr) -> Expr, args: Args) -> Args {
-        let (pos_args, var_args, kw_args, paren) = args.deconstruct();
+        let (pos_args, var_args, kw_args, ke_var, paren) = args.deconstruct();
         let pos_args = pos_args
             .into_iter()
             .map(|arg| PosArg::new(desugar(arg.expr)))
@@ -112,7 +112,8 @@ impl Desugarer {
                 KwArg::new(arg.keyword, arg.t_spec, desugar(arg.expr)) // TODO: t_spec
             })
             .collect();
-        Args::new(pos_args, var_args, kw_args, paren)
+        let kw_var_args = ke_var.map(|arg| PosArg::new(desugar(arg.expr)));
+        Args::new(pos_args, var_args, kw_args, kw_var_args, paren)
     }
 
     fn perform_desugar_acc(mut desugar: impl FnMut(Expr) -> Expr, acc: Accessor) -> Accessor {
@@ -220,7 +221,7 @@ impl Desugarer {
             },
             Expr::Tuple(tuple) => match tuple {
                 Tuple::Normal(tup) => {
-                    let (elems, _, _, paren) = tup.elems.deconstruct();
+                    let (elems, _, _, _, paren) = tup.elems.deconstruct();
                     let elems = elems
                         .into_iter()
                         .map(|elem| PosArg::new(desugar(elem.expr)))
@@ -512,7 +513,7 @@ impl Desugarer {
                                             _ => unreachable!(),
                                         }
                                     }
-                                    Params::new(params, None, vec![], None)
+                                    Params::new(params, None, vec![], None, None)
                                 }
                                 Expr::Accessor(Accessor::Ident(ident)) => {
                                     let param_name = ident.inspect();

@@ -131,6 +131,7 @@ enum ArgKind {
     Pos(PosArg),
     Var(PosArg),
     Kw(KwArg),
+    KwVar(PosArg),
 }
 
 pub enum ArrayInner {
@@ -1093,8 +1094,9 @@ impl Parser {
             .map_err(|_| self.stack_dec(fn_name!()))?
         {
             ArgKind::Pos(arg) => Args::single(arg),
-            ArgKind::Var(arg) => Args::new(vec![], Some(arg), vec![], None),
-            ArgKind::Kw(arg) => Args::new(vec![], None, vec![arg], None),
+            ArgKind::Var(arg) => Args::new(vec![], Some(arg), vec![], None, None),
+            ArgKind::Kw(arg) => Args::new(vec![], None, vec![arg], None, None),
+            ArgKind::KwVar(arg) => Args::new(vec![], None, vec![], Some(arg), None),
         };
         loop {
             match self.peek_kind() {
@@ -1157,6 +1159,9 @@ impl Parser {
                             ArgKind::Kw(arg) => {
                                 args.push_kw(arg);
                             }
+                            ArgKind::KwVar(arg) => {
+                                args.set_kw_var(arg);
+                            }
                         }
                     }
                 }
@@ -1166,8 +1171,8 @@ impl Parser {
                         args.set_parens((lp, rp));
                     } else {
                         // e.g. f(g 1)
-                        let (pos_args, var_args, kw_args, _) = args.deconstruct();
-                        args = Args::new(pos_args, var_args, kw_args, None);
+                        let (pos_args, var_args, kw_args, kw_var, _) = args.deconstruct();
+                        args = Args::new(pos_args, var_args, kw_args, kw_var, None);
                     }
                     break;
                 }
@@ -1225,6 +1230,9 @@ impl Parser {
                             ArgKind::Kw(arg) => {
                                 args.push_kw(arg);
                             }
+                            ArgKind::KwVar(arg) => {
+                                args.set_kw_var(arg);
+                            }
                         }
                     }
                 }
@@ -1277,7 +1285,7 @@ impl Parser {
                     debug_exit_info!(self);
                     Ok(ArgKind::Kw(KwArg::new(kw, None, expr)))
                 } else {
-                    let expr = self
+                    let expr: Expr = self
                         .try_reduce_expr(false, in_type_args, false, false)
                         .map_err(|_| {
                             if let Some(err) = self.errs.last_mut() {
@@ -1340,7 +1348,7 @@ impl Parser {
                     }
                 }
             }
-            Some(PreStar) => {
+            Some(star @ (PreStar | PreDblStar)) => {
                 self.skip();
                 let expr = self
                     .try_reduce_expr(false, in_type_args, false, false)
@@ -1356,7 +1364,11 @@ impl Parser {
                         self.stack_dec(fn_name!())
                     })?;
                 debug_exit_info!(self);
-                Ok(ArgKind::Var(PosArg::new(expr)))
+                if star == PreStar {
+                    Ok(ArgKind::Var(PosArg::new(expr)))
+                } else {
+                    Ok(ArgKind::KwVar(PosArg::new(expr)))
+                }
             }
             Some(_) => {
                 let expr = self
@@ -2993,7 +3005,7 @@ impl Parser {
                         return Ok(BraceContainer::Set(Set::Comprehension(comp)));
                     }
                     Some(RBrace) => {
-                        let arg = Args::new(vec![PosArg::new(other)], None, vec![], None);
+                        let arg = Args::new(vec![PosArg::new(other)], None, vec![], None, None);
                         let r_brace = self.lpop();
                         debug_exit_info!(self);
                         return Ok(BraceContainer::Set(Set::Normal(NormalSet::new(
@@ -3325,7 +3337,7 @@ impl Parser {
                                 }
                             }
                         },
-                        ArgKind::Var(var) => {
+                        ArgKind::Var(var) | ArgKind::KwVar(var) => {
                             let err = ParseError::simple_syntax_error(line!() as usize, var.loc());
                             self.errs.push(err);
                             debug_exit_info!(self);
@@ -3375,8 +3387,9 @@ impl Parser {
         debug_call_info!(self);
         let mut args = match first_elem {
             ArgKind::Pos(pos) => Args::single(pos),
-            ArgKind::Var(var) => Args::new(vec![], Some(var), vec![], None),
-            ArgKind::Kw(kw) => Args::new(vec![], None, vec![kw], None),
+            ArgKind::Var(var) => Args::new(vec![], Some(var), vec![], None, None),
+            ArgKind::Kw(kw) => Args::new(vec![], None, vec![kw], None, None),
+            ArgKind::KwVar(kw_var) => Args::new(vec![], None, vec![], Some(kw_var), None),
         };
         #[allow(clippy::while_let_loop)]
         loop {
@@ -3437,6 +3450,9 @@ impl Parser {
                         // Syntax error will occur when trying to use it as a tuple
                         ArgKind::Kw(arg) => {
                             args.push_kw(arg);
+                        }
+                        ArgKind::KwVar(arg) => {
+                            args.set_kw_var(arg);
                         }
                     }
                 }

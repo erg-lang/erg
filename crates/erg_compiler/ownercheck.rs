@@ -107,7 +107,8 @@ impl OwnershipChecker {
                 self.dict
                     .insert(Str::from(self.full_path()), LocalVars::default());
                 if let Signature::Subr(subr) = &def.sig {
-                    let (nd_params, var_params, d_params, _) = subr.params.ref_deconstruct();
+                    let (nd_params, var_params, d_params, kw_var, _) =
+                        subr.params.ref_deconstruct();
                     for param in nd_params {
                         if let ParamPattern::VarName(name) = &param.raw.pat {
                             self.define_param(name);
@@ -120,6 +121,11 @@ impl OwnershipChecker {
                     }
                     for param in d_params {
                         if let ParamPattern::VarName(name) = &param.sig.raw.pat {
+                            self.define_param(name);
+                        }
+                    }
+                    if let Some(kw_var) = kw_var {
+                        if let ParamPattern::VarName(name) = &kw_var.raw.pat {
                             self.define_param(name);
                         }
                     }

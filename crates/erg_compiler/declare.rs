@@ -215,7 +215,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
     }
 
     fn fake_lower_args(&self, args: ast::Args) -> LowerResult<hir::Args> {
-        let (pos_args_, var_args_, kw_args_, paren) = args.deconstruct();
+        let (pos_args_, var_args_, kw_args_, kw_var_, paren) = args.deconstruct();
         let mut pos_args = vec![];
         for arg in pos_args_.into_iter() {
             let arg = self.fake_lower_expr(arg.expr)?;
@@ -233,7 +233,14 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             let expr = self.fake_lower_expr(kw_arg.expr)?;
             kw_args.push(hir::KwArg::new(kw_arg.keyword, expr));
         }
-        let args = hir::Args::new(pos_args, var_args, kw_args, paren);
+        let kw_var = match kw_var_ {
+            Some(kw_var) => {
+                let kw_var = self.fake_lower_expr(kw_var.expr)?;
+                Some(hir::PosArg::new(kw_var))
+            }
+            None => None,
+        };
+        let args = hir::Args::new(pos_args, var_args, kw_args, kw_var, paren);
         Ok(args)
     }
 
@@ -288,7 +295,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     let elem = self.fake_lower_expr(elem.expr)?;
                     elems.push(hir::PosArg::new(elem));
                 }
-                let elems = hir::Args::new(elems, None, vec![], None);
+                let elems = hir::Args::new(elems, None, vec![], None, None);
                 let t = array_t(Type::Failure, TyParam::value(elems.len()));
                 Ok(hir::Array::Normal(hir::NormalArray::new(
                     arr.l_sqbr, arr.r_sqbr, t, elems,
@@ -307,7 +314,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         match tup {
             ast::Tuple::Normal(tup) => {
                 let mut elems = Vec::new();
-                let (elems_, _, _, paren) = tup.elems.deconstruct();
+                let (elems_, _, _, _, paren) = tup.elems.deconstruct();
                 for elem in elems_.into_iter() {
                     let elem = self.fake_lower_expr(elem.expr)?;
                     elems.push(hir::PosArg::new(elem));
@@ -446,7 +453,8 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
     }
 
     fn fake_lower_params(&self, params: ast::Params) -> LowerResult<hir::Params> {
-        let (non_defaults_, var_params_, defaults_, guards_, parens) = params.deconstruct();
+        let (non_defaults_, var_params_, defaults_, kw_var_, guards_, parens) =
+            params.deconstruct();
         let mut non_defaults = vec![];
         for non_default_ in non_defaults_.into_iter() {
             let t_spec_as_expr = non_default_
@@ -492,6 +500,20 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             let default = hir::DefaultParamSignature::new(sig, default_val);
             defaults.push(default);
         }
+        let kw_var = if let Some(kw_var) = kw_var_ {
+            let t_spec_as_expr = kw_var
+                .t_spec
+                .as_ref()
+                .map(|t_spec| self.fake_lower_expr(*t_spec.t_spec_as_expr.clone()))
+                .transpose()?;
+            Some(Box::new(hir::NonDefaultParamSignature::new(
+                *kw_var,
+                VarInfo::default(),
+                t_spec_as_expr,
+            )))
+        } else {
+            None
+        };
         let mut guards = vec![];
         for guard in guards_.into_iter() {
             let guard = match guard {
@@ -506,6 +528,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             non_defaults,
             var_params,
             defaults,
+            kw_var,
             guards,
             parens,
         ))
