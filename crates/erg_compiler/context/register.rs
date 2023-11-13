@@ -390,16 +390,16 @@ impl Context {
                         opt_decl_t,
                         &mut dummy_tv_cache,
                         Normal,
-                        kind,
+                        kind.clone(),
                         false,
                     ) {
                         Ok(ty) => (ty, TyCheckErrors::empty()),
                         Err((ty, errs)) => (ty, errs),
                     };
-                    let spec_t = if is_var_params {
-                        unknown_len_array_t(spec_t)
-                    } else {
-                        spec_t
+                    let spec_t = match kind {
+                        ParamKind::VarParams => unknown_len_array_t(spec_t),
+                        ParamKind::KwVarParams => str_dict_t(spec_t),
+                        _ => spec_t,
                     };
                     if &name.inspect()[..] == "self" {
                         self.type_self_param(&sig.raw.pat, name, &spec_t, &mut errs);

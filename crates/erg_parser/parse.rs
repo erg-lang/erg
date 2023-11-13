@@ -2415,7 +2415,8 @@ impl Parser {
                 debug_exit_info!(self);
                 Ok(call_or_acc)
             }
-            Some(t) if t.is(PreStar) => {
+            Some(t) if t.is(PreStar) || t.is(PreDblStar) => {
+                let kind = t.kind;
                 let _ = self.lpop();
                 let expr = self
                     .try_reduce_expr(false, in_type_args, in_brace, false)
@@ -2430,8 +2431,13 @@ impl Parser {
                         }
                         self.stack_dec(fn_name!())
                     })?;
+                let arg = match kind {
+                    PreStar => ArgKind::Var(PosArg::new(expr)),
+                    PreDblStar => ArgKind::KwVar(PosArg::new(expr)),
+                    _ => switch_unreachable!(),
+                };
                 let tuple = self
-                    .try_reduce_nonempty_tuple(ArgKind::Var(PosArg::new(expr)), false)
+                    .try_reduce_nonempty_tuple(arg, false)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
                 debug_exit_info!(self);
                 Ok(Expr::Tuple(tuple))
