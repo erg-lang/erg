@@ -20,7 +20,8 @@ use ast::{
 use erg_parser::ast::{self, ClassAttr, TypeSpecWithOp};
 
 use crate::ty::constructors::{
-    free_var, func, func0, func1, proc, ref_, ref_mut, tp_enum, unknown_len_array_t, v_enum,
+    free_var, func, func0, func1, proc, ref_, ref_mut, str_dict_t, tp_enum, unknown_len_array_t,
+    v_enum,
 };
 use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::typaram::TyParam;
@@ -332,7 +333,7 @@ impl Context {
             Visibility::private(self.name.clone())
         };
         let default = kind.default_info();
-        let is_var_params = kind.is_var_params();
+        let is_var_params = kind.is_var_params() || kind.is_kw_var_params();
         match &sig.raw.pat {
             // Literal patterns will be desugared to discard patterns
             ast::ParamPattern::Lit(_) => unreachable!(),
@@ -389,16 +390,16 @@ impl Context {
                         opt_decl_t,
                         &mut dummy_tv_cache,
                         Normal,
-                        kind,
+                        kind.clone(),
                         false,
                     ) {
                         Ok(ty) => (ty, TyCheckErrors::empty()),
                         Err((ty, errs)) => (ty, errs),
                     };
-                    let spec_t = if is_var_params {
-                        unknown_len_array_t(spec_t)
-                    } else {
-                        spec_t
+                    let spec_t = match kind {
+                        ParamKind::VarParams => unknown_len_array_t(spec_t),
+                        ParamKind::KwVarParams => str_dict_t(spec_t),
+                        _ => spec_t,
                     };
                     if &name.inspect()[..] == "self" {
                         self.type_self_param(&sig.raw.pat, name, &spec_t, &mut errs);
@@ -606,6 +607,20 @@ impl Context {
                     errs.extend(es);
                 }
             }
+            if let Some(kw_var_params) = &mut params.kw_var_params {
+                if let Some(pt) = &subr_t.var_params {
+                    let pt = pt.clone().map_type(str_dict_t);
+                    if let Err(es) =
+                        self.assign_param(kw_var_params, Some(&pt), ParamKind::KwVarParams)
+                    {
+                        errs.extend(es);
+                    }
+                } else if let Err(es) =
+                    self.assign_param(kw_var_params, None, ParamKind::KwVarParams)
+                {
+                    errs.extend(es);
+                }
+            }
         } else {
             for non_default in params.non_defaults.iter_mut() {
                 if let Err(es) = self.assign_param(non_default, None, ParamKind::NonDefault) {
@@ -623,6 +638,11 @@ impl Context {
                     None,
                     ParamKind::Default(default.default_val.t()),
                 ) {
+                    errs.extend(es);
+                }
+            }
+            if let Some(kw_var_params) = &mut params.kw_var_params {
+                if let Err(es) = self.assign_param(kw_var_params, None, ParamKind::KwVarParams) {
                     errs.extend(es);
                 }
             }
@@ -765,6 +785,7 @@ impl Context {
                 subr_t.non_default_params.clone(),
                 subr_t.var_params.as_deref().cloned(),
                 subr_t.default_params.clone(),
+                subr_t.kw_var_params.as_deref().cloned(),
                 return_t,
             )
         } else {
@@ -772,6 +793,7 @@ impl Context {
                 subr_t.non_default_params.clone(),
                 subr_t.var_params.as_deref().cloned(),
                 subr_t.default_params.clone(),
+                subr_t.kw_var_params.as_deref().cloned(),
                 return_t,
             )
         };
@@ -1953,7 +1975,7 @@ impl Context {
                     ))
                 })
                 .collect();
-            let meta_t = func(params, None, vec![], v_enum(set! { val.clone() })).quantify();
+            let meta_t = func(params, None, vec![], None, v_enum(set! { val.clone() })).quantify();
             let name = &ident.name;
             let id = DefId(get_hash(&(&self.name, &name)));
             let vi = VarInfo::new(

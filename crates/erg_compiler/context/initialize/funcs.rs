@@ -24,37 +24,28 @@ impl Context {
         let U = mono_q(TY_U, instanceof(Type));
         let Path = mono_q_tp(PATH, instanceof(Str));
         let t_abs = nd_func(vec![kw(KW_N, mono(NUM))], None, Nat);
-        let t_all = func(
+        let t_all = no_var_func(
             vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(Bool)]))],
-            None,
             vec![],
             Bool,
         );
-        let t_any = func(
+        let t_any = no_var_func(
             vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(Bool)]))],
-            None,
             vec![],
             Bool,
         );
         let t_ascii = nd_func(vec![kw(KW_OBJECT, Obj)], None, Str);
-        let t_array = func(
+        let t_array = no_var_func(
             vec![],
-            None,
             vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
             array_t(T.clone(), TyParam::erased(Nat)),
         )
         .quantify();
-        let t_assert = func(
-            vec![kw(KW_TEST, Bool)],
-            None,
-            vec![kw(KW_MSG, Str)],
-            NoneType,
-        );
+        let t_assert = no_var_func(vec![kw(KW_TEST, Bool)], vec![kw(KW_MSG, Str)], NoneType);
         let t_bin = nd_func(vec![kw(KW_N, Int)], None, Str);
         let t_bytes = func0(mono(BYTES))
-            & func(
+            & no_var_func(
                 vec![kw(KW_STR, Str), kw(KW_ENCODING, Str)],
-                None,
                 vec![kw(KW_ERRORS, Str)],
                 mono(BYTES),
             )
@@ -64,9 +55,8 @@ impl Context {
                 None,
                 mono(BYTES),
             );
-        let t_bytes_array = func(
+        let t_bytes_array = no_var_func(
             vec![],
-            None,
             vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(Int)]))],
             mono(BYTEARRAY),
         );
@@ -89,9 +79,8 @@ impl Context {
             T.clone(),
         )
         .quantify();
-        let t_dict = func(
+        let t_dict = no_var_func(
             vec![],
-            None,
             vec![kw(
                 KW_ITERABLE,
                 poly(ITERABLE, vec![ty_tp(tuple_t(vec![T.clone(), U.clone()]))]),
@@ -100,9 +89,8 @@ impl Context {
         )
         .quantify();
         let t_discard = nd_func(vec![kw(KW_OBJ, Obj)], None, NoneType);
-        let t_enumerate = func(
+        let t_enumerate = no_var_func(
             vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
-            None,
             vec![kw(KW_START, Int)],
             poly(ENUMERATE, vec![ty_tp(T.clone())]),
         )
@@ -122,21 +110,19 @@ impl Context {
             poly(FROZENSET, vec![ty_tp(T.clone())]),
         )
         .quantify();
-        let getattr_t = func(
+        let getattr_t = no_var_func(
             vec![kw(KW_OBJ, Obj), kw(KW_NAME, Str)],
-            None,
             vec![kw_default(KW_DEFAULT, T.clone(), Obj)],
             T.clone(),
         )
         .quantify();
-        let hasattr_t = func(vec![kw(KW_OBJ, Obj), kw(KW_NAME, Str)], None, vec![], Bool);
+        let hasattr_t = no_var_func(vec![kw(KW_OBJ, Obj), kw(KW_NAME, Str)], vec![], Bool);
         let t_hash = func1(mono(HASH), Int);
-        let t_if = func(
+        let t_if = no_var_func(
             vec![
                 kw(KW_COND, Bool),
                 kw(KW_THEN, nd_func(vec![], None, T.clone())),
             ],
-            None,
             vec![kw_default(
                 KW_ELSE,
                 nd_func(vec![], None, U.clone()),
@@ -145,7 +131,7 @@ impl Context {
             or(T.clone(), U.clone()),
         )
         .quantify();
-        let t_int = func(vec![kw(KW_OBJ, Obj)], None, vec![kw(KW_BASE, Nat)], Int);
+        let t_int = no_var_func(vec![kw(KW_OBJ, Obj)], vec![kw(KW_BASE, Nat)], Int);
         let t_import = nd_func(
             vec![anon(tp_enum(Str, set! {Path.clone()}))],
             None,
@@ -191,6 +177,7 @@ impl Context {
                 kw(KW_FILE, mono(WRITE)),
                 kw(KW_FLUSH, Bool),
             ],
+            None,
             NoneType,
         );
         let t_map = nd_func(
@@ -251,7 +238,7 @@ impl Context {
             None,
             Code,
         );
-        let t_quit = func(vec![], None, vec![kw(KW_CODE, Int)], Never);
+        let t_quit = no_var_func(vec![], vec![kw(KW_CODE, Int)], Never);
         let t_exit = t_quit.clone();
         let t_repr = nd_func(vec![kw(KW_OBJECT, Obj)], None, Str);
         let t_reversed = nd_func(
@@ -261,16 +248,14 @@ impl Context {
         )
         .quantify();
         let t_round = nd_func(vec![kw(KW_NUMBER, Float)], None, Int);
-        let t_set = func(
+        let t_set = no_var_func(
             vec![],
-            None,
             vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
             set_t(T.clone(), TyParam::erased(Nat)),
         )
         .quantify();
-        let t_slice = func(
+        let t_slice = no_var_func(
             vec![kw(KW_START, Int)],
-            None,
             vec![kw(KW_STOP, Int), kw(KW_STEP, Int)],
             mono(SLICE),
         );
@@ -284,9 +269,8 @@ impl Context {
         let t_str = nd_func(vec![kw(KW_OBJECT, Obj)], None, Str);
         let A = mono_q(TY_A, Constraint::Uninited);
         let A = mono_q(TY_A, subtypeof(poly(ADD, vec![ty_tp(A)])));
-        let t_sum = func(
+        let t_sum = no_var_func(
             vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(A.clone())]))],
-            None,
             vec![kw_default(KW_START, or(A.clone(), Int), Int)],
             A,
         )
@@ -600,17 +584,15 @@ impl Context {
         } else {
             Visibility::BUILTIN_PRIVATE
         };
-        let class_t = func(
+        let class_t = no_var_func(
             vec![],
-            None,
             vec![kw(KW_REQUIREMENT, or(Type, Ellipsis)), kw(KW_IMPL, Type)],
             ClassType,
         );
         let class = ConstSubr::Builtin(BuiltinConstSubr::new(CLASS, class_func, class_t, None));
         self.register_builtin_const(CLASS, vis.clone(), ValueObj::Subr(class));
-        let inherit_t = func(
+        let inherit_t = no_var_func(
             vec![kw(KW_SUPER, ClassType)],
-            None,
             vec![kw(KW_IMPL, Type), kw(KW_ADDITIONAL, Type)],
             ClassType,
         );
@@ -621,17 +603,15 @@ impl Context {
             None,
         ));
         self.register_builtin_const(INHERIT, vis.clone(), ValueObj::Subr(inherit));
-        let trait_t = func(
+        let trait_t = no_var_func(
             vec![kw(KW_REQUIREMENT, Type)],
-            None,
             vec![kw(KW_IMPL, Type)],
             TraitType,
         );
         let trait_ = ConstSubr::Builtin(BuiltinConstSubr::new(TRAIT, trait_func, trait_t, None));
         self.register_builtin_const(TRAIT, vis.clone(), ValueObj::Subr(trait_));
-        let subsume_t = func(
+        let subsume_t = no_var_func(
             vec![kw(KW_SUPER, TraitType)],
-            None,
             vec![kw(KW_IMPL, Type), kw(KW_ADDITIONAL, Type)],
             TraitType,
         );
@@ -670,9 +650,8 @@ impl Context {
         // TODO: register Del function object
         let t_del = nd_func(vec![kw(KW_OBJ, Obj)], None, NoneType);
         self.register_builtin_erg_impl(DEL, t_del, Immutable, vis.clone());
-        let patch_t = func(
+        let patch_t = no_var_func(
             vec![kw(KW_REQUIREMENT, Type)],
-            None,
             vec![kw(KW_IMPL, Type)],
             TraitType,
         );
@@ -681,9 +660,8 @@ impl Context {
     }
 
     pub(super) fn init_builtin_py_specific_funcs(&mut self) {
-        let setattr_t = func(
+        let setattr_t = no_var_func(
             vec![kw(KW_OBJ, Obj), kw(KW_NAME, Str), kw(KW_VALUE, Obj)],
-            None,
             vec![],
             NoneType,
         );
@@ -694,12 +672,7 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             None,
         );
-        let delattr_t = func(
-            vec![kw(KW_OBJ, Obj), kw(KW_NAME, Str)],
-            None,
-            vec![],
-            NoneType,
-        );
+        let delattr_t = no_var_func(vec![kw(KW_OBJ, Obj), kw(KW_NAME, Str)], vec![], NoneType);
         self.register_builtin_py_impl(
             FUNC_DELATTR,
             delattr_t,

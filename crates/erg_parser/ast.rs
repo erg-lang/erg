@@ -175,6 +175,7 @@ pub struct Args {
     pos_args: Vec<PosArg>,
     pub(crate) var_args: Option<Box<PosArg>>,
     kw_args: Vec<KwArg>,
+    pub(crate) kw_var_args: Option<Box<PosArg>>,
     // these are for ELS
     pub paren: Option<(Token, Token)>,
 }
@@ -213,18 +214,20 @@ impl Args {
         pos_args: Vec<PosArg>,
         var_args: Option<PosArg>,
         kw_args: Vec<KwArg>,
+        kw_var_args: Option<PosArg>,
         paren: Option<(Token, Token)>,
     ) -> Self {
         Self {
             pos_args,
             var_args: var_args.map(Box::new),
             kw_args,
+            kw_var_args: kw_var_args.map(Box::new),
             paren,
         }
     }
 
     pub fn pos_only(pos_arg: Vec<PosArg>, paren: Option<(Token, Token)>) -> Self {
-        Self::new(pos_arg, None, vec![], paren)
+        Self::new(pos_arg, None, vec![], None, paren)
     }
 
     pub fn single(pos_args: PosArg) -> Self {
@@ -232,7 +235,7 @@ impl Args {
     }
 
     pub fn empty() -> Self {
-        Self::new(vec![], None, vec![], None)
+        Self::new(vec![], None, vec![], None, None)
     }
 
     // for replacing to hir::Args
@@ -243,12 +246,14 @@ impl Args {
         Vec<PosArg>,
         Option<PosArg>,
         Vec<KwArg>,
+        Option<PosArg>,
         Option<(Token, Token)>,
     ) {
         (
             self.pos_args,
             self.var_args.map(|x| *x),
             self.kw_args,
+            self.kw_var_args.map(|x| *x),
             self.paren,
         )
     }
@@ -311,6 +316,10 @@ impl Args {
 
     pub fn push_kw(&mut self, arg: KwArg) {
         self.kw_args.push(arg);
+    }
+
+    pub fn set_kw_var(&mut self, arg: PosArg) {
+        self.kw_var_args = Some(Box::new(arg));
     }
 
     pub fn set_parens(&mut self, paren: (Token, Token)) {
@@ -2332,6 +2341,7 @@ pub struct ConstArgs {
     pos_args: Vec<ConstPosArg>,
     pub var_args: Option<Box<ConstPosArg>>,
     kw_args: Vec<ConstKwArg>,
+    pub kw_var: Option<Box<ConstPosArg>>,
     paren: Option<(Token, Token)>,
 }
 
@@ -2366,18 +2376,20 @@ impl ConstArgs {
         pos_args: Vec<ConstPosArg>,
         var_args: Option<ConstPosArg>,
         kw_args: Vec<ConstKwArg>,
+        kw_var: Option<ConstPosArg>,
         paren: Option<(Token, Token)>,
     ) -> Self {
         Self {
             pos_args,
             var_args: var_args.map(Box::new),
             kw_args,
+            kw_var: kw_var.map(Box::new),
             paren,
         }
     }
 
     pub fn pos_only(pos_args: Vec<ConstPosArg>, paren: Option<(Token, Token)>) -> Self {
-        Self::new(pos_args, None, vec![], paren)
+        Self::new(pos_args, None, vec![], None, paren)
     }
 
     pub fn single(expr: ConstExpr) -> Self {
@@ -2391,18 +2403,20 @@ impl ConstArgs {
         Vec<ConstPosArg>,
         Option<ConstPosArg>,
         Vec<ConstKwArg>,
+        Option<ConstPosArg>,
         Option<(Token, Token)>,
     ) {
         (
             self.pos_args,
             self.var_args.map(|x| *x),
             self.kw_args,
+            self.kw_var.map(|x| *x),
             self.paren,
         )
     }
 
     pub fn empty() -> Self {
-        Self::new(vec![], None, vec![], None)
+        Self::new(vec![], None, vec![], None, None)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -2435,7 +2449,7 @@ impl ConstArgs {
     }
 
     pub fn downgrade(self) -> Args {
-        let (pos_args, var_args, kw_args, paren) = self.deconstruct();
+        let (pos_args, var_args, kw_args, kw_var, paren) = self.deconstruct();
         Args::new(
             pos_args
                 .into_iter()
@@ -2447,6 +2461,7 @@ impl ConstArgs {
                 // TODO t_spec
                 .map(|arg| KwArg::new(arg.keyword, None, arg.expr.downgrade()))
                 .collect(),
+            kw_var.map(|arg| PosArg::new(arg.expr.downgrade())),
             paren,
         )
     }
@@ -2622,6 +2637,7 @@ pub struct SubrTypeSpec {
     pub non_defaults: Vec<ParamTySpec>,
     pub var_params: Option<Box<ParamTySpec>>,
     pub defaults: Vec<DefaultParamTySpec>,
+    pub kw_var_params: Option<Box<ParamTySpec>>,
     pub arrow: Token,
     pub return_t: Box<TypeSpec>,
 }
@@ -2633,10 +2649,11 @@ impl fmt::Display for SubrTypeSpec {
         }
         write!(
             f,
-            "({}, {}, {}) {} {}",
+            "({}, {}{}{}) {} {}",
             fmt_vec(&self.non_defaults),
-            fmt_option!(pre "*", &self.var_params),
+            fmt_option!("*", &self.var_params, ", "),
             fmt_vec(&self.defaults),
+            fmt_option!(pre ", **", &self.kw_var_params),
             self.arrow.content,
             self.return_t
         )
@@ -2662,12 +2679,14 @@ impl Locational for SubrTypeSpec {
 }
 
 impl SubrTypeSpec {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         bounds: TypeBoundSpecs,
         lparen: Option<Token>,
         non_defaults: Vec<ParamTySpec>,
         var_params: Option<ParamTySpec>,
         defaults: Vec<DefaultParamTySpec>,
+        kw_var_params: Option<ParamTySpec>,
         arrow: Token,
         return_t: TypeSpec,
     ) -> Self {
@@ -2677,6 +2696,7 @@ impl SubrTypeSpec {
             non_defaults,
             var_params: var_params.map(Box::new),
             defaults,
+            kw_var_params: kw_var_params.map(Box::new),
             arrow,
             return_t: Box::new(return_t),
         }
@@ -2993,6 +3013,7 @@ impl TypeSpec {
                 .collect(),
             None,
             vec![],
+            None,
             None,
         ))
     }
@@ -4225,6 +4246,7 @@ pub struct Params {
     pub non_defaults: Vec<NonDefaultParamSignature>,
     pub var_params: Option<Box<NonDefaultParamSignature>>,
     pub defaults: Vec<DefaultParamSignature>,
+    pub kw_var_params: Option<Box<NonDefaultParamSignature>>,
     /// match conditions
     pub guards: Vec<GuardClause>,
     pub parens: Option<(Token, Token)>,
@@ -4238,6 +4260,9 @@ impl fmt::Display for Params {
         }
         if !self.defaults.is_empty() {
             write!(f, ", {}", fmt_vec(&self.defaults))?;
+        }
+        if let Some(kw_var_params) = &self.kw_var_params {
+            write!(f, ", **{kw_var_params}")?;
         }
         if !self.guards.is_empty() {
             write!(f, " if ")?;
@@ -4280,6 +4305,7 @@ type RawParams = (
     Vec<NonDefaultParamSignature>,
     Option<Box<NonDefaultParamSignature>>,
     Vec<DefaultParamSignature>,
+    Option<Box<NonDefaultParamSignature>>,
     Vec<GuardClause>,
     Option<(Token, Token)>,
 );
@@ -4289,19 +4315,21 @@ impl Params {
         non_defaults: Vec<NonDefaultParamSignature>,
         var_params: Option<NonDefaultParamSignature>,
         defaults: Vec<DefaultParamSignature>,
+        kw_var_params: Option<NonDefaultParamSignature>,
         parens: Option<(Token, Token)>,
     ) -> Self {
         Self {
             non_defaults,
             var_params: var_params.map(Box::new),
             defaults,
+            kw_var_params: kw_var_params.map(Box::new),
             guards: Vec::new(),
             parens,
         }
     }
 
     pub fn single(non_default: NonDefaultParamSignature) -> Self {
-        Self::new(vec![non_default], None, vec![], None)
+        Self::new(vec![non_default], None, vec![], None, None)
     }
 
     pub fn deconstruct(self) -> RawParams {
@@ -4309,6 +4337,7 @@ impl Params {
             self.non_defaults,
             self.var_params,
             self.defaults,
+            self.kw_var_params,
             self.guards,
             self.parens,
         )
@@ -4471,7 +4500,7 @@ impl LambdaSignature {
     pub fn do_sig(do_symbol: &Token) -> Self {
         let parens = Some((do_symbol.clone(), do_symbol.clone()));
         Self::new(
-            Params::new(vec![], None, vec![], parens),
+            Params::new(vec![], None, vec![], None, parens),
             None,
             TypeBoundSpecs::empty(),
         )

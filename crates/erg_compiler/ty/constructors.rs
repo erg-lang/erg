@@ -1,5 +1,6 @@
 use std::convert::TryInto;
 
+use erg_common::dict;
 use erg_common::fresh::FRESH_GEN;
 
 use crate::ty::*;
@@ -53,6 +54,10 @@ pub fn unknown_len_array_t(elem_t: Type) -> Type {
 
 pub fn unknown_len_array_mut(elem_t: Type) -> Type {
     array_mut(elem_t, TyParam::erased(Type::Nat))
+}
+
+pub fn str_dict_t(value: Type) -> Type {
+    dict! { Type::Str => value }.into()
 }
 
 /// `UnsizedArray` is a type of `[x; _]` (unsized array literal).
@@ -226,6 +231,7 @@ pub fn subr_t(
     non_default_params: Vec<ParamTy>,
     var_params: Option<ParamTy>,
     default_params: Vec<ParamTy>,
+    kw_var_params: Option<ParamTy>,
     return_t: Type,
 ) -> Type {
     Type::Subr(SubrType::new(
@@ -233,6 +239,7 @@ pub fn subr_t(
         non_default_params,
         var_params,
         default_params,
+        kw_var_params,
         return_t,
     ))
 }
@@ -241,6 +248,7 @@ pub fn func(
     non_default_params: Vec<ParamTy>,
     var_params: Option<ParamTy>,
     default_params: Vec<ParamTy>,
+    kw_var_params: Option<ParamTy>,
     return_t: Type,
 ) -> Type {
     Type::Subr(SubrType::new(
@@ -248,16 +256,25 @@ pub fn func(
         non_default_params,
         var_params,
         default_params,
+        kw_var_params,
         return_t,
     ))
 }
 
+pub fn no_var_func(
+    non_default_params: Vec<ParamTy>,
+    default_params: Vec<ParamTy>,
+    return_t: Type,
+) -> Type {
+    func(non_default_params, None, default_params, None, return_t)
+}
+
 pub fn func0(return_t: Type) -> Type {
-    func(vec![], None, vec![], return_t)
+    func(vec![], None, vec![], None, return_t)
 }
 
 pub fn func1(param_t: Type, return_t: Type) -> Type {
-    func(vec![ParamTy::Pos(param_t)], None, vec![], return_t)
+    func(vec![ParamTy::Pos(param_t)], None, vec![], None, return_t)
 }
 
 pub fn kind1(param: Type) -> Type {
@@ -269,6 +286,7 @@ pub fn func2(l: Type, r: Type, return_t: Type) -> Type {
         vec![ParamTy::Pos(l), ParamTy::Pos(r)],
         None,
         vec![],
+        None,
         return_t,
     )
 }
@@ -288,6 +306,7 @@ pub fn proc(
     non_default_params: Vec<ParamTy>,
     var_params: Option<ParamTy>,
     default_params: Vec<ParamTy>,
+    kw_var_params: Option<ParamTy>,
     return_t: Type,
 ) -> Type {
     Type::Subr(SubrType::new(
@@ -295,16 +314,25 @@ pub fn proc(
         non_default_params,
         var_params,
         default_params,
+        kw_var_params,
         return_t,
     ))
 }
 
+pub fn no_var_proc(
+    non_default_params: Vec<ParamTy>,
+    default_params: Vec<ParamTy>,
+    return_t: Type,
+) -> Type {
+    proc(non_default_params, None, default_params, None, return_t)
+}
+
 pub fn proc0(return_t: Type) -> Type {
-    proc(vec![], None, vec![], return_t)
+    proc(vec![], None, vec![], None, return_t)
 }
 
 pub fn proc1(param_t: Type, return_t: Type) -> Type {
-    proc(vec![ParamTy::Pos(param_t)], None, vec![], return_t)
+    proc(vec![ParamTy::Pos(param_t)], None, vec![], None, return_t)
 }
 
 pub fn proc2(l: Type, r: Type, return_t: Type) -> Type {
@@ -312,6 +340,7 @@ pub fn proc2(l: Type, r: Type, return_t: Type) -> Type {
         vec![ParamTy::Pos(l), ParamTy::Pos(r)],
         None,
         vec![],
+        None,
         return_t,
     )
 }
@@ -321,6 +350,7 @@ pub fn fn_met(
     mut non_default_params: Vec<ParamTy>,
     var_params: Option<ParamTy>,
     default_params: Vec<ParamTy>,
+    kw_var_params: Option<ParamTy>,
     return_t: Type,
 ) -> Type {
     non_default_params.insert(0, ParamTy::kw(Str::ever("self"), self_t));
@@ -329,20 +359,44 @@ pub fn fn_met(
         non_default_params,
         var_params,
         default_params,
+        kw_var_params,
         return_t,
     ))
 }
 
+pub fn no_var_fn_met(
+    self_t: Type,
+    non_default_params: Vec<ParamTy>,
+    default_params: Vec<ParamTy>,
+    return_t: Type,
+) -> Type {
+    fn_met(
+        self_t,
+        non_default_params,
+        None,
+        default_params,
+        None,
+        return_t,
+    )
+}
+
 pub fn fn0_met(self_t: Type, return_t: Type) -> Type {
-    fn_met(self_t, vec![], None, vec![], return_t)
+    fn_met(self_t, vec![], None, vec![], None, return_t)
 }
 
 pub fn fn1_met(self_t: Type, input_t: Type, return_t: Type) -> Type {
-    fn_met(self_t, vec![ParamTy::Pos(input_t)], None, vec![], return_t)
+    fn_met(
+        self_t,
+        vec![ParamTy::Pos(input_t)],
+        None,
+        vec![],
+        None,
+        return_t,
+    )
 }
 
 pub fn fn1_kw_met(self_t: Type, input: ParamTy, return_t: Type) -> Type {
-    fn_met(self_t, vec![input], None, vec![], return_t)
+    fn_met(self_t, vec![input], None, vec![], None, return_t)
 }
 
 pub fn pr_met(
@@ -358,6 +412,7 @@ pub fn pr_met(
         non_default_params,
         var_params,
         default_params,
+        None,
         return_t,
     ))
 }
@@ -377,17 +432,17 @@ pub fn pr1_kw_met(self_t: Type, input: ParamTy, return_t: Type) -> Type {
 /// function type with non-default parameters
 #[inline]
 pub fn nd_func(params: Vec<ParamTy>, var_params: Option<ParamTy>, ret: Type) -> Type {
-    func(params, var_params, vec![], ret)
+    func(params, var_params, vec![], None, ret)
 }
 
 #[inline]
 pub fn nd_proc(params: Vec<ParamTy>, var_params: Option<ParamTy>, ret: Type) -> Type {
-    proc(params, var_params, vec![], ret)
+    proc(params, var_params, vec![], None, ret)
 }
 
 #[inline]
 pub fn d_func(default_params: Vec<ParamTy>, return_t: Type) -> Type {
-    func(vec![], None, default_params, return_t)
+    func(vec![], None, default_params, None, return_t)
 }
 
 #[inline]

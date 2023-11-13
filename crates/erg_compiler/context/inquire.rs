@@ -519,9 +519,9 @@ impl Context {
         let param_ty = ParamTy::Pos(match_target_expr_t.clone());
         let param_ts = [vec![param_ty], branch_ts.to_vec()].concat();
         let t = if kind.is_func() {
-            func(param_ts, None, vec![], return_t)
+            func(param_ts, None, vec![], None, return_t)
         } else {
-            proc(param_ts, None, vec![], return_t)
+            proc(param_ts, None, vec![], None, return_t)
         };
         let vi = VarInfo {
             t,
@@ -985,6 +985,7 @@ impl Context {
                     vec![],
                     Some(ParamTy::Pos(ref_(Obj))),
                     vec![],
+                    Some(ParamTy::Pos(ref_(Obj))),
                     Failure,
                 )),
                 ..VarInfo::default()
@@ -1019,6 +1020,7 @@ impl Context {
                     vec![],
                     Some(ParamTy::Pos(ref_(Obj))),
                     vec![],
+                    Some(ParamTy::Pos(ref_(Obj))),
                     Failure,
                 )),
                 ..VarInfo::default()
@@ -1057,6 +1059,7 @@ impl Context {
                     .iter()
                     .map(|kw| ParamTy::kw(kw.keyword.content.clone(), kw.expr.t()))
                     .collect(),
+                None,
                 Obj,
             );
             for ty in intersecs.iter() {
@@ -1130,7 +1133,7 @@ impl Context {
                 })
                 .collect::<Vec<_>>();
             let return_t = free_var(self.level, Constraint::new_type_of(Type));
-            let subr_t = fn_met(obj.t(), nd_params, None, d_params, return_t);
+            let subr_t = fn_met(obj.t(), nd_params, None, d_params, None, return_t);
             if let Some(fv) = obj.ref_t().as_free() {
                 if fv.get_sub().is_some() {
                     let vis = self.instantiate_vis_modifier(&attr_name.vis).unwrap();
@@ -1669,7 +1672,7 @@ impl Context {
                     };
                     let ret_t = free_var(self.level, Constraint::new_type_of(Type));
                     let non_default_params = pos_args.iter().map(|a| anon(a.expr.t())).collect();
-                    let subr_t = subr_t(kind, non_default_params, None, vec![], ret_t);
+                    let subr_t = subr_t(kind, non_default_params, None, vec![], None, ret_t);
                     self.occur(&subr_t, instance, obj)?;
                     instance.destructive_link(&subr_t);
                     Ok(SubstituteResult::Ok)
@@ -1704,7 +1707,7 @@ impl Context {
                     subr.non_default_params.len() + subr.default_params.len()
                 };
                 if (params_len < pos_args.len() || params_len < pos_args.len() + kw_args.len())
-                    && subr.var_params.is_none()
+                    && subr.is_no_var()
                 {
                     return Err(
                         self.gen_too_many_args_error(&callee, subr, is_method, pos_args, kw_args)
@@ -2183,6 +2186,8 @@ impl Context {
                             .collect(),
                     )
                 })?;
+        } else if let Some(kw_var) = subr_ty.kw_var_params.as_deref() {
+            self.sub_unify(arg_t, kw_var.typ(), arg, Some(kw_name))?;
         } else {
             let similar =
                 levenshtein::get_similar_name(subr_ty.param_names(), arg.keyword.inspect());
@@ -3360,8 +3365,9 @@ impl Context {
                             let subr = SubrType::new(
                                 subr.kind,
                                 subr.non_default_params.clone(),
-                                subr.var_params.as_ref().map(|p| *p.clone()),
+                                subr.var_params.as_deref().cloned(),
                                 subr.default_params.clone(),
+                                subr.kw_var_params.as_deref().cloned(),
                                 ret_t,
                             );
                             Type::Subr(subr)

@@ -1,5 +1,6 @@
 time = pyimport "time"
 tqdm = pyimport "tqdm"
+j2 = pyimport "jinja2"
 
 for! tqdm.Tqdm!(0..<10), _ =>
     time.sleep! 0.00001
@@ -10,3 +11,6 @@ discard plt.plot! 0..<10, [2, 3, 2, 3, 2, 3, 2, 3, 2, 3]
 discard plt.title! "My Plot"
 discard plt.xlabel! "X"
 # plt.show!()
+
+res = j2.Template("Hello {{ name }}!").render(name:="World")
+assert res == "Hello World!"

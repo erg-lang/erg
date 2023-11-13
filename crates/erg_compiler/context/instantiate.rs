@@ -455,6 +455,10 @@ impl Context {
                     .into_iter()
                     .map(|pt| pt.try_map_type(|t| self.instantiate_t_inner(t, tmp_tv_cache, loc)))
                     .collect::<TyCheckResult<_>>()?;
+                let kw_var_params = lambda
+                    .kw_var_params
+                    .map(|pt| pt.try_map_type(|t| self.instantiate_t_inner(t, tmp_tv_cache, loc)))
+                    .transpose()?;
                 let body = lambda
                     .body
                     .into_iter()
@@ -465,6 +469,7 @@ impl Context {
                     nd_params,
                     var_params,
                     d_params,
+                    kw_var_params,
                     body,
                 )))
             }
@@ -728,6 +733,7 @@ impl Context {
                     subr.non_default_params,
                     subr.var_params.map(|p| *p),
                     subr.default_params,
+                    subr.kw_var_params.map(|p| *p),
                     return_t,
                 );
                 Ok(res)

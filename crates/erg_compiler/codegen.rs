@@ -1026,6 +1026,14 @@ impl PyCodeGenerator {
                     .iter()
                     .map(|p| (p.inspect().map(|s| &s[..]).unwrap_or("_"), &p.sig.vi)),
             )
+            .chain(if let Some(kw_var_args) = &params.kw_var_params {
+                vec![(
+                    kw_var_args.inspect().map(|s| &s[..]).unwrap_or("_"),
+                    &kw_var_args.vi,
+                )]
+            } else {
+                vec![]
+            })
             .enumerate()
             .map(|(i, (s, vi))| {
                 if s == "_" {
@@ -1405,11 +1413,13 @@ impl PyCodeGenerator {
             self.stack_dec_n(defaults_len - 1);
             make_function_flag += MakeFunctionFlags::Defaults as usize;
         }
-        let flags = if sig.params.var_params.is_some() {
-            CodeObjFlags::VarArgs as u32
-        } else {
-            0
-        };
+        let mut flags = 0;
+        if sig.params.var_params.is_some() {
+            flags += CodeObjFlags::VarArgs as u32;
+        }
+        if sig.params.kw_var_params.is_some() {
+            flags += CodeObjFlags::VarKeywords as u32;
+        }
         let code = self.emit_block(
             body.block,
             sig.params.guards,
@@ -3432,7 +3442,7 @@ impl PyCodeGenerator {
                 "?".into(),
             );
             let param = NonDefaultParamSignature::new(raw, vi, None);
-            let params = Params::new(vec![self_param, param], None, vec![], vec![], None);
+            let params = Params::new(vec![self_param, param], None, vec![], None, vec![], None);
             (param_name, params)
         } else {
             ("_".into(), Params::single(self_param))

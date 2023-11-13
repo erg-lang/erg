@@ -1,0 +1,4 @@
+kw_var(**x: Int) = x["::a"] + x["::b"]
+
+_ = kw_var(a:="1", b:=2) # ERR
+_ = kw_var(a:=1, b:="2") # ERR

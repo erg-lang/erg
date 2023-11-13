@@ -280,8 +280,9 @@ impl CodeObj {
     ) -> Self {
         let name = name.into();
         let var_args_defined = (flags & CodeObjFlags::VarArgs as u32 != 0) as u32;
+        let kw_var_args_defined = (flags & CodeObjFlags::VarKeywords as u32 != 0) as u32;
         Self {
-            argcount: params.len() as u32 - var_args_defined,
+            argcount: params.len() as u32 - var_args_defined - kw_var_args_defined,
             posonlyargcount: 0,
             kwonlyargcount: 0,
             nlocals: params.len() as u32,

@@ -20,9 +20,8 @@ impl Context {
         };
         let T = mono_q("T", instanceof(Type));
         let U = mono_q("U", instanceof(Type));
-        let t_dir = proc(
+        let t_dir = no_var_proc(
             vec![kw("obj", ref_(Obj))],
-            None,
             vec![],
             array_t(Str, TyParam::erased(Nat)),
         );
@@ -35,16 +34,16 @@ impl Context {
                 kw("file", mono("Writable!")),
                 kw("flush", Bool),
             ],
+            None,
             NoneType,
         );
         let t_id = nd_func(vec![kw("old", Obj)], None, Nat);
-        let t_input = proc(vec![], None, vec![kw("msg", Str)], Str);
-        let t_if = proc(
+        let t_input = no_var_proc(vec![], vec![kw("msg", Str)], Str);
+        let t_if = no_var_proc(
             vec![
                 kw("cond", Bool),
                 kw("then", nd_proc(vec![], None, T.clone())),
             ],
-            None,
             vec![kw_default(
                 "else",
                 nd_proc(vec![], None, U.clone()),
@@ -62,8 +61,8 @@ impl Context {
             NoneType,
         )
         .quantify();
-        let t_globals = proc(vec![], None, vec![], dict! { Str => Obj }.into());
-        let t_locals = proc(vec![], None, vec![], dict! { Str => Obj }.into());
+        let t_globals = no_var_proc(vec![], vec![], dict! { Str => Obj }.into());
+        let t_locals = no_var_proc(vec![], vec![], dict! { Str => Obj }.into());
         let t_next = nd_proc(
             vec![kw(
                 "iterable",
@@ -88,9 +87,8 @@ impl Context {
             NoneType,
         );
         let P = mono_q("P", subtypeof(mono("PathLike")));
-        let t_open = proc(
+        let t_open = no_var_proc(
             vec![kw("file", P)],
-            None,
             vec![
                 kw("mode", Str),
                 kw("buffering", Int),

@@ -124,7 +124,10 @@ fn exec_empty_check() -> Result<(), ()> {
 #[test]
 fn exec_external() -> Result<(), ()> {
     let py_command = opt_which_python().unwrap();
-    if module_exists(&py_command, "matplotlib") && module_exists(&py_command, "tqdm") {
+    if module_exists(&py_command, "matplotlib")
+        && module_exists(&py_command, "tqdm")
+        && module_exists(&py_command, "jinja2")
+    {
         expect_success("tests/should_ok/external.er", 0)
     } else {
         expect_compile_success("tests/should_ok/external.er", 0)
@@ -408,6 +411,11 @@ fn exec_var_args() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_var_kwargs() -> Result<(), ()> {
+    expect_success("tests/should_ok/var_kwargs.er", 0)
+}
+
+#[test]
 fn exec_with() -> Result<(), ()> {
     expect_success("examples/with.er", 0)
 }
@@ -616,6 +624,11 @@ fn exec_refinement_class_err() -> Result<(), ()> {
 #[test]
 fn exec_var_args_err() -> Result<(), ()> {
     expect_failure("tests/should_err/var_args.er", 0, 3)
+}
+
+#[test]
+fn exec_var_kwargs_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/var_kwargs.er", 0, 2)
 }
 
 #[test]

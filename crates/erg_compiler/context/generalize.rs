@@ -99,6 +99,9 @@ impl Generalizer {
                     .into_iter()
                     .map(|pt| pt.map_type(|t| self.generalize_t(t, uninit)))
                     .collect::<Vec<_>>();
+                let kw_var_params = lambda
+                    .kw_var_params
+                    .map(|pt| pt.map_type(|t| self.generalize_t(t, uninit)));
                 let body = lambda
                     .body
                     .into_iter()
@@ -109,6 +112,7 @@ impl Generalizer {
                     nd_params,
                     var_params,
                     d_params,
+                    kw_var_params,
                     body,
                 ))
             }
@@ -213,6 +217,7 @@ impl Generalizer {
                     subr.non_default_params,
                     subr.var_params.map(|x| *x),
                     subr.default_params,
+                    subr.kw_var_params.map(|x| *x),
                     return_t,
                 )
             }
@@ -496,6 +501,10 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                     .into_iter()
                     .map(|pt| pt.try_map_type(|t| self.deref_tyvar(t)))
                     .collect::<TyCheckResult<_>>()?;
+                let kw_var_params = lambda
+                    .kw_var_params
+                    .map(|pt| pt.try_map_type(|t| self.deref_tyvar(t)))
+                    .transpose()?;
                 let body = lambda
                     .body
                     .into_iter()
@@ -506,6 +515,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                     nd_params,
                     var_params,
                     d_params,
+                    kw_var_params,
                     body,
                 )))
             }

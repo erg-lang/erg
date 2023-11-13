@@ -4,7 +4,7 @@ use std::hash::{Hash, Hasher};
 use std::mem;
 use std::sync::atomic::AtomicUsize;
 
-use erg_common::consts::{BACKTRACE_MODE, DEBUG_MODE};
+use erg_common::consts::DEBUG_MODE;
 use erg_common::shared::Forkable;
 use erg_common::traits::{LimitedDisplay, StructuralEq};
 use erg_common::{addr, Str};
@@ -382,7 +382,7 @@ impl<T: LimitedDisplay> LimitedDisplay for FreeKind<T> {
         }
         match self {
             Self::Linked(t) | Self::UndoableLinked { t, .. } => {
-                if DEBUG_MODE || BACKTRACE_MODE {
+                if DEBUG_MODE {
                     write!(f, "(")?;
                     t.limited_fmt(f, limit)?;
                     write!(f, ")")
@@ -397,14 +397,14 @@ impl<T: LimitedDisplay> LimitedDisplay for FreeKind<T> {
             } => {
                 if *lev == GENERIC_LEVEL {
                     write!(f, "{name}")?;
-                    if DEBUG_MODE || BACKTRACE_MODE {
+                    if DEBUG_MODE {
                         write!(f, "(")?;
                         constraint.limited_fmt(f, limit - 1)?;
                         write!(f, ")")?;
                     }
                 } else {
                     write!(f, "?{name}")?;
-                    if DEBUG_MODE || BACKTRACE_MODE {
+                    if DEBUG_MODE {
                         write!(f, "(")?;
                         constraint.limited_fmt(f, limit - 1)?;
                         write!(f, ")")?;
@@ -420,14 +420,14 @@ impl<T: LimitedDisplay> LimitedDisplay for FreeKind<T> {
             } => {
                 if *lev == GENERIC_LEVEL {
                     write!(f, "%{id}")?;
-                    if DEBUG_MODE || BACKTRACE_MODE {
+                    if DEBUG_MODE {
                         write!(f, "(")?;
                         constraint.limited_fmt(f, limit - 1)?;
                         write!(f, ")")?;
                     }
                 } else {
                     write!(f, "?{id}")?;
-                    if DEBUG_MODE || BACKTRACE_MODE {
+                    if DEBUG_MODE {
                         write!(f, "(")?;
                         constraint.limited_fmt(f, limit - 1)?;
                         write!(f, ")")?;

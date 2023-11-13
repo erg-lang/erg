@@ -941,6 +941,24 @@ impl Context {
                 }
             }
         }
+        let kw_var_params = if let Some(p) = lambda.sig.params.kw_var_params.as_ref() {
+            match self.instantiate_param_ty(
+                p,
+                None,
+                &mut tmp_tv_cache,
+                RegistrationMode::Normal,
+                ParamKind::KwVarParams,
+                false,
+            ) {
+                Ok(pt) => Some(pt),
+                Err((pt, err)) => {
+                    errs.extend(err);
+                    Some(pt)
+                }
+            }
+        } else {
+            None
+        };
         // HACK: should avoid cloning
         let mut lambda_ctx = Context::instant(
             Str::ever("<lambda>"),
@@ -955,6 +973,7 @@ impl Context {
             non_default_params.clone(),
             var_params,
             default_params.clone(),
+            kw_var_params,
             return_t,
         );
         let block =
@@ -1600,12 +1619,20 @@ impl Context {
                         Err((_, errs)) => return Err((Subr(subr), errs)),
                     };
                 }
+                if let Some(kw_var_args) = subr.kw_var_params.as_mut() {
+                    *kw_var_args.typ_mut() =
+                        match self.eval_t_params(mem::take(kw_var_args.typ_mut()), level, t_loc) {
+                            Ok(t) => t,
+                            Err((_, errs)) => return Err((Subr(subr), errs)),
+                        };
+                }
                 match self.eval_t_params(*subr.return_t, level, t_loc) {
                     Ok(return_t) => Ok(subr_t(
                         subr.kind,
                         subr.non_default_params,
                         subr.var_params.map(|v| *v),
                         subr.default_params,
+                        subr.kw_var_params.map(|v| *v),
                         return_t,
                     )),
                     Err((_, errs)) => {
@@ -1614,6 +1641,7 @@ impl Context {
                             subr.non_default_params,
                             subr.var_params.map(|v| *v),
                             subr.default_params,
+                            subr.kw_var_params.map(|v| *v),
                             Failure,
                         );
                         Err((subr, errs))

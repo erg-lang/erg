@@ -215,7 +215,7 @@ impl Parser {
         let mut vars = Vars::empty();
         match tuple {
             Tuple::Normal(tup) => {
-                let (pos_args, _var_args, _kw_args, paren) = tup.elems.deconstruct();
+                let (pos_args, _var_args, _kw_args, _kw_var, paren) = tup.elems.deconstruct();
                 for arg in pos_args {
                     let sig = self
                         .convert_rhs_to_sig(arg.expr)
@@ -333,7 +333,7 @@ impl Parser {
             return Ok(TypeBoundSpecs::empty());
         };
         let mut bounds = vec![];
-        let (pos_args, _var_args, _kw_args, _paren) = args.deconstruct();
+        let (pos_args, _var_args, _kw_args, _kw_var, _paren) = args.deconstruct();
         for arg in pos_args.into_iter() {
             let bound = self
                 .convert_type_arg_to_bound(arg)
@@ -377,8 +377,8 @@ impl Parser {
 
     pub(crate) fn convert_args_to_params(&mut self, args: Args) -> ParseResult<Params> {
         debug_call_info!(self);
-        let (pos_args, var_args, kw_args, parens) = args.deconstruct();
-        let mut params = Params::new(vec![], None, vec![], parens);
+        let (pos_args, var_args, kw_args, kw_var, parens) = args.deconstruct();
+        let mut params = Params::new(vec![], None, vec![], None, parens);
         for (i, arg) in pos_args.into_iter().enumerate() {
             let nd_param = self
                 .convert_pos_arg_to_non_default_param(arg, i == 0)
@@ -386,10 +386,10 @@ impl Parser {
             params.non_defaults.push(nd_param);
         }
         if let Some(var_args) = var_args {
-            let var_args = self
+            let var_params = self
                 .convert_pos_arg_to_non_default_param(var_args, false)
                 .map_err(|_| self.stack_dec(fn_name!()))?;
-            params.var_params = Some(Box::new(var_args));
+            params.var_params = Some(Box::new(var_params));
         }
         // TODO: varargs
         for arg in kw_args.into_iter() {
@@ -397,6 +397,12 @@ impl Parser {
                 .convert_kw_arg_to_default_param(arg)
                 .map_err(|_| self.stack_dec(fn_name!()))?;
             params.defaults.push(d_param);
+        }
+        if let Some(kw_var) = kw_var {
+            let kw_var_params = self
+                .convert_pos_arg_to_non_default_param(kw_var, false)
+                .map_err(|_| self.stack_dec(fn_name!()))?;
+            params.kw_var_params = Some(Box::new(kw_var_params));
         }
         debug_exit_info!(self);
         Ok(params)
@@ -539,7 +545,7 @@ impl Parser {
                 for arg in arr.elems.into_iters().0 {
                     params.push(self.convert_pos_arg_to_non_default_param(arg, false)?);
                 }
-                let params = Params::new(params, None, vec![], None);
+                let params = Params::new(params, None, vec![], None, None);
                 debug_exit_info!(self);
                 Ok(ParamArrayPattern::new(arr.l_sqbr, params, arr.r_sqbr))
             }
@@ -616,7 +622,7 @@ impl Parser {
         match tuple {
             Tuple::Normal(tup) => {
                 let mut params = vec![];
-                let (elems, var_args, _, parens) = tup.elems.deconstruct();
+                let (elems, var_args, _, _, parens) = tup.elems.deconstruct();
                 for arg in elems.into_iter() {
                     params.push(self.convert_pos_arg_to_non_default_param(arg, false)?);
                 }
@@ -626,7 +632,7 @@ impl Parser {
                 } else {
                     None
                 };
-                let params = Params::new(params, var_params, vec![], parens);
+                let params = Params::new(params, var_params, vec![], None, parens);
                 debug_exit_info!(self);
                 Ok(ParamTuplePattern::new(params))
             }
@@ -768,8 +774,8 @@ impl Parser {
         debug_call_info!(self);
         match tuple {
             Tuple::Normal(tup) => {
-                let (pos_args, var_args, kw_args, paren) = tup.elems.deconstruct();
-                let mut params = Params::new(vec![], None, vec![], paren);
+                let (pos_args, var_args, kw_args, kw_var, paren) = tup.elems.deconstruct();
+                let mut params = Params::new(vec![], None, vec![], None, paren);
                 for (i, arg) in pos_args.into_iter().enumerate() {
                     let param = self
                         .convert_pos_arg_to_non_default_param(arg, i == 0)
@@ -787,6 +793,12 @@ impl Parser {
                         .convert_kw_arg_to_default_param(arg)
                         .map_err(|_| self.stack_dec(fn_name!()))?;
                     params.defaults.push(param);
+                }
+                if let Some(kw_var) = kw_var {
+                    let param = self
+                        .convert_pos_arg_to_non_default_param(kw_var, false)
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                    params.kw_var_params = Some(Box::new(param));
                 }
                 debug_exit_info!(self);
                 Ok(params)

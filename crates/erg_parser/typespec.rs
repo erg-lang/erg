@@ -110,7 +110,7 @@ impl Parser {
             },
             Expr::Tuple(tuple) => match tuple {
                 Tuple::Normal(tup) => {
-                    let (elems, _, _, paren) = tup.elems.deconstruct();
+                    let (elems, _, _, _, paren) = tup.elems.deconstruct();
                     let mut const_elems = vec![];
                     for elem in elems.into_iter() {
                         let const_expr = Self::validate_const_expr(elem.expr)?;
@@ -142,7 +142,7 @@ impl Parser {
                     ));
                 };*/
                 let attr_name = call.attr_name;
-                let (pos_args, _, _, paren) = call.args.deconstruct();
+                let (pos_args, _, _, _, paren) = call.args.deconstruct();
                 let mut const_pos_args = vec![];
                 for elem in pos_args.into_iter() {
                     let const_expr = Self::validate_const_expr(elem.expr)?;
@@ -228,7 +228,7 @@ impl Parser {
     pub(crate) fn call_to_predecl_type_spec(call: Call) -> Result<PreDeclTypeSpec, ParseError> {
         match *call.obj {
             Expr::Accessor(Accessor::Ident(ident)) => {
-                let (_pos_args, _var_args, _kw_args, paren) = call.args.deconstruct();
+                let (_pos_args, _var_args, _kw_args, _kw_var, paren) = call.args.deconstruct();
                 let mut pos_args = vec![];
                 for arg in _pos_args.into_iter() {
                     let const_expr = Self::validate_const_expr(arg.expr)?;
@@ -245,6 +245,12 @@ impl Parser {
                     let const_expr = Self::validate_const_expr(arg.expr)?;
                     kw_args.push(ConstKwArg::new(arg.keyword, const_expr));
                 }
+                let kw_var = if let Some(kw_var) = _kw_var {
+                    let const_kw_var = Self::validate_const_expr(kw_var.expr)?;
+                    Some(ConstPosArg::new(const_kw_var))
+                } else {
+                    None
+                };
                 let acc = if let Some(attr) = call.attr_name {
                     ConstAccessor::attr(ConstExpr::Accessor(ConstAccessor::Local(ident)), attr)
                 } else {
@@ -252,7 +258,7 @@ impl Parser {
                 };
                 Ok(PreDeclTypeSpec::poly(
                     acc,
-                    ConstArgs::new(pos_args, var_args, kw_args, paren),
+                    ConstArgs::new(pos_args, var_args, kw_args, kw_var, paren),
                 ))
             }
             other => {
@@ -325,6 +331,20 @@ impl Parser {
             };
             defaults.push(param);
         }
+        let kw_var_params = lambda.sig.params.kw_var_params.map(|kw_var_args| {
+            match (kw_var_args.pat, kw_var_args.t_spec) {
+                (ParamPattern::VarName(name), Some(t_spec_with_op)) => {
+                    ParamTySpec::new(Some(name.into_token()), t_spec_with_op.t_spec)
+                }
+                (ParamPattern::VarName(name), None) => ParamTySpec::anonymous(TypeSpec::mono(
+                    Identifier::new(VisModifierSpec::Private, name),
+                )),
+                (ParamPattern::Discard(_), Some(t_spec_with_op)) => {
+                    ParamTySpec::anonymous(t_spec_with_op.t_spec)
+                }
+                (param, t_spec) => todo!("{param}: {t_spec:?}"),
+            }
+        });
         let return_t = Self::expr_to_type_spec(lambda.body.remove(0))?;
         Ok(SubrTypeSpec::new(
             bounds,
@@ -332,6 +352,7 @@ impl Parser {
             non_defaults,
             var_params,
             defaults,
+            kw_var_params,
             lambda.op,
             return_t,
         ))

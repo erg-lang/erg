@@ -130,6 +130,7 @@ fn test_completion_retrigger() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
+#[exec_new_thread]
 fn test_rename() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = Server::bind_fake_client();
     client.request_initialize()?;
@@ -202,6 +203,7 @@ fn test_hover() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
+#[exec_new_thread]
 fn test_references() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = Server::bind_fake_client();
     client.request_initialize()?;
@@ -298,6 +300,7 @@ fn test_inlay_hint() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
+#[exec_new_thread]
 fn test_dependents_check() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = Server::bind_fake_client();
     client.request_initialize()?;

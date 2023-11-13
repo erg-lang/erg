@@ -170,6 +170,7 @@ pub struct Args {
     pub pos_args: Vec<PosArg>,
     pub var_args: Option<Box<PosArg>>,
     pub kw_args: Vec<KwArg>,
+    pub kw_var: Option<Box<PosArg>>,
     pub paren: Option<(Token, Token)>,
 }
 
@@ -179,11 +180,15 @@ impl NestedDisplay for Args {
             fmt_lines(self.pos_args.iter(), f, level)?;
         }
         if let Some(var_args) = &self.var_args {
-            writeln!(f, "*")?;
+            write!(f, "*")?;
             var_args.fmt_nest(f, level)?;
         }
         if !self.kw_args.is_empty() {
             fmt_lines(self.kw_args.iter(), f, level)?;
+        }
+        if let Some(kw_var) = &self.kw_var {
+            write!(f, "**")?;
+            kw_var.fmt_nest(f, level)?;
         }
         Ok(())
     }
@@ -200,7 +205,7 @@ impl NoTypeDisplay for Args {
                 .fold("".to_string(), |acc, s| acc + &s + ", ");
         }
         if let Some(var_args) = &self.var_args {
-            s += &format!(", ...{}", var_args.to_string_notype());
+            s += &format!(", *{}", var_args.to_string_notype());
         }
         if !self.kw_args.is_empty() {
             s += &self
@@ -208,6 +213,9 @@ impl NoTypeDisplay for Args {
                 .iter()
                 .map(|x| x.to_string_notype())
                 .fold("".to_string(), |acc, s| acc + &s + ", ");
+        }
+        if let Some(kw_var) = &self.kw_var {
+            s += &format!(", **{}", kw_var.to_string_notype());
         }
         s
     }
@@ -245,12 +253,14 @@ impl Args {
         pos_args: Vec<PosArg>,
         var_args: Option<PosArg>,
         kw_args: Vec<KwArg>,
+        kw_var: Option<PosArg>,
         paren: Option<(Token, Token)>,
     ) -> Self {
         Self {
             pos_args,
             var_args: var_args.map(Box::new),
             kw_args,
+            kw_var: kw_var.map(Box::new),
             paren,
         }
     }
@@ -264,11 +274,11 @@ impl Args {
     }
 
     pub fn pos_only(pos_args: Vec<PosArg>, paren: Option<(Token, Token)>) -> Self {
-        Self::new(pos_args, None, vec![], paren)
+        Self::new(pos_args, None, vec![], None, paren)
     }
 
     pub fn empty() -> Self {
-        Self::new(vec![], None, vec![], None)
+        Self::new(vec![], None, vec![], None, None)
     }
 
     #[inline]
@@ -1812,6 +1822,7 @@ pub struct Params {
     pub non_defaults: Vec<NonDefaultParamSignature>,
     pub var_params: Option<Box<NonDefaultParamSignature>>,
     pub defaults: Vec<DefaultParamSignature>,
+    pub kw_var_params: Option<Box<NonDefaultParamSignature>>,
     pub guards: Vec<GuardClause>,
     pub parens: Option<(Token, Token)>,
 }
@@ -1820,10 +1831,11 @@ impl fmt::Display for Params {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "({}, {}, {})",
+            "({}, {}{}{})",
             fmt_vec(&self.non_defaults),
-            fmt_option!(pre "*", &self.var_params),
+            fmt_option!("*", &self.var_params, ", "),
             fmt_vec(&self.defaults),
+            fmt_option!(pre ", **", &self.kw_var_params),
         )?;
         if !self.guards.is_empty() {
             write!(f, " if {}", fmt_vec_split_with(&self.guards, " and "))
@@ -1836,13 +1848,14 @@ impl fmt::Display for Params {
 impl NoTypeDisplay for Params {
     fn to_string_notype(&self) -> String {
         format!(
-            "({}, {}, {})",
+            "({}, {}{}{})",
             fmt_vec(&self.non_defaults),
-            fmt_option!(pre "*", &self.var_params),
+            fmt_option!("*", &self.var_params, ", "),
             self.defaults
                 .iter()
                 .map(|p| p.to_string_notype())
-                .fold("".to_string(), |acc, e| acc + &e + ", ")
+                .fold("".to_string(), |acc, e| acc + &e + ", "),
+            fmt_option!(pre ", **", &self.kw_var_params),
         )
     }
 }
@@ -1875,6 +1888,7 @@ type RawParams = (
     Vec<NonDefaultParamSignature>,
     Option<Box<NonDefaultParamSignature>>,
     Vec<DefaultParamSignature>,
+    Option<Box<NonDefaultParamSignature>>,
     Option<(Token, Token)>,
 );
 
@@ -1882,6 +1896,7 @@ type RefRawParams<'a> = (
     &'a Vec<NonDefaultParamSignature>,
     &'a Option<Box<NonDefaultParamSignature>>,
     &'a Vec<DefaultParamSignature>,
+    &'a Option<Box<NonDefaultParamSignature>>,
     &'a Option<(Token, Token)>,
 );
 
@@ -1890,6 +1905,7 @@ impl Params {
         non_defaults: Vec<NonDefaultParamSignature>,
         var_params: Option<Box<NonDefaultParamSignature>>,
         defaults: Vec<DefaultParamSignature>,
+        kw_var_params: Option<Box<NonDefaultParamSignature>>,
         guards: Vec<GuardClause>,
         parens: Option<(Token, Token)>,
     ) -> Self {
@@ -1897,17 +1913,18 @@ impl Params {
             non_defaults,
             var_params,
             defaults,
+            kw_var_params,
             guards,
             parens,
         }
     }
 
     pub fn empty() -> Self {
-        Self::new(vec![], None, vec![], vec![], None)
+        Self::new(vec![], None, vec![], None, vec![], None)
     }
 
     pub fn single(sig: NonDefaultParamSignature) -> Self {
-        Self::new(vec![sig], None, vec![], vec![], None)
+        Self::new(vec![sig], None, vec![], None, vec![], None)
     }
 
     pub const fn ref_deconstruct(&self) -> RefRawParams {
@@ -1915,6 +1932,7 @@ impl Params {
             &self.non_defaults,
             &self.var_params,
             &self.defaults,
+            &self.kw_var_params,
             &self.parens,
         )
     }
@@ -1931,6 +1949,7 @@ impl Params {
             self.non_defaults,
             self.var_params,
             self.defaults,
+            self.kw_var_params,
             self.parens,
         )
     }

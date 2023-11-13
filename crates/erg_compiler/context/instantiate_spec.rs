@@ -65,15 +65,15 @@ pub enum ParamKind {
     NonDefault,
     Default(Type),
     VarParams,
-    KwParams,
+    KwVarParams,
 }
 
 impl ParamKind {
     pub const fn is_var_params(&self) -> bool {
         matches!(self, ParamKind::VarParams)
     }
-    pub const fn is_kw_params(&self) -> bool {
-        matches!(self, ParamKind::KwParams)
+    pub const fn is_kw_var_params(&self) -> bool {
+        matches!(self, ParamKind::KwVarParams)
     }
     pub const fn is_default(&self) -> bool {
         matches!(self, ParamKind::Default(_))
@@ -302,6 +302,28 @@ impl Context {
                 }
             }
         }
+        let kw_var_args = if let Some(kw_var_args) = sig.params.kw_var_params.as_ref() {
+            let opt_decl_t = opt_decl_sig_t
+                .as_ref()
+                .and_then(|subr| subr.kw_var_params.as_ref().map(|v| v.as_ref()));
+            let pt = match self.instantiate_param_ty(
+                kw_var_args,
+                opt_decl_t,
+                &mut tmp_tv_cache,
+                mode,
+                ParamKind::KwVarParams,
+                false,
+            ) {
+                Ok(pt) => pt,
+                Err((pt, es)) => {
+                    errs.extend(es);
+                    pt
+                }
+            };
+            Some(pt)
+        } else {
+            None
+        };
         let spec_return_t = if let Some(t_spec) = sig.return_t_spec.as_ref() {
             let opt_decl_t = opt_decl_sig_t
                 .as_ref()
@@ -330,9 +352,9 @@ impl Context {
         };
         // tmp_tv_cache.warn_isolated_vars(self);
         let typ = if sig.ident.is_procedural() {
-            proc(non_defaults, var_args, defaults, spec_return_t)
+            proc(non_defaults, var_args, defaults, kw_var_args, spec_return_t)
         } else {
-            func(non_defaults, var_args, defaults, spec_return_t)
+            func(non_defaults, var_args, defaults, kw_var_args, spec_return_t)
         };
         if errs.is_empty() {
             Ok(typ)
@@ -1117,6 +1139,21 @@ impl Context {
                         .map_err(|(_, errs)| errs)?;
                     d_params.push(pt);
                 }
+                let kw_var_params = if let Some(p) = lambda.sig.params.kw_var_params.as_ref() {
+                    let pt = self
+                        .instantiate_param_ty(
+                            p,
+                            None,
+                            tmp_tv_cache,
+                            RegistrationMode::Normal,
+                            ParamKind::KwVarParams,
+                            not_found_is_qvar,
+                        )
+                        .map_err(|(_, errs)| errs)?;
+                    Some(pt)
+                } else {
+                    None
+                };
                 let mut body = vec![];
                 for expr in lambda.body.iter() {
                     let param =
@@ -1129,6 +1166,7 @@ impl Context {
                     nd_params,
                     var_params,
                     d_params,
+                    kw_var_params,
                     body,
                 )))
             }
@@ -1274,6 +1312,7 @@ impl Context {
                     lambda.nd_params,
                     lambda.var_params,
                     lambda.d_params,
+                    lambda.kw_var_params,
                     return_t,
                 );
                 Ok(Type::Subr(subr))
@@ -1639,6 +1678,20 @@ impl Context {
                 })?
                 .into_iter()
                 .collect();
+                let kw_var_params = subr
+                    .kw_var_params
+                    .as_ref()
+                    .map(|p| {
+                        self.instantiate_func_param_spec(
+                            p,
+                            opt_decl_t,
+                            None,
+                            tmp_tv_ctx,
+                            mode,
+                            not_found_is_qvar,
+                        )
+                    })
+                    .transpose()?;
                 let return_t = self.instantiate_typespec_full(
                     &subr.return_t,
                     opt_decl_t,
@@ -1652,6 +1705,7 @@ impl Context {
                     non_defaults,
                     var_params,
                     defaults,
+                    kw_var_params,
                     return_t,
                 ))
             }
