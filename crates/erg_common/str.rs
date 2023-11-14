@@ -3,6 +3,9 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::ops::{Add, Deref};
 
+#[cfg(feature = "pylib")]
+use pyo3::{IntoPy, PyObject, Python};
+
 pub type ArcStr = std::sync::Arc<str>;
 
 /// Used to hold an immutable string.
@@ -12,6 +15,13 @@ pub type ArcStr = std::sync::Arc<str>;
 pub enum Str {
     Rc(ArcStr),
     Static(&'static str),
+}
+
+#[cfg(feature = "pylib")]
+impl IntoPy<PyObject> for Str {
+    fn into_py(self, py: Python<'_>) -> PyObject {
+        (&self[..]).into_py(py)
+    }
 }
 
 impl PartialEq for Str {

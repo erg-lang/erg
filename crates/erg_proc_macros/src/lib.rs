@@ -54,3 +54,21 @@ pub fn exec_new_thread(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let item = quote! { #item_fn };
     item.into()
 }
+
+/// dummy attribute
+#[proc_macro_attribute]
+pub fn pyo3(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+/// dummy attribute
+#[proc_macro_attribute]
+pub fn pyclass(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
+/// dummy attribute
+#[proc_macro_attribute]
+pub fn pymethods(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}

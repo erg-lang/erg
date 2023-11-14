@@ -19,6 +19,57 @@ use erg_common::{fmt_vec_split_with, Str};
 
 use crate::token::{Token, TokenKind, EQUAL};
 
+#[cfg(not(feature = "pylib"))]
+use erg_proc_macros::{pyclass, pymethods, pyo3};
+#[cfg(feature = "pylib")]
+use pyo3::prelude::*;
+
+macro_rules! impl_into_py_for_enum {
+    ($Enum: ident; $($Variant: ident $(,)?)*) => {
+        #[cfg(feature = "pylib")]
+        impl IntoPy<PyObject> for $Enum {
+            fn into_py(self, py: Python<'_>) -> PyObject {
+                match self {
+                    $(Self::$Variant(v) => v.into_py(py),)*
+                }
+            }
+        }
+    };
+}
+
+macro_rules! impl_py_iter {
+    ($Ty: ident <$inner: ident>, $Iter: ident) => {
+        #[cfg(feature = "pylib")]
+        #[pyclass]
+        struct $Iter {
+            inner: std::vec::IntoIter<$inner>,
+        }
+
+        #[cfg(feature = "pylib")]
+        #[pymethods]
+        impl $Iter {
+            #[allow(clippy::self_named_constructors)]
+            fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+                slf
+            }
+            fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<$inner> {
+                slf.inner.next()
+            }
+        }
+
+        #[cfg(feature = "pylib")]
+        #[pymethods]
+        impl $Ty {
+            fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Py<$Iter>> {
+                let iter = $Iter {
+                    inner: slf.clone().into_iter(),
+                };
+                Py::new(slf.py(), iter)
+            }
+        }
+    };
+}
+
 /// Some Erg functions require additional operation by the compiler.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OperationKind {
@@ -65,6 +116,7 @@ pub fn fmt_lines<'a, T: NestedDisplay + 'a>(
 
 /// リテラルに実際の値が格納された構造体(定数畳み込み用)
 /// ArrayやDictはまた別に
+#[pyclass(get_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Literal {
     pub token: Token,
@@ -118,6 +170,7 @@ impl Literal {
     }
 }
 
+#[pyclass(get_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PosArg {
     pub expr: Expr,
@@ -138,6 +191,7 @@ impl PosArg {
     }
 }
 
+#[pyclass(get_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct KwArg {
     pub keyword: Token,
@@ -170,6 +224,7 @@ impl KwArg {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Args {
     pos_args: Vec<PosArg>,
@@ -355,6 +410,7 @@ impl Args {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Attribute {
     pub obj: Box<Expr>,
@@ -383,6 +439,7 @@ impl Attribute {
     }
 }
 
+#[pyclass]
 /// e.g. obj.0, obj.1
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TupleAttribute {
@@ -412,6 +469,7 @@ impl TupleAttribute {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Subscript {
     pub obj: Box<Expr>,
@@ -460,6 +518,7 @@ impl NestedDisplay for TypeAppArgsKind {
 impl_display_from_nested!(TypeAppArgsKind);
 impl_locational_for_enum!(TypeAppArgsKind; SubtypeOf, Args);
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TypeAppArgs {
     pub l_vbar: Token,
@@ -487,6 +546,7 @@ impl TypeAppArgs {
 }
 
 /// f|T := Int|
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TypeApp {
     pub obj: Box<Expr>,
@@ -527,6 +587,7 @@ pub enum Accessor {
 impl_nested_display_for_enum!(Accessor; Ident, Attr, TupleAttr, Subscr, TypeApp);
 impl_display_from_nested!(Accessor);
 impl_locational_for_enum!(Accessor; Ident, Attr, TupleAttr, Subscr, TypeApp);
+impl_into_py_for_enum!(Accessor; Ident, Attr, TupleAttr, Subscr, TypeApp);
 
 impl Accessor {
     pub const fn local(symbol: Token) -> Self {
@@ -591,6 +652,7 @@ impl Accessor {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NormalArray {
     pub l_sqbr: Token,
@@ -623,6 +685,7 @@ impl NormalArray {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArrayWithLength {
     pub l_sqbr: Token,
@@ -651,6 +714,7 @@ impl ArrayWithLength {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArrayComprehension {
     pub l_sqbr: Token,
@@ -707,6 +771,7 @@ pub enum Array {
 impl_nested_display_for_enum!(Array; Normal, WithLength, Comprehension);
 impl_display_for_enum!(Array; Normal, WithLength, Comprehension);
 impl_locational_for_enum!(Array; Normal, WithLength, Comprehension);
+impl_into_py_for_enum!(Array; Normal, WithLength, Comprehension);
 
 impl Array {
     pub fn get(&self, index: usize) -> Option<&Expr> {
@@ -717,6 +782,7 @@ impl Array {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NormalTuple {
     pub elems: Args,
@@ -754,6 +820,7 @@ pub enum Tuple {
 impl_nested_display_for_enum!(Tuple; Normal);
 impl_display_for_enum!(Tuple; Normal);
 impl_locational_for_enum!(Tuple; Normal);
+impl_into_py_for_enum!(Tuple; Normal);
 
 impl Tuple {
     pub fn paren(&self) -> Option<&(Token, Token)> {
@@ -763,6 +830,7 @@ impl Tuple {
     }
 }
 
+#[pyclass(get_all)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct KeyValue {
     pub key: Expr,
@@ -784,6 +852,7 @@ impl KeyValue {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NormalDict {
     pub l_brace: Token,
@@ -810,6 +879,7 @@ impl NormalDict {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DictComprehension {
     l_brace: Token,
@@ -864,6 +934,7 @@ pub enum Dict {
 impl_nested_display_for_enum!(Dict; Normal, Comprehension);
 impl_display_for_enum!(Dict; Normal, Comprehension);
 impl_locational_for_enum!(Dict; Normal, Comprehension);
+impl_into_py_for_enum!(Dict; Normal, Comprehension);
 
 impl Dict {
     pub fn braces(&self) -> (&Token, &Token) {
@@ -884,7 +955,9 @@ pub enum ClassAttr {
 impl_nested_display_for_enum!(ClassAttr; Def, Decl, Doc);
 impl_display_for_enum!(ClassAttr; Def, Decl, Doc);
 impl_locational_for_enum!(ClassAttr; Def, Decl, Doc);
+impl_into_py_for_enum!(ClassAttr; Def, Decl, Doc);
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ClassAttrs(Vec<ClassAttr>);
 
@@ -909,9 +982,11 @@ impl From<Vec<ClassAttr>> for ClassAttrs {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordAttrs(Vec<Def>);
 
+impl_py_iter!(RecordAttrs<Def>, DefIter);
 impl_stream!(RecordAttrs, Def);
 
 impl NestedDisplay for RecordAttrs {
@@ -933,6 +1008,7 @@ impl From<Vec<Def>> for RecordAttrs {
     }
 }
 
+#[pyclass(get_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NormalRecord {
     pub l_brace: Token,
@@ -1020,6 +1096,7 @@ pub enum Record {
 impl_nested_display_for_enum!(Record; Normal, Mixed);
 impl_display_for_enum!(Record; Normal, Mixed);
 impl_locational_for_enum!(Record; Normal, Mixed);
+impl_into_py_for_enum!(Record; Normal, Mixed);
 
 impl Record {
     pub const fn new_mixed(l_brace: Token, r_brace: Token, attrs: Vec<RecordAttrOrIdent>) -> Self {
@@ -1069,6 +1146,7 @@ impl Record {
 }
 
 /// Record can be defined with shorthend/normal mixed style, i.e. {x; y=expr; z; ...}
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MixedRecord {
     pub l_brace: Token,
@@ -1115,6 +1193,7 @@ pub enum RecordAttrOrIdent {
 impl_nested_display_for_enum!(RecordAttrOrIdent; Attr, Ident);
 impl_display_for_enum!(RecordAttrOrIdent; Attr, Ident);
 impl_locational_for_enum!(RecordAttrOrIdent; Attr, Ident);
+impl_into_py_for_enum!(RecordAttrOrIdent; Attr, Ident);
 
 impl RecordAttrOrIdent {
     pub fn ident(&self) -> Option<&Identifier> {
@@ -1125,6 +1204,7 @@ impl RecordAttrOrIdent {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NormalSet {
     pub l_brace: Token,
@@ -1159,6 +1239,7 @@ impl NormalSet {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SetWithLength {
     pub l_brace: Token,
@@ -1187,6 +1268,7 @@ impl SetWithLength {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SetComprehension {
     pub l_brace: Token,
@@ -1242,7 +1324,9 @@ pub enum Set {
 impl_nested_display_for_enum!(Set; Normal, WithLength, Comprehension);
 impl_display_for_enum!(Set; Normal, WithLength, Comprehension);
 impl_locational_for_enum!(Set; Normal, WithLength, Comprehension);
+impl_into_py_for_enum!(Set; Normal, WithLength, Comprehension);
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct BinOp {
     pub op: Token,
@@ -1281,6 +1365,7 @@ impl BinOp {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct UnaryOp {
     pub op: Token,
@@ -1316,6 +1401,7 @@ impl UnaryOp {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Call {
     pub obj: Box<Expr>,
@@ -1415,6 +1501,7 @@ impl Call {
 }
 
 /// e.g. `Data::{x = 1; y = 2}`
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DataPack {
     pub class: Box<Expr>,
@@ -1446,6 +1533,7 @@ impl DataPack {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Block(Vec<Expr>);
 
@@ -1468,7 +1556,9 @@ impl Locational for Block {
 }
 
 impl_stream!(Block, Expr);
+impl_py_iter!(Block<Expr>, BlockIter);
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Dummy {
     pub loc: Option<Location>,
@@ -1529,6 +1619,7 @@ impl Dummy {
 
 pub type ConstIdentifier = Identifier;
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstAttribute {
     pub obj: Box<ConstExpr>,
@@ -1561,6 +1652,7 @@ impl ConstAttribute {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstTupleAttribute {
     tup: Box<ConstExpr>,
@@ -1589,6 +1681,7 @@ impl ConstTupleAttribute {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstSubscript {
     obj: Box<ConstExpr>,
@@ -1628,6 +1721,7 @@ pub enum ConstAccessor {
 impl_nested_display_for_enum!(ConstAccessor; Local, Attr, TupleAttr, Subscr);
 impl_display_from_nested!(ConstAccessor);
 impl_locational_for_enum!(ConstAccessor; Local, Attr, TupleAttr, Subscr);
+impl_into_py_for_enum!(ConstAccessor; Local, Attr, TupleAttr, Subscr);
 
 impl ConstAccessor {
     pub const fn local(symbol: Token) -> Self {
@@ -1665,6 +1759,7 @@ pub enum ConstArray {
 impl_nested_display_for_enum!(ConstArray; Normal, WithLength);
 impl_display_from_nested!(ConstArray);
 impl_locational_for_enum!(ConstArray; Normal, WithLength);
+impl_into_py_for_enum!(ConstArray; Normal, WithLength);
 
 impl ConstArray {
     pub fn downgrade(self) -> Array {
@@ -1675,6 +1770,7 @@ impl ConstArray {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstNormalArray {
     pub l_sqbr: Token,
@@ -1711,6 +1807,7 @@ impl ConstNormalArray {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstArrayWithLength {
     pub l_sqbr: Token,
@@ -1748,6 +1845,7 @@ impl ConstArrayWithLength {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstNormalSet {
     pub l_brace: Token,
@@ -1778,6 +1876,7 @@ impl ConstNormalSet {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstSetComprehension {
     pub l_brace: Token,
@@ -1845,6 +1944,7 @@ pub enum ConstSet {
 impl_nested_display_for_enum!(ConstSet; Normal, Comprehension);
 impl_display_from_nested!(ConstSet);
 impl_locational_for_enum!(ConstSet; Normal, Comprehension);
+impl_into_py_for_enum!(ConstSet; Normal, Comprehension);
 
 impl ConstSet {
     pub fn downgrade(self) -> Set {
@@ -1855,6 +1955,7 @@ impl ConstSet {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ConstKeyValue {
     pub key: ConstExpr,
@@ -1880,6 +1981,7 @@ impl ConstKeyValue {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstDict {
     l_brace: Token,
@@ -1914,6 +2016,7 @@ impl ConstDict {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstTuple {
     pub elems: ConstArgs,
@@ -1938,6 +2041,7 @@ impl ConstTuple {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstBlock(Vec<ConstExpr>);
 
@@ -1960,6 +2064,7 @@ impl Locational for ConstBlock {
 }
 
 impl_stream!(ConstBlock, ConstExpr);
+impl_py_iter!(ConstBlock<ConstExpr>, ConstExprIter);
 
 impl ConstBlock {
     pub fn downgrade(self) -> Block {
@@ -1967,6 +2072,7 @@ impl ConstBlock {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstDefBody {
     pub op: Token,
@@ -1986,6 +2092,7 @@ impl ConstDefBody {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstDef {
     pub ident: ConstIdentifier,
@@ -2011,6 +2118,7 @@ impl ConstDef {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstLambda {
     pub sig: Box<LambdaSignature>,
@@ -2043,6 +2151,7 @@ impl ConstLambda {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstRecord {
     pub l_brace: Token,
@@ -2082,6 +2191,7 @@ impl ConstRecord {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstBinOp {
     pub op: Token,
@@ -2112,6 +2222,7 @@ impl ConstBinOp {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstUnaryOp {
     pub op: Token,
@@ -2142,6 +2253,7 @@ impl ConstUnaryOp {
 
 /// Application
 /// ex. `Vec Int` of `Option Vec Int`
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstApp {
     pub obj: Box<ConstExpr>,
@@ -2194,6 +2306,7 @@ impl ConstApp {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstTypeAsc {
     pub expr: Box<ConstExpr>,
@@ -2252,6 +2365,7 @@ pub enum ConstExpr {
 impl_nested_display_for_chunk_enum!(ConstExpr; Lit, Accessor, App, Array, Set, Dict, Tuple, Record, BinOp, UnaryOp, Def, Lambda, Set, TypeAsc);
 impl_display_from_nested!(ConstExpr);
 impl_locational_for_enum!(ConstExpr; Lit, Accessor, App, Array, Set, Dict, Tuple, Record, BinOp, UnaryOp, Def, Lambda, Set, TypeAsc);
+impl_into_py_for_enum!(ConstExpr; Lit, Accessor, App, Array, Set, Dict, Tuple, Record, Def, Lambda, BinOp, UnaryOp, TypeAsc);
 
 impl TryFrom<&ParamPattern> for ConstExpr {
     type Error = ();
@@ -2297,6 +2411,7 @@ impl ConstExpr {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstPosArg {
     pub expr: ConstExpr,
@@ -2316,6 +2431,7 @@ impl ConstPosArg {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstKwArg {
     pub keyword: Token,
@@ -2336,6 +2452,7 @@ impl ConstKwArg {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstArgs {
     pos_args: Vec<ConstPosArg>,
@@ -2467,6 +2584,7 @@ impl ConstArgs {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PolyTypeSpec {
     pub acc: ConstAccessor,
@@ -2576,6 +2694,7 @@ impl PreDeclTypeSpec {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParamTySpec {
     pub name: Option<Token>,
@@ -2612,6 +2731,7 @@ impl ParamTySpec {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DefaultParamTySpec {
     pub param: ParamTySpec,
@@ -2630,6 +2750,7 @@ impl DefaultParamTySpec {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SubrTypeSpec {
     pub bounds: TypeBoundSpecs,
@@ -2703,6 +2824,7 @@ impl SubrTypeSpec {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArrayTypeSpec {
     pub sqbrs: Option<(Token, Token)>,
@@ -2736,6 +2858,7 @@ impl ArrayTypeSpec {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SetWithLenTypeSpec {
     pub ty: Box<TypeSpec>,
@@ -2759,6 +2882,7 @@ impl SetWithLenTypeSpec {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TupleTypeSpec {
     pub parens: Option<(Token, Token)>,
@@ -2789,6 +2913,7 @@ impl TupleTypeSpec {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DictTypeSpec {
     pub braces: Option<(Token, Token)>,
@@ -2825,6 +2950,7 @@ impl DictTypeSpec {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordTypeSpec {
     pub braces: Option<(Token, Token)>,
@@ -2861,6 +2987,7 @@ impl RecordTypeSpec {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RefinementTypeSpec {
     pub var: Token,
@@ -2927,6 +3054,14 @@ pub enum TypeSpec {
         args: TypeAppArgs,
     },
     Refinement(RefinementTypeSpec),
+}
+
+// TODO:
+#[cfg(feature = "pylib")]
+impl IntoPy<PyObject> for TypeSpec {
+    fn into_py(self, py: Python<'_>) -> PyObject {
+        pyo3::types::PyNone::get(py).into()
+    }
 }
 
 impl fmt::Display for TypeSpec {
@@ -3035,6 +3170,7 @@ impl TypeSpec {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeSpecWithOp {
     pub op: Token,
@@ -3124,6 +3260,7 @@ impl TypeBoundSpec {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TypeBoundSpecs(Vec<TypeBoundSpec>);
 
@@ -3141,6 +3278,7 @@ impl Locational for TypeBoundSpecs {
 
 /// デコレータは関数を返す関数オブジェクトならば何でも指定できる
 /// e.g. @(x -> x)
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Decorator(pub Expr);
 
@@ -3159,6 +3297,7 @@ impl Decorator {
 }
 
 /// symbol as a left value
+#[pyclass]
 #[derive(Debug, Clone, Eq)]
 pub struct VarName(Token);
 
@@ -3283,6 +3422,7 @@ impl VarName {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Namespaces(Vec<Accessor>);
 
@@ -3318,6 +3458,7 @@ pub enum VisRestriction {
 
 impl_locational_for_enum!(VisRestriction; Namespaces, SubtypeOf);
 impl_display_from_nested!(VisRestriction);
+impl_into_py_for_enum!(VisRestriction; Namespaces, SubtypeOf);
 
 impl NestedDisplay for VisRestriction {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
@@ -3335,6 +3476,19 @@ pub enum VisModifierSpec {
     Public(Token),
     ExplicitPrivate(Token),
     Restricted(VisRestriction),
+}
+
+#[cfg(feature = "pylib")]
+impl IntoPy<PyObject> for VisModifierSpec {
+    fn into_py(self, py: Python<'_>) -> PyObject {
+        match self {
+            Self::Private => py.None(),
+            Self::Auto => py.None(),
+            Self::Public(token) => token.into_py(py),
+            Self::ExplicitPrivate(token) => token.into_py(py),
+            Self::Restricted(rest) => rest.into_py(py),
+        }
+    }
 }
 
 impl NestedDisplay for VisModifierSpec {
@@ -3380,6 +3534,7 @@ impl VisModifierSpec {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AccessModifier {
     Private, // `::`
@@ -3388,6 +3543,7 @@ pub enum AccessModifier {
     Force,   // can access any identifiers
 }
 
+#[pyclass(get_all)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Identifier {
     pub vis: VisModifierSpec,
@@ -3412,6 +3568,44 @@ impl Locational for Identifier {
 impl From<Identifier> for Expr {
     fn from(ident: Identifier) -> Self {
         Self::Accessor(Accessor::Ident(ident))
+    }
+}
+
+#[pymethods]
+impl Identifier {
+    pub fn is_const(&self) -> bool {
+        self.name.is_const()
+    }
+
+    pub fn is_discarded(&self) -> bool {
+        self.name.is_discarded()
+    }
+
+    pub fn is_raw(&self) -> bool {
+        self.name.is_raw()
+    }
+
+    pub fn acc_kind(&self) -> AccessModifier {
+        match &self.vis {
+            VisModifierSpec::Auto => AccessModifier::Auto,
+            VisModifierSpec::Public(_) => AccessModifier::Public,
+            VisModifierSpec::ExplicitPrivate(_)
+            | VisModifierSpec::Restricted(_)
+            | VisModifierSpec::Private => AccessModifier::Private,
+        }
+    }
+
+    pub fn is_procedural(&self) -> bool {
+        self.name.is_procedural()
+    }
+
+    pub fn trim_end_proc_mark(&mut self) {
+        self.name.trim_end_proc_mark();
+    }
+
+    #[pyo3(name = "inspect")]
+    fn _inspect(&self) -> Str {
+        self.name.inspect().clone()
     }
 }
 
@@ -3482,38 +3676,8 @@ impl Identifier {
         Self::new(VisModifierSpec::Auto, VarName::from_str(name))
     }
 
-    pub fn is_const(&self) -> bool {
-        self.name.is_const()
-    }
-
-    pub fn is_discarded(&self) -> bool {
-        self.name.is_discarded()
-    }
-
-    pub fn is_raw(&self) -> bool {
-        self.name.is_raw()
-    }
-
-    pub fn acc_kind(&self) -> AccessModifier {
-        match &self.vis {
-            VisModifierSpec::Auto => AccessModifier::Auto,
-            VisModifierSpec::Public(_) => AccessModifier::Public,
-            VisModifierSpec::ExplicitPrivate(_)
-            | VisModifierSpec::Restricted(_)
-            | VisModifierSpec::Private => AccessModifier::Private,
-        }
-    }
-
     pub const fn inspect(&self) -> &Str {
         self.name.inspect()
-    }
-
-    pub fn is_procedural(&self) -> bool {
-        self.name.is_procedural()
-    }
-
-    pub fn trim_end_proc_mark(&mut self) {
-        self.name.trim_end_proc_mark();
     }
 
     pub fn call1(self, arg: Expr) -> Call {
@@ -3537,6 +3701,7 @@ impl Identifier {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VarArrayPattern {
     l_sqbr: Token,
@@ -3577,6 +3742,7 @@ impl VarArrayPattern {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VarTuplePattern {
     pub(crate) paren: Option<(Token, Token)>,
@@ -3619,6 +3785,7 @@ impl VarTuplePattern {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VarRecordAttr {
     pub lhs: Identifier,
@@ -3640,6 +3807,7 @@ impl VarRecordAttr {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VarRecordAttrs {
     pub(crate) elems: Vec<VarRecordAttr>,
@@ -3664,6 +3832,7 @@ impl VarRecordAttrs {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VarRecordPattern {
     l_brace: Token,
@@ -3689,6 +3858,7 @@ impl VarRecordPattern {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VarDataPackPattern {
     pub class: TypeSpec,
@@ -3743,6 +3913,7 @@ impl NestedDisplay for VarPattern {
 
 impl_display_from_nested!(VarPattern);
 impl_locational_for_enum!(VarPattern; Discard, Ident, Array, Tuple, Record, DataPack);
+impl_into_py_for_enum!(VarPattern; Discard, Ident, Array, Tuple, Record, DataPack);
 
 impl VarPattern {
     pub const fn inspect(&self) -> Option<&Str> {
@@ -3784,6 +3955,7 @@ impl VarPattern {
     }
 }
 
+#[pyclass(get_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VarSignature {
     pub pat: VarPattern,
@@ -3805,6 +3977,15 @@ impl Locational for VarSignature {
         } else {
             self.pat.loc()
         }
+    }
+}
+
+#[cfg(feature = "pylib")]
+#[pymethods]
+impl VarSignature {
+    #[pyo3(name = "inspect")]
+    fn _inspect(&self) -> Option<Str> {
+        self.pat.inspect().cloned()
     }
 }
 
@@ -3833,6 +4014,7 @@ impl VarSignature {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Vars {
     pub(crate) elems: Vec<VarSignature>,
@@ -3867,6 +4049,7 @@ impl Vars {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ParamArrayPattern {
     pub l_sqbr: Token,
@@ -3935,6 +4118,7 @@ impl ParamArrayPattern {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ParamTuplePattern {
     pub elems: Params,
@@ -3981,6 +4165,7 @@ impl ParamTuplePattern {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ParamRecordAttr {
     pub lhs: Identifier,
@@ -4002,6 +4187,7 @@ impl ParamRecordAttr {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ParamRecordAttrs {
     pub(crate) elems: Vec<ParamRecordAttr>,
@@ -4030,6 +4216,7 @@ impl ParamRecordAttrs {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ParamRecordPattern {
     pub(crate) l_brace: Token,
@@ -4070,6 +4257,8 @@ pub enum ParamPattern {
     Ref(VarName),
     RefMut(VarName),
 }
+
+impl_into_py_for_enum!(ParamPattern; Discard, VarName, Lit, Array, Tuple, Record, Ref, RefMut);
 
 impl NestedDisplay for ParamPattern {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
@@ -4142,6 +4331,7 @@ impl ParamPattern {
 }
 
 /// Once the default_value is set to Some, all subsequent values must be Some
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NonDefaultParamSignature {
     pub pat: ParamPattern,
@@ -4185,6 +4375,7 @@ impl NonDefaultParamSignature {
 }
 
 /// Once the default_value is set to Some, all subsequent values must be Some
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DefaultParamSignature {
     pub sig: NonDefaultParamSignature,
@@ -4241,6 +4432,7 @@ impl Locational for GuardClause {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Params {
     pub non_defaults: Vec<NonDefaultParamSignature>,
@@ -4370,6 +4562,7 @@ impl Params {
 }
 
 /// 引数を取るならTypeでもSubr扱い
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SubrSignature {
     pub decorators: HashSet<Decorator>,
@@ -4442,6 +4635,7 @@ impl SubrSignature {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct LambdaSignature {
     pub bounds: TypeBoundSpecs,
@@ -4507,6 +4701,7 @@ impl LambdaSignature {
     }
 }
 
+#[pyclass(subclass)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct DefId(pub usize);
 
@@ -4516,6 +4711,7 @@ impl DefId {
     }
 }
 
+#[pyclass(get_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Lambda {
     pub sig: LambdaSignature,
@@ -4556,6 +4752,7 @@ pub enum Signature {
 impl_nested_display_for_chunk_enum!(Signature; Var, Subr);
 impl_display_from_nested!(Signature);
 impl_locational_for_enum!(Signature; Var, Subr);
+impl_into_py_for_enum!(Signature; Var, Subr);
 
 impl Signature {
     pub fn name_as_str(&self) -> Option<&Str> {
@@ -4656,6 +4853,7 @@ impl Signature {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, Copy)]
 pub enum AscriptionKind {
     TypeOf,
@@ -4673,6 +4871,7 @@ impl AscriptionKind {
 /// type_ascription ::= expr ':' type
 ///                   | expr '<:' type
 ///                   | expr ':>' type
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TypeAscription {
     pub expr: Box<Expr>,
@@ -4701,6 +4900,7 @@ impl TypeAscription {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DefKind {
     Class,
@@ -4750,6 +4950,7 @@ impl DefKind {
     }
 }
 
+#[pyclass(get_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DefBody {
     pub op: Token,
@@ -4797,6 +4998,7 @@ impl DefBody {
     }
 }
 
+#[pyclass(get_all)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Def {
     pub sig: Signature,
@@ -4837,6 +5039,7 @@ impl Def {
 }
 
 /// This is not necessary for Erg syntax, but necessary for mapping ASTs in Python
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ReDef {
     pub attr: Accessor,
@@ -4870,6 +5073,7 @@ impl ReDef {
 ///     x = 1
 ///     f(a) = ...
 /// ```
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Methods {
     pub id: DefId,
@@ -4907,6 +5111,7 @@ impl Methods {
     }
 }
 
+#[pyclass(get_all)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ClassDef {
     pub def: Def,
@@ -4937,6 +5142,7 @@ impl ClassDef {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PatchDef {
     pub def: Def,
@@ -4967,6 +5173,7 @@ impl PatchDef {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Compound {
     pub exprs: Vec<Expr>,
@@ -5031,6 +5238,7 @@ impl_nested_display_for_chunk_enum!(Expr; Literal, Accessor, Array, Tuple, Dict,
 impl_from_trait_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, Dummy);
 impl_display_from_nested!(Expr);
 impl_locational_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, Dummy);
+impl_into_py_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, Dummy);
 
 impl Expr {
     pub fn is_match_call(&self) -> bool {
@@ -5252,6 +5460,7 @@ impl Expr {
     }
 }
 
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Module(Block);
 
@@ -5296,6 +5505,8 @@ impl FromIterator<Expr> for Module {
     }
 }
 
+impl_py_iter!(Module<Expr>, ModuleIter);
+
 impl Module {
     pub const fn empty() -> Self {
         Self(Block::empty())
@@ -5338,6 +5549,7 @@ impl AST {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct InlineModule {
     pub input: Input,

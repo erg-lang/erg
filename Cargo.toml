@@ -71,6 +71,7 @@ erg_parser = { version = "0.6.25", path = "./crates/erg_parser" }
 erg_compiler = { version = "0.6.25", path = "./crates/erg_compiler" }
 els = { version = "0.1.37", path = "./crates/els" }
 erg_proc_macros = { version = "0.6.25", path = "./crates/erg_proc_macros" }
+pyo3 = { version = "0.20", features = ["extension-module"] }
 
 [dependencies]
 erg_common = { workspace = true }

@@ -102,6 +102,7 @@ pub trait Parsable: 'static {
     fn parse(code: String) -> Result<CompleteArtifact, IncompleteArtifact<Module, ParseErrors>>;
 }
 
+#[cfg_attr(feature = "pylib", pyo3::pyclass)]
 pub struct SimpleParser {}
 
 impl Parsable for SimpleParser {
@@ -353,11 +354,11 @@ impl Parser {
         ParseError::unclosed_error(line as usize, loc, closer, ty)
     }
 
-    fn skip_and_throw_invalid_seq_err<S: std::fmt::Display>(
+    fn skip_and_throw_invalid_seq_err(
         &mut self,
         caused_by: &str,
         errno: usize,
-        expected: &[S],
+        expected: &[impl std::fmt::Display],
         found: TokenKind,
     ) -> ParseError {
         log!(err "error caused by: {caused_by}");

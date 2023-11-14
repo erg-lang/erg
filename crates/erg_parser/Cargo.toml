@@ -18,12 +18,16 @@ unicode = ["erg_common/unicode"]
 pretty = ["erg_common/pretty"]
 large_thread = ["erg_common/large_thread"]
 experimental = ["erg_common/experimental"]
+pylib = ["dep:pyo3", "erg_common/pylib"]
 
 [dependencies]
 erg_common = { workspace = true }
+erg_proc_macros = { workspace = true }
 unicode-xid = "0.2.4"
+pyo3 = { workspace = true, optional = true }
 
 [lib]
+crate-type = ["cdylib", "rlib"]
 path = "lib.rs"
 
 [[bin]]
