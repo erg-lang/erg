@@ -30,7 +30,7 @@ fn _parse(code: String) -> Result<ast::Module, error::ParseErrors> {
         .map_err(|iart| iart.errors)
 }
 
-#[cfg(feature = "pylib")]
+#[cfg(feature = "pylib_parser")]
 #[pymodule]
 fn erg_parser(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(_parse, m)?)?;

@@ -19,6 +19,7 @@ pretty = ["erg_common/pretty"]
 large_thread = ["erg_common/large_thread"]
 experimental = ["erg_common/experimental"]
 pylib = ["dep:pyo3", "erg_common/pylib"]
+pylib_parser = ["pylib"]
 
 [dependencies]
 erg_common = { workspace = true }

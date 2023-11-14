@@ -15,8 +15,17 @@ for chunk in module:
         assert chunk.sig.inspect() == "x"
 ```
 
-### Debug install
+### Debug install (using venv)
 
 ```python
-maturin develop --features pylib
+python -m venv .venv
+source .venv/bin/activate
+maturin develop --features pylib_parser
+```
+
+### Release install
+
+```python
+maturin build -i python --release --features pylib_parser
+pip install <output wheel>
 ```

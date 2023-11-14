@@ -30,3 +30,67 @@ pub mod varinfo;
 pub use build_hir::{GenericHIRBuilder, HIRBuilder};
 pub use erg_parser::build_ast::ASTBuilder;
 pub use transpile::Transpiler;
+
+#[cfg(feature = "pylib")]
+use pyo3::prelude::*;
+
+#[cfg(feature = "pylib")]
+#[pyfunction]
+#[pyo3(name = "compile")]
+fn _compile(py: Python<'_>, code: String) -> Result<PyObject, error::CompileErrors> {
+    use erg_common::config::ErgConfig;
+    use pyo3::types::{IntoPyDict, PyBytes};
+    let cfg = ErgConfig::string(code);
+    let mut compiler = Compiler::new(cfg);
+    let code = compiler
+        .compile_module()
+        .map(|art| art.object)
+        .map_err(|iart| iart.errors)?;
+    let bytes = code.into_bytes(py.version().parse().unwrap());
+    let dict = [("bytes", PyBytes::new(py, &bytes))].into_py_dict(py);
+    py.run("import marshal", None, None).unwrap();
+    Ok(py
+        .eval("marshal.loads(bytes)", None, Some(dict))
+        .unwrap()
+        .into())
+}
+
+#[cfg(feature = "pylib")]
+#[pyfunction]
+#[pyo3(name = "compile_file")]
+fn _compile_file(py: Python<'_>, path: String) -> Result<PyObject, error::CompileErrors> {
+    let code = std::fs::read_to_string(path)?;
+    _compile(py, code)
+}
+
+#[cfg(feature = "pylib")]
+#[pyfunction]
+#[pyo3(name = "exec_module")]
+fn _exec_module(py: Python<'_>, code: String) -> Result<PyObject, error::CompileErrors> {
+    use pyo3::types::IntoPyDict;
+
+    let code = _compile(py, code)?;
+    let module = pyo3::types::PyModule::new(py, "<erg>").unwrap();
+    let dic = [("code", code), ("dict", PyObject::from(module.dict()))].into_py_dict(py);
+    py.run("exec(code, dict)", None, Some(dic)).unwrap();
+    Ok(module.into())
+}
+
+#[cfg(feature = "pylib")]
+#[pyfunction]
+#[pyo3(name = "__import__")]
+fn _import(py: Python<'_>, name: String) -> Result<PyObject, error::CompileErrors> {
+    let path = format!("{name}.er");
+    let code = std::fs::read_to_string(path)?;
+    _exec_module(py, code)
+}
+
+#[cfg(feature = "pylib")]
+#[pymodule]
+fn erg_compiler(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(_compile, m)?)?;
+    m.add_function(wrap_pyfunction!(_compile_file, m)?)?;
+    m.add_function(wrap_pyfunction!(_exec_module, m)?)?;
+    m.add_function(wrap_pyfunction!(_import, m)?)?;
+    Ok(())
+}
