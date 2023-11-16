@@ -131,10 +131,16 @@ fn _import(py: Python<'_>, name: String) -> Result<PyObject, error::CompileError
 
 #[cfg(feature = "pylib")]
 #[pymodule]
-fn erg_compiler(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+fn erg_compiler(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(_compile, m)?)?;
+    m.add_function(wrap_pyfunction!(_compile_ast, m)?)?;
     m.add_function(wrap_pyfunction!(_compile_file, m)?)?;
     m.add_function(wrap_pyfunction!(_exec_module, m)?)?;
     m.add_function(wrap_pyfunction!(_import, m)?)?;
+
+    use crate::erg_parser::erg_parser;
+    let parser = PyModule::new(py, "erg_parser")?;
+    erg_parser(py, parser)?;
+    m.add_submodule(parser)?;
     Ok(())
 }

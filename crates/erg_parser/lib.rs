@@ -34,9 +34,9 @@ fn _parse(code: String) -> Result<ast::Module, error::ParseErrors> {
         .map_err(|iart| iart.errors)
 }
 
-#[cfg(feature = "pylib_parser")]
-#[pymodule]
-fn erg_parser(py: Python<'_>, m: &PyModule) -> PyResult<()> {
+#[cfg(feature = "pylib")]
+#[cfg_attr(feature = "pylib_parser", pymodule)]
+pub fn erg_parser(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(_parse, m)?)?;
     let expr = PyModule::new(py, "expr")?;
     expr.add_class::<ast::Literal>()?;
@@ -65,6 +65,7 @@ fn erg_parser(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     ast.add_class::<token::Token>()?;
     ast.add_class::<token::TokenKind>()?;
     ast.add_class::<ast::Literal>()?;
+    ast.add_class::<ast::VarName>()?;
     ast.add_class::<ast::Identifier>()?;
     ast.add_class::<ast::Attribute>()?;
     ast.add_class::<ast::TupleAttribute>()?;
@@ -83,6 +84,8 @@ fn erg_parser(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     ast.add_class::<ast::DataPack>()?;
     ast.add_class::<ast::Lambda>()?;
     ast.add_class::<ast::TypeAscription>()?;
+    ast.add_class::<ast::VarSignature>()?;
+    ast.add_class::<ast::SubrSignature>()?;
     ast.add_class::<ast::Def>()?;
     ast.add_class::<ast::Methods>()?;
     ast.add_class::<ast::ClassDef>()?;

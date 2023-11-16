@@ -94,6 +94,12 @@ pub fn getter(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
+/// dummy attribute
+#[proc_macro_attribute]
+pub fn setter(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}
+
 fn args_to_owned(args: &PathArguments) -> PathArguments {
     match args {
         PathArguments::AngleBracketed(args) => {

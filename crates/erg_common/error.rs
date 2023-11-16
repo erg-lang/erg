@@ -16,6 +16,9 @@ use crate::style::THEME;
 use crate::traits::{Locational, Stream};
 use crate::{impl_display_from_debug, switch_lang};
 
+#[cfg(feature = "pylib")]
+use pyo3::prelude::*;
+
 /// This includes not only Error but also Warning, Exception
 /// Numbering of this is not specifically related to ErrFmt.errno().
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -274,6 +277,48 @@ impl fmt::Display for Location {
             Self::LineRange(ln_begin, ln_end) => write!(f, "{ln_begin}:?-{ln_end}:?"),
             Self::Line(ln) => write!(f, "{ln}:?-{ln}:?"),
             Self::Unknown => write!(f, "?"),
+        }
+    }
+}
+
+#[cfg(feature = "pylib")]
+impl FromPyObject<'_> for Location {
+    fn extract(ob: &'_ PyAny) -> PyResult<Self> {
+        if let Ok(s) = ob.extract::<String>() {
+            Ok(s.parse::<Location>().unwrap())
+        } else if let Ok(s) = ob.extract::<u32>() {
+            Ok(Location::Line(s))
+        } else if let Ok((l, r)) = ob.extract::<(u32, u32)>() {
+            Ok(Location::LineRange(l, r))
+        } else if let Ok((lb, cb, le, ce)) = ob.extract::<(u32, u32, u32, u32)>() {
+            Ok(Location::Range {
+                ln_begin: lb,
+                col_begin: cb,
+                ln_end: le,
+                col_end: ce,
+            })
+        } else {
+            Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(format!(
+                "expected Into<Location>, but got {:?}",
+                ob.get_type().name()?
+            )))
+        }
+    }
+}
+
+#[cfg(feature = "pylib")]
+impl IntoPy<PyObject> for Location {
+    fn into_py(self, py: Python<'_>) -> PyObject {
+        match self {
+            Self::Line(l) => (l, py.None(), l, py.None()).into_py(py),
+            Self::LineRange(lb, le) => (lb, py.None(), le, py.None()).into_py(py),
+            Self::Range {
+                ln_begin,
+                col_begin,
+                ln_end,
+                col_end,
+            } => (ln_begin, col_begin, ln_end, col_end).into_py(py),
+            Self::Unknown => (py.None(), py.None(), py.None(), py.None()).into_py(py),
         }
     }
 }

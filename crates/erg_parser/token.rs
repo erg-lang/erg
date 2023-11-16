@@ -340,7 +340,7 @@ impl From<TokenKind> for BinOpCode {
     }
 }
 
-#[pyclass(get_all)]
+#[pyclass(get_all, set_all)]
 #[derive(Clone, Eq)]
 pub struct Token {
     pub kind: TokenKind,
