@@ -59,6 +59,34 @@ fn _compile(py: Python<'_>, code: String) -> Result<PyObject, error::CompileErro
         .into())
 }
 
+/// compile_ast(ast: erg_parser.AST) -> code
+/// --
+///
+/// compile an Erg AST as a module at runtime
+#[cfg(feature = "pylib")]
+#[pyfunction]
+#[pyo3(name = "compile_ast")]
+fn _compile_ast(
+    py: Python<'_>,
+    ast: erg_parser::ast::AST,
+) -> Result<PyObject, error::CompileErrors> {
+    use erg_common::config::ErgConfig;
+    use pyo3::types::{IntoPyDict, PyBytes};
+    let cfg = ErgConfig::default();
+    let mut compiler = Compiler::new(cfg);
+    let code = compiler
+        .compile_ast(ast, "exec")
+        .map(|art| art.object)
+        .map_err(|iart| iart.errors)?;
+    let bytes = code.into_bytes(py.version().parse().unwrap());
+    let dict = [("bytes", PyBytes::new(py, &bytes))].into_py_dict(py);
+    py.run("import marshal", None, None).unwrap();
+    Ok(py
+        .eval("marshal.loads(bytes)", None, Some(dict))
+        .unwrap()
+        .into())
+}
+
 /// compile_file(path: str) -> code
 /// --
 ///

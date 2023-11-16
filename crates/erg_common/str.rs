@@ -4,7 +4,7 @@ use std::hash::{Hash, Hasher};
 use std::ops::{Add, Deref};
 
 #[cfg(feature = "pylib")]
-use pyo3::{IntoPy, PyObject, Python};
+use pyo3::{FromPyObject, IntoPy, PyAny, PyObject, Python};
 
 pub type ArcStr = std::sync::Arc<str>;
 
@@ -15,6 +15,14 @@ pub type ArcStr = std::sync::Arc<str>;
 pub enum Str {
     Rc(ArcStr),
     Static(&'static str),
+}
+
+#[cfg(feature = "pylib")]
+impl FromPyObject<'_> for Str {
+    fn extract(ob: &PyAny) -> pyo3::PyResult<Self> {
+        let s = ob.extract::<String>()?;
+        Ok(Str::Rc(s.into()))
+    }
 }
 
 #[cfg(feature = "pylib")]

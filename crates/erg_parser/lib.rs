@@ -92,6 +92,7 @@ fn erg_parser(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     ast.add_class::<ast::InlineModule>()?;
     ast.add_class::<ast::Dummy>()?;
     ast.add_class::<ast::Module>()?;
+    ast.add_class::<ast::AST>()?;
     m.add_submodule(ast)?;
     Ok(())
 }

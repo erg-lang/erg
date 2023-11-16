@@ -5772,7 +5772,9 @@ impl NestedDisplay for AST {
 impl_display_from_nested!(AST);
 impl_locational!(AST, module);
 
+#[pymethods]
 impl AST {
+    #[staticmethod]
     pub const fn new(name: Str, module: Module) -> Self {
         Self { name, module }
     }
