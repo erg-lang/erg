@@ -21,6 +21,10 @@ pub use visitor::ASTVisitor;
 #[cfg(feature = "pylib")]
 use pyo3::prelude::*;
 
+/// parse(code: str) -> erg_parser.Module
+/// --
+///
+/// parse an Erg code as a module at runtime
 #[cfg(feature = "pylib")]
 #[pyfunction]
 #[pyo3(name = "parse")]
@@ -58,6 +62,8 @@ fn erg_parser(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_submodule(expr)?;
 
     let ast = PyModule::new(py, "ast")?;
+    ast.add_class::<token::Token>()?;
+    ast.add_class::<token::TokenKind>()?;
     ast.add_class::<ast::Literal>()?;
     ast.add_class::<ast::Identifier>()?;
     ast.add_class::<ast::Attribute>()?;
@@ -85,6 +91,7 @@ fn erg_parser(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     ast.add_class::<ast::Compound>()?;
     ast.add_class::<ast::InlineModule>()?;
     ast.add_class::<ast::Dummy>()?;
+    ast.add_class::<ast::Module>()?;
     m.add_submodule(ast)?;
     Ok(())
 }

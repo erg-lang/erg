@@ -20,7 +20,11 @@ use erg_common::{fmt_vec_split_with, Str};
 use crate::token::{Token, TokenKind, EQUAL};
 
 #[cfg(not(feature = "pylib"))]
-use erg_proc_macros::{pyclass, pymethods, pyo3};
+use erg_proc_macros::staticmethod as to_owned;
+#[cfg(feature = "pylib")]
+use erg_proc_macros::to_owned;
+#[cfg(not(feature = "pylib"))]
+use erg_proc_macros::{getter, pyclass, pymethods, pyo3, staticmethod};
 #[cfg(feature = "pylib")]
 use pyo3::prelude::*;
 
@@ -71,6 +75,7 @@ macro_rules! impl_py_iter {
 }
 
 /// Some Erg functions require additional operation by the compiler.
+#[pyclass]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OperationKind {
     Import,
@@ -87,6 +92,7 @@ pub enum OperationKind {
     Cast,
 }
 
+#[pymethods]
 impl OperationKind {
     pub const fn is_erg_import(&self) -> bool {
         matches!(self, Self::Import)
@@ -139,20 +145,26 @@ impl From<Token> for Literal {
 }
 
 impl Literal {
+    pub fn str(s: impl Into<Str>, line: u32) -> Self {
+        let token = Token::new_fake(TokenKind::StrLit, s, line, 0, 0);
+        Self { token }
+    }
+}
+
+#[pymethods]
+impl Literal {
+    #[staticmethod]
     pub const fn new(token: Token) -> Self {
         Self { token }
     }
 
+    #[staticmethod]
     pub fn nat(n: usize, line: u32) -> Self {
         let token = Token::new_fake(TokenKind::NatLit, Str::from(n.to_string()), line, 0, 0);
         Self { token }
     }
 
-    pub fn str(s: impl Into<Str>, line: u32) -> Self {
-        let token = Token::new_fake(TokenKind::StrLit, s, line, 0, 0);
-        Self { token }
-    }
-
+    #[staticmethod]
     pub fn bool(b: bool, line: u32) -> Self {
         let b = if b { "True" } else { "False" };
         let token = Token::new_fake(TokenKind::BoolLit, b, line, 0, 0);
@@ -281,18 +293,6 @@ impl Args {
         }
     }
 
-    pub fn pos_only(pos_arg: Vec<PosArg>, paren: Option<(Token, Token)>) -> Self {
-        Self::new(pos_arg, None, vec![], None, paren)
-    }
-
-    pub fn single(pos_args: PosArg) -> Self {
-        Self::pos_only(vec![pos_args], None)
-    }
-
-    pub fn empty() -> Self {
-        Self::new(vec![], None, vec![], None, None)
-    }
-
     // for replacing to hir::Args
     #[allow(clippy::type_complexity)]
     pub fn deconstruct(
@@ -313,6 +313,66 @@ impl Args {
         )
     }
 
+    pub fn into_iters(
+        self,
+    ) -> (
+        impl IntoIterator<Item = PosArg>,
+        impl IntoIterator<Item = KwArg>,
+    ) {
+        (self.pos_args.into_iter(), self.kw_args.into_iter())
+    }
+
+    pub fn extend_pos<I>(&mut self, iter: I)
+    where
+        I: IntoIterator<Item = PosArg>,
+    {
+        self.pos_args.extend(iter);
+    }
+
+    pub fn pos_args(&self) -> &[PosArg] {
+        &self.pos_args[..]
+    }
+}
+
+#[pymethods]
+impl Args {
+    #[getter]
+    #[pyo3(name = "pos_args")]
+    fn _pos_args(&self) -> Vec<PosArg> {
+        self.pos_args.clone()
+    }
+
+    #[getter]
+    pub fn var_args(&self) -> Option<PosArg> {
+        self.var_args.as_ref().map(|x| *x.clone())
+    }
+
+    #[getter]
+    #[pyo3(name = "kw_args")]
+    fn _kw_args(&self) -> Vec<KwArg> {
+        self.kw_args.clone()
+    }
+
+    #[getter]
+    pub fn kw_var_args(&self) -> Option<PosArg> {
+        self.kw_var_args.as_ref().map(|x| *x.clone())
+    }
+
+    #[staticmethod]
+    pub fn pos_only(pos_arg: Vec<PosArg>, paren: Option<(Token, Token)>) -> Self {
+        Self::new(pos_arg, None, vec![], None, paren)
+    }
+
+    #[staticmethod]
+    pub fn single(pos_args: PosArg) -> Self {
+        Self::pos_only(vec![pos_args], None)
+    }
+
+    #[staticmethod]
+    pub fn empty() -> Self {
+        Self::new(vec![], None, vec![], None, None)
+    }
+
     pub fn is_empty(&self) -> bool {
         self.pos_args.is_empty() && self.kw_args.is_empty()
     }
@@ -325,10 +385,7 @@ impl Args {
         self.kw_args.is_empty()
     }
 
-    pub fn pos_args(&self) -> &[PosArg] {
-        &self.pos_args[..]
-    }
-
+    #[to_owned]
     pub fn kw_args(&self) -> &[KwArg] {
         &self.kw_args[..]
     }
@@ -337,24 +394,8 @@ impl Args {
         self.pos_args.contains(pa)
     }
 
-    pub fn into_iters(
-        self,
-    ) -> (
-        impl IntoIterator<Item = PosArg>,
-        impl IntoIterator<Item = KwArg>,
-    ) {
-        (self.pos_args.into_iter(), self.kw_args.into_iter())
-    }
-
     pub fn push_pos(&mut self, arg: PosArg) {
         self.pos_args.push(arg);
-    }
-
-    pub fn extend_pos<I>(&mut self, iter: I)
-    where
-        I: IntoIterator<Item = PosArg>,
-    {
-        self.pos_args.extend(iter);
     }
 
     pub fn remove_pos(&mut self, index: usize) -> PosArg {
@@ -381,6 +422,7 @@ impl Args {
         self.paren = Some(paren);
     }
 
+    #[to_owned(cloned)]
     pub fn get_left_or_key(&self, key: &str) -> Option<&Expr> {
         if !self.pos_args.is_empty() {
             self.pos_args.get(0).map(|a| &a.expr)
@@ -395,6 +437,7 @@ impl Args {
         }
     }
 
+    #[to_owned(cloned)]
     pub fn nth_or_key(&self, nth: usize, key: &str) -> Option<&Expr> {
         if !self.pos_args.is_empty() {
             self.pos_args.get(nth).map(|a| &a.expr)
@@ -430,6 +473,19 @@ impl NestedDisplay for Attribute {
 impl_display_from_nested!(Attribute);
 impl_locational!(Attribute, obj, ident);
 
+#[pymethods]
+impl Attribute {
+    #[getter]
+    pub fn obj(&self) -> Expr {
+        self.obj.as_ref().clone()
+    }
+
+    #[getter]
+    pub fn ident(&self) -> Identifier {
+        self.ident.clone()
+    }
+}
+
 impl Attribute {
     pub fn new(obj: Expr, ident: Identifier) -> Self {
         Self {
@@ -459,6 +515,19 @@ impl NestedDisplay for TupleAttribute {
 
 impl_display_from_nested!(TupleAttribute);
 impl_locational!(TupleAttribute, obj, index);
+
+#[pymethods]
+impl TupleAttribute {
+    #[getter]
+    pub fn obj(&self) -> Expr {
+        self.obj.as_ref().clone()
+    }
+
+    #[getter]
+    pub fn index(&self) -> Literal {
+        self.index.clone()
+    }
+}
 
 impl TupleAttribute {
     pub fn new(obj: Expr, index: Literal) -> Self {
@@ -490,6 +559,19 @@ impl NestedDisplay for Subscript {
 impl_display_from_nested!(Subscript);
 impl_locational!(Subscript, obj, r_sqbr);
 
+#[pymethods]
+impl Subscript {
+    #[getter]
+    pub fn obj(&self) -> Expr {
+        self.obj.as_ref().clone()
+    }
+
+    #[getter]
+    pub fn index(&self) -> Expr {
+        self.index.as_ref().clone()
+    }
+}
+
 impl Subscript {
     pub fn new(obj: Expr, index: Expr, r_sqbr: Token) -> Self {
         Self {
@@ -506,6 +588,16 @@ pub enum TypeAppArgsKind {
     Args(Args),
 }
 
+#[cfg(feature = "pylib")]
+impl IntoPy<PyObject> for TypeAppArgsKind {
+    fn into_py(self, py: Python<'_>) -> PyObject {
+        match self {
+            Self::SubtypeOf(ty) => ty.into_py(py),
+            Self::Args(args) => args.into_py(py),
+        }
+    }
+}
+
 impl NestedDisplay for TypeAppArgsKind {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
         match self {
@@ -518,7 +610,7 @@ impl NestedDisplay for TypeAppArgsKind {
 impl_display_from_nested!(TypeAppArgsKind);
 impl_locational_for_enum!(TypeAppArgsKind; SubtypeOf, Args);
 
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TypeAppArgs {
     pub l_vbar: Token,
@@ -652,7 +744,7 @@ impl Accessor {
     }
 }
 
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NormalArray {
     pub l_sqbr: Token,
@@ -670,6 +762,14 @@ impl NestedDisplay for NormalArray {
 
 impl_display_from_nested!(NormalArray);
 impl_locational!(NormalArray, l_sqbr, elems, r_sqbr);
+
+#[pymethods]
+impl NormalArray {
+    #[pyo3(name = "get")]
+    fn _get(&self, index: usize) -> Option<Expr> {
+        self.get(index).cloned()
+    }
+}
 
 impl NormalArray {
     pub const fn new(l_sqbr: Token, r_sqbr: Token, elems: Args) -> Self {
@@ -782,7 +882,7 @@ impl Array {
     }
 }
 
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NormalTuple {
     pub elems: Args,
@@ -852,7 +952,7 @@ impl KeyValue {
     }
 }
 
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NormalDict {
     pub l_brace: Token,
@@ -1055,6 +1155,19 @@ impl From<MixedRecord> for NormalRecord {
     }
 }
 
+#[pymethods]
+impl NormalRecord {
+    #[pyo3(name = "get")]
+    fn _get(&self, name: &str) -> Option<Expr> {
+        self.get(name).cloned()
+    }
+
+    #[pyo3(name = "keys")]
+    fn _keys(&self) -> Vec<Identifier> {
+        self.keys().cloned().collect()
+    }
+}
+
 impl NormalRecord {
     pub const fn new(l_brace: Token, r_brace: Token, attrs: RecordAttrs) -> Self {
         Self {
@@ -1167,6 +1280,19 @@ impl NestedDisplay for MixedRecord {
 impl_display_from_nested!(MixedRecord);
 impl_locational!(MixedRecord, l_brace, r_brace);
 
+#[pymethods]
+impl MixedRecord {
+    #[pyo3(name = "get")]
+    fn _get(&self, name: &str) -> Option<RecordAttrOrIdent> {
+        self.get(name).cloned()
+    }
+
+    #[pyo3(name = "keys")]
+    fn _keys(&self) -> Vec<Identifier> {
+        self.keys().cloned().collect()
+    }
+}
+
 impl MixedRecord {
     pub const fn new(l_brace: Token, r_brace: Token, attrs: Vec<RecordAttrOrIdent>) -> Self {
         Self {
@@ -1174,6 +1300,24 @@ impl MixedRecord {
             r_brace,
             attrs,
         }
+    }
+
+    pub fn get(&self, name: &str) -> Option<&RecordAttrOrIdent> {
+        for attr in self.attrs.iter() {
+            match attr {
+                RecordAttrOrIdent::Attr(def) => {
+                    if def.sig.ident().is_some_and(|n| n.inspect() == name) {
+                        return Some(attr);
+                    }
+                }
+                RecordAttrOrIdent::Ident(ident) => {
+                    if ident.inspect() == name {
+                        return Some(attr);
+                    }
+                }
+            }
+        }
+        None
     }
 
     pub fn keys(&self) -> impl Iterator<Item = &Identifier> {
@@ -1204,7 +1348,7 @@ impl RecordAttrOrIdent {
     }
 }
 
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NormalSet {
     pub l_brace: Token,
@@ -1229,6 +1373,14 @@ impl From<NormalSet> for Expr {
     }
 }
 
+#[pymethods]
+impl NormalSet {
+    #[pyo3(name = "get")]
+    fn _get(&self, index: usize) -> Option<Expr> {
+        self.get(index).cloned()
+    }
+}
+
 impl NormalSet {
     pub const fn new(l_brace: Token, r_brace: Token, elems: Args) -> Self {
         Self {
@@ -1236,6 +1388,10 @@ impl NormalSet {
             r_brace,
             elems,
         }
+    }
+
+    pub fn get(&self, index: usize) -> Option<&Expr> {
+        self.elems.pos_args.get(index).map(|a| &a.expr)
     }
 }
 
@@ -1365,6 +1521,17 @@ impl BinOp {
     }
 }
 
+#[pymethods]
+impl BinOp {
+    pub fn lhs(&self) -> Expr {
+        self.args[0].as_ref().clone()
+    }
+
+    pub fn rhs(&self) -> Expr {
+        self.args[1].as_ref().clone()
+    }
+}
+
 #[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct UnaryOp {
@@ -1398,6 +1565,13 @@ impl UnaryOp {
     pub fn deconstruct(self) -> (Token, Expr) {
         let mut exprs = self.args.into_iter();
         (self.op, *exprs.next().unwrap())
+    }
+}
+
+#[pymethods]
+impl UnaryOp {
+    pub fn value(&self) -> Expr {
+        self.args[0].as_ref().clone()
     }
 }
 
@@ -1466,6 +1640,24 @@ impl_display_from_nested!(Call);
 impl Locational for Call {
     fn loc(&self) -> Location {
         Location::concat(self.obj.as_ref(), &self.args)
+    }
+}
+
+#[pymethods]
+impl Call {
+    #[getter]
+    pub fn obj(&self) -> Expr {
+        self.obj.as_ref().clone()
+    }
+
+    #[getter]
+    pub fn attr_name(&self) -> Option<Identifier> {
+        self.attr_name.clone()
+    }
+
+    #[getter]
+    pub fn args(&self) -> Args {
+        self.args.clone()
     }
 }
 
@@ -1955,7 +2147,7 @@ impl ConstSet {
     }
 }
 
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ConstKeyValue {
     pub key: ConstExpr,
@@ -1981,7 +2173,7 @@ impl ConstKeyValue {
     }
 }
 
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstDict {
     l_brace: Token,
@@ -2016,7 +2208,7 @@ impl ConstDict {
     }
 }
 
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstTuple {
     pub elems: ConstArgs,
@@ -2072,7 +2264,7 @@ impl ConstBlock {
     }
 }
 
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstDefBody {
     pub op: Token,
@@ -2092,7 +2284,7 @@ impl ConstDefBody {
     }
 }
 
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstDef {
     pub ident: ConstIdentifier,
@@ -2411,7 +2603,7 @@ impl ConstExpr {
     }
 }
 
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstPosArg {
     pub expr: ConstExpr,
@@ -2431,7 +2623,7 @@ impl ConstPosArg {
     }
 }
 
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstKwArg {
     pub keyword: Token,
@@ -2584,7 +2776,7 @@ impl ConstArgs {
     }
 }
 
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PolyTypeSpec {
     pub acc: ConstAccessor,
@@ -2694,7 +2886,7 @@ impl PreDeclTypeSpec {
     }
 }
 
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParamTySpec {
     pub name: Option<Token>,
@@ -2731,7 +2923,7 @@ impl ParamTySpec {
     }
 }
 
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DefaultParamTySpec {
     pub param: ParamTySpec,
@@ -2882,7 +3074,7 @@ impl SetWithLenTypeSpec {
     }
 }
 
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TupleTypeSpec {
     pub parens: Option<(Token, Token)>,
@@ -2913,7 +3105,7 @@ impl TupleTypeSpec {
     }
 }
 
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DictTypeSpec {
     pub braces: Option<(Token, Token)>,
@@ -2950,7 +3142,7 @@ impl DictTypeSpec {
     }
 }
 
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordTypeSpec {
     pub braces: Option<(Token, Token)>,
@@ -3701,7 +3893,7 @@ impl Identifier {
     }
 }
 
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VarArrayPattern {
     l_sqbr: Token,
@@ -3742,7 +3934,7 @@ impl VarArrayPattern {
     }
 }
 
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VarTuplePattern {
     pub(crate) paren: Option<(Token, Token)>,
@@ -3785,7 +3977,7 @@ impl VarTuplePattern {
     }
 }
 
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VarRecordAttr {
     pub lhs: Identifier,
@@ -3807,7 +3999,7 @@ impl VarRecordAttr {
     }
 }
 
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VarRecordAttrs {
     pub(crate) elems: Vec<VarRecordAttr>,
@@ -3832,7 +4024,7 @@ impl VarRecordAttrs {
     }
 }
 
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VarRecordPattern {
     l_brace: Token,
@@ -3939,7 +4131,7 @@ impl VarPattern {
         }
     }
 
-    pub fn vis(&self) -> &VisModifierSpec {
+    pub const fn vis(&self) -> &VisModifierSpec {
         match self {
             Self::Ident(ident) => &ident.vis,
             // TODO: `[.x, .y]`?
@@ -3947,7 +4139,7 @@ impl VarPattern {
         }
     }
 
-    pub fn ident(&self) -> Option<&Identifier> {
+    pub const fn ident(&self) -> Option<&Identifier> {
         match self {
             Self::Ident(ident) => Some(ident),
             _ => None,
@@ -3987,6 +4179,15 @@ impl VarSignature {
     fn _inspect(&self) -> Option<Str> {
         self.pat.inspect().cloned()
     }
+
+    #[pyo3(name = "ident")]
+    fn _ident(&self) -> Option<Identifier> {
+        match &self.pat {
+            VarPattern::Ident(ident) => Some(ident),
+            _ => None,
+        }
+        .cloned()
+    }
 }
 
 impl VarSignature {
@@ -4002,7 +4203,7 @@ impl VarSignature {
         self.pat.is_const()
     }
 
-    pub fn vis(&self) -> &VisModifierSpec {
+    pub const fn vis(&self) -> &VisModifierSpec {
         self.pat.vis()
     }
 
@@ -4049,7 +4250,7 @@ impl Vars {
     }
 }
 
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ParamArrayPattern {
     pub l_sqbr: Token,
@@ -4101,7 +4302,9 @@ impl TryFrom<&ParamArrayPattern> for ConstExpr {
     }
 }
 
+#[pymethods]
 impl ParamArrayPattern {
+    #[staticmethod]
     pub const fn new(l_sqbr: Token, elems: Params, r_sqbr: Token) -> Self {
         Self {
             l_sqbr,
@@ -4165,7 +4368,7 @@ impl ParamTuplePattern {
     }
 }
 
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ParamRecordAttr {
     pub lhs: Identifier,
@@ -4216,7 +4419,7 @@ impl ParamRecordAttrs {
     }
 }
 
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ParamRecordPattern {
     pub(crate) l_brace: Token,
@@ -4331,7 +4534,7 @@ impl ParamPattern {
 }
 
 /// Once the default_value is set to Some, all subsequent values must be Some
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NonDefaultParamSignature {
     pub pat: ParamPattern,
@@ -4375,7 +4578,7 @@ impl NonDefaultParamSignature {
 }
 
 /// Once the default_value is set to Some, all subsequent values must be Some
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DefaultParamSignature {
     pub sig: NonDefaultParamSignature,
@@ -4422,6 +4625,7 @@ impl NestedDisplay for GuardClause {
 }
 
 impl_display_from_nested!(GuardClause);
+impl_into_py_for_enum!(GuardClause; Condition, Bind);
 
 impl Locational for GuardClause {
     fn loc(&self) -> Location {
@@ -4502,6 +4706,34 @@ type RawParams = (
     Option<(Token, Token)>,
 );
 
+#[pymethods]
+impl Params {
+    #[getter]
+    pub fn non_defaults(&self) -> Vec<NonDefaultParamSignature> {
+        self.non_defaults.clone()
+    }
+
+    #[getter]
+    pub fn var_params(&self) -> Option<NonDefaultParamSignature> {
+        self.var_params.as_deref().cloned()
+    }
+
+    #[getter]
+    pub fn defaults(&self) -> Vec<DefaultParamSignature> {
+        self.defaults.clone()
+    }
+
+    #[getter]
+    pub fn kw_var_params(&self) -> Option<NonDefaultParamSignature> {
+        self.kw_var_params.as_deref().cloned()
+    }
+
+    #[getter]
+    pub fn guards(&self) -> Vec<GuardClause> {
+        self.guards.clone()
+    }
+}
+
 impl Params {
     pub fn new(
         non_defaults: Vec<NonDefaultParamSignature>,
@@ -4562,7 +4794,7 @@ impl Params {
 }
 
 /// 引数を取るならTypeでもSubr扱い
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SubrSignature {
     pub decorators: HashSet<Decorator>,
@@ -4635,7 +4867,7 @@ impl SubrSignature {
     }
 }
 
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct LambdaSignature {
     pub bounds: TypeBoundSpecs,
@@ -5142,7 +5374,7 @@ impl ClassDef {
     }
 }
 
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PatchDef {
     pub def: Def,
@@ -5173,7 +5405,7 @@ impl PatchDef {
     }
 }
 
-#[pyclass]
+#[pyclass(get_all)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Compound {
     pub exprs: Vec<Expr>,
@@ -5524,6 +5756,7 @@ impl Module {
     }
 }
 
+#[pyclass(get_all)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AST {
     pub name: Str,
@@ -5566,6 +5799,14 @@ impl NestedDisplay for InlineModule {
 
 impl_display_from_nested!(InlineModule);
 impl_locational!(InlineModule, ast);
+
+#[pymethods]
+impl InlineModule {
+    #[getter]
+    pub fn ast(&self) -> AST {
+        self.ast.clone()
+    }
+}
 
 impl InlineModule {
     pub const fn new(input: Input, ast: AST, import: Call) -> Self {

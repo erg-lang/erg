@@ -34,6 +34,10 @@ pub use transpile::Transpiler;
 #[cfg(feature = "pylib")]
 use pyo3::prelude::*;
 
+/// compile(code: str) -> code
+/// --
+///
+/// compile an Erg code as a module at runtime
 #[cfg(feature = "pylib")]
 #[pyfunction]
 #[pyo3(name = "compile")]
@@ -55,6 +59,10 @@ fn _compile(py: Python<'_>, code: String) -> Result<PyObject, error::CompileErro
         .into())
 }
 
+/// compile_file(path: str) -> code
+/// --
+///
+/// compile an Erg file as a module at runtime
 #[cfg(feature = "pylib")]
 #[pyfunction]
 #[pyo3(name = "compile_file")]
@@ -63,6 +71,10 @@ fn _compile_file(py: Python<'_>, path: String) -> Result<PyObject, error::Compil
     _compile(py, code)
 }
 
+/// exec_module(code: str) -> module
+/// --
+///
+/// compile and execute an Erg code as a module at runtime
 #[cfg(feature = "pylib")]
 #[pyfunction]
 #[pyo3(name = "exec_module")]
@@ -76,6 +88,10 @@ fn _exec_module(py: Python<'_>, code: String) -> Result<PyObject, error::Compile
     Ok(module.into())
 }
 
+/// __import__(name: str) -> module
+/// --
+///
+/// import an Erg module at runtime
 #[cfg(feature = "pylib")]
 #[pyfunction]
 #[pyo3(name = "__import__")]

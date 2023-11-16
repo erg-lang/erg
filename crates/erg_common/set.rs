@@ -7,6 +7,9 @@ use std::iter::FromIterator;
 use crate::fxhash::FxHashSet;
 use crate::{debug_fmt_iter, fmt_iter};
 
+#[cfg(feature = "pylib")]
+use pyo3::{IntoPy, PyObject, Python};
+
 #[macro_export]
 macro_rules! set {
     () => { $crate::set::Set::new() };
@@ -20,6 +23,13 @@ macro_rules! set {
 #[derive(Clone)]
 pub struct Set<T> {
     elems: FxHashSet<T>,
+}
+
+#[cfg(feature = "pylib")]
+impl<T: Hash + Eq + IntoPy<PyObject>> IntoPy<PyObject> for Set<T> {
+    fn into_py(self, py: Python<'_>) -> PyObject {
+        self.elems.into_py(py)
+    }
 }
 
 // Use `fast_eq` for faster comparisons

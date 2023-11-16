@@ -954,8 +954,8 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         if let (ast::Expr::Accessor(ast::Accessor::Ident(ident)), None, Some(lhs), Some(rhs)) = (
             call.obj.as_ref(),
             &call.attr_name,
-            call.args.nth_or_key(0, "object"),
-            call.args.nth_or_key(1, "classinfo"),
+            &call.args.nth_or_key(0, "object"),
+            &call.args.nth_or_key(1, "classinfo"),
         ) {
             self.get_bin_guard_type(ident.name.token(), lhs, rhs)
         } else {
