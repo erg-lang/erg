@@ -932,6 +932,11 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         if !ident.vi.is_toplevel()
             && ident.vi.def_namespace() != &self.module.context.name
             && ident.vi.kind.can_capture()
+            && self
+                .module
+                .context
+                .current_function_ctx()
+                .is_some_and(|ctx| ctx.control_kind().is_none())
         {
             self.module.context.captured_names.push(ident.clone());
         }

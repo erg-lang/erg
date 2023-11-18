@@ -1382,6 +1382,16 @@ impl Context {
         None
     }
 
+    pub fn current_function_ctx(&self) -> Option<&Context> {
+        if self.kind.is_subr() {
+            Some(self)
+        } else if let Some(outer) = self.get_outer() {
+            outer.current_function_ctx()
+        } else {
+            None
+        }
+    }
+
     pub(crate) fn check_types(&self) {
         if DEBUG_MODE {
             for (_, ctx) in self.poly_types.iter() {

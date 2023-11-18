@@ -12,3 +12,11 @@ func2! version: Int =
 
 arr = func2!(1)
 assert arr[0] == 1
+
+for! [1], _ =>
+    result = !""
+    push! left, right =
+        result.push! "| \{left} | \{right} |\n"
+
+    push! "a", "b"
+    assert result == "| a | b |\n"
