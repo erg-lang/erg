@@ -1,0 +1,8 @@
+.erg_parser = pyimport "erg_parser"
+
+.compile: (code: Str, mode: Str) -> Code
+.compile_ast: (ast: .erg_parser.ast.AST, mode: Str) -> Code
+.compile_file: (path: Str) -> Code
+.exec: (code: Str) -> Module
+.exec_ast: (ast: .erg_parser.ast.AST) -> Module
+.__import__: (name: Str) -> Module

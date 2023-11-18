@@ -97,5 +97,16 @@ pub fn erg_parser(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     ast.add_class::<ast::Module>()?;
     ast.add_class::<ast::AST>()?;
     m.add_submodule(ast)?;
+
+    py.run(
+        "\
+import sys
+sys.modules['erg_parser.ast'] = ast
+sys.modules['erg_parser.expr'] = expr
+",
+        None,
+        Some(m.dict()),
+    )?;
+
     Ok(())
 }
