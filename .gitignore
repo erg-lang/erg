@@ -18,6 +18,7 @@
 /.idea/
 /timeit.dat
 **/__pycache__/
+**/.venv
 
 # Nix
 .direnv

@@ -330,7 +330,10 @@ impl LimitedDisplay for SubrType {
             pt.typ().limited_fmt(f, limit - 1)?;
         }
         if let Some(kw_var_params) = &self.kw_var_params {
-            if !self.non_default_params.is_empty() || !self.default_params.is_empty() {
+            if !self.non_default_params.is_empty()
+                || !self.default_params.is_empty()
+                || self.var_params.is_some()
+            {
                 write!(f, ", ")?;
             }
             write!(f, "**")?;

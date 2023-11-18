@@ -769,7 +769,7 @@ pub trait Runnable: Sized + Default + New {
                     let indent = vm.indent();
                     if vm.now_block.len() > 1 {
                         output.write_all(instance.ps2().as_bytes()).unwrap();
-                        output.write_all(indent.as_str().as_bytes()).unwrap();
+                        output.write_all(indent.as_bytes()).unwrap();
                         output.flush().unwrap();
                     } else {
                         output.write_all(instance.ps1().as_bytes()).unwrap();

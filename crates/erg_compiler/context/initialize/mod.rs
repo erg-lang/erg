@@ -1158,7 +1158,7 @@ impl Context {
             self.cfg.inherit(path.to_path_buf()),
             self.shared().clone(),
         );
-        let eval_t = func1(Type::Str, Type::Obj);
+        let eval_t = func1(Str | mono(BYTES) | Code, Obj);
         ctx.register_builtin_erg_impl(
             "pyeval",
             eval_t,
@@ -1172,6 +1172,20 @@ impl Context {
         let block = Block::new(vec![eval]);
         let body = DefBody::new(Token::DUMMY, block, DefId(0));
         let eval = Def::new(sig, body);
+        let exec_t = func1(Str | mono(BYTES) | Code, NoneType);
+        ctx.register_builtin_erg_impl(
+            "pyexec",
+            exec_t,
+            Mutability::Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        let pyexec = Identifier::public("pyexec");
+        let sig = VarSignature::new(pyexec.clone(), None);
+        let sig = Signature::Var(sig);
+        let exec = Expr::Accessor(Accessor::Ident(Identifier::public("exec")));
+        let block = Block::new(vec![exec]);
+        let body = DefBody::new(Token::DUMMY, block, DefId(0));
+        let exec = Def::new(sig, body);
         let T = type_q("T");
         let perform_t = func1(proc0(T.clone()), T).quantify();
         ctx.register_builtin_erg_impl(
@@ -1199,7 +1213,7 @@ impl Context {
         let block = Block::new(vec![Expr::Call(call)]);
         let body = DefBody::new(Token::DUMMY, block, DefId(0));
         let perform = Def::new(sig, body);
-        let module = Module::new(vec![Expr::Def(eval), Expr::Def(perform)]);
+        let module = Module::new(vec![Expr::Def(eval), Expr::Def(exec), Expr::Def(perform)]);
         let hir = HIR::new("unsound".into(), module);
         let ctx = ModuleContext::new(ctx, dict! {});
         self.mod_cache().register(path, None, Some(hir), ctx);

@@ -40,15 +40,19 @@ els = ["erg_common/els"]
 no_std = ["erg_common/no_std"]
 full-repl = ["erg_common/full-repl"]
 experimental = ["erg_common/experimental", "erg_parser/experimental"]
+pylib = ["dep:pyo3", "erg_common/pylib", "erg_parser/pylib"]
+pylib_compiler = ["pylib"]
 
 [dependencies]
 erg_common = { workspace = true }
 erg_parser = { workspace = true }
+pyo3 = { workspace = true, optional = true }
 
 [build-dependencies]
 erg_common = { workspace = true }
 
 [lib]
+crate-type = ["cdylib", "rlib"]
 path = "lib.rs"
 
 [[bin]]

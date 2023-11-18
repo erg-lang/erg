@@ -122,6 +122,16 @@ fn exec_empty_check() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_erg_compiler() -> Result<(), ()> {
+    let py_command = opt_which_python().unwrap();
+    if module_exists(&py_command, "erg_compiler") {
+        expect_success("examples/use_compiler.er", 0)
+    } else {
+        expect_compile_success("examples/use_compiler.er", 0)
+    }
+}
+
+#[test]
 fn exec_external() -> Result<(), ()> {
     let py_command = opt_which_python().unwrap();
     if module_exists(&py_command, "matplotlib")

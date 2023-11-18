@@ -25,6 +25,13 @@ impl fmt::Display for LexError {
 
 impl std::error::Error for LexError {}
 
+#[cfg(feature = "pylib")]
+impl std::convert::From<LexError> for pyo3::PyErr {
+    fn from(err: LexError) -> pyo3::PyErr {
+        pyo3::exceptions::PyOSError::new_err(err.to_string())
+    }
+}
+
 impl From<ErrorCore> for LexError {
     fn from(core: ErrorCore) -> Self {
         Self(Box::new(core))
@@ -37,6 +44,7 @@ impl From<LexError> for ErrorCore {
     }
 }
 
+#[cfg_attr(feature = "pylib", pyo3::pyclass)]
 #[derive(Debug)]
 pub struct LexErrors(Vec<LexError>);
 
@@ -49,6 +57,13 @@ impl fmt::Display for LexErrors {
 }
 
 impl std::error::Error for LexErrors {}
+
+#[cfg(feature = "pylib")]
+impl std::convert::From<LexErrors> for pyo3::PyErr {
+    fn from(errs: LexErrors) -> pyo3::PyErr {
+        pyo3::exceptions::PyOSError::new_err(errs[0].to_string())
+    }
+}
 
 const ERR: Color = THEME.colors.error;
 const WARN: Color = THEME.colors.warning;

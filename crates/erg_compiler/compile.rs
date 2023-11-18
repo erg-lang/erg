@@ -8,9 +8,9 @@ use erg_common::dict::Dict;
 use erg_common::error::MultiErrorDisplay;
 use erg_common::log;
 use erg_common::traits::{ExitStatus, New, Runnable, Stream};
-use erg_parser::ast::VarName;
+use erg_parser::ast::{VarName, AST};
 
-use crate::artifact::{CompleteArtifact, ErrorArtifact};
+use crate::artifact::{Buildable, CompleteArtifact, ErrorArtifact};
 use crate::build_package::PackageBuilder;
 use crate::codegen::PyCodeGenerator;
 use crate::context::{Context, ContextProvider};
@@ -244,6 +244,19 @@ impl Compiler {
         Ok(CompleteArtifact::new(codeobj, arti.warns))
     }
 
+    pub fn compile_ast(
+        &mut self,
+        ast: AST,
+        mode: &str,
+    ) -> Result<CompleteArtifact<CodeObj>, ErrorArtifact> {
+        log!(info "the compiling process has started.");
+        let arti = self.build_link_desugar_optimize_ast(ast, mode)?;
+        let codeobj = self.code_generator.emit(arti.object);
+        log!(info "code object:\n{}", codeobj.code_info(Some(self.code_generator.py_version)));
+        log!(info "the compiling process has completed");
+        Ok(CompleteArtifact::new(codeobj, arti.warns))
+    }
+
     pub fn compile_module(&mut self) -> Result<CompleteArtifact<CodeObj>, ErrorArtifact> {
         let src = self.cfg.input.read();
         self.compile(src, "exec")
@@ -269,6 +282,19 @@ impl Compiler {
         mode: &str,
     ) -> Result<CompleteArtifact, ErrorArtifact> {
         let artifact = self.builder.build(src, mode)?;
+        let linker = HIRLinker::new(&self.cfg, &self.shared.mod_cache);
+        let hir = linker.link(artifact.object);
+        let hir = HIRDesugarer::desugar(hir);
+        let hir = HIROptimizer::optimize(self.cfg.clone(), self.shared.clone(), hir);
+        Ok(CompleteArtifact::new(hir, artifact.warns))
+    }
+
+    fn build_link_desugar_optimize_ast(
+        &mut self,
+        ast: AST,
+        mode: &str,
+    ) -> Result<CompleteArtifact, ErrorArtifact> {
+        let artifact = self.builder.build_from_ast(ast, mode)?;
         let linker = HIRLinker::new(&self.cfg, &self.shared.mod_cache);
         let hir = linker.link(artifact.object);
         let hir = HIRDesugarer::desugar(hir);

@@ -24,6 +24,7 @@ gal = []
 no_std = []
 full-repl = ["dep:crossterm"]
 experimental = []
+pylib = ["dep:pyo3"]
 
 [target.'cfg(unix)'.dependencies]
 backtrace-on-stack-overflow = { version = "0.3.0", optional = true }
@@ -32,6 +33,7 @@ backtrace-on-stack-overflow = { version = "0.3.0", optional = true }
 crossterm = { optional = true, version = "0.25.0" }
 parking_lot = "0.12"
 thread_local = "1.1"
+pyo3 = { workspace = true, optional = true }
 
 [lib]
 path = "lib.rs"

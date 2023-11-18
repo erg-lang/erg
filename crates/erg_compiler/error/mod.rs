@@ -175,6 +175,23 @@ pub struct CompileError {
 
 impl_display_and_error!(CompileError);
 
+impl From<std::io::Error> for CompileError {
+    fn from(value: std::io::Error) -> Self {
+        Self {
+            core: Box::new(ErrorCore::new(
+                vec![SubMessage::only_loc(Location::Unknown)],
+                value.to_string(),
+                0,
+                IoError,
+                Location::Unknown,
+            )),
+            input: Input::str("".into()),
+            caused_by: "".to_owned(),
+            theme: THEME,
+        }
+    }
+}
+
 impl From<ParserRunnerError> for CompileError {
     fn from(err: ParserRunnerError) -> Self {
         Self {
@@ -198,6 +215,13 @@ impl From<CompileError> for ParserRunnerError {
             core: *err.core,
             input: err.input,
         }
+    }
+}
+
+#[cfg(feature = "pylib")]
+impl std::convert::From<CompileError> for pyo3::PyErr {
+    fn from(err: CompileError) -> pyo3::PyErr {
+        pyo3::exceptions::PyOSError::new_err(err.to_string())
     }
 }
 
@@ -521,6 +545,12 @@ impl std::error::Error for CompileErrors {}
 
 impl_stream!(CompileErrors, CompileError);
 
+impl From<std::io::Error> for CompileErrors {
+    fn from(value: std::io::Error) -> Self {
+        Self::from(vec![value.into()])
+    }
+}
+
 impl From<ParserRunnerErrors> for CompileErrors {
     fn from(err: ParserRunnerErrors) -> Self {
         Self(err.into_iter().map(CompileError::from).collect())
@@ -554,6 +584,13 @@ impl From<CompileError> for ParseError {
 impl From<CompileErrors> for ParseErrors {
     fn from(err: CompileErrors) -> Self {
         Self::new(err.into_iter().map(ParseError::from).collect())
+    }
+}
+
+#[cfg(feature = "pylib")]
+impl std::convert::From<CompileErrors> for pyo3::PyErr {
+    fn from(errs: CompileErrors) -> pyo3::PyErr {
+        pyo3::exceptions::PyOSError::new_err(errs[0].to_string())
     }
 }
 

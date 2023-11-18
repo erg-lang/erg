@@ -491,7 +491,7 @@ impl<'a> HIRLinker<'a> {
         if !mod_path
             .canonicalize()
             .unwrap()
-            .starts_with(&dir.canonicalize().unwrap())
+            .starts_with(dir.canonicalize().unwrap())
         {
             dir = PathBuf::new();
         }

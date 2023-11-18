@@ -14,7 +14,13 @@ use erg_common::traits::{DequeStream, Locational};
 // use erg_common::typaram::OpKind;
 // use erg_common::value::ValueObj;
 
+#[cfg(not(feature = "pylib"))]
+use erg_proc_macros::pyclass;
+#[cfg(feature = "pylib")]
+use pyo3::prelude::*;
+
 /// 意味論的名前と記号自体の名前が混在しているが、Pythonの名残である
+#[pyclass]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum TokenKind {
@@ -188,6 +194,7 @@ pub enum TokenKind {
 
 use TokenKind::*;
 
+#[pyclass]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenCategory {
     Symbol,
@@ -333,6 +340,7 @@ impl From<TokenKind> for BinOpCode {
     }
 }
 
+#[pyclass(get_all, set_all)]
 #[derive(Clone, Eq)]
 pub struct Token {
     pub kind: TokenKind,
@@ -547,6 +555,7 @@ impl Token {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone)]
 pub struct TokenStream(VecDeque<Token>);
 
