@@ -19,6 +19,7 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: "3.11"
+      - run: pip install tqdm
       - uses: erg-lang/setup-erg@v2.1
       - run: |
           git config user.name github-actions[bot]

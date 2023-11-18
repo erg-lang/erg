@@ -1,9 +1,9 @@
-.Tqdm! = 'tqdm': ClassType
-.Tqdm! <: Iterable Int
-.Tqdm!.
+.Tqdm! = 'tqdm': (T: Type) -> ClassType
+.Tqdm!(T) <: Iterable T
+.Tqdm!(T).
     # TODO: iterable should be Comparable
     __call__: (
-        iterable: Iterable(Int),
+        iterable: Iterable(T),
         desc := Str,
         total := Int or Float,
         leave := Bool,
@@ -29,4 +29,4 @@
         colour := Str,
         delay := Float,
         gui := Bool,
-    ) -> .Tqdm!
+    ) -> .Tqdm!(T)

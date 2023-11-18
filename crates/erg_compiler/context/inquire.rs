@@ -2228,7 +2228,11 @@ impl Context {
             "{instance} is quantified subr"
         );
         log!(info "Substituted:\ninstance: {instance}");
-        debug_assert!(instance.has_no_qvar(), "{instance} has qvar");
+        debug_assert!(
+            instance.is_type() || instance.has_no_qvar(),
+            "{instance} has qvar (obj: {obj}, attr: {}",
+            fmt_option!(attr_name)
+        );
         if let Some((expected, instance)) = expected_return.zip(instance.return_t()) {
             let _res = self.sub_unify(instance, expected, obj, None);
         }
