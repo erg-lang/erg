@@ -1,18 +1,63 @@
 .algorithms_guaranteed: {Str; _}
 .algorithms_available: {Str; _}
 
+.HASHXOF!: ClassType
+.HASHXOF!.
+    block_size: Nat
+    digest_size: Nat
+    name: Str
+    digest: (self: Ref(.HASHXOF!)) -> Bytes
+    hexdigest: (self: Ref(.HASHXOF!)) -> Str
+    update!: (self: RefMut(.HASHXOF!), b: Bytes) => NoneType
+    copy: (self: Ref(.HASHXOF!)) -> .HASHXOF!
+
 .HASH!: ClassType
 .HASH!.
-    name: Str
-    digest_size: Nat
     block_size: Nat
+    digest_size: Nat
+    name: Str
     digest: (self: Ref(.HASH!)) -> Bytes
     hexdigest: (self: Ref(.HASH!)) -> Str
     update!: (self: RefMut(.HASH!), b: Bytes) => NoneType
+
+.Blake2b! = 'blake2b': ClassType
+.Blake2b!.
+    block_size: Nat
+    digest_size: Nat
+    name: Str
+    __call__: (
+        data := Bytes,
+        digest_size := Nat,
+        key := Bytes,
+        salt := Bytes,
+        person := Bytes,
+        fanout := Nat,
+        depth := Nat,
+        leaf_size := Nat,
+        node_offset := Nat,
+        node_depth := Nat,
+        inner_size := Nat,
+        last_node := Bool,
+        usedforsecurity := Bool,
+    ) -> .Blake2b!
+    digest: (self: Ref(.Blake2b!)) -> Bytes
+    hexdigest: (self: Ref(.Blake2b!)) -> Str
+    update!: (self: RefMut(.Blake2b!), b: Bytes) => NoneType
+    copy: (self: Ref(.Blake2b!)) -> .Blake2b!
 
 .new: (name: Str, b := Bytes) -> .HASH!
 .md5: (b: Bytes) -> .HASH!
 .sha1: (b: Bytes) -> .HASH!
 .sha224: (b: Bytes) -> .HASH!
 .sha256: (b: Bytes) -> .HASH!
+.sha384: (b: Bytes) -> .HASH!
 .sha512: (b: Bytes) -> .HASH!
+.sha3_224: (b: Bytes) -> .HASH!
+.sha3_256: (b: Bytes) -> .HASH!
+.sha3_384: (b: Bytes) -> .HASH!
+.sha3_512: (b: Bytes) -> .HASH!
+
+.shake_128!: (data: Bytes, usedforsecurity := Bool) => .HASHXOF!
+.shake_256!: (data: Bytes, usedforsecurity := Bool) => .HASHXOF!
+
+.file_digest: (path: FileLike, name: Str or GenericCallable) -> Bytes

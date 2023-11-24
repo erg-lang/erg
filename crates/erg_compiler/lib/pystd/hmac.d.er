@@ -1,0 +1,13 @@
+.HMAC!: ClassType
+.HMAC!.
+    digest_size: Nat
+    block_size: Nat
+    name: Str
+    update!: (self: RefMut(.HMAC!), msg: Bytes) => NoneType
+    digest: (self: Ref(.HMAC!)) -> Bytes
+    hexdigest: (self: Ref(.HMAC!)) -> Str
+    copy: (self: Ref(.HMAC!)) -> .HMAC!
+
+.compare_digest: (a: Str or Bytes, b: Str or Bytes) -> Bool
+.new: (key: Bytes, msg := Bytes, digestmod := Str or GenericCallable or GenericModule) -> .HMAC!
+.digest: (key: Bytes, msg := Bytes, digest := Str or GenericCallable or GenericModule) -> Bytes
