@@ -1,0 +1,83 @@
+.QUOTE_ALL: Nat
+.QUOTE_MINIMAL: Nat
+.QUOTE_NONNUMERIC: Nat
+.QUOTE_NONE: Nat
+.QUOTE_NOTNULL: Nat
+.QUOTE_STRINGS: Nat
+
+.Dialect: ClassType
+.Dialect.
+    delimiter: Str
+    doublequote: Bool
+    escapechar: Str
+    lineterminator: Str
+    quotechar: Str
+    quoting: Nat
+    skipinitialspace: Bool
+    strict: Bool
+.Excel = 'excel': ClassType
+.Excel <: .Dialect
+.UnixDialect = 'unix_dialect': ClassType
+.UnixDialect <: .Dialect
+
+.Reader = 'reader': ClassType
+.Reader <: Iterator(Str)
+.Reader.
+    dialect: .Dialect
+    line_num: Nat
+    __call__: (
+        csvfile: FileLike or Iterable(Str),
+        dialect := Str,
+        **Str
+    ) -> .Reader
+.Writer! = 'writer': ClassType
+.Writer!.
+    dialect: .Dialect
+    __call__: (
+        csvfile: Writable!,
+        dialect := Str,
+        **Str
+    ) -> .Writer!
+    writerow!: (self: RefMut(.Writer!), row: Obj) => Obj
+    writerows!: (self: RefMut(.Writer!), rows: Iterable(Obj)) => Obj
+    writeheader!: (self: RefMut(.Writer!)) => Obj
+
+.DictReader: ClassType
+.DictReader <: .Reader
+.DictReader.
+    reader: .Reader
+    __call__: (
+        csvfile: FileLike or Iterable(Str),
+        fieldnames := Iterable(Str),
+        restkey := Str,
+        restval := Str,
+        dialect := Str,
+        **Str
+    ) -> .DictReader
+
+.DictWriter!: ClassType
+.DictWriter! <: .Writer!
+.DictWriter!.
+    extrasaction: Str
+    fieldnames: Iterable(Str)
+    restval: Str
+    writer: .Writer!
+    __call__: (
+        csvfile: FileLike,
+        fieldnames := Iterable(Str),
+        restval := Str,
+        extrasaction := Str,
+        dialect := Str,
+        **Str
+    ) -> .DictWriter!
+
+.reader: (
+    csvfile: FileLike or Iterable(Str),
+    dialect := Str,
+    **Str
+) -> .Reader
+.writer: (
+    csvfile: FileLike,
+    dialect := Str,
+    **Str
+) -> .Writer!
