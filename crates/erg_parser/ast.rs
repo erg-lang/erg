@@ -307,7 +307,10 @@ impl NestedDisplay for KwArg {
 impl_display_from_nested!(KwArg);
 impl_locational!(KwArg, keyword, expr);
 
+#[pymethods]
 impl KwArg {
+    #[staticmethod]
+    #[pyo3(signature = (keyword, t_spec, expr))]
     pub const fn new(keyword: Token, t_spec: Option<TypeSpecWithOp>, expr: Expr) -> Self {
         Self {
             keyword,
@@ -358,22 +361,6 @@ impl Locational for Args {
 // impl_stream!(Args, Arg, args);
 
 impl Args {
-    pub fn new(
-        pos_args: Vec<PosArg>,
-        var_args: Option<PosArg>,
-        kw_args: Vec<KwArg>,
-        kw_var_args: Option<PosArg>,
-        paren: Option<(Token, Token)>,
-    ) -> Self {
-        Self {
-            pos_args,
-            var_args: var_args.map(Box::new),
-            kw_args,
-            kw_var_args: kw_var_args.map(Box::new),
-            paren,
-        }
-    }
-
     // for replacing to hir::Args
     #[allow(clippy::type_complexity)]
     pub fn deconstruct(
@@ -417,6 +404,24 @@ impl Args {
 
 #[pymethods]
 impl Args {
+    #[staticmethod]
+    #[pyo3(signature = (pos_args, var_args, kw_args, kw_var_args=None, paren=None))]
+    pub fn new(
+        pos_args: Vec<PosArg>,
+        var_args: Option<PosArg>,
+        kw_args: Vec<KwArg>,
+        kw_var_args: Option<PosArg>,
+        paren: Option<(Token, Token)>,
+    ) -> Self {
+        Self {
+            pos_args,
+            var_args: var_args.map(Box::new),
+            kw_args,
+            kw_var_args: kw_var_args.map(Box::new),
+            paren,
+        }
+    }
+
     #[getter]
     #[pyo3(name = "pos_args")]
     fn _pos_args(&self) -> Vec<PosArg> {
@@ -565,9 +570,8 @@ impl Attribute {
     pub fn ident(&self) -> Identifier {
         self.ident.clone()
     }
-}
 
-impl Attribute {
+    #[staticmethod]
     pub fn new(obj: Expr, ident: Identifier) -> Self {
         Self {
             obj: Box::new(obj),
@@ -608,9 +612,8 @@ impl TupleAttribute {
     pub fn index(&self) -> Literal {
         self.index.clone()
     }
-}
 
-impl TupleAttribute {
+    #[staticmethod]
     pub fn new(obj: Expr, index: Literal) -> Self {
         Self {
             obj: Box::new(obj),
@@ -651,9 +654,8 @@ impl Subscript {
     pub fn index(&self) -> Expr {
         self.index.as_ref().clone()
     }
-}
 
-impl Subscript {
+    #[staticmethod]
     pub fn new(obj: Expr, index: Expr, r_sqbr: Token) -> Self {
         Self {
             obj: Box::new(obj),
@@ -724,7 +726,9 @@ impl NestedDisplay for TypeAppArgs {
 impl_display_from_nested!(TypeAppArgs);
 impl_locational!(TypeAppArgs, l_vbar, args, r_vbar);
 
+#[pymethods]
 impl TypeAppArgs {
+    #[staticmethod]
     pub const fn new(l_vbar: Token, args: TypeAppArgsKind, r_vbar: Token) -> Self {
         Self {
             l_vbar,
@@ -755,7 +759,9 @@ impl NestedDisplay for TypeApp {
 impl_display_from_nested!(TypeApp);
 impl_locational!(TypeApp, obj, type_args);
 
+#[pymethods]
 impl TypeApp {
+    #[staticmethod]
     pub fn new(obj: Expr, type_args: TypeAppArgs) -> Self {
         Self {
             obj: Box::new(obj),
@@ -867,9 +873,8 @@ impl NormalArray {
     fn _get(&self, index: usize) -> Option<Expr> {
         self.get(index).cloned()
     }
-}
 
-impl NormalArray {
+    #[staticmethod]
     pub const fn new(l_sqbr: Token, r_sqbr: Token, elems: Args) -> Self {
         Self {
             l_sqbr,
@@ -877,7 +882,9 @@ impl NormalArray {
             elems,
         }
     }
+}
 
+impl NormalArray {
     pub fn get(&self, index: usize) -> Option<&Expr> {
         self.elems.pos_args.get(index).map(|a| &a.expr)
     }
@@ -901,7 +908,9 @@ impl NestedDisplay for ArrayWithLength {
 impl_display_from_nested!(ArrayWithLength);
 impl_locational!(ArrayWithLength, l_sqbr, elem, r_sqbr);
 
+#[pymethods]
 impl ArrayWithLength {
+    #[staticmethod]
     pub fn new(l_sqbr: Token, r_sqbr: Token, elem: PosArg, len: Expr) -> Self {
         Self {
             l_sqbr,
@@ -941,7 +950,10 @@ impl NestedDisplay for ArrayComprehension {
 impl_display_from_nested!(ArrayComprehension);
 impl_locational!(ArrayComprehension, l_sqbr, r_sqbr);
 
+#[pymethods]
 impl ArrayComprehension {
+    #[staticmethod]
+    #[pyo3(signature = (l_sqbr, r_sqbr, layout, generators, guard=None))]
     pub fn new(
         l_sqbr: Token,
         r_sqbr: Token,
@@ -1004,7 +1016,9 @@ impl From<NormalTuple> for Expr {
     }
 }
 
+#[pymethods]
 impl NormalTuple {
+    #[staticmethod]
     pub const fn new(elems: Args) -> Self {
         Self { elems }
     }
@@ -1046,7 +1060,9 @@ impl NestedDisplay for KeyValue {
 impl_display_from_nested!(KeyValue);
 impl_locational!(KeyValue, key, value);
 
+#[pymethods]
 impl KeyValue {
+    #[staticmethod]
     pub const fn new(key: Expr, value: Expr) -> Self {
         Self { key, value }
     }
@@ -1069,7 +1085,9 @@ impl NestedDisplay for NormalDict {
 impl_display_from_nested!(NormalDict);
 impl_locational!(NormalDict, l_brace, r_brace);
 
+#[pymethods]
 impl NormalDict {
+    #[staticmethod]
     pub const fn new(l_brace: Token, r_brace: Token, kvs: Vec<KeyValue>) -> Self {
         Self {
             l_brace,
@@ -1107,7 +1125,9 @@ impl NestedDisplay for DictComprehension {
 impl_display_from_nested!(DictComprehension);
 impl_locational!(DictComprehension, l_brace, kv, r_brace);
 
+#[pymethods]
 impl DictComprehension {
+    #[staticmethod]
     pub fn new(
         l_brace: Token,
         r_brace: Token,
@@ -1267,9 +1287,8 @@ impl NormalRecord {
     fn _keys(&self) -> Vec<Identifier> {
         self.keys().cloned().collect()
     }
-}
 
-impl NormalRecord {
+    #[staticmethod]
     pub const fn new(l_brace: Token, r_brace: Token, attrs: RecordAttrs) -> Self {
         Self {
             l_brace,
@@ -1277,7 +1296,9 @@ impl NormalRecord {
             attrs,
         }
     }
+}
 
+impl NormalRecord {
     pub fn get(&self, name: &str) -> Option<&Expr> {
         for attr in self.attrs.iter() {
             if let Signature::Var(var) = &attr.sig {
@@ -1393,9 +1414,8 @@ impl MixedRecord {
     fn _keys(&self) -> Vec<Identifier> {
         self.keys().cloned().collect()
     }
-}
 
-impl MixedRecord {
+    #[staticmethod]
     pub const fn new(l_brace: Token, r_brace: Token, attrs: Vec<RecordAttrOrIdent>) -> Self {
         Self {
             l_brace,
@@ -1403,7 +1423,9 @@ impl MixedRecord {
             attrs,
         }
     }
+}
 
+impl MixedRecord {
     pub fn get(&self, name: &str) -> Option<&RecordAttrOrIdent> {
         for attr in self.attrs.iter() {
             match attr {
@@ -1482,9 +1504,8 @@ impl NormalSet {
     fn _get(&self, index: usize) -> Option<Expr> {
         self.get(index).cloned()
     }
-}
 
-impl NormalSet {
+    #[staticmethod]
     pub const fn new(l_brace: Token, r_brace: Token, elems: Args) -> Self {
         Self {
             l_brace,
@@ -1492,7 +1513,9 @@ impl NormalSet {
             elems,
         }
     }
+}
 
+impl NormalSet {
     pub fn get(&self, index: usize) -> Option<&Expr> {
         self.elems.pos_args.get(index).map(|a| &a.expr)
     }
@@ -1516,7 +1539,9 @@ impl NestedDisplay for SetWithLength {
 impl_display_from_nested!(SetWithLength);
 impl_locational!(SetWithLength, l_brace, elem, r_brace);
 
+#[pymethods]
 impl SetWithLength {
+    #[staticmethod]
     pub fn new(l_brace: Token, r_brace: Token, elem: PosArg, len: Expr) -> Self {
         Self {
             l_brace,
@@ -1555,7 +1580,10 @@ impl NestedDisplay for SetComprehension {
 impl_display_from_nested!(SetComprehension);
 impl_locational!(SetComprehension, l_brace, r_brace);
 
+#[pymethods]
 impl SetComprehension {
+    #[staticmethod]
+    #[pyo3(signature = (l_brace, r_brace, layout, generators, guard=None))]
     pub fn new(
         l_brace: Token,
         r_brace: Token,
@@ -1612,13 +1640,6 @@ impl Locational for BinOp {
 }
 
 impl BinOp {
-    pub fn new(op: Token, lhs: Expr, rhs: Expr) -> Self {
-        Self {
-            op,
-            args: [Box::new(lhs), Box::new(rhs)],
-        }
-    }
-
     pub fn deconstruct(self) -> (Token, Expr, Expr) {
         let mut exprs = self.args.into_iter();
         (self.op, *exprs.next().unwrap(), *exprs.next().unwrap())
@@ -1627,6 +1648,14 @@ impl BinOp {
 
 #[pymethods]
 impl BinOp {
+    #[staticmethod]
+    pub fn new(op: Token, lhs: Expr, rhs: Expr) -> Self {
+        Self {
+            op,
+            args: [Box::new(lhs), Box::new(rhs)],
+        }
+    }
+
     pub fn lhs(&self) -> Expr {
         self.args[0].as_ref().clone()
     }
@@ -1667,13 +1696,6 @@ impl Locational for UnaryOp {
 }
 
 impl UnaryOp {
-    pub fn new(op: Token, expr: Expr) -> Self {
-        Self {
-            op,
-            args: [Box::new(expr)],
-        }
-    }
-
     pub fn deconstruct(self) -> (Token, Expr) {
         let mut exprs = self.args.into_iter();
         (self.op, *exprs.next().unwrap())
@@ -1682,6 +1704,14 @@ impl UnaryOp {
 
 #[pymethods]
 impl UnaryOp {
+    #[staticmethod]
+    pub fn new(op: Token, expr: Expr) -> Self {
+        Self {
+            op,
+            args: [Box::new(expr)],
+        }
+    }
+
     pub fn value(&self) -> Expr {
         self.args[0].as_ref().clone()
     }
@@ -1790,9 +1820,9 @@ impl Call {
     pub fn set_args(&mut self, args: Args) {
         self.args = args;
     }
-}
 
-impl Call {
+    #[staticmethod]
+    #[pyo3(signature = (obj, attr_name, args))]
     pub fn new(obj: Expr, attr_name: Option<Identifier>, args: Args) -> Self {
         Self {
             obj: Box::new(obj),
@@ -1931,7 +1961,10 @@ impl Stream<Expr> for Dummy {
     }
 }
 
+#[pymethods]
 impl Dummy {
+    #[staticmethod]
+    #[pyo3(signature = (loc, exprs))]
     pub const fn new(loc: Option<Location>, exprs: Vec<Expr>) -> Self {
         Self {
             loc,
@@ -1962,14 +1995,18 @@ impl NestedDisplay for ConstAttribute {
 impl_display_from_nested!(ConstAttribute);
 impl_locational!(ConstAttribute, obj, name);
 
+#[pymethods]
 impl ConstAttribute {
+    #[staticmethod]
     pub fn new(expr: ConstExpr, name: ConstIdentifier) -> Self {
         Self {
             obj: Box::new(expr),
             name,
         }
     }
+}
 
+impl ConstAttribute {
     pub fn downgrade(self) -> Attribute {
         Attribute::new(self.obj.downgrade(), self.name)
     }
@@ -1995,7 +2032,9 @@ impl NestedDisplay for ConstTupleAttribute {
 impl_display_from_nested!(ConstTupleAttribute);
 impl_locational!(ConstTupleAttribute, tup, index);
 
+#[pymethods]
 impl ConstTupleAttribute {
+    #[staticmethod]
     pub fn new(tup: ConstExpr, index: Literal) -> Self {
         Self {
             tup: Box::new(tup),
@@ -2024,7 +2063,9 @@ impl NestedDisplay for ConstSubscript {
 impl_display_from_nested!(ConstSubscript);
 impl_locational!(ConstSubscript, obj, index);
 
+#[pymethods]
 impl ConstSubscript {
+    #[staticmethod]
     pub fn new(obj: ConstExpr, index: ConstExpr) -> Self {
         Self {
             obj: Box::new(obj),
@@ -2117,7 +2158,9 @@ impl NestedDisplay for ConstNormalArray {
 impl_display_from_nested!(ConstNormalArray);
 impl_locational!(ConstNormalArray, l_sqbr, elems, r_sqbr);
 
+#[pymethods]
 impl ConstNormalArray {
+    #[staticmethod]
     pub fn new(l_sqbr: Token, r_sqbr: Token, elems: ConstArgs, guard: Option<ConstExpr>) -> Self {
         Self {
             l_sqbr,
@@ -2126,7 +2169,9 @@ impl ConstNormalArray {
             guard: guard.map(Box::new),
         }
     }
+}
 
+impl ConstNormalArray {
     pub fn downgrade(self) -> NormalArray {
         NormalArray::new(self.l_sqbr, self.r_sqbr, self.elems.downgrade())
     }
@@ -2150,7 +2195,9 @@ impl NestedDisplay for ConstArrayWithLength {
 impl_display_from_nested!(ConstArrayWithLength);
 impl_locational!(ConstArrayWithLength, l_sqbr, elem, r_sqbr);
 
+#[pymethods]
 impl ConstArrayWithLength {
+    #[staticmethod]
     pub fn new(l_sqbr: Token, r_sqbr: Token, elem: ConstExpr, length: ConstExpr) -> Self {
         Self {
             l_sqbr,
@@ -2159,7 +2206,9 @@ impl ConstArrayWithLength {
             length: Box::new(length),
         }
     }
+}
 
+impl ConstArrayWithLength {
     pub fn downgrade(self) -> ArrayWithLength {
         ArrayWithLength::new(
             self.l_sqbr,
@@ -2187,15 +2236,19 @@ impl NestedDisplay for ConstNormalSet {
 impl_display_from_nested!(ConstNormalSet);
 impl_locational!(ConstNormalSet, l_brace, elems, r_brace);
 
+#[pymethods]
 impl ConstNormalSet {
-    pub fn new(l_brace: Token, r_brace: Token, elems: ConstArgs) -> Self {
+    #[staticmethod]
+    pub const fn new(l_brace: Token, r_brace: Token, elems: ConstArgs) -> Self {
         Self {
             l_brace,
             r_brace,
             elems,
         }
     }
+}
 
+impl ConstNormalSet {
     pub fn downgrade(self) -> NormalSet {
         NormalSet::new(self.l_brace, self.r_brace, self.elems.downgrade())
     }
@@ -2229,7 +2282,10 @@ impl NestedDisplay for ConstSetComprehension {
 impl_display_from_nested!(ConstSetComprehension);
 impl_locational!(ConstSetComprehension, l_brace, r_brace);
 
+#[pymethods]
 impl ConstSetComprehension {
+    #[staticmethod]
+    #[pyo3(signature = (l_brace, r_brace, elem, generators, guard=None))]
     pub fn new(
         l_brace: Token,
         r_brace: Token,
@@ -2245,7 +2301,9 @@ impl ConstSetComprehension {
             guard: guard.map(Box::new),
         }
     }
+}
 
+impl ConstSetComprehension {
     pub fn downgrade(self) -> SetComprehension {
         SetComprehension::new(
             self.l_brace,
@@ -2297,11 +2355,15 @@ impl NestedDisplay for ConstKeyValue {
 impl_display_from_nested!(ConstKeyValue);
 impl_locational!(ConstKeyValue, key, value);
 
+#[pymethods]
 impl ConstKeyValue {
+    #[staticmethod]
     pub const fn new(key: ConstExpr, value: ConstExpr) -> Self {
         Self { key, value }
     }
+}
 
+impl ConstKeyValue {
     pub fn downgrade(self) -> KeyValue {
         KeyValue::new(self.key.downgrade(), self.value.downgrade())
     }
@@ -2324,7 +2386,9 @@ impl NestedDisplay for ConstDict {
 impl_display_from_nested!(ConstDict);
 impl_locational!(ConstDict, l_brace, r_brace);
 
+#[pymethods]
 impl ConstDict {
+    #[staticmethod]
     pub const fn new(l_brace: Token, r_brace: Token, kvs: Vec<ConstKeyValue>) -> Self {
         Self {
             l_brace,
@@ -2332,7 +2396,9 @@ impl ConstDict {
             kvs,
         }
     }
+}
 
+impl ConstDict {
     pub fn downgrade(self) -> Dict {
         Dict::Normal(NormalDict::new(
             self.l_brace,
@@ -2357,11 +2423,15 @@ impl NestedDisplay for ConstTuple {
 impl_display_from_nested!(ConstTuple);
 impl_locational!(ConstTuple, elems);
 
+#[pymethods]
 impl ConstTuple {
+    #[staticmethod]
     pub const fn new(elems: ConstArgs) -> Self {
         Self { elems }
     }
+}
 
+impl ConstTuple {
     pub fn downgrade(self) -> Tuple {
         Tuple::Normal(NormalTuple::new(self.elems.downgrade()))
     }
@@ -2408,11 +2478,15 @@ pub struct ConstDefBody {
 
 impl_locational!(ConstDefBody, lossy op, block);
 
+#[pymethods]
 impl ConstDefBody {
+    #[staticmethod]
     pub const fn new(op: Token, block: ConstBlock, id: DefId) -> Self {
         Self { op, block, id }
     }
+}
 
+impl ConstDefBody {
     pub fn downgrade(self) -> DefBody {
         DefBody::new(self.op, self.block.downgrade(), self.id)
     }
@@ -2434,11 +2508,15 @@ impl NestedDisplay for ConstDef {
 impl_display_from_nested!(ConstDef);
 impl_locational!(ConstDef, ident, body);
 
+#[pymethods]
 impl ConstDef {
+    #[staticmethod]
     pub const fn new(ident: ConstIdentifier, body: ConstDefBody) -> Self {
         Self { ident, body }
     }
+}
 
+impl ConstDef {
     pub fn downgrade(self) -> Def {
         Def::new(Signature::new_var(self.ident), self.body.downgrade())
     }
@@ -2462,7 +2540,9 @@ impl NestedDisplay for ConstLambda {
 impl_display_from_nested!(ConstLambda);
 impl_locational!(ConstLambda, sig, body);
 
+#[pymethods]
 impl ConstLambda {
+    #[staticmethod]
     pub fn new(sig: LambdaSignature, op: Token, body: ConstBlock, id: DefId) -> Self {
         Self {
             sig: Box::new(sig),
@@ -2471,7 +2551,9 @@ impl ConstLambda {
             id,
         }
     }
+}
 
+impl ConstLambda {
     pub fn downgrade(self) -> Lambda {
         Lambda::new(*self.sig, self.op, self.body.downgrade(), self.id)
     }
@@ -2499,7 +2581,9 @@ impl Locational for ConstRecord {
 
 impl_display_from_nested!(ConstRecord);
 
+#[pymethods]
 impl ConstRecord {
+    #[staticmethod]
     pub const fn new(l_brace: Token, r_brace: Token, attrs: Vec<ConstDef>) -> Self {
         Self {
             l_brace,
@@ -2507,7 +2591,9 @@ impl ConstRecord {
             attrs,
         }
     }
+}
 
+impl ConstRecord {
     pub fn downgrade(self) -> Record {
         Record::Normal(NormalRecord::new(
             self.l_brace,
@@ -2534,7 +2620,9 @@ impl NestedDisplay for ConstBinOp {
 impl_display_from_nested!(ConstBinOp);
 impl_locational!(ConstBinOp, lhs, rhs);
 
+#[pymethods]
 impl ConstBinOp {
+    #[staticmethod]
     pub fn new(op: Token, lhs: ConstExpr, rhs: ConstExpr) -> Self {
         Self {
             op,
@@ -2542,7 +2630,9 @@ impl ConstBinOp {
             rhs: Box::new(rhs),
         }
     }
+}
 
+impl ConstBinOp {
     pub fn downgrade(self) -> BinOp {
         BinOp::new(self.op, self.lhs.downgrade(), self.rhs.downgrade())
     }
@@ -2564,14 +2654,18 @@ impl NestedDisplay for ConstUnaryOp {
 impl_display_from_nested!(ConstUnaryOp);
 impl_locational!(ConstUnaryOp, op, expr);
 
+#[pymethods]
 impl ConstUnaryOp {
+    #[staticmethod]
     pub fn new(op: Token, expr: ConstExpr) -> Self {
         Self {
             op,
             expr: Box::new(expr),
         }
     }
+}
 
+impl ConstUnaryOp {
     pub fn downgrade(self) -> UnaryOp {
         UnaryOp::new(self.op, self.expr.downgrade())
     }
@@ -2611,7 +2705,10 @@ impl Locational for ConstApp {
     }
 }
 
+#[pymethods]
 impl ConstApp {
+    #[staticmethod]
+    #[pyo3(signature = (obj, attr_name, args))]
     pub fn new(obj: ConstExpr, attr_name: Option<ConstIdentifier>, args: ConstArgs) -> Self {
         Self {
             obj: Box::new(obj),
@@ -2619,7 +2716,9 @@ impl ConstApp {
             args,
         }
     }
+}
 
+impl ConstApp {
     pub fn downgrade(self) -> Call {
         if let Some(attr_name) = self.attr_name {
             self.obj
@@ -2648,7 +2747,9 @@ impl NestedDisplay for ConstTypeAsc {
 impl_display_from_nested!(ConstTypeAsc);
 impl_locational!(ConstTypeAsc, expr, t_spec);
 
+#[pymethods]
 impl ConstTypeAsc {
+    #[staticmethod]
     pub fn new(expr: ConstExpr, t_spec: TypeSpecWithOp) -> Self {
         Self {
             expr: Box::new(expr),
@@ -2663,7 +2764,9 @@ impl ConstTypeAsc {
     pub fn is_subtype_ascription(&self) -> bool {
         self.t_spec.op.is(TokenKind::SubtypeOf)
     }
+}
 
+impl ConstTypeAsc {
     pub fn downgrade(self) -> TypeAscription {
         TypeAscription::new(self.expr.downgrade(), *self.t_spec)
     }
@@ -2752,7 +2855,9 @@ impl NestedDisplay for ConstPosArg {
 
 impl_locational!(ConstPosArg, expr);
 
+#[pymethods]
 impl ConstPosArg {
+    #[staticmethod]
     pub const fn new(expr: ConstExpr) -> Self {
         Self { expr }
     }
@@ -2773,7 +2878,9 @@ impl NestedDisplay for ConstKwArg {
 
 impl_locational!(ConstKwArg, keyword, expr);
 
+#[pymethods]
 impl ConstKwArg {
+    #[staticmethod]
     pub const fn new(keyword: Token, expr: ConstExpr) -> Self {
         Self { keyword, expr }
     }
@@ -2815,7 +2922,10 @@ impl Locational for ConstArgs {
 
 // impl_stream!(ConstArgs, ConstKwArg, pos_args);
 
+#[pymethods]
 impl ConstArgs {
+    #[staticmethod]
+    #[pyo3(signature = (pos_args, var_args, kw_args, kw_var=None, paren=None))]
     pub fn new(
         pos_args: Vec<ConstPosArg>,
         var_args: Option<ConstPosArg>,
@@ -2832,14 +2942,35 @@ impl ConstArgs {
         }
     }
 
+    #[staticmethod]
     pub fn pos_only(pos_args: Vec<ConstPosArg>, paren: Option<(Token, Token)>) -> Self {
         Self::new(pos_args, None, vec![], None, paren)
     }
 
+    #[staticmethod]
     pub fn single(expr: ConstExpr) -> Self {
         Self::pos_only(vec![ConstPosArg::new(expr)], None)
     }
 
+    #[staticmethod]
+    pub fn empty() -> Self {
+        Self::new(vec![], None, vec![], None, None)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.pos_args.is_empty() && self.kw_args.is_empty()
+    }
+
+    pub fn push_pos(&mut self, arg: ConstPosArg) {
+        self.pos_args.push(arg);
+    }
+
+    pub fn push_kw(&mut self, arg: ConstKwArg) {
+        self.kw_args.push(arg);
+    }
+}
+
+impl ConstArgs {
     #[allow(clippy::type_complexity)]
     pub fn deconstruct(
         self,
@@ -2859,14 +2990,6 @@ impl ConstArgs {
         )
     }
 
-    pub fn empty() -> Self {
-        Self::new(vec![], None, vec![], None, None)
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.pos_args.is_empty() && self.kw_args.is_empty()
-    }
-
     pub fn pos_args(&self) -> impl Iterator<Item = &ConstPosArg> {
         self.pos_args.iter()
     }
@@ -2882,14 +3005,6 @@ impl ConstArgs {
         impl IntoIterator<Item = ConstKwArg>,
     ) {
         (self.pos_args.into_iter(), self.kw_args.into_iter())
-    }
-
-    pub fn push_pos(&mut self, arg: ConstPosArg) {
-        self.pos_args.push(arg);
-    }
-
-    pub fn push_kw(&mut self, arg: ConstKwArg) {
-        self.kw_args.push(arg);
     }
 
     pub fn downgrade(self) -> Args {
@@ -2936,7 +3051,9 @@ impl Locational for PolyTypeSpec {
     }
 }
 
+#[pymethods]
 impl PolyTypeSpec {
+    #[staticmethod]
     pub const fn new(acc: ConstAccessor, args: ConstArgs) -> Self {
         Self { acc, args }
     }
@@ -4587,15 +4704,20 @@ impl NestedDisplay for ParamRecordAttrs {
 impl_display_from_nested!(ParamRecordAttrs);
 impl_stream!(ParamRecordAttrs, ParamRecordAttr, elems);
 
+#[pymethods]
 impl ParamRecordAttrs {
+    #[staticmethod]
     pub const fn new(elems: Vec<ParamRecordAttr>) -> Self {
         Self { elems }
     }
 
+    #[staticmethod]
     pub const fn empty() -> Self {
         Self::new(vec![])
     }
+}
 
+impl ParamRecordAttrs {
     pub fn keys(&self) -> impl Iterator<Item = &Identifier> {
         self.elems.iter().map(|attr| &attr.lhs)
     }
@@ -4618,7 +4740,9 @@ impl NestedDisplay for ParamRecordPattern {
 impl_display_from_nested!(ParamRecordPattern);
 impl_locational!(ParamRecordPattern, l_brace, r_brace);
 
+#[pymethods]
 impl ParamRecordPattern {
+    #[staticmethod]
     pub const fn new(l_brace: Token, elems: ParamRecordAttrs, r_brace: Token) -> Self {
         Self {
             l_brace,
@@ -4741,13 +4865,17 @@ impl Locational for NonDefaultParamSignature {
     }
 }
 
+#[pymethods]
+impl NonDefaultParamSignature {
+    #[staticmethod]
+    pub fn simple(name: Str) -> Self {
+        Self::new(ParamPattern::VarName(VarName::from_str(name)), None)
+    }
+}
+
 impl NonDefaultParamSignature {
     pub const fn new(pat: ParamPattern, t_spec: Option<TypeSpecWithOp>) -> Self {
         Self { pat, t_spec }
-    }
-
-    pub fn simple(name: Str) -> Self {
-        Self::new(ParamPattern::VarName(VarName::from_str(name)), None)
     }
 
     pub const fn inspect(&self) -> Option<&Str> {
@@ -4781,11 +4909,15 @@ impl Locational for DefaultParamSignature {
     }
 }
 
+#[pymethods]
 impl DefaultParamSignature {
+    #[staticmethod]
     pub const fn new(sig: NonDefaultParamSignature, default_val: Expr) -> Self {
         Self { sig, default_val }
     }
+}
 
+impl DefaultParamSignature {
     pub const fn inspect(&self) -> Option<&Str> {
         self.sig.pat.inspect()
     }
@@ -4808,6 +4940,7 @@ impl NestedDisplay for GuardClause {
 
 impl_display_from_nested!(GuardClause);
 impl_into_py_for_enum!(GuardClause; Condition, Bind);
+impl_from_py_for_enum!(GuardClause; Condition(Expr), Bind(Def));
 
 impl Locational for GuardClause {
     fn loc(&self) -> Location {
@@ -4890,6 +5023,35 @@ type RawParams = (
 
 #[pymethods]
 impl Params {
+    #[staticmethod]
+    #[pyo3(signature = (non_defaults, var_params, defaults, kw_var_params=None, parens=None))]
+    pub fn new(
+        non_defaults: Vec<NonDefaultParamSignature>,
+        var_params: Option<NonDefaultParamSignature>,
+        defaults: Vec<DefaultParamSignature>,
+        kw_var_params: Option<NonDefaultParamSignature>,
+        parens: Option<(Token, Token)>,
+    ) -> Self {
+        Self {
+            non_defaults,
+            var_params: var_params.map(Box::new),
+            defaults,
+            kw_var_params: kw_var_params.map(Box::new),
+            guards: Vec::new(),
+            parens,
+        }
+    }
+
+    #[staticmethod]
+    pub fn empty() -> Self {
+        Self::new(vec![], None, vec![], None, None)
+    }
+
+    #[staticmethod]
+    pub fn single(non_default: NonDefaultParamSignature) -> Self {
+        Self::new(vec![non_default], None, vec![], None, None)
+    }
+
     #[getter]
     pub fn non_defaults(&self) -> Vec<NonDefaultParamSignature> {
         self.non_defaults.clone()
@@ -4914,51 +5076,10 @@ impl Params {
     pub fn guards(&self) -> Vec<GuardClause> {
         self.guards.clone()
     }
-}
-
-impl Params {
-    pub fn new(
-        non_defaults: Vec<NonDefaultParamSignature>,
-        var_params: Option<NonDefaultParamSignature>,
-        defaults: Vec<DefaultParamSignature>,
-        kw_var_params: Option<NonDefaultParamSignature>,
-        parens: Option<(Token, Token)>,
-    ) -> Self {
-        Self {
-            non_defaults,
-            var_params: var_params.map(Box::new),
-            defaults,
-            kw_var_params: kw_var_params.map(Box::new),
-            guards: Vec::new(),
-            parens,
-        }
-    }
-
-    pub fn single(non_default: NonDefaultParamSignature) -> Self {
-        Self::new(vec![non_default], None, vec![], None, None)
-    }
-
-    pub fn deconstruct(self) -> RawParams {
-        (
-            self.non_defaults,
-            self.var_params,
-            self.defaults,
-            self.kw_var_params,
-            self.guards,
-            self.parens,
-        )
-    }
 
     #[inline]
     pub fn len(&self) -> usize {
         self.non_defaults.len() + self.defaults.len()
-    }
-
-    pub fn sigs(&self) -> impl Iterator<Item = &NonDefaultParamSignature> {
-        self.non_defaults
-            .iter()
-            .chain(self.var_params.as_deref())
-            .chain(self.defaults.iter().map(|d| &d.sig))
     }
 
     #[inline]
@@ -4972,6 +5093,26 @@ impl Params {
 
     pub fn extend_guards(&mut self, guards: Vec<GuardClause>) {
         self.guards.extend(guards);
+    }
+}
+
+impl Params {
+    pub fn deconstruct(self) -> RawParams {
+        (
+            self.non_defaults,
+            self.var_params,
+            self.defaults,
+            self.kw_var_params,
+            self.guards,
+            self.parens,
+        )
+    }
+
+    pub fn sigs(&self) -> impl Iterator<Item = &NonDefaultParamSignature> {
+        self.non_defaults
+            .iter()
+            .chain(self.var_params.as_deref())
+            .chain(self.defaults.iter().map(|d| &d.sig))
     }
 }
 
@@ -5144,7 +5285,9 @@ impl NestedDisplay for Lambda {
 
 impl_display_from_nested!(Lambda);
 
+#[pymethods]
 impl Lambda {
+    #[staticmethod]
     pub const fn new(sig: LambdaSignature, op: Token, body: Block, id: DefId) -> Self {
         Self { sig, op, body, id }
     }
@@ -5302,14 +5445,18 @@ impl NestedDisplay for TypeAscription {
 impl_display_from_nested!(TypeAscription);
 impl_locational!(TypeAscription, expr, t_spec);
 
+#[pymethods]
 impl TypeAscription {
+    #[staticmethod]
     pub fn new(expr: Expr, t_spec: TypeSpecWithOp) -> Self {
         Self {
             expr: Box::new(expr),
             t_spec,
         }
     }
+}
 
+impl TypeAscription {
     pub fn kind(&self) -> AscriptionKind {
         self.t_spec.ascription_kind()
     }
@@ -5331,6 +5478,7 @@ pub enum DefKind {
     Other,
 }
 
+#[pymethods]
 impl DefKind {
     pub const fn is_trait(&self) -> bool {
         matches!(self, Self::Trait | Self::Subsume | Self::StructuralTrait)
@@ -5375,11 +5523,14 @@ pub struct DefBody {
 
 impl_locational!(DefBody, lossy op, block);
 
+#[pymethods]
 impl DefBody {
+    #[staticmethod]
     pub const fn new(op: Token, block: Block, id: DefId) -> Self {
         Self { op, block, id }
     }
 
+    #[staticmethod]
     pub fn new_single(expr: Expr) -> Self {
         Self::new(EQUAL, Block::new(vec![expr]), DefId(0))
     }
@@ -5431,7 +5582,9 @@ impl NestedDisplay for Def {
 impl_display_from_nested!(Def);
 impl_locational!(Def, sig, body);
 
+#[pymethods]
 impl Def {
+    #[staticmethod]
     pub const fn new(sig: Signature, body: DefBody) -> Self {
         Self { sig, body }
     }
@@ -5472,7 +5625,9 @@ impl NestedDisplay for ReDef {
 impl_display_from_nested!(ReDef);
 impl_locational!(ReDef, attr, expr);
 
+#[pymethods]
 impl ReDef {
+    #[staticmethod]
     pub fn new(attr: Accessor, expr: Expr) -> Self {
         Self {
             attr,
@@ -5548,7 +5703,9 @@ impl NestedDisplay for ClassDef {
 impl_display_from_nested!(ClassDef);
 impl_locational!(ClassDef, def);
 
+#[pymethods]
 impl ClassDef {
+    #[staticmethod]
     pub const fn new(def: Def, methods: Vec<Methods>) -> Self {
         Self {
             def,
@@ -5579,7 +5736,9 @@ impl NestedDisplay for PatchDef {
 impl_display_from_nested!(PatchDef);
 impl_locational!(PatchDef, def);
 
+#[pymethods]
 impl PatchDef {
+    #[staticmethod]
     pub const fn new(def: Def, methods: Vec<Methods>) -> Self {
         Self {
             def,
@@ -5616,7 +5775,9 @@ impl Locational for Compound {
     }
 }
 
+#[pymethods]
 impl Compound {
+    #[staticmethod]
     pub const fn new(exprs: Vec<Expr>) -> Self {
         Self { exprs }
     }
