@@ -1334,8 +1334,12 @@ impl Context {
                     &format!("instantiate `{lhs} {op} {rhs}` as type")
                 ),
             },
-            other => {
-                type_feature_error!(self, loc.loc(), &format!("instantiate `{other}` as type"))
+            other =>
+            {
+                #[allow(clippy::bind_instead_of_map)]
+                self.convert_tp_into_type(other).or_else(|tp| {
+                    type_feature_error!(self, loc.loc(), &format!("instantiate `{tp}` as type"))
+                })
             }
         }
     }

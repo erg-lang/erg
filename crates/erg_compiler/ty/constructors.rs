@@ -27,12 +27,16 @@ pub const fn anon(ty: Type) -> ParamTy {
 
 #[inline]
 pub fn free_var(level: usize, constraint: Constraint) -> Type {
-    Type::FreeVar(Free::new_unbound(level, constraint))
+    Type::FreeVar(Free::new_unbound(level, constraint.to_type_constraint()))
 }
 
 #[inline]
 pub fn named_free_var(name: Str, level: usize, constraint: Constraint) -> Type {
-    Type::FreeVar(Free::new_named_unbound(name, level, constraint))
+    Type::FreeVar(Free::new_named_unbound(
+        name,
+        level,
+        constraint.to_type_constraint(),
+    ))
 }
 
 #[inline]

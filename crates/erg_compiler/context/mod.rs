@@ -56,6 +56,9 @@ pub trait ContextProvider {
     fn dir(&self) -> Dict<&VarName, &VarInfo>;
     fn get_receiver_ctx(&self, receiver_name: &str) -> Option<&Context>;
     fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)>;
+    fn has(&self, name: &str) -> bool {
+        self.get_var_info(name).is_some()
+    }
 }
 
 const BUILTINS: &Str = &Str::ever("<builtins>");
@@ -680,6 +683,10 @@ impl Context {
 
     pub fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
         ContextProvider::get_var_info(self, name)
+    }
+
+    pub fn has(&self, name: &str) -> bool {
+        ContextProvider::has(self, name)
     }
 
     pub fn get_type_info(&self, typ: &Type) -> Option<(&VarName, &VarInfo)> {

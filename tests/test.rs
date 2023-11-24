@@ -411,6 +411,11 @@ fn exec_unused_import() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_use_itertools() -> Result<(), ()> {
+    expect_success("tests/should_ok/use_itertools.er", 0)
+}
+
+#[test]
 fn exec_use_py() -> Result<(), ()> {
     expect_success("examples/use_py.er", 0)
 }

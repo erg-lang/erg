@@ -250,6 +250,13 @@ impl Constraint {
             other => other,
         }
     }
+
+    pub fn to_type_constraint(self) -> Constraint {
+        match self {
+            Self::TypeOf(Type::Type) => Constraint::new_sandwiched(Type::Never, Type::Obj),
+            _ => self,
+        }
+    }
 }
 
 pub trait CanbeFree {

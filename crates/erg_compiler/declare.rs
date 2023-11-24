@@ -620,8 +620,15 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
     fn get_tv_ctx(&self, ident: &ast::Identifier, args: &ast::Args) -> TyVarCache {
         let mut tv_ctx = TyVarCache::new(self.module.context.level, &self.module.context);
         if let Some(ctx) = self.module.context.get_type_ctx(ident.inspect()) {
-            for (tp, arg) in ctx.typ.typarams().iter().zip(args.pos_args()) {
+            let arg_ts = ctx.params.iter().map(|(_, vi)| &vi.t);
+            for ((tp, arg), arg_t) in ctx.typ.typarams().iter().zip(args.pos_args()).zip(arg_ts) {
                 if let ast::Expr::Accessor(ast::Accessor::Ident(ident)) = &arg.expr {
+                    if arg_t.is_type() {
+                        if let Ok(tv) = self.module.context.convert_tp_into_type(tp.clone()) {
+                            tv_ctx.push_or_init_tyvar(&ident.name, &tv, &self.module.context);
+                            continue;
+                        }
+                    }
                     tv_ctx.push_or_init_typaram(&ident.name, tp, &self.module.context);
                 }
             }
@@ -841,11 +848,32 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         if ident.is_raw() {
             return Ok(());
         }
-        if self
-            .module
-            .context
-            .registered_info(ident.inspect(), ident.is_const())
-            .is_some_and(|(_, vi)| !vi.kind.is_builtin())
+        // in case of:
+        // ```
+        // .Foo = 'foo': ClassType
+        // .Foo.
+        //     __call__: (T, U) -> .Foo
+        // .foo: (T, U) -> .Foo # ignore this definition
+        // ```
+        let mut type_as_function = false;
+        if PYTHON_MODE
+            && self
+                .module
+                .context
+                .registered_info(ident.inspect(), ident.is_const())
+                .is_some_and(|(_, vi)| t.is_type() || vi.t.is_type())
+        {
+            let typ = self.module.context.get_type_ctx(ident.inspect());
+            if typ.is_some_and(|ctx| ctx.has("__call__")) {
+                type_as_function = true;
+            }
+        }
+        if !type_as_function
+            && self
+                .module
+                .context
+                .registered_info(ident.inspect(), ident.is_const())
+                .is_some_and(|(_, vi)| !vi.kind.is_builtin())
         {
             return Err(LowerErrors::from(LowerError::reassign_error(
                 self.cfg().input.clone(),

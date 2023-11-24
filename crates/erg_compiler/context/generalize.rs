@@ -618,9 +618,8 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
             }
             Type::FreeVar(fv) if fv.is_unbound() => {
                 if self.ctx.level == 0 {
-                    #[allow(clippy::single_match)]
                     match &*fv.crack_constraint() {
-                        Constraint::TypeOf(_) => {
+                        Constraint::TypeOf(t) if !t.is_type() => {
                             return Err(TyCheckErrors::from(TyCheckError::dummy_infer_error(
                                 self.ctx.cfg.input.clone(),
                                 fn_name!(),

@@ -1,0 +1,23 @@
+itertools = pyimport "itertools"
+
+g = itertools.groupby([1, 2, 3, 3, 4, 5], i -> i > 2)
+for! g, ((b, it),) =>
+    print! b, it
+    if b, do:
+        assert all(map(i -> i >= 3, it))
+
+ts = itertools.tee([1, 2, 3, 4, 5], 2)
+for! ts, (t: itertools.Tee,) =>
+    print! t
+
+combs = itertools.combinations([1, 2, 3], 2)
+for! combs, (comb,) =>
+    print! comb[0] + 1
+
+pair = itertools.pairwise([1, 2, 3])
+for! pair, ((l, r),) =>
+    print! l, r
+
+chain = itertools.chain([1, 2, 3], [4, 5])
+for! chain, (i,) =>
+    print! i + 1
