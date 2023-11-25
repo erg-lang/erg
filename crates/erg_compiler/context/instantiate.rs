@@ -163,6 +163,9 @@ impl TyVarCache {
     }
 
     pub(crate) fn push_or_init_tyvar(&mut self, name: &VarName, tv: &Type, ctx: &Context) {
+        if name.inspect() == "_" {
+            return;
+        }
         if let Some(inst) = self.tyvar_instances.get(name) {
             self.update_tyvar(inst, tv, ctx);
         } else if let Some(inst) = self.typaram_instances.get(name) {
@@ -182,6 +185,9 @@ impl TyVarCache {
     }
 
     pub(crate) fn dummy_push_or_init_tyvar(&mut self, name: &VarName, tv: &Type, ctx: &Context) {
+        if name.inspect() == "_" {
+            return;
+        }
         if let Some(inst) = self.tyvar_instances.get(name) {
             self.update_tyvar(inst, tv, ctx);
         } else if let Some(inst) = self.typaram_instances.get(name) {
@@ -234,6 +240,9 @@ impl TyVarCache {
     }
 
     pub(crate) fn push_or_init_typaram(&mut self, name: &VarName, tp: &TyParam, ctx: &Context) {
+        if name.inspect() == "_" {
+            return;
+        }
         // FIXME:
         if let Some(inst) = self.typaram_instances.get(name) {
             self.update_typaram(inst, tp, ctx);
@@ -241,7 +250,7 @@ impl TyVarCache {
             if let Ok(tv) = <&Type>::try_from(tp) {
                 self.update_tyvar(inst, tv, ctx);
             } else {
-                unreachable!()
+                unreachable!("{name} / {inst} / {tp}");
             }
         } else {
             let t = ctx.get_tp_t(tp).unwrap_or(Type::Obj);
@@ -258,6 +267,9 @@ impl TyVarCache {
         tp: &TyParam,
         ctx: &Context,
     ) {
+        if name.inspect() == "_" {
+            return;
+        }
         // FIXME:
         if let Some(inst) = self.typaram_instances.get(name) {
             self.update_typaram(inst, tp, ctx);
