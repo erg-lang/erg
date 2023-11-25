@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use thread_local::ThreadLocal;
 
-const TIMEOUT: Duration = Duration::from_secs(2);
+const TIMEOUT: Duration = Duration::from_secs(3);
 
 #[derive(Debug)]
 pub struct BorrowInfo {
