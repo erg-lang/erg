@@ -15,7 +15,7 @@ for! combs, (comb,) =>
     print! comb[0] + 1
 
 #[
-# piarwise in introduced in Python 3.10
+# pairwise is introduced in Python 3.10
 pair = itertools.pairwise([1, 2, 3])
 for! pair, ((l, r),) =>
     print! l, r
