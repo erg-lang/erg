@@ -49,8 +49,8 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             hir::Expr::TypeAsc(tasc) => enum_unwrap!(tasc.expr.as_ref(), hir::Expr::Accessor)
                 .local_name()
                 .map(Str::rc),
-            hir::Expr::Accessor(acc) => acc.var_info().py_name.clone(),
-            _ => sig.inspect().cloned(),
+            hir::Expr::Accessor(hir::Accessor::Ident(ident)) => ident.vi.py_name.clone(),
+            _ => sig.escaped(),
         };
         let found_body_t = chunk.ref_t();
         let ident = match &sig.pat {

@@ -4406,6 +4406,18 @@ impl VarPattern {
         }
     }
 
+    pub fn escaped(&self) -> Option<Str> {
+        match self {
+            Self::Ident(ident) => {
+                let inspect = ident.inspect();
+                Some(Str::rc(
+                    inspect.trim_end_matches('!').trim_start_matches('$'),
+                ))
+            }
+            _ => None,
+        }
+    }
+
     // _!(...) = ... is invalid
     pub fn is_procedural(&self) -> bool {
         match self {
@@ -4500,6 +4512,10 @@ impl VarSignature {
 impl VarSignature {
     pub const fn inspect(&self) -> Option<&Str> {
         self.pat.inspect()
+    }
+
+    pub fn escaped(&self) -> Option<Str> {
+        self.pat.escaped()
     }
 
     pub const fn vis(&self) -> &VisModifierSpec {

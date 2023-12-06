@@ -1,7 +1,6 @@
 .Tqdm! = 'tqdm': (T: Type) -> ClassType
 .Tqdm!(T) <: Iterable T
 .Tqdm!(T).
-    # TODO: iterable should be Comparable
     __call__: (
         iterable: Iterable(T),
         desc := Str,
@@ -30,3 +29,5 @@
         delay := Float,
         gui := Bool,
     ) -> .Tqdm!(T)
+
+.tqdm = .Tqdm!.__call__

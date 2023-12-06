@@ -9,15 +9,21 @@
     ndim: Nat
     dtype: Type
     size: Nat
+    copy: |T, S: [Nat; _]|(self: .NDArray(T, S),) -> .NDArray(T, S)
     reshape: |T, Old: [Nat; _], S: [Nat; _]|(
         self: .NDArray(T, Old),
         shape: {S},
     ) -> .NDArray(T, S)
+    sum: |T <: Num|(self: .NDArray(T, _),) -> T
+    take: (|T|(self: .NDArray(T, _), indice: Nat) -> T) \
+        and (|T|(self: .NDArray(T, _), indices: .NDArray(Nat) or [Nat; _]) -> .NDArray(T, _))
+    tobytes: |T|(self: .NDArray(T, _),) -> Bytes
+    tolist: |T|(self: .NDArray(T, _),) -> [T; _]
 
 .nan: Float
 .Nan: Float
 
-.abs: |T|(object: .NDArray(T),) -> .NDArray(T)
+.abs: |T, S: [Nat; _]|(object: .NDArray(T, S),) -> .NDArray(T, S)
 .add: |T, S: [Nat; _]|(object: .NDArray(T, S), other: .NDArray(T, S)) -> .NDArray(T, S)
 .all: |T <: Num|(object: .NDArray(T),) -> Bool
 .any: |T <: Num|(object: .NDArray(T),) -> Bool

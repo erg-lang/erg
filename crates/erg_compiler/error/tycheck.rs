@@ -805,12 +805,18 @@ passed keyword args:    {kw_args_len}"
             "english" =>sup_type.push_str("supertype: "),
         );
         sup_type.push_str_with_color_and_attr(format!("{sup_t}"), ERR, ATTR);
+        let hint = switch_lang!(
+            "japanese" => "これがあなたの定義した型ならば、型を共変もしくは反変にしてみてください(<: Output T もしくは <: Input T)",
+            "simplified_chinese" => "如果这是您定义的类型，请尝试将类型变为协变或逆变(<: Output T 或 <: Input T)",
+            "traditional_chinese" => "如果這是您定義的類型，請嘗試將類型變為協變或逆變(<: Output T 或 <: Input T)",
+            "english" => "If this is the type you defined, try to make the type covariant or contravariant (<: Output T or <: Input T)",
+        );
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::ambiguous_new(
                     loc,
                     vec![sub_type.to_string(), sup_type.to_string()],
-                    None,
+                    Some(hint.to_string()),
                 )],
                 switch_lang!(
                     "japanese" => "不変な型パラメータを一意に決定できません",

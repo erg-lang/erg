@@ -1,8 +1,11 @@
 time = pyimport "time"
 tqdm = pyimport "tqdm"
 j2 = pyimport "jinja2"
+np = pyimport "numpy"
 
 for! tqdm.Tqdm!(0..<100), _ =>
+    time.sleep! 0.01
+for! tqdm.tqdm(0..<100), _ =>
     time.sleep! 0.01
 
 plt = pyimport "matplotlib/pyplot"
@@ -14,3 +17,6 @@ plt.show!()
 
 res = j2.Template("Hello {{ name }}!").render(name:="World")
 assert res == "Hello World!"
+
+arr = np.array([1, 2, 3])
+assert arr.sum() == 6
