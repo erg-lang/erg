@@ -990,7 +990,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     .map(|op| op.is_import())
                     .unwrap_or(false) =>
             {
-                Ok(hir::Expr::Call(self.lower_call(call, None)?))
+                Ok(hir::Expr::Call(self.lower_call(call, None)))
             }
             other => Err(LowerErrors::from(LowerError::declare_error(
                 self.cfg().input.clone(),

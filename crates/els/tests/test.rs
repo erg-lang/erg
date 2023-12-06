@@ -11,6 +11,7 @@ const FILE_C: &str = "tests/c.er";
 const FILE_IMPORTS: &str = "tests/imports.er";
 const FILE_INVALID_SYNTAX: &str = "tests/invalid_syntax.er";
 const FILE_RETRIGGER: &str = "tests/retrigger.er";
+const FILE_TOLERANT_COMPLETION: &str = "tests/tolerant_completion.er";
 
 use els::{NormalizedUrl, Server};
 use erg_proc_macros::exec_new_thread;
@@ -127,6 +128,41 @@ fn test_completion_retrigger() -> Result<(), Box<dyn std::error::Error>> {
         return Err(format!("not items: {resp:?}").into());
     }
     Ok(())
+}
+
+#[test]
+fn test_tolerant_completion() -> Result<(), Box<dyn std::error::Error>> {
+    let mut client = Server::bind_fake_client();
+    client.request_initialize()?;
+    client.notify_initialized()?;
+    let uri = NormalizedUrl::from_file_path(Path::new(FILE_TOLERANT_COMPLETION).canonicalize()?)?;
+    client.notify_open(FILE_TOLERANT_COMPLETION)?;
+    let _ = client.wait_diagnostics()?;
+    client.notify_change(uri.clone().raw(), add_char(5, 16, "."))?;
+    let resp = client.request_completion(uri.clone().raw(), 5, 17, ".")?;
+    if let Some(CompletionResponse::Array(items)) = resp {
+        assert!(items.len() >= 40);
+        assert!(items.iter().any(|item| item.label == "capitalize"));
+    } else {
+        return Err(format!("not items: {resp:?}").into());
+    }
+    client.notify_change(uri.clone().raw(), add_char(5, 14, "."))?;
+    let resp = client.request_completion(uri.clone().raw(), 5, 15, ".")?;
+    if let Some(CompletionResponse::Array(items)) = resp {
+        assert!(items.len() >= 40);
+        assert!(items.iter().any(|item| item.label == "abs"));
+    } else {
+        return Err(format!("not items: {resp:?}").into());
+    }
+    client.notify_change(uri.clone().raw(), add_char(2, 9, "."))?;
+    let resp = client.request_completion(uri.raw(), 2, 10, ".")?;
+    if let Some(CompletionResponse::Array(items)) = resp {
+        assert!(items.len() >= 10);
+        assert!(items.iter().any(|item| item.label == "tqdm"));
+        Ok(())
+    } else {
+        Err(format!("not items: {resp:?}").into())
+    }
 }
 
 #[test]

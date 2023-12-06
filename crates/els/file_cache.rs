@@ -18,7 +18,7 @@ use erg_common::set::Set;
 use erg_common::shared::Shared;
 use erg_common::traits::DequeStream;
 use erg_compiler::erg_parser::lex::Lexer;
-use erg_compiler::erg_parser::token::{Token, TokenCategory, TokenStream};
+use erg_compiler::erg_parser::token::{Token, TokenCategory, TokenKind, TokenStream};
 
 use crate::_log;
 use crate::server::{ELSResult, RedirectableStdout};
@@ -176,10 +176,23 @@ impl FileCache {
     /// a{pos}\n -> \n -> a
     pub fn get_symbol(&self, uri: &NormalizedUrl, pos: Position) -> Option<Token> {
         let mut token = self.get_token(uri, pos)?;
+        let mut offset = 0;
         while !matches!(token.category(), TokenCategory::Symbol) {
-            token = self.get_token_relatively(uri, pos, -1)?;
+            offset -= 1;
+            token = self.get_token_relatively(uri, pos, offset)?;
         }
         Some(token)
+    }
+
+    pub fn get_receiver(&self, uri: &NormalizedUrl, attr_marker_pos: Position) -> Option<Token> {
+        let mut token = self.get_token(uri, attr_marker_pos)?;
+        let mut offset = 0;
+        while !matches!(token.kind, TokenKind::Dot | TokenKind::DblColon) {
+            offset -= 1;
+            token = self.get_token_relatively(uri, attr_marker_pos, offset)?;
+        }
+        offset -= 1;
+        self.get_token_relatively(uri, attr_marker_pos, offset)
     }
 
     pub fn get_token_relatively(
@@ -197,6 +210,11 @@ impl FileCache {
         let index = (|| {
             for (i, tok) in tokens.iter().enumerate() {
                 if util::pos_in_loc(tok, pos) {
+                    return Some(i);
+                }
+            }
+            for (i, tok) in tokens.iter().enumerate() {
+                if util::roughly_pos_in_loc(tok, pos) {
                     return Some(i);
                 }
             }

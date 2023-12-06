@@ -280,7 +280,7 @@ impl<'a> HIRVisitor<'a> {
             Expr::Record(record) => self.get_expr_from_record(expr, record, pos),
             Expr::Set(set) => self.get_expr_from_set(expr, set, pos),
             Expr::Tuple(tuple) => self.get_expr_from_tuple(expr, tuple, pos),
-            Expr::TypeAsc(type_asc) => self.get_expr(&type_asc.expr, pos),
+            Expr::TypeAsc(type_asc) => self.get_expr_from_type_asc(expr, type_asc, pos),
             Expr::Dummy(dummy) => self.get_expr_from_dummy(dummy, pos),
             Expr::Compound(block) | Expr::Code(block) => {
                 self.get_expr_from_block(block.iter(), pos)
@@ -533,6 +533,17 @@ impl<'a> HIRVisitor<'a> {
                     .or_else(|| self.get_expr_from_args(&tuple.elems, pos))
             } // _ => None, // todo!(),
         }
+    }
+
+    fn get_expr_from_type_asc<'e>(
+        &'e self,
+        expr: &'e Expr,
+        type_asc: &'e TypeAscription,
+        pos: Position,
+    ) -> Option<&Expr> {
+        self.get_expr(&type_asc.expr, pos)
+            .or_else(|| self.get_expr(&type_asc.spec.expr, pos))
+            .or_else(|| self.return_expr_if_contains(expr, pos, type_asc))
     }
 }
 

@@ -1,0 +1,6 @@
+tqdm = pyimport "tqdm"
+
+f _: tqdm
+i = 1
+s = "a"
+g() = None + i s i

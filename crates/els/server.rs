@@ -25,7 +25,7 @@ use erg_compiler::error::CompileWarning;
 use erg_compiler::hir::HIR;
 use erg_compiler::lower::ASTLowerer;
 use erg_compiler::module::{IRs, ModuleEntry, SharedCompilerResource};
-use erg_compiler::ty::HasType;
+use erg_compiler::ty::{HasType, Type};
 
 pub use molc::RedirectableStdout;
 use molc::{FakeClient, LangServer};
@@ -137,7 +137,7 @@ impl From<&str> for OptionalFeatures {
 macro_rules! _log {
     ($self:ident, $($arg:tt)*) => {
         let s = format!($($arg)*);
-        $self.send_log(format!("{}@{}: {s}", file!(), line!())).unwrap();
+        let _ = $self.send_log(format!("{}@{}: {s}", file!(), line!()));
     };
 }
 
@@ -873,21 +873,19 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         ctxs
     }
 
-    pub(crate) fn get_receiver_ctxs(
+    pub(crate) fn get_receiver_and_ctxs(
         &self,
         uri: &NormalizedUrl,
         attr_marker_pos: Position,
-    ) -> ELSResult<Vec<&Context>> {
+    ) -> ELSResult<(Option<Type>, Vec<&Context>)> {
         let Some(module) = self.raw_get_mod_ctx(uri) else {
-            return Ok(vec![]);
+            return Ok((None, vec![]));
         };
-        let maybe_token = self
-            .file_cache
-            .get_token_relatively(uri, attr_marker_pos, -2);
+        let maybe_token = self.file_cache.get_receiver(uri, attr_marker_pos);
         if let Some(token) = maybe_token {
-            // self.send_log(format!("token: {token}"))?;
+            // _log!(self, "token: {token}");
             let mut ctxs = vec![];
-            if let Some(visitor) = self.get_visitor(uri) {
+            let expr = if let Some(visitor) = self.get_visitor(uri) {
                 if let Some(expr) =
                     loc_to_pos(token.loc()).and_then(|pos| visitor.get_min_expr(pos))
                 {
@@ -902,14 +900,18 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     {
                         ctxs.extend(singular_ctxs);
                     }
+                    Some(expr.t())
                 } else {
                     _log!(self, "expr not found: {token}");
+                    None
                 }
-            }
-            Ok(ctxs)
+            } else {
+                None
+            };
+            Ok((expr, ctxs))
         } else {
             self.send_log("token not found")?;
-            Ok(vec![])
+            Ok((None, vec![]))
         }
     }
 

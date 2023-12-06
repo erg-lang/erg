@@ -1267,11 +1267,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
 
     /// returning `Ok(call)` does not mean the call is valid, just means it is syntactically valid
     /// `ASTLowerer` is designed to cause as little information loss in HIR as possible
-    pub(crate) fn lower_call(
-        &mut self,
-        call: ast::Call,
-        expect: Option<&Type>,
-    ) -> LowerResult<hir::Call> {
+    pub(crate) fn lower_call(&mut self, call: ast::Call, expect: Option<&Type>) -> hir::Call {
         log!(info "entered {}({}{}(...))", fn_name!(), call.obj, fmt_option!(call.attr_name));
         let pushed = if let (Some(name), None) = (call.obj.get_name(), &call.attr_name) {
             self.module.context.higher_order_caller.push(name.clone());
@@ -1288,7 +1284,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     self.module.context.higher_order_caller.pop();
                 }
                 errs.extend(es);
-                return Err(errs);
+                hir::Expr::Dummy(hir::Dummy::empty())
             }
         };
         let opt_vi = self.module.context.get_call_t_without_args(
@@ -1375,10 +1371,12 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             self.module.context.higher_order_caller.pop();
         }
         if errs.is_empty() {
-            self.exec_additional_op(&mut call)?;
+            if let Err(es) = self.exec_additional_op(&mut call) {
+                errs.extend(es);
+            }
         }
         self.errs.extend(errs);
-        Ok(call)
+        call
     }
 
     /// importing is done in [preregister](https://github.com/erg-lang/erg/blob/ffd33015d540ff5a0b853b28c01370e46e0fcc52/crates/erg_compiler/context/register.rs#L819)
@@ -2676,14 +2674,27 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
     ) -> LowerResult<hir::TypeAscription> {
         log!(info "entered {}({tasc})", fn_name!());
         let kind = tasc.kind();
-        let spec_t = self
+        let spec_t = match self
             .module
             .context
-            .instantiate_typespec(&tasc.t_spec.t_spec)?;
+            .instantiate_typespec(&tasc.t_spec.t_spec)
+        {
+            Ok(spec_t) => spec_t,
+            Err(errs) => {
+                self.errs.extend(errs);
+                Type::Failure
+            }
+        };
         let expect = expect.map_or(Some(&spec_t), |exp| {
             self.module.context.min(exp, &spec_t).ok().or(Some(&spec_t))
         });
-        let expr = self.lower_expr(*tasc.expr, expect)?;
+        let expr = match self.lower_expr(*tasc.expr, expect) {
+            Ok(expr) => expr,
+            Err(errs) => {
+                self.errs.extend(errs);
+                hir::Expr::Dummy(hir::Dummy::new(vec![]))
+            }
+        };
         match kind {
             AscriptionKind::TypeOf | AscriptionKind::AsCast => {
                 self.module.context.sub_unify(
@@ -2825,7 +2836,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             ast::Expr::Accessor(acc) => hir::Expr::Accessor(self.lower_acc(acc, expect)?),
             ast::Expr::BinOp(bin) => hir::Expr::BinOp(self.lower_bin(bin, expect)),
             ast::Expr::UnaryOp(unary) => hir::Expr::UnaryOp(self.lower_unary(unary, expect)),
-            ast::Expr::Call(call) => hir::Expr::Call(self.lower_call(call, expect)?),
+            ast::Expr::Call(call) => hir::Expr::Call(self.lower_call(call, expect)),
             ast::Expr::DataPack(pack) => hir::Expr::Call(self.lower_pack(pack, expect)?),
             ast::Expr::Lambda(lambda) => hir::Expr::Lambda(self.lower_lambda(lambda, expect)?),
             ast::Expr::TypeAscription(tasc) => {
@@ -2835,7 +2846,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             // Checking is also performed for expressions in Dummy. However, it has no meaning in code generation
             ast::Expr::Dummy(dummy) => hir::Expr::Dummy(self.lower_dummy(dummy, expect)?),
             ast::Expr::InlineModule(inline) => {
-                hir::Expr::Call(self.lower_inline_module(inline, expect)?)
+                hir::Expr::Call(self.lower_inline_module(inline, expect))
             }
             other => {
                 log!(err "unreachable: {other}");
@@ -2926,11 +2937,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         Ok(hir::Dummy::new(hir_dummy))
     }
 
-    fn lower_inline_module(
-        &mut self,
-        inline: InlineModule,
-        expect: Option<&Type>,
-    ) -> LowerResult<hir::Call> {
+    fn lower_inline_module(&mut self, inline: InlineModule, expect: Option<&Type>) -> hir::Call {
         log!(info "entered {}", fn_name!());
         let Some(ast::Expr::Literal(mod_name)) = inline.import.args.get_left_or_key("Path") else {
             unreachable!();

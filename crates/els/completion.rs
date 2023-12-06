@@ -536,10 +536,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         self.send_log(format!("CompletionKind: {comp_kind:?}"))?;
         let mut result: Vec<CompletionItem> = vec![];
         let mut already_appeared = Set::new();
-        let contexts = if comp_kind.should_be_local() {
-            self.get_local_ctx(&uri, pos)
+        let (receiver_t, contexts) = if comp_kind.should_be_local() {
+            (None, self.get_local_ctx(&uri, pos))
         } else {
-            self.get_receiver_ctxs(&uri, pos)?
+            self.get_receiver_and_ctxs(&uri, pos)?
         };
         let offset = match comp_kind {
             CompletionKind::RetriggerLocal => 0,
@@ -586,11 +586,6 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 }
                 _ => None,
             });
-        let receiver_t = comp_kind
-            .should_be_method()
-            .then(|| self.get_min_expr(&uri, pos, -2))
-            .flatten()
-            .map(|(_, expr)| expr.t());
         let Some(mod_ctx) = self.get_mod_ctx(&uri) else {
             return Ok(None);
         };
@@ -600,10 +595,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             }
             // only show static methods, if the receiver is a type
             if vi.t.is_method()
-                && receiver_t.as_ref().map_or(true, |t| {
+                && receiver_t.as_ref().map_or(true, |receiver| {
                     !mod_ctx
                         .context
-                        .subtype_of(t, vi.t.self_t().unwrap_or(Type::OBJ))
+                        .subtype_of(receiver, vi.t.self_t().unwrap_or(Type::OBJ))
                 })
             {
                 continue;
