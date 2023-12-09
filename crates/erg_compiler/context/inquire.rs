@@ -675,19 +675,27 @@ impl Context {
     ) -> Triple<VarInfo, TyCheckError> {
         // get_attr_info(?T, aaa) == None
         // => ?T(<: Structural({ .aaa = ?U }))
-        if PYTHON_MODE && obj.var_info().is_some_and(|vi| vi.is_untyped_parameter()) {
+        if PYTHON_MODE
+            && obj
+                .var_info()
+                .is_some_and(|vi| vi.is_ambiguously_typed_parameter())
+        {
             let constraint = expect.map_or(Constraint::new_type_of(Type), |t| {
                 Constraint::new_subtype_of(t.clone())
             });
             let t = free_var(self.level, constraint);
             if let Some(fv) = obj.ref_t().as_free() {
                 if fv.get_sub().is_some() {
+                    let sup = fv.get_super().unwrap();
                     let vis = self.instantiate_vis_modifier(&ident.vis).unwrap();
                     let structural = Type::Record(
                         dict! { Field::new(vis, ident.inspect().clone()) => t.clone() },
                     )
                     .structuralize();
-                    fv.update_super(|_| structural);
+                    let intersection = self.intersection(&sup, &structural);
+                    if intersection != Never {
+                        fv.update_super(|_| intersection);
+                    }
                 }
             }
             let muty = Mutability::from(&ident.inspect()[..]);
@@ -1118,7 +1126,11 @@ impl Context {
     ) -> SingleTyCheckResult<VarInfo> {
         // search_method_info(?T, aaa, pos_args: [1, 2]) == None
         // => ?T(<: Structural({ .aaa = (self: ?T, ?U, ?V) -> ?W }))
-        if PYTHON_MODE && obj.var_info().is_some_and(|vi| vi.is_untyped_parameter()) {
+        if PYTHON_MODE
+            && obj
+                .var_info()
+                .is_some_and(|vi| vi.is_ambiguously_typed_parameter())
+        {
             let nd_params = pos_args
                 .iter()
                 .map(|_| ParamTy::Pos(free_var(self.level, Constraint::new_type_of(Type))))
@@ -1136,12 +1148,16 @@ impl Context {
             let subr_t = fn_met(obj.t(), nd_params, None, d_params, None, return_t);
             if let Some(fv) = obj.ref_t().as_free() {
                 if fv.get_sub().is_some() {
+                    let sup = fv.get_super().unwrap();
                     let vis = self.instantiate_vis_modifier(&attr_name.vis).unwrap();
                     let structural = Type::Record(
                         dict! { Field::new(vis, attr_name.inspect().clone()) => subr_t.clone() },
                     )
                     .structuralize();
-                    fv.update_super(|_| structural);
+                    let intersection = self.intersection(&sup, &structural);
+                    if intersection != Never {
+                        fv.update_super(|_| intersection);
+                    }
                 }
             }
             let muty = Mutability::from(&attr_name.inspect()[..]);

@@ -433,8 +433,12 @@ impl VarInfo {
         )
     }
 
-    pub fn is_untyped_parameter(&self) -> bool {
-        self.kind.is_parameter() && self.t.is_unbound_var()
+    pub fn is_ambiguously_typed_parameter(&self) -> bool {
+        self.kind.is_parameter()
+            && self
+                .t
+                .get_super()
+                .is_some_and(|sup| sup == Type::Obj || sup.is_structural())
     }
 
     pub const fn is_parameter(&self) -> bool {
