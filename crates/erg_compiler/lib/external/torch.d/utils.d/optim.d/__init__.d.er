@@ -1,0 +1,28 @@
+.Optimizer: ClassType
+
+.ASGD: ClassType
+.ASGD <: .Optimizer
+.Adadelta: ClassType
+.Adadelta <: .Optimizer
+.Adagrad: ClassType
+.Adagrad <: .Optimizer
+.Adam: ClassType
+.Adam <: .Optimizer
+.AdamW: ClassType
+.AdamW <: .Optimizer
+.Adamax: ClassType
+.Adamax <: .Optimizer
+.LBFGS: ClassType
+.LBFGS <: .Optimizer
+.NAdam: ClassType
+.NAdam <: .Optimizer
+.RAdam: ClassType
+.RAdam <: .Optimizer
+.RMSprop: ClassType
+.RMSprop <: .Optimizer
+.Rprop: ClassType
+.Rprop <: .Optimizer
+.SGD: ClassType
+.SGD <: .Optimizer
+.SparseAdam: ClassType
+.SparseAdam <: .Optimizer

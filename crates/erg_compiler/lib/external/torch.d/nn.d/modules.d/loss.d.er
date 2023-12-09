@@ -1,0 +1,3 @@
+.CrossEntropyLoss: ClassType
+.CrossEntropyLoss.
+    __call__: () -> .CrossEntropyLoss

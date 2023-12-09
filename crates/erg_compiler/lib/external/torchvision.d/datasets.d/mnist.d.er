@@ -1,0 +1,23 @@
+vision = pyimport "./vision"
+
+.MNIST: ClassType
+.MNIST <: vision.VisionDataset
+.MNIST.
+    __call__: (
+        root: Str,
+        train := Bool,
+        download := Bool,
+        transform := GenericCallable,
+        target_transform := GenericCallable,
+    ) -> .MNIST
+
+.FashionMNIST: ClassType
+.FashionMNIST <: .MNIST
+.FashionMNIST.
+    __call__: (
+        root: Str,
+        train := Bool,
+        download := Bool,
+        transform := GenericCallable,
+        target_transform := GenericCallable,
+    ) -> .FashionMNIST

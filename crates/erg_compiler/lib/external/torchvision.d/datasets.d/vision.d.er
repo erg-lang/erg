@@ -1,0 +1,9 @@
+.VisionDataset: ClassType
+.VisionDataset.
+    __call__: (
+        root: Str,
+        train := Bool,
+        download := Bool,
+        transform := GenericCallable,
+        target_transform := GenericCallable,
+    ) -> .VisionDataset

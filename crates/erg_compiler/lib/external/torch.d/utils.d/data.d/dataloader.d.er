@@ -1,0 +1,9 @@
+dataset = pyimport "./dataset"
+
+.DataLoader: ClassType
+.DataLoader.
+    __call__: (
+        dataset: dataset.Dataset,
+        batch_size := Nat,
+        shuffle := Bool,
+    ) -> .DataLoader
