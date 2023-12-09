@@ -1,0 +1,23 @@
+.Version: ClassType
+.Version <: Eq
+.Version <: Ord
+.Version.
+    epoch: Nat
+    release: (Nat, Nat, Nat)
+    pre: (Str, Nat) or NoneType
+    post: Nat or NoneType
+    dev: Nat or NoneType
+    local: Str or NoneType
+    public: Str
+    base_version: Str
+    is_prerelease: Bool
+    is_postrelease: Bool
+    is_devrelease: Bool
+    major: Nat
+    minor: Nat
+    micro: Nat
+    __call__: (ver: Str) -> .Version
+
+.InvalidVersion: ClassType
+
+.parse: (ver: Str) -> .Version
