@@ -1,3 +1,23 @@
+.Complex64 = 'complex64': ClassType
+.Complex128 = 'complex128': ClassType
+
+.Float16 = 'float16': ClassType
+.Float32 = 'float32': ClassType
+.Float64 = 'float64': ClassType
+
+.Int8 = 'int8': ClassType
+.Int16 = 'int16': ClassType
+.Int32 = 'int32': ClassType
+.Int64 = 'int64': ClassType
+
+.UInt8 = 'uint8': ClassType
+.UInt16 = 'uint16': ClassType
+.UInt32 = 'uint32': ClassType
+.UInt64 = 'uint64': ClassType
+
+.Bool_ = 'bool_': ClassType
+.Str_ = 'str_': ClassType
+
 .NDArray = 'ndarray': (T: Type, Shape: [Nat; _]) -> ClassType
 .NDArray(T, _) <: Output T
 .NDArray(_, _) <: Num
