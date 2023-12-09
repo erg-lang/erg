@@ -21,7 +21,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.6.27-nightly.0"
+version = "0.6.27-nightly.1"
 authors = ["erg-lang team <moderation.erglang@gmail.com>"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
@@ -66,11 +66,11 @@ full = ["els", "full-repl", "unicode", "pretty"]
 experimental = ["erg_common/experimental", "erg_parser/experimental", "erg_compiler/experimental"]
 
 [workspace.dependencies]
-erg_common = { version = "0.6.27-nightly.0", path = "./crates/erg_common" }
-erg_parser = { version = "0.6.27-nightly.0", path = "./crates/erg_parser" }
-erg_compiler = { version = "0.6.27-nightly.0", path = "./crates/erg_compiler" }
-els = { version = "0.1.39-nightly.0", path = "./crates/els" }
-erg_proc_macros = { version = "0.6.27-nightly.0", path = "./crates/erg_proc_macros" }
+erg_common = { version = "0.6.27-nightly.1", path = "./crates/erg_common" }
+erg_parser = { version = "0.6.27-nightly.1", path = "./crates/erg_parser" }
+erg_compiler = { version = "0.6.27-nightly.1", path = "./crates/erg_compiler" }
+els = { version = "0.1.39-nightly.1", path = "./crates/els" }
+erg_proc_macros = { version = "0.6.27-nightly.1", path = "./crates/erg_proc_macros" }
 pyo3 = { version = "0.20", features = ["extension-module"] }
 
 [dependencies]
