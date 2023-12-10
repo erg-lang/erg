@@ -1739,8 +1739,42 @@ impl Context {
                 Ok(ty) => Ok(self.complement(&ty)),
                 Err((_, errs)) => Err((Failure, errs)),
             },
+            Type::Structural(typ) => {
+                let typ = self.eval_t_params(*typ, level, t_loc)?;
+                Ok(typ.structuralize())
+            }
+            Type::Record(rec) => {
+                let mut fields = dict! {};
+                for (name, tp) in rec.into_iter() {
+                    fields.insert(name, self.eval_t_params(tp, level, t_loc)?);
+                }
+                Ok(Type::Record(fields))
+            }
+            Type::NamedTuple(tuple) => {
+                let mut new_tuple = vec![];
+                for (name, tp) in tuple.into_iter() {
+                    new_tuple.push((name, self.eval_t_params(tp, level, t_loc)?));
+                }
+                Ok(Type::NamedTuple(new_tuple))
+            }
+            Type::Bounded { sub, sup } => {
+                let sub = match self.eval_t_params(*sub, level, t_loc) {
+                    Ok(sub) => sub,
+                    Err((_, errs)) => {
+                        return Err((Failure, errs));
+                    }
+                };
+                let sup = match self.eval_t_params(*sup, level, t_loc) {
+                    Ok(sup) => sup,
+                    Err((_, errs)) => {
+                        return Err((Failure, errs));
+                    }
+                };
+                Ok(bounded(sub, sup))
+            }
             other if other.is_monomorphic() => Ok(other),
-            other => feature_error!(self, t_loc.loc(), "???").map_err(|errs| (other, errs)),
+            other => feature_error!(self, t_loc.loc(), &format!("eval {other}"))
+                .map_err(|errs| (other, errs)),
         }
     }
 

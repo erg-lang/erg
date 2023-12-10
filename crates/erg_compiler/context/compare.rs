@@ -363,7 +363,9 @@ impl Context {
                 };
                 // () -> Never <: () -> Int <: () -> Object
                 // (Object) -> Int <: (Int) -> Int <: (Never) -> Int
-                let same_params_len = ls.non_default_params.len() == rs.non_default_params.len();
+                // (*Int) -> Int <: (Int, Int) -> Int
+                let same_params_len = ls.non_default_params.len() == rs.non_default_params.len()
+                    || rs.var_params.is_some();
                 // && ls.default_params.len() <= rs.default_params.len();
                 let return_t_judge = self.supertype_of(&ls.return_t, &rs.return_t); // covariant
                 let non_defaults_judge = ls
@@ -872,10 +874,10 @@ impl Context {
         }
         match (sup_p, sub_p) {
             (TyParam::FreeVar(fv), _) if fv.is_linked() => {
-                self.supertype_of_tp(&fv.crack(), sub_p, variance)
+                self.supertype_of_tp(fv.unsafe_crack(), sub_p, variance)
             }
             (_, TyParam::FreeVar(fv)) if fv.is_linked() => {
-                self.supertype_of_tp(sup_p, &fv.crack(), variance)
+                self.supertype_of_tp(sup_p, fv.unsafe_crack(), variance)
             }
             (TyParam::Erased(t), _) => match variance {
                 Variance::Contravariant => self.subtype_of(t, &self.get_tp_t(sub_p).unwrap_or(Obj)),

@@ -18,5 +18,40 @@
 .abs: Num -> Nat
 .__abs__: Num -> Nat
 .__add__: |T: Type, A <: Add(T)| (A, T) -> A.Output
-.and_: (Int, Int) -> Bool
-.__and__: (Int, Int) -> Bool
+.and_: |T <: Int|(T, T) -> T
+.__and__: |T <: Int|(T, T) -> T
+.index: Int -> Int
+.__index__: Int -> Int
+.inv: Int -> Int
+.invert: Int -> Int
+.__invert__: Int -> Int
+.lshift: (Int, Int) -> Int
+.__lshift__: (Int, Int) -> Int
+.mod: (Int, Int) -> Int
+.__mod__: (Int, Int) -> Int
+.mul: |T, M <: Mul(T)|(M, T) -> M.Output
+.__mul__: |T, M <: Mul(T)|(M, T) -> M.Output
+.neg: |N <: Num|(N) -> N
+.__neg__: |N <: Num|(N) -> N
+.or_: |T <: Int|(T, T) -> T
+.__or__: |T <: Int|(T, T) -> T
+.pos: |N <: Num|(N) -> N
+.__pos__: |N <: Num|(N) -> N
+.pow: |N <: Mul| (N, N) -> N
+.__pow__: |N <: Mul| (N, N) -> N
+.rshift: (Int, Int) -> Int
+.__rshift__: (Int, Int) -> Int
+.sub: |T: Type, S <: Sub(T)| (S, T) -> S.Output
+.__sub__: |T: Type, S <: Sub(T)| (S, T) -> S.Output
+.truediv: |T, D <: Div(T)|(D, T) -> D.Output
+.__truediv__: |T, D <: Div(T)|(D, T) -> D.Output
+.xor: |T <: Int|(T, T) -> T
+.__xor__: |T <: Int|(T, T) -> T
+
+.call: (obj: Obj, *args: Obj, **kwargs: Obj) -> Obj
+.__call__: (obj: Obj, *args: Obj, **kwargs: Obj) -> Obj
+
+# TODO: attrs
+.attrgetter: (|T, S: Str|(attr: {S}) -> (Structural({{S}: T}.as_record()) -> T))
+.itemgetter: (|K, V|(item: K) -> (Indexable(K, V) -> V)) \
+    and (|K, V|(*items: K) -> (Indexable(K, V) -> [V; _]))

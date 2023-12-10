@@ -1,0 +1,6 @@
+op = pyimport "operator"
+getter = op.itemgetter(3)
+_ = getter([1, 2]) # ERR: index out of range
+
+real_getter = op.attrgetter("real")
+print! real_getter("a") # ERR

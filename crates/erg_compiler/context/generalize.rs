@@ -68,6 +68,11 @@ impl Generalizer {
                     .map(|tp| self.generalize_tp(tp, uninit))
                     .collect(),
             ),
+            TyParam::Set(set) => TyParam::Set(
+                set.into_iter()
+                    .map(|tp| self.generalize_tp(tp, uninit))
+                    .collect(),
+            ),
             TyParam::Dict(tps) => TyParam::Dict(
                 tps.into_iter()
                     .map(|(k, v)| (self.generalize_tp(k, uninit), self.generalize_tp(v, uninit)))

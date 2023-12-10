@@ -357,6 +357,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         let eval_result = self.module.context.eval_const_normal_array(&array);
         let (elems, ..) = array.elems.deconstruct();
         let expect_elem = expect.and_then(|t| {
+            // REVIEW: are these all?
+            if !(t.is_array() || t.is_array_mut() || t.is_iterable()) {
+                return None;
+            }
             self.module
                 .context
                 .convert_tp_into_type(t.typarams().get(0)?.clone())
@@ -430,6 +434,9 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
     ) -> LowerResult<hir::ArrayWithLength> {
         log!(info "entered {}({array})", fn_name!());
         let expect_elem = expect.and_then(|t| {
+            if !(t.is_array() || t.is_array_mut() || t.is_iterable()) {
+                return None;
+            }
             self.module
                 .context
                 .convert_tp_into_type(t.typarams().get(0)?.clone())
@@ -476,6 +483,9 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
     ) -> LowerResult<hir::NormalTuple> {
         log!(info "entered {}({tuple})", fn_name!());
         let expect = expect.and_then(|exp| {
+            if !exp.is_tuple() {
+                return None;
+            }
             self.module
                 .context
                 .convert_type_to_tuple_type(exp.clone())
@@ -563,6 +573,9 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         log!(info "entered {}({set})", fn_name!());
         let (elems, ..) = set.elems.deconstruct();
         let expect_elem = expect.and_then(|t| {
+            if !t.is_set() {
+                return None;
+            }
             self.module
                 .context
                 .convert_tp_into_type(t.typarams().get(0)?.clone())
@@ -647,6 +660,9 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
     ) -> LowerResult<hir::SetWithLength> {
         log!("entered {}({set})", fn_name!());
         let expect_elem = expect.and_then(|t| {
+            if !t.is_set() {
+                return None;
+            }
             self.module
                 .context
                 .convert_tp_into_type(t.typarams().get(0)?.clone())
@@ -699,6 +715,9 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         let mut new_kvs = vec![];
         let expect = expect
             .and_then(|exp| {
+                if !(exp.is_dict() || exp.is_dict_mut()) {
+                    return None;
+                }
                 self.module
                     .context
                     .convert_type_to_dict_type(exp.clone())

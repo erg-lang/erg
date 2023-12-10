@@ -17,3 +17,10 @@ usage = shutil.disk_usage! "tests/should_ok/pyimport.er"
 assert usage.total == usage[0]
 for! usage, i =>
     print! i
+
+op = pyimport "operator"
+getter = op.itemgetter(1, 2)
+assert getter([1, 2, 3]) == [2, 3]
+
+real_getter = op.attrgetter("real")
+_ = real_getter(1) # OK

@@ -551,6 +551,11 @@ fn exec_pyimport() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_pyimport_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/pyimport.er", 0, 2)
+}
+
+#[test]
 fn exec_set() -> Result<(), ()> {
     expect_failure("examples/set.er", 3, 1)
 }

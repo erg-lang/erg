@@ -2128,6 +2128,60 @@ impl Type {
         }
     }
 
+    pub fn is_array_mut(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_array_mut(),
+            Self::Poly { name, .. } => &name[..] == "Array!",
+            Self::Refinement(refine) => refine.t.is_array_mut(),
+            _ => false,
+        }
+    }
+
+    pub fn is_iterable(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_iterable(),
+            Self::Poly { name, .. } => &name[..] == "Iterable",
+            Self::Refinement(refine) => refine.t.is_iterable(),
+            _ => false,
+        }
+    }
+
+    pub fn is_tuple(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_tuple(),
+            Self::Poly { name, .. } => &name[..] == "Tuple",
+            Self::Refinement(refine) => refine.t.is_tuple(),
+            _ => false,
+        }
+    }
+
+    pub fn is_set(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_set(),
+            Self::Poly { name, .. } => &name[..] == "Set",
+            Self::Refinement(refine) => refine.t.is_set(),
+            _ => false,
+        }
+    }
+
+    pub fn is_dict(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_dict(),
+            Self::Poly { name, .. } => &name[..] == "Dict",
+            Self::Refinement(refine) => refine.t.is_dict(),
+            _ => false,
+        }
+    }
+
+    pub fn is_dict_mut(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_dict_mut(),
+            Self::Poly { name, .. } => &name[..] == "Dict!",
+            Self::Refinement(refine) => refine.t.is_dict_mut(),
+            _ => false,
+        }
+    }
+
     pub fn is_ref(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_ref(),
