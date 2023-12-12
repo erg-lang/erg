@@ -284,6 +284,40 @@ pub(crate) fn sub_tpdict_get<'d>(
     None
 }
 
+/// `{{"a"}: Int, {"b"}: Float} ==> {{"a", "b"}: Float}`
+fn homogenize_dict_type(dict: &Dict<Type, Type>, ctx: &Context) -> Dict<Type, Type> {
+    let mut union_key = Type::Never;
+    let mut union_value = Type::Never;
+    for (k, v) in dict.iter() {
+        union_key = ctx.union(&union_key, k);
+        union_value = ctx.union(&union_value, v);
+    }
+    dict! { union_key => union_value }
+}
+
+/// see `homogenize_dict_type`
+fn homogenize_dict(dict: &Dict<ValueObj, ValueObj>, ctx: &Context) -> Dict<ValueObj, ValueObj> {
+    let mut type_dict = Dict::new();
+    for (k, v) in dict.iter() {
+        match (k, v) {
+            (ValueObj::Type(k), ValueObj::Type(v)) => {
+                type_dict.insert(k.typ().clone(), v.typ().clone());
+            }
+            _ => {
+                return dict.clone();
+            }
+        }
+    }
+    let dict_t = homogenize_dict_type(&type_dict, ctx);
+    let mut value_dict = Dict::new();
+    for (k, v) in dict_t.iter() {
+        let k = ValueObj::builtin_type(k.clone());
+        let v = ValueObj::builtin_type(v.clone());
+        value_dict.insert(k, v);
+    }
+    value_dict
+}
+
 pub(crate) fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let slf = args
         .remove_left_or_key("Self")
@@ -296,6 +330,8 @@ pub(crate) fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueR
         .ok_or_else(|| not_passed("Index"))?;
     if let Some(v) = slf.get(&index).or_else(|| sub_vdict_get(&slf, &index, ctx)) {
         Ok(v.clone().into())
+    } else if let Some(v) = sub_vdict_get(&homogenize_dict(&slf, ctx), &index, ctx).cloned() {
+        Ok(v.into())
     } else {
         let index = if let ValueObj::Type(t) = &index {
             let derefed = ctx.coerce(t.typ().clone(), &()).unwrap_or(t.typ().clone());

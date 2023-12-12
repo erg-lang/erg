@@ -24,3 +24,6 @@ assert getter([1, 2, 3]) == [2, 3]
 
 real_getter = op.attrgetter("real")
 _ = real_getter(1) # OK
+
+ab_getter = op.itemgetter("a", "b")
+assert ab_getter({"a": 1, "b": 2}) == [1, 2]

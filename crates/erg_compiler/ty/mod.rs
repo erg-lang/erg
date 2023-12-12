@@ -3638,12 +3638,18 @@ impl Type {
     /// ```erg
     /// assert Int.lower_bounded() == Int
     /// assert ?T(:> Str).lower_bounded() == Str
+    /// assert (?T(:> Str) or ?U(:> Int)).lower_bounded() == (Str or Int)
     /// ```
     pub fn lower_bounded(&self) -> Type {
         if let Ok(free) = <&FreeTyVar>::try_from(self) {
             free.get_sub().unwrap_or(self.clone())
         } else {
-            self.clone()
+            match self {
+                Self::And(l, r) => l.lower_bounded() & r.lower_bounded(),
+                Self::Or(l, r) => l.lower_bounded() | r.lower_bounded(),
+                Self::Not(ty) => !ty.lower_bounded(),
+                _ => self.clone(),
+            }
         }
     }
 
