@@ -1088,6 +1088,17 @@ impl TyParam {
         }
     }
 
+    pub fn local_name(&self) -> Option<Str> {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().local_name(),
+            Self::Mono(name) | Self::App { name, .. } => {
+                let namespaces = name.split_with(&[".", "::"]);
+                Some(Str::rc(namespaces.last().unwrap()))
+            }
+            _ => self.qual_name(),
+        }
+    }
+
     pub fn tvar_name(&self) -> Option<Str> {
         match self {
             Self::Type(t) => t.tvar_name(),
@@ -1626,6 +1637,25 @@ impl TyParam {
             }
             Self::Erased(t) => t.dereference(),
             _ => {}
+        }
+    }
+
+    pub fn namespace(&self) -> Str {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().namespace(),
+            Self::Mono(name) | Self::App { name, .. } => {
+                let namespaces = name.split_with(&[".", "::"]);
+                if namespaces.len() > 1 {
+                    Str::rc(
+                        name.trim_end_matches(namespaces.last().unwrap())
+                            .trim_end_matches('.')
+                            .trim_end_matches("::"),
+                    )
+                } else {
+                    Str::ever("")
+                }
+            }
+            _ => Str::ever(""),
         }
     }
 }

@@ -1,6 +1,8 @@
+torch = pyimport "torch"
 dataset = pyimport "./dataset"
 
 .DataLoader: ClassType
+.DataLoader <: Iterable((torch.Tensor(_, _), torch.Tensor(_, _)))
 .DataLoader.
     __call__: (
         dataset: dataset.Dataset,

@@ -2633,8 +2633,8 @@ impl Context {
                         line!(),
                     ))
                 }),
-            TyParam::App { name, args } => self
-                .rec_get_const_obj(&name)
+            TyParam::App { ref name, ref args } => self
+                .rec_get_const_obj(name)
                 .and_then(|v| {
                     let ty = self.convert_value_into_type(v.clone()).ok()?;
                     let instance = self
@@ -2655,6 +2655,19 @@ impl Context {
                         ValueObj::builtin_type(instance)
                     };
                     Some(v_enum(set![ty_obj]))
+                })
+                .or_else(|| {
+                    let namespace = p.namespace();
+                    if let Some(namespace) = self.get_namespace(&namespace) {
+                        if namespace.name != self.name {
+                            if let Some(typ) = p.local_name().and_then(|name| {
+                                namespace.get_tp_t(&TyParam::app(name, args.clone())).ok()
+                            }) {
+                                return Some(typ);
+                            }
+                        }
+                    }
+                    None
                 })
                 .ok_or_else(|| {
                     EvalErrors::from(EvalError::unreachable(

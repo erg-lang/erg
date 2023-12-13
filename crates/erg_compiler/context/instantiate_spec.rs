@@ -11,7 +11,8 @@ use ast::{
     TypeBoundSpecs, TypeSpec,
 };
 use erg_parser::ast::{
-    self, ConstArray, ConstExpr, ConstSet, Identifier, VarName, VisModifierSpec, VisRestriction,
+    self, ConstApp, ConstArray, ConstExpr, ConstSet, Identifier, VarName, VisModifierSpec,
+    VisRestriction,
 };
 use erg_parser::token::TokenKind;
 use erg_parser::Parser;
@@ -846,15 +847,24 @@ impl Context {
     ) -> TyCheckResult<TyParam> {
         self.inc_ref_acc(&acc.clone().downgrade(), self, tmp_tv_cache);
         match acc {
-            ast::ConstAccessor::Attr(attr) => {
-                let obj = self.instantiate_const_expr(
-                    &attr.obj,
-                    erased_idx,
-                    tmp_tv_cache,
-                    not_found_is_qvar,
-                )?;
-                Ok(obj.proj(attr.name.inspect()))
-            }
+            ast::ConstAccessor::Attr(attr) => match self.instantiate_const_expr(
+                &attr.obj,
+                erased_idx,
+                tmp_tv_cache,
+                not_found_is_qvar,
+            ) {
+                Ok(obj) => Ok(obj.proj(attr.name.inspect())),
+                Err(errs) => {
+                    if let Ok(ctxs) = self.get_singular_ctxs(&attr.obj.clone().downgrade(), self) {
+                        for ctx in ctxs {
+                            if let Some(value) = ctx.rec_get_const_obj(attr.name.inspect()) {
+                                return Ok(TyParam::Value(value.clone()));
+                            }
+                        }
+                    }
+                    Err(errs)
+                }
+            },
             ast::ConstAccessor::Local(local) => {
                 self.instantiate_local(local, erased_idx, tmp_tv_cache, local, not_found_is_qvar)
             }
@@ -915,30 +925,15 @@ impl Context {
         )))
     }
 
-    /// erased_index:
-    /// e.g. `instantiate_const_expr(Array(Str, _), Some((self, 1))) => Array(Str, _: Nat)`
-    pub(crate) fn instantiate_const_expr(
+    fn instantiate_app(
         &self,
-        expr: &ast::ConstExpr,
+        app: &ConstApp,
         erased_idx: Option<(&Context, usize)>,
         tmp_tv_cache: &mut TyVarCache,
         not_found_is_qvar: bool,
     ) -> TyCheckResult<TyParam> {
-        if let Ok(value) = self.eval_const_expr(&expr.clone().downgrade()) {
-            return Ok(TyParam::Value(value));
-        }
-        match expr {
-            ast::ConstExpr::Lit(lit) => Ok(TyParam::Value(self.eval_lit(lit)?)),
-            ast::ConstExpr::Accessor(acc) => {
-                self.instantiate_acc(acc, erased_idx, tmp_tv_cache, not_found_is_qvar)
-            }
-            ast::ConstExpr::App(app) => {
-                let obj = self.instantiate_const_expr(
-                    &app.obj,
-                    erased_idx,
-                    tmp_tv_cache,
-                    not_found_is_qvar,
-                )?;
+        match self.instantiate_const_expr(&app.obj, erased_idx, tmp_tv_cache, not_found_is_qvar) {
+            Ok(obj) => {
                 let ctx = self
                     .get_singular_ctxs(&app.obj.clone().downgrade(), self)
                     .ok()
@@ -970,6 +965,50 @@ impl Context {
                     };
                     Ok(TyParam::app(ident.inspect().clone(), args))
                 }
+            }
+            Err(errs) => {
+                let Some(attr_name) = app.attr_name.as_ref() else {
+                    return Err(errs);
+                };
+                let acc = app.obj.clone().attr(attr_name.clone());
+                let attr =
+                    self.instantiate_acc(&acc, erased_idx, tmp_tv_cache, not_found_is_qvar)?;
+                let ctxs = self.get_singular_ctxs(&acc.downgrade().into(), self)?;
+                let ctx = ctxs.first().copied().unwrap_or(self);
+                let mut args = vec![];
+                for (i, arg) in app.args.pos_args().enumerate() {
+                    let arg_t = self.instantiate_const_expr(
+                        &arg.expr,
+                        Some((ctx, i)),
+                        tmp_tv_cache,
+                        not_found_is_qvar,
+                    )?;
+                    args.push(arg_t);
+                }
+                Ok(TyParam::app(attr.qual_name().unwrap(), args))
+            }
+        }
+    }
+
+    /// erased_index:
+    /// e.g. `instantiate_const_expr(Array(Str, _), Some((self, 1))) => Array(Str, _: Nat)`
+    pub(crate) fn instantiate_const_expr(
+        &self,
+        expr: &ast::ConstExpr,
+        erased_idx: Option<(&Context, usize)>,
+        tmp_tv_cache: &mut TyVarCache,
+        not_found_is_qvar: bool,
+    ) -> TyCheckResult<TyParam> {
+        if let Ok(value) = self.eval_const_expr(&expr.clone().downgrade()) {
+            return Ok(TyParam::Value(value));
+        }
+        match expr {
+            ast::ConstExpr::Lit(lit) => Ok(TyParam::Value(self.eval_lit(lit)?)),
+            ast::ConstExpr::Accessor(acc) => {
+                self.instantiate_acc(acc, erased_idx, tmp_tv_cache, not_found_is_qvar)
+            }
+            ast::ConstExpr::App(app) => {
+                self.instantiate_app(app, erased_idx, tmp_tv_cache, not_found_is_qvar)
             }
             ast::ConstExpr::Array(ConstArray::Normal(array)) => {
                 let mut tp_arr = vec![];

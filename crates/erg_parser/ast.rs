@@ -2839,6 +2839,22 @@ impl ConstExpr {
             Self::TypeAsc(type_asc) => Expr::TypeAscription(type_asc.downgrade()),
         }
     }
+
+    pub fn attr(self, attr_name: ConstIdentifier) -> ConstAccessor {
+        ConstAccessor::attr(self, attr_name)
+    }
+
+    pub fn attr_expr(self, attr_name: ConstIdentifier) -> Self {
+        Self::Accessor(self.attr(attr_name))
+    }
+
+    pub fn call(self, args: ConstArgs) -> ConstApp {
+        ConstApp::new(self, None, args)
+    }
+
+    pub fn call_expr(self, args: ConstArgs) -> Self {
+        Self::App(self.call(args))
+    }
 }
 
 #[pyclass(get_all, set_all)]

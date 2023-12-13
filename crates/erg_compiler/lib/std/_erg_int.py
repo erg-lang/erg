@@ -27,32 +27,17 @@ class Int(int):
     def __add__(self, other):
         return then__(int.__add__(self, other), Int)
 
-    def __radd__(self, other):
-        return then__(int.__add__(other, self), Int)
-
     def __sub__(self, other):
         return then__(int.__sub__(self, other), Int)
-
-    def __rsub__(self, other):
-        return then__(int.__sub__(other, self), Int)
 
     def __mul__(self, other):
         return then__(int.__mul__(self, other), Int)
 
-    def __rmul__(self, other):
-        return then__(int.__mul__(other, self), Int)
-
     def __div__(self, other):
         return then__(int.__div__(self, other), Int)
 
-    def __rdiv__(self, other):
-        return then__(int.__div__(other, self), Int)
-
     def __floordiv__(self, other):
         return then__(int.__floordiv__(self, other), Int)
-
-    def __rfloordiv__(self, other):
-        return then__(int.__floordiv__(other, self), Int)
 
     def __pow__(self, other):
         return then__(int.__pow__(self, other), Int)

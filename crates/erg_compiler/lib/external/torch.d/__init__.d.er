@@ -3,3 +3,22 @@
 .util = pyimport "./util"
 
 {.load!; .save!;} = pyimport "./serialization"
+
+.UInt8 = 'uint8': ClassType
+.Int8  = 'int8': ClassType
+.Int16 = 'int16': ClassType
+.Int32 = 'int32': ClassType
+.Int64 = 'int64': ClassType
+.Float16 = 'float16': ClassType
+.Float32 = 'float32': ClassType
+.Float64 = 'float64': ClassType
+.Complex32 = 'complex32': ClassType
+.Complex64 = 'complex64': ClassType
+.Complex128 = 'complex128': ClassType
+
+.DType = 'dtype': ClassType
+.Size: ClassType
+.Tensor: (T: Type, Shape: [Nat; _]) -> ClassType
+.Tensor.
+    dtype: .DType
+    shape: .Size

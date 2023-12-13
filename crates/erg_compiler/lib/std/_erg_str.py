@@ -30,9 +30,6 @@ class Str(str):
     def __add__(self, other):
         return then__(str.__add__(self, other), Str)
 
-    def __radd__(self, other):
-        return then__(str.__add__(other, self), Str)
-
     def __mul__(self, other):
         return then__(str.__mul__(self, other), Str)
 

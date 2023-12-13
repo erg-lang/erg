@@ -1,4 +1,7 @@
+dataset = pyimport "torch/utils/data/dataset"
+
 .VisionDataset: ClassType
+.VisionDataset <: dataset.Dataset
 .VisionDataset.
     __call__: (
         root: Str,
