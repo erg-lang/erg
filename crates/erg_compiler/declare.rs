@@ -937,7 +937,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         Ok(())
     }
 
-    fn declare_subtype(&mut self, ident: &ast::Identifier, trait_: &Type) -> LowerResult<()> {
+    fn declare_subtype(&mut self, ident: &ast::Identifier, sup: &Type) -> LowerResult<()> {
         if ident.is_raw() {
             return Ok(());
         }
@@ -952,12 +952,16 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         };
         if let Some(ctx) = self.module.context.rec_get_mut_type(&name) {
             let mut tmp = mem::take(ctx);
-            tmp.register_marker_trait(&self.module.context, trait_.clone())
-                .map_err(|err| {
-                    let ctx = self.module.context.rec_get_mut_type(&name).unwrap();
-                    mem::swap(ctx, &mut tmp);
-                    err
-                })?;
+            let res = if self.module.context.is_class(sup) {
+                tmp.register_base_class(&self.module.context, sup.clone())
+            } else {
+                tmp.register_marker_trait(&self.module.context, sup.clone())
+            };
+            res.map_err(|err| {
+                let ctx = self.module.context.rec_get_mut_type(&name).unwrap();
+                mem::swap(ctx, &mut tmp);
+                err
+            })?;
             let ctx = self.module.context.rec_get_mut_type(&name).unwrap();
             mem::swap(ctx, &mut tmp);
             Ok(())

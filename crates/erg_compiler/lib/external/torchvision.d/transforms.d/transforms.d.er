@@ -1,3 +1,4 @@
 .ToTensor: ClassType
+.ToTensor <: GenericCallable
 .ToTensor.
     __call__: () -> .ToTensor

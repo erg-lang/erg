@@ -1,1 +1,5 @@
+.nn = pyimport "./nn"
+.serialization = pyimport "./serialization"
+.util = pyimport "./util"
+
 {.load!; .save!;} = pyimport "./serialization"

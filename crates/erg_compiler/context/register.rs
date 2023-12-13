@@ -1488,6 +1488,47 @@ impl Context {
         // .retain(|t| !ctx.same_type_of(t, trait_));
     }
 
+    pub(crate) fn register_base_class(&mut self, ctx: &Self, class: Type) -> CompileResult<()> {
+        let class_ctx = ctx.get_nominal_type_ctx(&class).ok_or_else(|| {
+            CompileError::type_not_found(
+                self.cfg.input.clone(),
+                line!() as usize,
+                ().loc(),
+                self.caused_by(),
+                &class,
+            )
+        })?;
+        if class_ctx.typ.has_qvar() {
+            let _substituter = Substituter::substitute_typarams(ctx, &class_ctx.typ, &class)?;
+            self.super_classes.push(class);
+            let mut tv_cache = TyVarCache::new(ctx.level, ctx);
+            let classes = class_ctx.super_classes.iter().cloned().map(|ty| {
+                if ty.has_undoable_linked_var() {
+                    ctx.detach(ty, &mut tv_cache)
+                } else {
+                    ty
+                }
+            });
+            self.super_classes.extend(classes);
+            let traits = class_ctx.super_traits.iter().cloned().map(|ty| {
+                if ty.has_undoable_linked_var() {
+                    ctx.detach(ty, &mut tv_cache)
+                } else {
+                    ty
+                }
+            });
+            self.super_traits.extend(traits);
+        } else {
+            self.super_classes.push(class);
+            let classes = class_ctx.super_classes.clone();
+            self.super_classes.extend(classes);
+            let traits = class_ctx.super_traits.clone();
+            self.super_traits.extend(traits);
+        }
+        unique_in_place(&mut self.super_classes);
+        Ok(())
+    }
+
     pub(crate) fn register_gen_const(
         &mut self,
         ident: &Identifier,

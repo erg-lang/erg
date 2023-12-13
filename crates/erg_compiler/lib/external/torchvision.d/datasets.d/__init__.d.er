@@ -1,0 +1,5 @@
+.mnist = pyimport "./mnist"
+.utils = pyimport "./utils"
+.vision = pyimport "./vision"
+
+{.MNIST; .FashionMNIST;} = .mnist
