@@ -1,0 +1,3 @@
+.resnet = pyimport "./resnet"
+
+{.ResNet; .resnet18;} = .resnet

@@ -1,1 +1,13 @@
-{.Module;} = pyimport "./module"
+.activation = pyimport "./activation"
+.container = pyimport "./container"
+.flatten = pyimport "./flatten"
+.linear = pyimport "./linear"
+.loss = pyimport "./loss"
+.module = pyimport "./module"
+
+{.ReLU;} = .activation
+{.Sequential;} = .container
+{.Flatten;} = .flatten
+{.Linear;} = .linear
+{.CrossEntropyLoss;} = .loss
+{.Module;} = .module

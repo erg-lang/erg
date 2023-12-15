@@ -1,6 +1,9 @@
+.backends = pyimport "./backends"
+.cuda = pyimport "./cuda"
 .nn = pyimport "./nn"
+.optim = pyimport "./optim"
 .serialization = pyimport "./serialization"
-.util = pyimport "./util"
+.utils = pyimport "./utils"
 
 {.load!; .save!;} = pyimport "./serialization"
 
@@ -19,6 +22,7 @@
 .DType = 'dtype': ClassType
 .Size: ClassType
 .Tensor: (T: Type, Shape: [Nat; _]) -> ClassType
-.Tensor.
+.Tensor(T, _) <: Output T
+.Tensor(_, _).
     dtype: .DType
     shape: .Size

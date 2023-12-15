@@ -1,1 +1,5 @@
+{.Parameter;} = pyimport "torch/nn/parameter"
+
 .Module: ClassType
+.Module.
+    parameters: (self: Ref(.Module)) -> Iterator .Parameter
