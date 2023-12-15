@@ -751,13 +751,13 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         uri: &NormalizedUrl,
     ) -> Option<MappedRwLockReadGuard<ModuleContext>> {
         let path = uri.to_file_path().ok()?;
-        let ent = self.shared.mod_cache.get(&path)?;
+        let ent = self.shared.get_module(&path)?;
         Some(MappedRwLockReadGuard::map(ent, |ent| &ent.module))
     }
 
     pub(crate) fn raw_get_mod_ctx(&self, uri: &NormalizedUrl) -> Option<&ModuleContext> {
         let path = uri.to_file_path().ok()?;
-        self.shared.mod_cache.raw_ref_ctx(&path)
+        self.shared.raw_ref_ctx(&path)
     }
 
     /// TODO: Reuse cache.
@@ -771,7 +771,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
 
     pub(crate) fn steal_lowerer(&mut self, uri: &NormalizedUrl) -> Option<(ASTLowerer, IRs)> {
         let path = uri.to_file_path().ok()?;
-        let module = self.shared.mod_cache.remove(&path)?;
+        let module = self.shared.remove_module(&path)?;
         let lowerer = ASTLowerer::new_with_ctx(module.module);
         Some((lowerer, IRs::new(module.id, module.ast, module.hir)))
     }
@@ -789,7 +789,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
 
     pub(crate) fn get_visitor(&self, uri: &NormalizedUrl) -> Option<HIRVisitor> {
         let path = uri.to_file_path().ok()?;
-        let ent = self.shared.mod_cache.get(&path)?;
+        let ent = self.shared.get_module(&path)?;
         ent.hir.as_ref()?;
         let hir = MappedRwLockReadGuard::map(ent, |ent| ent.hir.as_ref().unwrap());
         Some(HIRVisitor::new(hir, &self.file_cache, uri.clone()))
@@ -797,7 +797,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
 
     pub(crate) fn get_searcher(&self, uri: &NormalizedUrl, kind: ExprKind) -> Option<HIRVisitor> {
         let path = uri.to_file_path().ok()?;
-        let ent = self.shared.mod_cache.get(&path)?;
+        let ent = self.shared.get_module(&path)?;
         ent.hir.as_ref()?;
         let hir = MappedRwLockReadGuard::map(ent, |ent| ent.hir.as_ref().unwrap());
         Some(HIRVisitor::new_searcher(
@@ -833,20 +833,14 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
 
     pub(crate) fn _get_all_ctxs(&self) -> Vec<&ModuleContext> {
         let mut ctxs = vec![];
-        ctxs.extend(self.shared.mod_cache.raw_values().map(|ent| &ent.module));
-        ctxs.extend(self.shared.py_mod_cache.raw_values().map(|ent| &ent.module));
+        ctxs.extend(self.shared.raw_modules().map(|ent| &ent.module));
         ctxs
     }
 
     pub(crate) fn get_workspace_ctxs(&self) -> Vec<&Context> {
         let project_root = project_root_of(&self.home).unwrap_or(self.home.clone());
         let mut ctxs = vec![];
-        for (path, ent) in self
-            .shared
-            .mod_cache
-            .raw_iter()
-            .chain(self.shared.py_mod_cache.raw_iter())
-        {
+        for (path, ent) in self.shared.raw_path_and_modules() {
             if path.starts_with(&project_root) {
                 ctxs.push(&ent.module.context);
             }
@@ -917,7 +911,6 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
 
     pub(crate) fn get_builtin_module(&self) -> Option<&Context> {
         self.shared
-            .mod_cache
             .raw_ref_ctx(Path::new("<builtins>"))
             .map(|mc| &mc.context)
     }
@@ -934,19 +927,19 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
 
     pub fn remove_module_entry(&mut self, uri: &NormalizedUrl) -> Option<ModuleEntry> {
         let path = uri.to_file_path().ok()?;
-        self.shared.mod_cache.remove(&path)
+        self.shared.remove_module(&path)
     }
 
     pub fn insert_module_entry(&mut self, uri: NormalizedUrl, entry: ModuleEntry) {
         let Ok(path) = uri.to_file_path() else {
             return;
         };
-        self.shared.mod_cache.insert(path.into(), entry);
+        self.shared.insert_module(path.into(), entry);
     }
 
     pub fn get_hir(&self, uri: &NormalizedUrl) -> Option<MappedRwLockReadGuard<HIR>> {
         let path = uri.to_file_path().ok()?;
-        let ent = self.shared.mod_cache.get(&path)?;
+        let ent = self.shared.get_module(&path)?;
         ent.hir.as_ref()?;
         Some(MappedRwLockReadGuard::map(ent, |ent| {
             ent.hir.as_ref().unwrap()
@@ -955,17 +948,17 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
 
     pub fn steal_entry(&self, uri: &NormalizedUrl) -> Option<ModuleEntry> {
         let path = uri.to_file_path().ok()?;
-        self.shared.mod_cache.remove(&path)
+        self.shared.remove_module(&path)
     }
 
     pub fn restore_entry(&self, uri: NormalizedUrl, entry: ModuleEntry) {
         let path = uri.to_file_path().unwrap();
-        self.shared.mod_cache.insert(path.into(), entry);
+        self.shared.insert_module(path.into(), entry);
     }
 
     pub fn get_ast(&self, uri: &NormalizedUrl) -> Option<MappedRwLockReadGuard<Module>> {
         let path = uri.to_file_path().ok()?;
-        let ent = self.shared.mod_cache.get(&path)?;
+        let ent = self.shared.get_module(&path)?;
         ent.ast.as_ref()?;
         Some(MappedRwLockReadGuard::map(ent, |ent| {
             ent.ast.as_ref().unwrap()
