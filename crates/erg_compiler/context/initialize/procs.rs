@@ -21,8 +21,8 @@ impl Context {
         let T = mono_q("T", instanceof(Type));
         let U = mono_q("U", instanceof(Type));
         let t_dir = no_var_proc(
-            vec![kw("obj", ref_(Obj))],
             vec![],
+            vec![kw("object", ref_(Obj))],
             array_t(Str, TyParam::erased(Nat)),
         );
         let t_print = proc(
@@ -62,6 +62,7 @@ impl Context {
         )
         .quantify();
         let t_globals = no_var_proc(vec![], vec![], dict! { Str => Obj }.into());
+        let t_help = nd_proc(vec![kw("object", ref_(Obj))], None, NoneType);
         let t_locals = no_var_proc(vec![], vec![], dict! { Str => Obj }.into());
         let t_next = nd_proc(
             vec![kw(
@@ -126,6 +127,7 @@ impl Context {
             vis.clone(),
             Some("globals"),
         );
+        self.register_builtin_py_impl("help!", t_help, Immutable, vis.clone(), Some("help"));
         self.register_builtin_py_impl("locals!", t_locals, Immutable, vis.clone(), Some("locals"));
         self.register_builtin_py_impl("next!", t_next, Immutable, vis.clone(), Some("next"));
         self.register_py_builtin("open!", t_open, Some("open"), 198);

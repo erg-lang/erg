@@ -104,6 +104,7 @@ impl Context {
             poly(FILTER, vec![ty_tp(T.clone())]),
         )
         .quantify();
+        let t_format = no_var_func(vec![kw(KW_VALUE, Obj)], vec![kw(KW_SPEC, Str)], Str);
         let t_frozenset = nd_func(
             vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
             None,
@@ -339,6 +340,13 @@ impl Context {
             Some(FUNC_ENUMERATE),
         );
         self.register_builtin_py_impl(FUNC_EXIT, t_exit, Immutable, vis.clone(), Some(FUNC_EXIT));
+        self.register_builtin_py_impl(
+            FUNC_FORMAT,
+            t_format,
+            Immutable,
+            vis.clone(),
+            Some(FUNC_FORMAT),
+        );
         self.register_builtin_py_impl(
             FUNC_FILTER,
             t_filter,
