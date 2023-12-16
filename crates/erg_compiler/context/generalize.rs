@@ -360,9 +360,8 @@ impl Generalizer {
 
 pub struct Dereferencer<'c, 'q, 'l, L: Locational> {
     ctx: &'c Context,
-    variance: Variance,
     coerce: bool,
-    stash: Variance,
+    variance_stack: Vec<Variance>,
     qnames: &'q Set<Str>,
     loc: &'l L,
 }
@@ -377,9 +376,8 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
     ) -> Self {
         Self {
             ctx,
-            variance,
             coerce,
-            stash: Variance::Invariant,
+            variance_stack: vec![Invariant, variance],
             qnames,
             loc,
         }
@@ -390,12 +388,15 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
     }
 
     fn push_variance(&mut self, variance: Variance) {
-        self.stash = self.variance;
-        self.variance = variance; // self.variance * variance;
+        self.variance_stack.push(variance);
     }
 
     fn pop_variance(&mut self) {
-        self.variance = self.stash;
+        self.variance_stack.pop();
+    }
+
+    fn current_variance(&self) -> Variance {
+        *self.variance_stack.last().unwrap()
     }
 
     pub(crate) fn deref_tp(&mut self, tp: TyParam) -> TyCheckResult<TyParam> {
@@ -655,7 +656,10 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 let variances = ctx.type_params_variance();
                 for (param, variance) in params.iter_mut().zip(variances.into_iter()) {
                     self.push_variance(variance);
-                    *param = self.deref_tp(mem::take(param))?;
+                    *param = self.deref_tp(mem::take(param)).map_err(|e| {
+                        self.pop_variance();
+                        e
+                    })?;
                     self.pop_variance();
                 }
                 Ok(Type::Poly { name, params })
@@ -663,21 +667,40 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
             Type::Subr(mut subr) => {
                 for param in subr.non_default_params.iter_mut() {
                     self.push_variance(Contravariant);
-                    *param.typ_mut() = self.deref_tyvar(mem::take(param.typ_mut()))?;
+                    *param.typ_mut() =
+                        self.deref_tyvar(mem::take(param.typ_mut())).map_err(|e| {
+                            self.pop_variance();
+                            e
+                        })?;
                     self.pop_variance();
                 }
                 if let Some(var_args) = &mut subr.var_params {
                     self.push_variance(Contravariant);
-                    *var_args.typ_mut() = self.deref_tyvar(mem::take(var_args.typ_mut()))?;
+                    *var_args.typ_mut() =
+                        self.deref_tyvar(mem::take(var_args.typ_mut()))
+                            .map_err(|e| {
+                                self.pop_variance();
+                                e
+                            })?;
                     self.pop_variance();
                 }
                 for d_param in subr.default_params.iter_mut() {
                     self.push_variance(Contravariant);
-                    *d_param.typ_mut() = self.deref_tyvar(mem::take(d_param.typ_mut()))?;
+                    *d_param.typ_mut() =
+                        self.deref_tyvar(mem::take(d_param.typ_mut()))
+                            .map_err(|e| {
+                                self.pop_variance();
+                                e
+                            })?;
                     self.pop_variance();
                 }
                 self.push_variance(Covariant);
-                subr.return_t = Box::new(self.deref_tyvar(mem::take(&mut subr.return_t))?);
+                *subr.return_t = self
+                    .deref_tyvar(mem::take(&mut subr.return_t))
+                    .map_err(|e| {
+                        self.pop_variance();
+                        e
+                    })?;
                 self.pop_variance();
                 Ok(Type::Subr(subr))
             }
@@ -832,7 +855,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
         if sub_t == super_t {
             Ok(sub_t)
         } else if is_subtype {
-            match self.variance {
+            match self.current_variance() {
                 // ?T(<: Sup) --> Sup (Sup != Obj), because completion will not work if Never is selected.
                 // ?T(:> Never, <: Obj) --> Never
                 // ?T(:> Never, <: Int) --> Never..Int == Int
@@ -888,28 +911,47 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
         let essential_qnames = subr.essential_qnames();
         let mut _self = Dereferencer::new(
             self.ctx,
-            self.variance,
+            self.current_variance(),
             self.coerce,
             &essential_qnames,
             self.loc,
         );
         for param in subr.non_default_params.iter_mut() {
             _self.push_variance(Contravariant);
-            *param.typ_mut() = _self.deref_tyvar(mem::take(param.typ_mut()))?;
+            *param.typ_mut() = _self.deref_tyvar(mem::take(param.typ_mut())).map_err(|e| {
+                _self.pop_variance();
+                e
+            })?;
             _self.pop_variance();
         }
         if let Some(var_args) = &mut subr.var_params {
             _self.push_variance(Contravariant);
-            *var_args.typ_mut() = _self.deref_tyvar(mem::take(var_args.typ_mut()))?;
+            *var_args.typ_mut() =
+                _self
+                    .deref_tyvar(mem::take(var_args.typ_mut()))
+                    .map_err(|e| {
+                        _self.pop_variance();
+                        e
+                    })?;
             _self.pop_variance();
         }
         for d_param in subr.default_params.iter_mut() {
             _self.push_variance(Contravariant);
-            *d_param.typ_mut() = _self.deref_tyvar(mem::take(d_param.typ_mut()))?;
+            *d_param.typ_mut() = _self
+                .deref_tyvar(mem::take(d_param.typ_mut()))
+                .map_err(|e| {
+                    _self.pop_variance();
+                    e
+                })?;
             _self.pop_variance();
         }
         _self.push_variance(Covariant);
-        subr.return_t = Box::new(_self.deref_tyvar(mem::take(&mut subr.return_t))?);
+        *subr.return_t = _self
+            .deref_tyvar(mem::take(&mut subr.return_t))
+            .map_err(|e| {
+                _self.pop_variance();
+                e
+            })?;
         _self.pop_variance();
         let subr = Type::Subr(subr);
         if subr.has_qvar() {
