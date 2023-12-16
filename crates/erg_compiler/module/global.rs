@@ -1,9 +1,10 @@
 use erg_common::config::ErgConfig;
 use erg_common::pathutil::NormalizedPathBuf;
+use erg_common::shared::MappedRwLockReadGuard;
 
-use crate::context::Context;
+use crate::context::{Context, ModuleContext};
 
-use super::cache::SharedModuleCache;
+use super::cache::{ModuleEntry, SharedModuleCache};
 use super::errors::{SharedCompileErrors, SharedCompileWarnings};
 use super::graph::SharedModuleGraph;
 use super::impls::SharedTraitImpls;
@@ -93,5 +94,49 @@ impl SharedCompilerResource {
         self.index.rename_path(old, new.clone());
         self.graph.rename_path(old, new.clone());
         self.promises.rename(old, new);
+    }
+
+    pub fn insert_module(&self, path: NormalizedPathBuf, entry: ModuleEntry) {
+        if path.to_string_lossy().ends_with("d.er") {
+            self.py_mod_cache.insert(path, entry);
+        } else {
+            self.mod_cache.insert(path, entry);
+        }
+    }
+
+    pub fn remove_module(&self, path: &std::path::Path) -> Option<ModuleEntry> {
+        if path.to_string_lossy().ends_with("d.er") {
+            self.py_mod_cache.remove(path)
+        } else {
+            self.mod_cache.remove(path)
+        }
+    }
+
+    pub fn get_module(&self, path: &std::path::Path) -> Option<MappedRwLockReadGuard<ModuleEntry>> {
+        if path.to_string_lossy().ends_with("d.er") {
+            self.py_mod_cache.get(path)
+        } else {
+            self.mod_cache.get(path)
+        }
+    }
+
+    pub fn raw_ref_ctx(&self, path: &std::path::Path) -> Option<&ModuleContext> {
+        if path.to_string_lossy().ends_with("d.er") {
+            self.py_mod_cache.raw_ref_ctx(path)
+        } else {
+            self.mod_cache.raw_ref_ctx(path)
+        }
+    }
+
+    pub fn raw_modules(&self) -> impl Iterator<Item = &ModuleEntry> {
+        self.mod_cache
+            .raw_values()
+            .chain(self.py_mod_cache.raw_values())
+    }
+
+    pub fn raw_path_and_modules(&self) -> impl Iterator<Item = (&NormalizedPathBuf, &ModuleEntry)> {
+        self.mod_cache
+            .raw_iter()
+            .chain(self.py_mod_cache.raw_iter())
     }
 }

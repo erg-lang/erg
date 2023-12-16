@@ -778,7 +778,14 @@ impl Context {
         );
         str_.register_builtin_erg_impl(
             FUNC_FORMAT,
-            fn_met(Str, vec![], Some(kw(KW_ARGS, Obj)), vec![], None, Str),
+            fn_met(
+                Str,
+                vec![],
+                Some(kw(KW_ARGS, Obj)),
+                vec![],
+                Some(kw(KW_KWARGS, Obj)),
+                Str,
+            ),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
