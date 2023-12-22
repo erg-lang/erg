@@ -160,6 +160,42 @@ impl ModuleGraph {
     pub fn initialize(&mut self) {
         self.0.clear();
     }
+
+    pub fn display_parents(
+        &self,
+        lev: usize,
+        id: &NormalizedPathBuf,
+        appeared: &mut Set<NormalizedPathBuf>,
+    ) -> String {
+        let mut s = String::new();
+        let Some(parents) = self.parents(id) else {
+            return s;
+        };
+        for parent in parents.iter() {
+            s.push_str(&format!("{}-> {}\n", "    ".repeat(lev), parent.display()));
+            if appeared.contains(parent) {
+                continue;
+            }
+            s.push_str(&self.display_parents(lev + 1, parent, appeared));
+            appeared.insert(parent.clone());
+        }
+        s
+    }
+
+    pub fn display(&self) -> String {
+        let mut s = String::new();
+        let mut appeared = set! {};
+        for node in self.0.iter() {
+            let children = self.children(&node.id);
+            if !children.is_empty() || appeared.contains(&node.id) {
+                continue;
+            }
+            s.push_str(&format!("{}\n", node.id.display()));
+            s.push_str(&self.display_parents(1, &node.id, &mut appeared));
+            appeared.insert(node.id.clone());
+        }
+        s
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -247,5 +283,9 @@ impl SharedModuleGraph {
 
     pub fn clone_inner(&self) -> ModuleGraph {
         self.0.borrow().clone()
+    }
+
+    pub fn display(&self) -> String {
+        self.0.borrow().display()
     }
 }
