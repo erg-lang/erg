@@ -336,6 +336,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         log!(info "Start dependency resolution process");
         let _ = self.resolve(&mut ast, &cfg);
         log!(info "Dependency resolution process completed");
+        log!("graph:\n{}", self.shared.graph.display());
         if self.parse_errors.errors.is_empty() {
             self.shared.warns.extend(self.parse_errors.warns.flush());
         } else {
