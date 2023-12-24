@@ -571,7 +571,12 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         if let Err(ResolveError::CycleDetected { path, submod_input }) =
             self.resolve(&mut ast, &import_cfg)
         {
-            *expr = Expr::InlineModule(InlineModule::new(submod_input.clone(), ast, call.clone()));
+            *expr = Expr::InlineModule(InlineModule::new(
+                submod_input.clone(),
+                ast,
+                call.clone(),
+                import_path,
+            ));
             if path != from_path {
                 return Err(ResolveError::CycleDetected { path, submod_input });
             } else {

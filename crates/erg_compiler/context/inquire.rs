@@ -2654,7 +2654,7 @@ impl Context {
             if let Some(ctx) = self.get_nominal_type_ctx(sup) {
                 sup_ctxs.push(ctx);
             } else if DEBUG_MODE {
-                todo!("no ctx for {sup}");
+                todo!("no ctx ({} / {}) for {sup}", self.name, self.kind);
             }
         }
         Some(vec![ctx].into_iter().chain(sup_ctxs))

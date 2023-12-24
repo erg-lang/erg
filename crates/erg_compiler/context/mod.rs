@@ -61,8 +61,6 @@ pub trait ContextProvider {
     }
 }
 
-const BUILTINS: &Str = &Str::ever("<builtins>");
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ControlKind {
     If,
@@ -1140,10 +1138,8 @@ impl Context {
         // NOTE: this need to be changed if we want to support nested classes/traits
         if let Some(outer) = self.get_outer() {
             outer.path()
-        } else if self.kind == ContextKind::Module {
-            self.name.replace(".__init__", "").into()
         } else {
-            BUILTINS.clone()
+            self.name.replace(".__init__", "").into()
         }
     }
 
@@ -1151,7 +1147,7 @@ impl Context {
     /// This avoids infinite loops.
     pub(crate) fn get_builtins(&self) -> Option<&Context> {
         // builtins中で定義した型等はmod_cacheがNoneになっている
-        if self.kind != ContextKind::Module || &self.path()[..] != "<builtins>" {
+        if &self.path()[..] != "<builtins>" {
             self.shared
                 .as_ref()
                 .map(|shared| {
@@ -1175,7 +1171,13 @@ impl Context {
                     outer.get_module()
                 }
             })
-            .or(Some(self))
+            .or_else(|| {
+                if self.kind == ContextKind::Module {
+                    Some(self)
+                } else {
+                    None
+                }
+            })
     }
 
     pub(crate) fn get_module_from_stack(&self, path: &NormalizedPathBuf) -> Option<&Context> {
@@ -1249,10 +1251,10 @@ impl Context {
         self.params.retain(|(_, v)| v.t != Failure);
     }
 
+    /// Note that the popped context is detached and `outer == None`.
     pub fn pop(&mut self) -> Context {
         self.check_types();
-        if let Some(parent) = self.outer.as_mut() {
-            let parent = mem::take(parent);
+        if let Some(parent) = self.outer.take() {
             let ctx = mem::take(self);
             *self = *parent;
             log!(info "{}: current namespace: {}", fn_name!(), self.name);

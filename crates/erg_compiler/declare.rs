@@ -996,6 +996,26 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             {
                 Ok(hir::Expr::Call(self.lower_call(call, None)))
             }
+            ast::Expr::Compound(compound) => {
+                let mut chunks = vec![];
+                for chunk in compound.into_iter() {
+                    let chunk = self.declare_chunk(chunk, true)?;
+                    chunks.push(chunk);
+                }
+                Ok(hir::Expr::Compound(hir::Block::new(chunks)))
+            }
+            ast::Expr::Dummy(dummy) => {
+                let mut dummy_ = vec![];
+                for elem in dummy.into_iter() {
+                    let elem = self.declare_chunk(elem, true)?;
+                    dummy_.push(elem);
+                }
+                Ok(hir::Expr::Dummy(hir::Dummy::new(dummy_)))
+            }
+            ast::Expr::InlineModule(inline) => {
+                let import = self.lower_inline_module(inline, None);
+                Ok(hir::Expr::Call(import))
+            }
             other => Err(LowerErrors::from(LowerError::declare_error(
                 self.cfg().input.clone(),
                 line!() as usize,

@@ -1,6 +1,11 @@
 .modules = pyimport "./modules"
 .parameter = pyimport "./parameter"
 
-{.CrossEntropyLoss; .Flatten; .Linear; .Module; .ReLU;} = .modules
+{
+    .CrossEntropyLoss;
+    .Flatten;
+    .Linear;
+    .Module;
+    .ReLU;
+} = .modules
 {.Parameter;} = .parameter
-{.Module;} = pyimport "./modules/module"

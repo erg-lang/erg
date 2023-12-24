@@ -3,7 +3,6 @@
 //! ASTLowerer(ASTからHIRへの変換器)を実装
 use std::marker::PhantomData;
 use std::mem;
-use std::path::Path;
 
 use erg_common::config::{ErgConfig, ErgMode};
 use erg_common::consts::{ELS, ERG_MODE, PYTHON_MODE};
@@ -2956,20 +2955,13 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         Ok(hir::Dummy::new(hir_dummy))
     }
 
-    fn lower_inline_module(&mut self, inline: InlineModule, expect: Option<&Type>) -> hir::Call {
+    pub(crate) fn lower_inline_module(
+        &mut self,
+        inline: InlineModule,
+        expect: Option<&Type>,
+    ) -> hir::Call {
         log!(info "entered {}", fn_name!());
-        let Some(ast::Expr::Literal(mod_name)) = inline.import.args.get_left_or_key("Path") else {
-            unreachable!();
-        };
-        let Ok(mod_name) = hir::Literal::try_from(mod_name.token.clone()) else {
-            unreachable!();
-        };
-        let ValueObj::Str(__name__) = &mod_name.value else {
-            unreachable!();
-        };
-        let Some(path) = inline.input.resolve_path(Path::new(&__name__[..])) else {
-            unreachable!();
-        };
+        let path = inline.module_path;
         let parent = self.get_mod_ctx().context.get_module().unwrap().clone();
         let mod_ctx = ModuleContext::new(parent, dict! {});
         let mut builder = GenericHIRBuilder::<A>::new_with_ctx(mod_ctx);
