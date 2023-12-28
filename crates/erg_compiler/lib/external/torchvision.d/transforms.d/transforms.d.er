@@ -1,3 +1,9 @@
+.Compose: ClassType
+.Normalize: ClassType
+
+.RandomCrop: ClassType
+.RandomHorizontalFlip: ClassType
+
 .ToTensor: ClassType
 .ToTensor <: GenericCallable
 .ToTensor.

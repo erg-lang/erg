@@ -2654,7 +2654,7 @@ impl Context {
             if let Some(ctx) = self.get_nominal_type_ctx(sup) {
                 sup_ctxs.push(ctx);
             } else if DEBUG_MODE {
-                todo!("no ctx for {sup}");
+                todo!("no ctx ({} / {}) for {sup}", self.name, self.kind);
             }
         }
         Some(vec![ctx].into_iter().chain(sup_ctxs))
@@ -2960,25 +2960,16 @@ impl Context {
     }
 
     pub fn get_mod_with_t(&self, mod_t: &Type) -> Option<&Context> {
-        self.get_mod_with_path(&self.get_path_with_mod_t(mod_t)?)
-    }
-
-    pub fn get_path_with_mod_t(&self, mod_t: &Type) -> Option<PathBuf> {
-        let tps = mod_t.typarams();
-        let Some(TyParam::Value(ValueObj::Str(path))) = tps.get(0) else {
-            return None;
-        };
-        if mod_t.is_erg_module() {
-            self.cfg.input.resolve_path(Path::new(&path[..]))
-        } else if mod_t.is_py_module() {
-            self.cfg.input.resolve_decl_path(Path::new(&path[..]))
-        } else {
-            None
-        }
+        self.get_mod_with_path(&mod_t.module_path()?)
     }
 
     // rec_get_const_localとは違い、位置情報を持たないしエラーとならない
     pub(crate) fn rec_get_const_obj(&self, name: &str) -> Option<&ValueObj> {
+        if name.split('.').count() > 1 {
+            let typ = Type::Mono(Str::rc(name));
+            let namespace = self.get_namespace(&typ.namespace())?;
+            return namespace.rec_get_const_obj(&typ.local_name());
+        }
         #[cfg(feature = "py_compat")]
         let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
         if name == "Self" {
@@ -3032,9 +3023,8 @@ impl Context {
     pub(crate) fn get_namespace_path(&self, namespace: &Str) -> Option<PathBuf> {
         // get the true name
         let namespace = if let Some((_, vi)) = self.get_var_info(namespace) {
-            // m: PyModule("math") -> math
-            if vi.t.is_module() {
-                vi.t.typarams()[0].to_string().replace('"', "").into()
+            if let Some(path) = vi.t.module_path() {
+                return Some(path);
             } else {
                 namespace.clone()
             }

@@ -14,7 +14,6 @@ use erg_common::Str;
 use erg_parser::ast::{DefId, OperationKind};
 use erg_parser::token::{Token, TokenKind, DOT, EQUAL};
 
-use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
 use crate::ty::HasType;
 
@@ -377,11 +376,9 @@ impl<'a> HIRLinker<'a> {
     /// ```
     fn replace_erg_import(&self, expr: &mut Expr) {
         let line = expr.ln_begin().unwrap_or(0);
-        let TyParam::Value(ValueObj::Str(path)) = expr.ref_t().typarams().remove(0) else {
+        let Some(path) = expr.ref_t().module_path() else {
             unreachable!()
         };
-        let path = Path::new(&path[..]);
-        let path = self.cfg.input.resolve_real_path(path).unwrap();
         // # module.er
         // self = import "module"
         // ↓

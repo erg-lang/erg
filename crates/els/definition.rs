@@ -46,18 +46,14 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 {
                     if let Some(def) = self.get_min::<Def>(uri, pos) {
                         if def.def_kind().is_import() {
-                            if vi.t.is_module() {
-                                if let Some(path) = self
-                                    .get_local_ctx(uri, pos)
-                                    .first()
-                                    .and_then(|ctx| ctx.get_path_with_mod_t(&vi.t))
-                                {
-                                    let mod_uri = Url::from_file_path(path).unwrap();
-                                    return Ok(Some(lsp_types::Location::new(
-                                        mod_uri,
-                                        lsp_types::Range::default(),
-                                    )));
-                                }
+                            if let Some(mod_uri) =
+                                vi.t.module_path()
+                                    .and_then(|path| Url::from_file_path(path).ok())
+                            {
+                                return Ok(Some(lsp_types::Location::new(
+                                    mod_uri,
+                                    lsp_types::Range::default(),
+                                )));
                             } else {
                                 // line of module member definitions may no longer match after the desugaring process
                                 let mod_t = def.body.ref_t();

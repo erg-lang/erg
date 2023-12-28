@@ -1,5 +1,6 @@
 use std::fmt::Display;
 use std::mem;
+use std::path::Path;
 
 use erg_common::dict::Dict;
 #[allow(unused_imports)]
@@ -676,4 +677,87 @@ pub(crate) fn as_record(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<T
         };
     }
     Ok(ValueObj::builtin_type(Type::Record(dict)).into())
+}
+
+pub(crate) fn resolve_path_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let path = args
+        .remove_left_or_key("Path")
+        .ok_or_else(|| not_passed("Path"))?;
+    let path = match &path {
+        ValueObj::Str(s) => Path::new(&s[..]),
+        other => {
+            return Err(type_mismatch("Str", other, "Path"));
+        }
+    };
+    let Some(path) = ctx.cfg.input.resolve_path(path) else {
+        return Err(ErrorCore::new(
+            vec![SubMessage::only_loc(Location::Unknown)],
+            format!("Path {} is not found", path.display()),
+            line!() as usize,
+            ErrorKind::IoError,
+            Location::Unknown,
+        )
+        .into());
+    };
+    Ok(ValueObj::Str(path.to_string_lossy().into()).into())
+}
+
+pub(crate) fn resolve_decl_path_func(
+    mut args: ValueArgs,
+    ctx: &Context,
+) -> EvalValueResult<TyParam> {
+    let path = args
+        .remove_left_or_key("Path")
+        .ok_or_else(|| not_passed("Path"))?;
+    let path = match &path {
+        ValueObj::Str(s) => Path::new(&s[..]),
+        other => {
+            return Err(type_mismatch("Str", other, "Path"));
+        }
+    };
+    let Some(path) = ctx.cfg.input.resolve_decl_path(path) else {
+        return Err(ErrorCore::new(
+            vec![SubMessage::only_loc(Location::Unknown)],
+            format!("Path {} is not found", path.display()),
+            line!() as usize,
+            ErrorKind::IoError,
+            Location::Unknown,
+        )
+        .into());
+    };
+    Ok(ValueObj::Str(path.to_string_lossy().into()).into())
+}
+
+pub(crate) fn succ_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let val = args
+        .remove_left_or_key("Value")
+        .ok_or_else(|| not_passed("Value"))?;
+    let val = match &val {
+        ValueObj::Bool(b) => ValueObj::Nat(*b as u64 + 1),
+        ValueObj::Nat(n) => ValueObj::Nat(n + 1),
+        ValueObj::Int(n) => ValueObj::Int(n + 1),
+        ValueObj::Float(n) => ValueObj::Float(n + f64::EPSILON),
+        v @ (ValueObj::Inf | ValueObj::NegInf) => v.clone(),
+        _ => {
+            return Err(type_mismatch("Number", val, "Value"));
+        }
+    };
+    Ok(val.into())
+}
+
+pub(crate) fn pred_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let val = args
+        .remove_left_or_key("Value")
+        .ok_or_else(|| not_passed("Value"))?;
+    let val = match &val {
+        ValueObj::Bool(b) => ValueObj::Nat((*b as u64).saturating_sub(1)),
+        ValueObj::Nat(n) => ValueObj::Nat(n.saturating_sub(1)),
+        ValueObj::Int(n) => ValueObj::Int(n - 1),
+        ValueObj::Float(n) => ValueObj::Float(n - f64::EPSILON),
+        v @ (ValueObj::Inf | ValueObj::NegInf) => v.clone(),
+        _ => {
+            return Err(type_mismatch("Number", val, "Value"));
+        }
+    };
+    Ok(val.into())
 }

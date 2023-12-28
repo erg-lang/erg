@@ -20,8 +20,8 @@ use ast::{
 use erg_parser::ast::{self, ClassAttr, TypeSpecWithOp};
 
 use crate::ty::constructors::{
-    free_var, func, func0, func1, proc, ref_, ref_mut, str_dict_t, tp_enum, unknown_len_array_t,
-    v_enum,
+    free_var, func, func0, func1, module, proc, py_module, ref_, ref_mut, str_dict_t, tp_enum,
+    unknown_len_array_t, v_enum,
 };
 use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::typaram::TyParam;
@@ -1137,22 +1137,19 @@ impl Context {
         let Ok(mod_name) = hir::Literal::try_from(mod_name.token.clone()) else {
             return Ok(());
         };
-        let res = self
-            .import_mod(call.additional_operation().unwrap(), &mod_name)
-            .map(|_path| ());
-        let arg = TyParam::Value(ValueObj::Str(
-            mod_name.token.content.replace('\"', "").into(),
-        ));
-        let typ = if def.def_kind().is_erg_import() {
-            Type::Poly {
-                name: Str::ever("Module"),
-                params: vec![arg],
-            }
+        let path = self.import_mod(call.additional_operation().unwrap(), &mod_name);
+        let arg = if let Ok(path) = &path {
+            TyParam::Value(ValueObj::Str(path.to_string_lossy().into()))
         } else {
-            Type::Poly {
-                name: Str::ever("PyModule"),
-                params: vec![arg],
-            }
+            TyParam::Value(ValueObj::Str(
+                mod_name.token.content.replace('\"', "").into(),
+            ))
+        };
+        let res = path.map(|_path| ());
+        let typ = if def.def_kind().is_erg_import() {
+            module(arg)
+        } else {
+            py_module(arg)
         };
         let Some(ident) = def.sig.ident() else {
             return res;
@@ -2513,6 +2510,30 @@ impl Context {
         #[allow(clippy::single_match)]
         match expr {
             ast::Expr::Accessor(acc) => self.inc_ref_acc(acc, namespace, tmp_tv_cache),
+            ast::Expr::BinOp(bin) => {
+                self.inc_ref_expr(&bin.args[0], namespace, tmp_tv_cache)
+                    || self.inc_ref_expr(&bin.args[1], namespace, tmp_tv_cache)
+            }
+            ast::Expr::UnaryOp(unary) => self.inc_ref_expr(&unary.value(), namespace, tmp_tv_cache),
+            ast::Expr::Call(call) => {
+                let mut res = self.inc_ref_expr(&call.obj, namespace, tmp_tv_cache);
+                for arg in call.args.pos_args() {
+                    if self.inc_ref_expr(&arg.expr, namespace, tmp_tv_cache) {
+                        res = true;
+                    }
+                }
+                if let Some(arg) = call.args.var_args() {
+                    if self.inc_ref_expr(&arg.expr, namespace, tmp_tv_cache) {
+                        res = true;
+                    }
+                }
+                for arg in call.args.kw_args() {
+                    if self.inc_ref_expr(&arg.expr, namespace, tmp_tv_cache) {
+                        res = true;
+                    }
+                }
+                res
+            }
             ast::Expr::Record(ast::Record::Normal(rec)) => {
                 let mut res = false;
                 for val in rec.attrs.iter() {
@@ -2521,10 +2542,6 @@ impl Context {
                     }
                 }
                 res
-            }
-            ast::Expr::BinOp(bin) => {
-                self.inc_ref_expr(&bin.args[0], namespace, tmp_tv_cache)
-                    || self.inc_ref_expr(&bin.args[1], namespace, tmp_tv_cache)
             }
             ast::Expr::Array(ast::Array::Normal(arr)) => {
                 let mut res = false;
@@ -2535,7 +2552,51 @@ impl Context {
                 }
                 res
             }
+            ast::Expr::Tuple(ast::Tuple::Normal(tup)) => {
+                let mut res = false;
+                for val in tup.elems.pos_args().iter() {
+                    if self.inc_ref_expr(&val.expr, namespace, tmp_tv_cache) {
+                        res = true;
+                    }
+                }
+                res
+            }
+            ast::Expr::Set(ast::Set::Normal(set)) => {
+                let mut res = false;
+                for val in set.elems.pos_args().iter() {
+                    if self.inc_ref_expr(&val.expr, namespace, tmp_tv_cache) {
+                        res = true;
+                    }
+                }
+                res
+            }
             ast::Expr::Set(ast::Set::Comprehension(comp)) => {
+                let mut res = false;
+                for (_, gen) in comp.generators.iter() {
+                    if self.inc_ref_expr(gen, namespace, tmp_tv_cache) {
+                        res = true;
+                    }
+                }
+                if let Some(guard) = &comp.guard {
+                    if self.inc_ref_expr(guard, namespace, tmp_tv_cache) {
+                        res = true;
+                    }
+                }
+                res
+            }
+            ast::Expr::Dict(ast::Dict::Normal(dict)) => {
+                let mut res = false;
+                for ast::KeyValue { key, value } in dict.kvs.iter() {
+                    if self.inc_ref_expr(key, namespace, tmp_tv_cache) {
+                        res = true;
+                    }
+                    if self.inc_ref_expr(value, namespace, tmp_tv_cache) {
+                        res = true;
+                    }
+                }
+                res
+            }
+            ast::Expr::Dict(ast::Dict::Comprehension(comp)) => {
                 let mut res = false;
                 for (_, gen) in comp.generators.iter() {
                     if self.inc_ref_expr(gen, namespace, tmp_tv_cache) {

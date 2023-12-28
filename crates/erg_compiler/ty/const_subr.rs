@@ -67,6 +67,20 @@ impl ValueArgs {
         ValueArgs { pos_args, kw_args }
     }
 
+    pub fn empty() -> Self {
+        ValueArgs {
+            pos_args: Vec::new(),
+            kw_args: Dict::new(),
+        }
+    }
+
+    pub fn pos_only(pos_args: Vec<ValueObj>) -> Self {
+        ValueArgs {
+            pos_args,
+            kw_args: Dict::new(),
+        }
+    }
+
     pub fn remove_left_or_key(&mut self, key: &str) -> Option<ValueObj> {
         if !self.pos_args.is_empty() {
             Some(self.pos_args.remove(0))

@@ -246,6 +246,11 @@ fn exec_many_import() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_many_import_pytorch() -> Result<(), ()> {
+    expect_compile_success("tests/should_ok/many_import/pytorch.er", 0)
+}
+
+#[test]
 fn exec_map() -> Result<(), ()> {
     expect_success("tests/should_ok/map.er", 0)
 }

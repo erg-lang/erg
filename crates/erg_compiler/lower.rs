@@ -3,7 +3,6 @@
 //! ASTLowerer(ASTからHIRへの変換器)を実装
 use std::marker::PhantomData;
 use std::mem;
-use std::path::Path;
 
 use erg_common::config::{ErgConfig, ErgMode};
 use erg_common::consts::{ELS, ERG_MODE, PYTHON_MODE};
@@ -11,6 +10,7 @@ use erg_common::dict;
 use erg_common::dict::Dict;
 use erg_common::error::{Location, MultiErrorDisplay};
 use erg_common::fresh::FreshNameGenerator;
+use erg_common::pathutil::mod_name;
 use erg_common::set;
 use erg_common::set::Set;
 use erg_common::traits::{ExitStatus, Locational, NoTypeDisplay, Runnable, Stream};
@@ -2956,23 +2956,17 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         Ok(hir::Dummy::new(hir_dummy))
     }
 
-    fn lower_inline_module(&mut self, inline: InlineModule, expect: Option<&Type>) -> hir::Call {
+    pub(crate) fn lower_inline_module(
+        &mut self,
+        inline: InlineModule,
+        expect: Option<&Type>,
+    ) -> hir::Call {
         log!(info "entered {}", fn_name!());
-        let Some(ast::Expr::Literal(mod_name)) = inline.import.args.get_left_or_key("Path") else {
-            unreachable!();
-        };
-        let Ok(mod_name) = hir::Literal::try_from(mod_name.token.clone()) else {
-            unreachable!();
-        };
-        let ValueObj::Str(__name__) = &mod_name.value else {
-            unreachable!();
-        };
-        let Some(path) = inline.input.resolve_path(Path::new(&__name__[..])) else {
-            unreachable!();
-        };
+        let path = inline.input.path().to_path_buf();
         let parent = self.get_mod_ctx().context.get_module().unwrap().clone();
         let mod_ctx = ModuleContext::new(parent, dict! {});
-        let mut builder = GenericHIRBuilder::<A>::new_with_ctx(mod_ctx);
+        let mod_name = mod_name(&path);
+        let mut builder = GenericHIRBuilder::<A>::new_submodule(mod_ctx, &mod_name);
         builder.lowerer.module.context.cfg.input = inline.input.clone();
         builder.cfg_mut().input = inline.input.clone();
         let mode = if path.to_string_lossy().ends_with("d.er") {

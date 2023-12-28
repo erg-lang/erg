@@ -97,6 +97,9 @@ impl InputKind {
         if let Self::File(path) = self {
             let mut path = path.clone();
             path.pop();
+            if path.ends_with("__pycache__") {
+                path.pop();
+            }
             if path.parent().is_none() {
                 PathBuf::from(".")
             } else {

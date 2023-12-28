@@ -809,15 +809,9 @@ impl Context {
                 let Some(ctx) = self.get_nominal_type_ctx(other) else {
                     return Dict::new();
                 };
-                let mod_fields = if other.is_module() {
-                    if let Ok(ValueObj::Str(mod_name)) =
-                        ValueObj::try_from(other.typarams()[0].clone())
-                    {
-                        self.get_mod(&mod_name)
-                            .map_or(Dict::new(), |ctx| ctx.local_dir())
-                    } else {
-                        Dict::new()
-                    }
+                let mod_fields = if let Some(path) = other.module_path() {
+                    self.get_mod_with_path(&path)
+                        .map_or(Dict::new(), |ctx| ctx.local_dir())
                 } else {
                     Dict::new()
                 };
@@ -847,9 +841,13 @@ impl Context {
             erg_common::fmt_vec(lparams),
             erg_common::fmt_vec(rparams)
         );
-        let ctx = self
-            .get_nominal_type_ctx(typ)
-            .unwrap_or_else(|| panic!("{typ} is not found"));
+        let Some(ctx) = self.get_nominal_type_ctx(typ) else {
+            if DEBUG_MODE {
+                panic!("{typ} is not found");
+            } else {
+                return false;
+            }
+        };
         let variances = ctx.type_params_variance();
         debug_assert_eq!(
             lparams.len(),

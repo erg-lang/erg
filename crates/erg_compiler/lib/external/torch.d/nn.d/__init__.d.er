@@ -1,1 +1,11 @@
-{.Module;} = pyimport "./modules/module"
+.modules = pyimport "./modules"
+.parameter = pyimport "./parameter"
+
+{
+    .CrossEntropyLoss;
+    .Flatten;
+    .Linear;
+    .Module;
+    .ReLU;
+} = .modules
+{.Parameter;} = .parameter

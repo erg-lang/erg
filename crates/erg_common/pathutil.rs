@@ -4,7 +4,7 @@ use std::fmt;
 use std::ops::Deref;
 use std::path::{Component, Path, PathBuf};
 
-use crate::normalize_path;
+use crate::{normalize_path, Str};
 
 /// Guaranteed equivalence path.
 ///
@@ -232,4 +232,25 @@ pub fn squash(path: PathBuf) -> PathBuf {
 
 pub fn remove_verbatim(path: &Path) -> String {
     path.to_string_lossy().replace("\\\\?\\", "")
+}
+
+/// e.g. http.d/client.d.er -> http.client
+/// math.d.er -> math
+pub fn mod_name(path: &Path) -> Str {
+    let mut name = path
+        .file_name()
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .trim_end_matches(".d.er")
+        .to_string();
+    for parent in path.components().rev().skip(1) {
+        let parent = parent.as_os_str().to_str().unwrap();
+        if parent.ends_with(".d") {
+            name = parent.trim_end_matches(".d").to_string() + "." + &name;
+        } else {
+            break;
+        }
+    }
+    Str::from(name)
 }

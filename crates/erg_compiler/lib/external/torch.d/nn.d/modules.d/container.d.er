@@ -1,0 +1,3 @@
+.Sequential: ClassType
+.Sequential.
+    __call__: (*args: .Module) -> .Sequential
