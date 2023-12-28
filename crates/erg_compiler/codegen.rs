@@ -781,6 +781,12 @@ impl PyCodeGenerator {
             | "invert" | "is_" | "is_not" | "call" => {
                 self.load_operators();
             }
+            "CodeType" => {
+                self.emit_global_import_items(
+                    Identifier::public("types"),
+                    vec![(Identifier::public("CodeType"), None)],
+                );
+            }
             // NoneType is not defined in the global scope, use `type(None)` instead
             "NoneType" => {
                 self.emit_push_null();
