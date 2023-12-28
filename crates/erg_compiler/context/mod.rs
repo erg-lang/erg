@@ -1135,8 +1135,10 @@ impl Context {
     }
 
     pub(crate) fn path(&self) -> Str {
-        // NOTE: this need to be changed if we want to support nested classes/traits
-        if let Some(outer) = self.get_outer() {
+        // NOTE: maybe this need to be changed if we want to support nested classes/traits
+        if self.kind == ContextKind::Module {
+            self.name.replace(".__init__", "").into()
+        } else if let Some(outer) = self.get_outer() {
             outer.path()
         } else {
             self.name.replace(".__init__", "").into()
@@ -1217,7 +1219,9 @@ impl Context {
         vis: VisibilityModifier,
         tv_cache: Option<TyVarCache>,
     ) {
-        let name = if vis.is_public() {
+        let name = if kind.is_module() {
+            name.into()
+        } else if vis.is_public() {
             format!("{parent}.{name}", parent = self.name)
         } else {
             format!("{parent}::{name}", parent = self.name)

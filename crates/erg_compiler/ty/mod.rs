@@ -49,9 +49,9 @@ use crate::context::eval::UndoableLinkedList;
 
 use self::constructors::{bounded, free_var, named_free_var, proj_call, subr_t};
 
-pub const STR_OMIT_THRESHOLD: usize = 16;
-pub const CONTAINER_OMIT_THRESHOLD: usize = 8;
-pub const DEFAULT_PARAMS_THRESHOLD: usize = 5;
+pub const STR_OMIT_THRESHOLD: usize = if DEBUG_MODE { 100 } else { 16 };
+pub const CONTAINER_OMIT_THRESHOLD: usize = if DEBUG_MODE { 100 } else { 8 };
+pub const DEFAULT_PARAMS_THRESHOLD: usize = if DEBUG_MODE { 100 } else { 5 };
 
 /// cloneのコストがあるためなるべく.ref_tを使うようにすること
 /// いくつかの構造体は直接Typeを保持していないので、その場合は.tを使う
@@ -3947,6 +3947,21 @@ impl Type {
                 guard.to.dereference();
             }
             _ => {}
+        }
+    }
+
+    pub fn module_path(&self) -> Option<PathBuf> {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().module_path(),
+            Self::Refinement(refine) => refine.t.module_path(),
+            _ if self.is_module() => {
+                let tps = self.typarams();
+                let Some(TyParam::Value(ValueObj::Str(path))) = tps.get(0) else {
+                    return None;
+                };
+                Some(PathBuf::from(&path[..]))
+            }
+            _ => None,
         }
     }
 }

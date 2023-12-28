@@ -21,7 +21,7 @@ use erg_common::error::MultiErrorDisplay;
 use erg_common::io::Input;
 #[allow(unused)]
 use erg_common::log;
-use erg_common::pathutil::NormalizedPathBuf;
+use erg_common::pathutil::{mod_name, NormalizedPathBuf};
 use erg_common::spawn::spawn_new_thread;
 use erg_common::str::Str;
 use erg_common::traits::{ExitStatus, New, Runnable, Stream};
@@ -572,10 +572,9 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
             self.resolve(&mut ast, &import_cfg)
         {
             *expr = Expr::InlineModule(InlineModule::new(
-                submod_input.clone(),
+                Input::file(import_path.to_path_buf()),
                 ast,
                 call.clone(),
-                import_path,
             ));
             if path != from_path {
                 return Err(ResolveError::CycleDetected { path, submod_input });
@@ -596,7 +595,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         let mut graph = self.shared.graph.clone_inner();
         let mut ancestors = graph.ancestors(&path).into_vec();
         while let Some(ancestor) = ancestors.pop() {
-            if self.cyclic.contains(&ancestor) || graph.ancestors(&ancestor).is_empty() {
+            if graph.ancestors(&ancestor).is_empty() {
                 graph.remove(&ancestor);
                 if let Some((__name__, ancestor_ast)) = self.asts.remove(&ancestor) {
                     self.start_analysis_process(ancestor_ast, __name__, ancestor);
@@ -676,27 +675,6 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         self.shared.promises.insert(path, handle);
     }
 
-    /// e.g. http.d/client.d.er -> http.client
-    /// math.d.er -> math
-    fn mod_name(&self, path: &Path) -> Str {
-        let mut name = path
-            .file_name()
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .trim_end_matches(".d.er")
-            .to_string();
-        for parent in path.components().rev().skip(1) {
-            let parent = parent.as_os_str().to_str().unwrap();
-            if parent.ends_with(".d") {
-                name = parent.trim_end_matches(".d").to_string() + "." + &name;
-            } else {
-                break;
-            }
-        }
-        Str::from(name)
-    }
-
     /// FIXME: bug with inter-process sharing of type variables (pyimport "math")
     fn build_decl_mod(&self, ast: AST, path: NormalizedPathBuf) {
         let py_mod_cache = &self.shared.py_mod_cache;
@@ -709,8 +687,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         } else {
             None
         };
-        let mut builder =
-            HIRBuilder::inherit_with_name(cfg, self.mod_name(&path), self.shared.clone());
+        let mut builder = HIRBuilder::inherit_with_name(cfg, mod_name(&path), self.shared.clone());
         match builder.build_from_ast(ast, "declare") {
             Ok(artifact) => {
                 let ctx = builder.pop_context().unwrap();

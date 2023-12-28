@@ -6,7 +6,6 @@ use std::fmt::Write as _;
 use erg_common::consts::ERG_MODE;
 use erg_common::error::Location;
 use erg_common::io::Input;
-use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::set::Set as HashSet;
 // use erg_common::dict::Dict as HashMap;
 use erg_common::traits::{Locational, NestedDisplay, Stream};
@@ -6168,7 +6167,6 @@ pub struct InlineModule {
     pub input: Input,
     pub ast: AST,
     pub import: Call,
-    pub module_path: NormalizedPathBuf,
 }
 
 impl NestedDisplay for InlineModule {
@@ -6190,12 +6188,7 @@ impl InlineModule {
 }
 
 impl InlineModule {
-    pub const fn new(input: Input, ast: AST, import: Call, module_path: NormalizedPathBuf) -> Self {
-        Self {
-            input,
-            ast,
-            import,
-            module_path,
-        }
+    pub const fn new(input: Input, ast: AST, import: Call) -> Self {
+        Self { input, ast, import }
     }
 }

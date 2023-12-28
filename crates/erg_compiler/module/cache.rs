@@ -97,7 +97,7 @@ pub struct ModuleCache {
 
 impl fmt::Display for ModuleCache {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ModuleCache {{")?;
+        writeln!(f, "ModuleCache {{")?;
         for (path, entry) in self.cache.iter() {
             writeln!(f, "{}: {}, ", path.display(), entry)?;
         }

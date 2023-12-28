@@ -20,8 +20,8 @@ use ast::{
 use erg_parser::ast::{self, ClassAttr, TypeSpecWithOp};
 
 use crate::ty::constructors::{
-    free_var, func, func0, func1, proc, ref_, ref_mut, str_dict_t, tp_enum, unknown_len_array_t,
-    v_enum,
+    free_var, func, func0, func1, module, proc, py_module, ref_, ref_mut, str_dict_t, tp_enum,
+    unknown_len_array_t, v_enum,
 };
 use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::typaram::TyParam;
@@ -1137,22 +1137,19 @@ impl Context {
         let Ok(mod_name) = hir::Literal::try_from(mod_name.token.clone()) else {
             return Ok(());
         };
-        let res = self
-            .import_mod(call.additional_operation().unwrap(), &mod_name)
-            .map(|_path| ());
-        let arg = TyParam::Value(ValueObj::Str(
-            mod_name.token.content.replace('\"', "").into(),
-        ));
-        let typ = if def.def_kind().is_erg_import() {
-            Type::Poly {
-                name: Str::ever("Module"),
-                params: vec![arg],
-            }
+        let path = self.import_mod(call.additional_operation().unwrap(), &mod_name);
+        let arg = if let Ok(path) = &path {
+            TyParam::Value(ValueObj::Str(path.to_string_lossy().into()))
         } else {
-            Type::Poly {
-                name: Str::ever("PyModule"),
-                params: vec![arg],
-            }
+            TyParam::Value(ValueObj::Str(
+                mod_name.token.content.replace('\"', "").into(),
+            ))
+        };
+        let res = path.map(|_path| ());
+        let typ = if def.def_kind().is_erg_import() {
+            module(arg)
+        } else {
+            py_module(arg)
         };
         let Some(ident) = def.sig.ident() else {
             return res;

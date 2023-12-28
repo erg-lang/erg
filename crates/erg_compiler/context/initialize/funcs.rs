@@ -136,7 +136,7 @@ impl Context {
         let t_import = nd_func(
             vec![anon(tp_enum(Str, set! {Path.clone()}))],
             None,
-            module(Path.clone()),
+            module(TyParam::app(FUNC_RESOLVE_PATH.into(), vec![Path.clone()])),
         )
         .quantify();
         let t_isinstance = nd_func(
@@ -231,7 +231,7 @@ impl Context {
         let t_pyimport = nd_func(
             vec![anon(tp_enum(Str, set! {Path.clone()}))],
             None,
-            py_module(Path),
+            py_module(TyParam::app(FUNC_RESOLVE_DECL_PATH.into(), vec![Path])),
         )
         .quantify();
         let t_pycompile = nd_func(
@@ -664,7 +664,33 @@ impl Context {
             TraitType,
         );
         let patch = ConstSubr::Builtin(BuiltinConstSubr::new(PATCH, patch_func, patch_t, None));
-        self.register_builtin_const(PATCH, vis, ValueObj::Subr(patch));
+        self.register_builtin_const(PATCH, vis.clone(), ValueObj::Subr(patch));
+        let t_resolve_path = nd_func(vec![kw(KW_PATH, Str)], None, mono(GENERIC_MODULE));
+        let resolve_path = ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_RESOLVE_PATH,
+            resolve_path_func,
+            t_resolve_path,
+            None,
+        ));
+        self.register_builtin_const(FUNC_RESOLVE_PATH, vis.clone(), ValueObj::Subr(resolve_path));
+        let t_resolve_decl_path = nd_func(vec![kw(KW_PATH, Str)], None, mono(GENERIC_MODULE));
+        let resolve_decl_path = ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_RESOLVE_DECL_PATH,
+            resolve_decl_path_func,
+            t_resolve_decl_path,
+            None,
+        ));
+        self.register_builtin_const(
+            FUNC_RESOLVE_DECL_PATH,
+            vis.clone(),
+            ValueObj::Subr(resolve_decl_path),
+        );
+        let t_succ = nd_func(vec![kw(KW_N, Nat)], None, Nat);
+        let succ = ConstSubr::Builtin(BuiltinConstSubr::new(FUNC_SUCC, succ_func, t_succ, None));
+        self.register_builtin_const(FUNC_SUCC, vis.clone(), ValueObj::Subr(succ));
+        let t_pred = nd_func(vec![kw(KW_N, Nat)], None, Nat);
+        let pred = ConstSubr::Builtin(BuiltinConstSubr::new(FUNC_PRED, pred_func, t_pred, None));
+        self.register_builtin_const(FUNC_PRED, vis.clone(), ValueObj::Subr(pred));
     }
 
     pub(super) fn init_builtin_py_specific_funcs(&mut self) {

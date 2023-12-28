@@ -10,6 +10,7 @@ use erg_common::dict;
 use erg_common::dict::Dict;
 use erg_common::error::{Location, MultiErrorDisplay};
 use erg_common::fresh::FreshNameGenerator;
+use erg_common::pathutil::mod_name;
 use erg_common::set;
 use erg_common::set::Set;
 use erg_common::traits::{ExitStatus, Locational, NoTypeDisplay, Runnable, Stream};
@@ -2961,10 +2962,11 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         expect: Option<&Type>,
     ) -> hir::Call {
         log!(info "entered {}", fn_name!());
-        let path = inline.module_path;
+        let path = inline.input.path().to_path_buf();
         let parent = self.get_mod_ctx().context.get_module().unwrap().clone();
         let mod_ctx = ModuleContext::new(parent, dict! {});
-        let mut builder = GenericHIRBuilder::<A>::new_with_ctx(mod_ctx);
+        let mod_name = mod_name(&path);
+        let mut builder = GenericHIRBuilder::<A>::new_submodule(mod_ctx, &mod_name);
         builder.lowerer.module.context.cfg.input = inline.input.clone();
         builder.cfg_mut().input = inline.input.clone();
         let mode = if path.to_string_lossy().ends_with("d.er") {

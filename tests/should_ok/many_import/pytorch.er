@@ -1,0 +1,14 @@
+datasets = pyimport "torchvision/datasets"
+transforms = pyimport "torchvision/transforms"
+data = pyimport "torch/utils/data"
+
+training_data = datasets.FashionMNIST(
+    root:="target/data",
+    train:=True,
+    download:=True,
+    transform:=transforms.ToTensor(),
+)
+train_dataloader = data.DataLoader(training_data, batch_size:=64)
+
+for! train_dataloader, ((x, y),) =>
+    print! x.shape, y.shape

@@ -408,12 +408,7 @@ impl Desugarer {
                     chunks.push(desugar(chunk));
                 }
                 let ast = AST::new(inline.ast.name, Module::new(chunks));
-                Expr::InlineModule(InlineModule::new(
-                    inline.input,
-                    ast,
-                    inline.import,
-                    inline.module_path,
-                ))
+                Expr::InlineModule(InlineModule::new(inline.input, ast, inline.import))
             }
             Expr::Dummy(exprs) => {
                 let loc = exprs.loc;

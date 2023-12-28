@@ -169,6 +169,16 @@ impl<ASTBuilder: ASTBuildable> GenericHIRBuilder<ASTBuilder> {
         }
     }
 
+    pub fn new_submodule(mut mod_ctx: ModuleContext, name: &str) -> Self {
+        mod_ctx
+            .context
+            .grow(name, ContextKind::Module, VisibilityModifier::Private, None);
+        Self {
+            ownership_checker: OwnershipChecker::new(mod_ctx.get_top_cfg()),
+            lowerer: GenericASTLowerer::new_with_ctx(mod_ctx),
+        }
+    }
+
     pub fn check(&mut self, ast: AST, mode: &str) -> Result<CompleteArtifact, IncompleteArtifact> {
         let mut artifact = self.lowerer.lower(ast, mode)?;
         let effect_checker = SideEffectChecker::new(self.cfg().clone());
