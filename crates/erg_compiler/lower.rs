@@ -951,11 +951,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         if !ident.vi.is_toplevel()
             && ident.vi.def_namespace() != &self.module.context.name
             && ident.vi.kind.can_capture()
-            && self
-                .module
-                .context
-                .current_function_ctx()
-                .is_some_and(|ctx| ctx.control_kind().is_none())
+            && self.module.context.current_true_function_ctx().is_some()
         {
             self.module.context.captured_names.push(ident.clone());
         }
@@ -1178,7 +1174,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         if self
             .module
             .context
-            .current_caller()
+            .current_control_flow()
             .map_or(true, |kind| !kind.is_if())
             && expect.is_some_and(|subr| !subr.essential_qnames().is_empty())
         {

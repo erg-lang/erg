@@ -20,3 +20,20 @@ for! [1], _ =>
 
     push! "a", "b"
     assert result == "| a | b |\n"
+
+{SemVer;} = import "semver"
+
+Versions! = Class Dict! { Str: Array!(SemVer) }
+Versions!.
+    new() = Versions!::__new__ !{:}
+    insert!(ref! self, name: Str, version: SemVer) =
+        if! self::base.get(name) == None:
+            do!:
+                self::base.insert! name, ![version]
+            do!:
+                if! all(map(v -> v != version, self::base[name])), do!:
+                    self::base[name].push! version
+
+vs = Versions!.new()
+_ = vs.insert! "foo", SemVer.from_str "1.0.0"
+_ = vs.insert! "foo", SemVer.from_str "1.0.1"

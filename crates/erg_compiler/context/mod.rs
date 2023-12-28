@@ -1380,7 +1380,7 @@ impl Context {
         &self.shared().promises
     }
 
-    pub fn current_caller(&self) -> Option<ControlKind> {
+    pub fn current_control_flow(&self) -> Option<ControlKind> {
         self.higher_order_caller
             .last()
             .and_then(|name| ControlKind::try_from(&name[..]).ok())
@@ -1395,11 +1395,13 @@ impl Context {
         None
     }
 
-    pub fn current_function_ctx(&self) -> Option<&Context> {
-        if self.kind.is_subr() {
+    /// Context of the function that actually creates the scope.
+    /// Control flow function blocks do not create actual scopes.
+    pub fn current_true_function_ctx(&self) -> Option<&Context> {
+        if self.kind.is_subr() && self.current_control_flow().is_none() {
             Some(self)
         } else if let Some(outer) = self.get_outer() {
-            outer.current_function_ctx()
+            outer.current_true_function_ctx()
         } else {
             None
         }

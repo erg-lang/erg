@@ -607,7 +607,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                     match res {
                         Ok(ty) => {
                             // TODO: T(:> Nat <: Int) -> T(:> Nat, <: Int) ==> Int -> Nat
-                            // fv.link(&ty);
+                            // Type::FreeVar(fv).destructive_link(&ty);
                             Ok(ty)
                         }
                         Err(errs) => {
@@ -842,16 +842,8 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 .check_trait_impl(&sub_t, &super_t, self.qnames, self.loc)?;
         }
         let is_subtype = self.ctx.subtype_of(&sub_t, &super_t);
-        let sub_t = if DEBUG_MODE {
-            sub_t
-        } else {
-            self.deref_tyvar(sub_t)?
-        };
-        let super_t = if DEBUG_MODE {
-            super_t
-        } else {
-            self.deref_tyvar(super_t)?
-        };
+        let sub_t = self.deref_tyvar(sub_t)?;
+        let super_t = self.deref_tyvar(super_t)?;
         if sub_t == super_t {
             Ok(sub_t)
         } else if is_subtype {
@@ -1396,6 +1388,7 @@ impl Context {
             Type::Or(l, r) => {
                 let l = self.squash_tyvar(*l);
                 let r = self.squash_tyvar(*r);
+                // REVIEW:
                 if l.is_unnamed_unbound_var() && r.is_unnamed_unbound_var() {
                     match (self.subtype_of(&l, &r), self.subtype_of(&r, &l)) {
                         (true, true) | (true, false) => {
@@ -1408,6 +1401,13 @@ impl Context {
                     }
                 }
                 self.union(&l, &r)
+            }
+            Type::FreeVar(ref fv) if fv.constraint_is_sandwiched() => {
+                let (sub_t, super_t) = fv.get_subsup().unwrap();
+                let sub_t = self.squash_tyvar(sub_t);
+                let super_t = self.squash_tyvar(super_t);
+                typ.update_tyvar(sub_t, super_t, None, false);
+                typ
             }
             other => other,
         }
