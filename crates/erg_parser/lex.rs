@@ -916,6 +916,21 @@ impl Lexer /*<'a>*/ {
                             '0' => s.push('\0'),
                             'r' => s.push('\r'),
                             'n' => s.push('\n'),
+                            'x' => {
+                                let mut hex = String::new();
+                                for _ in 0..2 {
+                                    let c = self.consume().unwrap();
+                                    if c.is_ascii_hexdigit() {
+                                        hex.push(c);
+                                    } else {
+                                        let token = self.emit_token(Illegal, &s);
+                                        return Err(Self::invalid_escape_error(c, token));
+                                    }
+                                }
+                                s.push(
+                                    char::from_u32(u32::from_str_radix(&hex, 16).unwrap()).unwrap(),
+                                );
+                            }
                             '\'' => s.push('\''),
                             '"' => s.push('"'),
                             't' => s.push_str("    "), // tab is invalid, so changed into 4 whitespace
