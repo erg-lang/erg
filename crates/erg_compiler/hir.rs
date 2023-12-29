@@ -368,7 +368,7 @@ impl Args {
 
     pub fn get_left_or_key(&self, key: &str) -> Option<&Expr> {
         if !self.pos_args.is_empty() {
-            Some(&self.pos_args.get(0)?.expr)
+            Some(&self.pos_args.first()?.expr)
         } else if let Some(pos) = self
             .kw_args
             .iter()

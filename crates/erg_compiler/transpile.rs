@@ -722,7 +722,7 @@ impl PyScriptGenerator {
                 let Expr::Lambda(block) = call.args.remove(0) else {
                     todo!()
                 };
-                let non_default = block.params.non_defaults.get(0).unwrap();
+                let non_default = block.params.non_defaults.first().unwrap();
                 let param_token = match &non_default.raw.pat {
                     ParamPattern::VarName(name) => name.token(),
                     ParamPattern::Discard(token) => token,
@@ -822,7 +822,7 @@ impl PyScriptGenerator {
         while let Some(Expr::Lambda(arm)) = call.args.try_remove(0) {
             self.level += 1;
             code += &"    ".repeat(self.level);
-            let target = arm.params.non_defaults.get(0).unwrap();
+            let target = arm.params.non_defaults.first().unwrap();
             match &target.raw.pat {
                 ParamPattern::VarName(param) => {
                     let param = Self::transpile_name(

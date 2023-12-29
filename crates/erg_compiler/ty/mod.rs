@@ -3956,7 +3956,7 @@ impl Type {
             Self::Refinement(refine) => refine.t.module_path(),
             _ if self.is_module() => {
                 let tps = self.typarams();
-                let Some(TyParam::Value(ValueObj::Str(path))) = tps.get(0) else {
+                let Some(TyParam::Value(ValueObj::Str(path))) = tps.first() else {
                     return None;
                 };
                 Some(PathBuf::from(&path[..]))

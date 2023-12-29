@@ -582,7 +582,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                         _ => {}
                     }
                     let sig_t = other.t();
-                    sig_t.non_default_params()?.get(0).cloned()
+                    sig_t.non_default_params()?.first().cloned()
                 }
                 _ => None,
             });

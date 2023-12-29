@@ -500,7 +500,7 @@ impl Context {
             .map(|a| ParamTy::Pos(a.expr.ref_t().clone()))
             .collect::<Vec<_>>();
         let Some(mut return_t) = branch_ts
-            .get(0)
+            .first()
             .and_then(|branch| branch.typ().return_t().cloned())
         else {
             errs.push(TyCheckError::args_missing_error(

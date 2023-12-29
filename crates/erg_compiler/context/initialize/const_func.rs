@@ -475,7 +475,7 @@ fn _arr_shape(arr: ValueObj, ctx: &Context) -> Result<Vec<TyParam>, String> {
         match arr {
             ValueObj::Array(a) => {
                 shape.push(ValueObj::from(a.len()).into());
-                match a.get(0) {
+                match a.first() {
                     Some(arr_ @ (ValueObj::Array(_) | ValueObj::Type(_))) => {
                         arr = arr_.clone();
                     }

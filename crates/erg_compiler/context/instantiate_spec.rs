@@ -1062,7 +1062,7 @@ impl Context {
             }
             ast::ConstExpr::Set(ConstSet::Comprehension(set)) => {
                 if set.layout.is_none() && set.generators.len() == 1 && set.guard.is_some() {
-                    let (ident, expr) = set.generators.get(0).unwrap();
+                    let (ident, expr) = set.generators.first().unwrap();
                     let iter = self.instantiate_const_expr(
                         expr,
                         erased_idx,

@@ -174,7 +174,7 @@ impl Context {
                     .union_pair()
                     .map(|(t1, t2)| format!("cannot {verb} {t1} {preposition} {t2}"))
                     .or_else(|| {
-                        expected.inner_ts().get(0).map(|expected_inner| {
+                        expected.inner_ts().first().map(|expected_inner| {
                             let expected_inner = self.readable_type(expected_inner.clone());
                             format!("cannot {verb} {found} {preposition} {expected_inner}")
                         })
@@ -237,7 +237,7 @@ impl Context {
                 if let Some(fv) = lhs.as_free() {
                     let (sub, sup) = fv.get_subsup()?;
                     let (verb, preposition, sequence) = Self::get_verb_and_preposition(&sup)?;
-                    let sup = *option_enum_unwrap!(sup.typarams().get(0)?.clone(), TyParam::Type)?;
+                    let sup = *option_enum_unwrap!(sup.typarams().first()?.clone(), TyParam::Type)?;
                     let sup = self.readable_type(sup);
                     let (l, r) = if sequence == Sequence::Forward {
                         (sub, sup)

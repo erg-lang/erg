@@ -2776,7 +2776,7 @@ impl Parser {
             ArrayInner::Normal(mut elems) => {
                 let elems = if elems
                     .pos_args()
-                    .get(0)
+                    .first()
                     .map(|pos| match &pos.expr {
                         Expr::Tuple(tup) => tup.paren().is_none(),
                         _ => false,

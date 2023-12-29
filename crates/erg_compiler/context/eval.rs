@@ -2640,7 +2640,7 @@ impl Context {
                     ))
                 }),
             TyParam::Array(tps) => {
-                let tp_t = if let Some(fst) = tps.get(0) {
+                let tp_t = if let Some(fst) = tps.first() {
                     self.get_tp_t(fst)?
                 } else {
                     Never

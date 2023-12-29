@@ -363,7 +363,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             }
             self.module
                 .context
-                .convert_tp_into_type(t.typarams().get(0)?.clone())
+                .convert_tp_into_type(t.typarams().first()?.clone())
                 .ok()
         });
         let mut union = Type::Never;
@@ -446,7 +446,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             }
             self.module
                 .context
-                .convert_tp_into_type(t.typarams().get(0)?.clone())
+                .convert_tp_into_type(t.typarams().first()?.clone())
                 .ok()
         });
         let elem = self.lower_expr(array.elem.expr, expect_elem.as_ref())?;
@@ -585,7 +585,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             }
             self.module
                 .context
-                .convert_tp_into_type(t.typarams().get(0)?.clone())
+                .convert_tp_into_type(t.typarams().first()?.clone())
                 .ok()
         });
         let mut union = Type::Never;
@@ -672,7 +672,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             }
             self.module
                 .context
-                .convert_tp_into_type(t.typarams().get(0)?.clone())
+                .convert_tp_into_type(t.typarams().first()?.clone())
                 .ok()
         });
         let elem = self.lower_expr(set.elem.expr, expect_elem.as_ref())?;
@@ -1722,7 +1722,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 .partition(|(_, vi)| vi.kind.is_var_params());
             // vi.t: `[T; _]`
             // pt: `name: T`
-            let var_params = var_params.get(0).map(|(name, vi)| {
+            let var_params = var_params.first().map(|(name, vi)| {
                 ParamTy::pos_or_kw(
                     name.as_ref().map(|n| n.inspect().clone()),
                     vi.t.inner_ts().remove(0),

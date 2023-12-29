@@ -511,7 +511,7 @@ impl Args {
     #[to_owned(cloned)]
     pub fn get_left_or_key(&self, key: &str) -> Option<&Expr> {
         if !self.pos_args.is_empty() {
-            self.pos_args.get(0).map(|a| &a.expr)
+            self.pos_args.first().map(|a| &a.expr)
         } else {
             self.kw_args.iter().find_map(|a| {
                 if &a.keyword.content[..] == key {

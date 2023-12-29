@@ -1612,7 +1612,7 @@ impl PyCodeGenerator {
             .info
             .t
             .non_default_params()
-            .and_then(|tys| tys.get(0).map(|pt| pt.typ()))
+            .and_then(|tys| tys.first().map(|pt| pt.typ()))
             .unwrap_or(Type::FAILURE);
         let tycode = TypeCode::from(val_t);
         let instr = match &unary.op.kind {
@@ -1740,7 +1740,7 @@ impl PyCodeGenerator {
             .info
             .t
             .non_default_params()
-            .and_then(|tys| tys.get(0).map(|pt| pt.typ()))
+            .and_then(|tys| tys.first().map(|pt| pt.typ()))
             .unwrap_or(Type::FAILURE);
         let rhs_t = bin
             .info
@@ -3355,7 +3355,7 @@ impl PyCodeGenerator {
         log!(info "entered {}", fn_name!());
         let name = class.sig.ident().inspect().clone();
         self.unit_size += 1;
-        let firstlineno = match class.methods_list.get(0).and_then(|def| def.ln_begin()) {
+        let firstlineno = match class.methods_list.first().and_then(|def| def.ln_begin()) {
             Some(l) => l,
             None => class.sig.ln_begin().unwrap_or(0),
         };

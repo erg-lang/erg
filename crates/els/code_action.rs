@@ -24,7 +24,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     ) -> ELSResult<Option<CodeAction>> {
         let uri = NormalizedUrl::new(params.text_document.uri.clone());
         let diags = &params.context.diagnostics;
-        let Some(diag) = diags.get(0).cloned() else {
+        let Some(diag) = diags.first().cloned() else {
             return Ok(None);
         };
         let mut map = HashMap::new();
