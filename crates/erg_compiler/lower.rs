@@ -413,7 +413,14 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                             {
                                 return Err(self.elem_err(&l, &r, elem));
                             } // else(OK): e.g. [1, "a": Str or Int]
-                        } else {
+                        }
+                        // OK: ?T(:> {"a"}) or ?U(:> {"b"}) or {"c", "d"} => {"a", "b", "c", "d"} <: Str
+                        else if self
+                            .module
+                            .context
+                            .coerce(union_.clone(), &())
+                            .map_or(true, |coerced| coerced.union_pair().is_some())
+                        {
                             return Err(self.elem_err(&l, &r, elem));
                         }
                     }

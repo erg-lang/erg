@@ -5,3 +5,8 @@ print! x
 dic = {"a": {"a": 1}, "b": {"b": 2}}
 y = dic["a"]["a"]
 print! y
+
+ab = if True: # x: {"a"} or {"b"}
+    do "a"
+    do "b"
+_ = ["c", "d", ab] # OK

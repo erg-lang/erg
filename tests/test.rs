@@ -482,7 +482,7 @@ fn exec_class_attr_err() -> Result<(), ()> {
 
 #[test]
 fn exec_collection_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/collection.er", 0, 4)
+    expect_failure("tests/should_err/collection.er", 0, 5)
 }
 
 #[test]

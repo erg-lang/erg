@@ -5,3 +5,8 @@ print! arr[2][0] # ERR
 dict = {"a": {"a": 1}, "b": {"b": 2}}
 print! dict["c"]["a"] # ERR
 print! dict["a"]["c"] # ERR
+
+ab = if True:
+    do "a"
+    do "b"
+_ = [1, 2, ab] # NG
