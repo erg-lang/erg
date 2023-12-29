@@ -61,6 +61,10 @@ impl VarKind {
         }
     }
 
+    pub const fn nd_parameter(def_id: DefId) -> Self {
+        Self::parameter(def_id, false, DefaultInfo::NonDefault)
+    }
+
     pub const fn has_default(&self) -> bool {
         match self {
             Self::Parameter { default, .. } => default.has_default(),

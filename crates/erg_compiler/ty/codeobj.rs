@@ -37,6 +37,24 @@ pub fn consts_into_bytes(consts: Vec<ValueObj>, python_ver: PythonVersion) -> Ve
     tuple
 }
 
+pub fn tuple_into_bytes(tup: &[ValueObj], python_ver: PythonVersion) -> Vec<u8> {
+    let mut bytes = Vec::with_capacity(tup.len());
+    if tup.len() <= u8::MAX as usize {
+        bytes.push(DataTypePrefix::SmallTuple as u8);
+        bytes.push(tup.len() as u8);
+        for obj in tup.iter().cloned() {
+            bytes.append(&mut obj.into_bytes(python_ver));
+        }
+    } else {
+        bytes.push(DataTypePrefix::Tuple as u8);
+        bytes.append(&mut (tup.len() as u32).to_le_bytes().to_vec());
+        for obj in tup.iter().cloned() {
+            bytes.append(&mut obj.into_bytes(python_ver));
+        }
+    }
+    bytes
+}
+
 pub fn jump_abs_addr(minor_ver: u8, op: u8, idx: usize, arg: usize) -> usize {
     match minor_ver {
         7..=9 => jump_abs_addr_309(Opcode309::try_from(op).unwrap(), idx, arg),
@@ -273,6 +291,7 @@ impl Default for CodeObj {
 impl CodeObj {
     pub fn empty<S: Into<Str>, T: Into<Str>>(
         params: Vec<Str>,
+        kwonlyargcount: u32,
         filename: S,
         name: T,
         firstlineno: u32,
@@ -282,9 +301,9 @@ impl CodeObj {
         let var_args_defined = (flags & CodeObjFlags::VarArgs as u32 != 0) as u32;
         let kw_var_args_defined = (flags & CodeObjFlags::VarKeywords as u32 != 0) as u32;
         Self {
-            argcount: params.len() as u32 - var_args_defined - kw_var_args_defined,
+            argcount: params.len() as u32 - var_args_defined - kw_var_args_defined - kwonlyargcount,
             posonlyargcount: 0,
-            kwonlyargcount: 0,
+            kwonlyargcount,
             nlocals: params.len() as u32,
             stacksize: 2, // Seems to be the default in CPython, but not sure why
             flags,        // CodeObjFlags::NoFree as u32,
@@ -820,7 +839,9 @@ impl CodeObj {
             CommonOpcode::MAKE_FUNCTION => {
                 let flag = match arg {
                     8 => "(closure)",
-                    // TODO:
+                    4 => "(annotations)",
+                    2 => "(kwdefaults)",
+                    1 => "(defaults)",
                     _ => "",
                 };
                 write!(instrs, "{arg} {flag}").unwrap();

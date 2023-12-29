@@ -24,7 +24,7 @@ use crate::context::Context;
 
 use self::value_set::inner_class;
 
-use super::codeobj::CodeObj;
+use super::codeobj::{tuple_into_bytes, CodeObj};
 use super::constructors::{array_t, dict_t, refinement, set_t, tuple_t, unsized_array_t};
 use super::typaram::{OpKind, TyParam};
 use super::{ConstSubr, Field, HasType, Predicate, Type};
@@ -967,6 +967,12 @@ impl ValueObj {
         }
     }
 
+    pub fn tuple<V: Into<ValueObj>>(elems: Vec<V>) -> Self {
+        ValueObj::Tuple(ArcArray::from(
+            &elems.into_iter().map(Into::into).collect::<Vec<_>>()[..],
+        ))
+    }
+
     // TODO: add Complex
     pub const fn is_num(&self) -> bool {
         matches!(
@@ -1093,25 +1099,7 @@ impl ValueObj {
             Self::Str(s) => str_into_bytes(s, false),
             Self::Bool(true) => vec![DataTypePrefix::True as u8],
             Self::Bool(false) => vec![DataTypePrefix::False as u8],
-            // TODO: SmallTuple
-            Self::Array(arr) => {
-                let mut bytes = Vec::with_capacity(arr.len());
-                bytes.push(DataTypePrefix::Tuple as u8);
-                bytes.append(&mut (arr.len() as u32).to_le_bytes().to_vec());
-                for obj in arr.iter().cloned() {
-                    bytes.append(&mut obj.into_bytes(python_ver));
-                }
-                bytes
-            }
-            Self::Tuple(tup) => {
-                let mut bytes = Vec::with_capacity(tup.len());
-                bytes.push(DataTypePrefix::Tuple as u8);
-                bytes.append(&mut (tup.len() as u32).to_le_bytes().to_vec());
-                for obj in tup.iter().cloned() {
-                    bytes.append(&mut obj.into_bytes(python_ver));
-                }
-                bytes
-            }
+            Self::Array(elems) | Self::Tuple(elems) => tuple_into_bytes(&elems, python_ver),
             Self::None => {
                 vec![DataTypePrefix::None as u8]
             }

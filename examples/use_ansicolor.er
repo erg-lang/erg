@@ -1,0 +1,7 @@
+ac = import "ansicolor"
+
+print! "start"
+print! ac.RED + "hello" + ac.RESET
+print! "end"
+
+ac.cprint! "hello", color:=ac.RED

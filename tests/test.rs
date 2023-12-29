@@ -122,6 +122,11 @@ fn exec_empty_check() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_use_ansicolor() -> Result<(), ()> {
+    expect_success("examples/use_ansicolor.er", 0)
+}
+
+#[test]
 fn exec_erg_compiler() -> Result<(), ()> {
     let py_command = opt_which_python().unwrap();
     if module_exists(&py_command, "erg_compiler") {

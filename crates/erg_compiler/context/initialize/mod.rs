@@ -1214,7 +1214,7 @@ impl Context {
             vec![],
         );
         let sig = Signature::Subr(sig);
-        let call = Identifier::private("p!").call(Args::empty());
+        let call = Identifier::public("p!").call(Args::empty());
         let block = Block::new(vec![Expr::Call(call)]);
         let body = DefBody::new(Token::DUMMY, block, DefId(0));
         let perform = Def::new(sig, body);

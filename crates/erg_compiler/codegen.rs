@@ -36,6 +36,7 @@ use crate::compile::{AccessKind, Name, StoreLoadKind};
 use crate::context::ControlKind;
 use crate::error::CompileError;
 use crate::hir::ArrayWithLength;
+use crate::hir::DefaultParamSignature;
 use crate::hir::{
     Accessor, Args, Array, BinOp, Block, Call, ClassDef, Def, DefBody, Expr, GuardClause,
     Identifier, Lambda, Literal, NonDefaultParamSignature, Params, PatchDef, PosArg, ReDef, Record,
@@ -117,6 +118,8 @@ fn escape_ident(ident: Identifier) -> Str {
         )
     } else if let Some(py_name) = ident.vi.py_name {
         py_name
+    } else if ident.vi.is_parameter() || ident.inspect() == "self" {
+        ident.inspect().clone()
     } else {
         escape_name(
             ident.inspect(),
@@ -159,10 +162,12 @@ impl fmt::Display for PyCodeGenUnit {
 }
 
 impl PyCodeGenUnit {
+    #[allow(clippy::too_many_arguments)]
     pub fn new<S: Into<Str>, T: Into<Str>>(
         id: usize,
         py_version: PythonVersion,
         params: Vec<Str>,
+        kwonlyargcount: u32,
         filename: S,
         name: T,
         firstlineno: u32,
@@ -171,7 +176,7 @@ impl PyCodeGenUnit {
         Self {
             id,
             py_version,
-            codeobj: CodeObj::empty(params, filename, name, firstlineno, flags),
+            codeobj: CodeObj::empty(params, kwonlyargcount, filename, name, firstlineno, flags),
             captured_vars: vec![],
             stack_len: 0,
             prev_lineno: firstlineno,
@@ -1018,6 +1023,12 @@ impl PyCodeGenerator {
             .non_defaults
             .iter()
             .map(|p| (p.inspect().map(|s| &s[..]).unwrap_or("_"), &p.vi))
+            .chain(
+                params
+                    .defaults
+                    .iter()
+                    .map(|p| (p.inspect().map(|s| &s[..]).unwrap_or("_"), &p.sig.vi)),
+            )
             .chain(if let Some(var_args) = &params.var_params {
                 vec![(
                     var_args.inspect().map(|s| &s[..]).unwrap_or("_"),
@@ -1026,12 +1037,6 @@ impl PyCodeGenerator {
             } else {
                 vec![]
             })
-            .chain(
-                params
-                    .defaults
-                    .iter()
-                    .map(|p| (p.inspect().map(|s| &s[..]).unwrap_or("_"), &p.sig.vi)),
-            )
             .chain(if let Some(kw_var_args) = &params.kw_var_params {
                 vec![(
                     kw_var_args.inspect().map(|s| &s[..]).unwrap_or("_"),
@@ -1047,7 +1052,7 @@ impl PyCodeGenerator {
                 } else {
                     escape_name(
                         s,
-                        &VisibilityModifier::Private,
+                        &VisibilityModifier::Public,
                         vi.def_loc.loc.ln_begin().unwrap_or(0),
                         vi.def_loc.loc.col_begin().unwrap_or(0),
                     )
@@ -1200,6 +1205,7 @@ impl PyCodeGenerator {
             self.unit_size,
             self.py_version,
             vec![],
+            0,
             Str::rc(self.cfg.input.enclosed_name()),
             &name,
             firstlineno,
@@ -1269,6 +1275,7 @@ impl PyCodeGenerator {
                 self.unit_size,
                 self.py_version,
                 vec![],
+                0,
                 Str::rc(self.cfg.input.enclosed_name()),
                 ident.inspect(),
                 ident.ln_begin().unwrap_or(0),
@@ -1403,22 +1410,63 @@ impl PyCodeGenerator {
         }
     }
 
-    fn emit_subr_def(&mut self, class_name: Option<&str>, sig: SubrSignature, body: DefBody) {
-        log!(info "entered {} ({sig} = {})", fn_name!(), body.block);
-        let name = sig.ident.inspect().clone();
-        let mut make_function_flag = 0;
-        let params = self.gen_param_names(&sig.params);
-        if !sig.params.defaults.is_empty() {
-            let defaults_len = sig.params.defaults.len();
-            sig.params
-                .defaults
+    /// No parameter mangling is used
+    /// so that Erg functions can be called from Python with keyword arguments.
+    fn emit_params(
+        &mut self,
+        var_params: Option<&NonDefaultParamSignature>,
+        defaults: Vec<DefaultParamSignature>,
+        function_flag: &mut usize,
+    ) {
+        if var_params.is_some() && !defaults.is_empty() {
+            let defaults_len = defaults.len();
+            let names = defaults
+                .iter()
+                .map(|default| {
+                    escape_name(
+                        default.sig.inspect().map_or("_", |s| &s[..]),
+                        &VisibilityModifier::Public,
+                        0,
+                        0,
+                    )
+                })
+                .collect::<Vec<_>>();
+            defaults
+                .into_iter()
+                .for_each(|default| self.emit_expr(default.default_val));
+            self.emit_load_const(names);
+            self.stack_dec();
+            self.write_instr(BUILD_CONST_KEY_MAP);
+            self.write_arg(defaults_len);
+            self.stack_dec_n(defaults_len - 1);
+            *function_flag += MakeFunctionFlags::KwDefaults as usize;
+        } else if !defaults.is_empty() {
+            let defaults_len = defaults.len();
+            defaults
                 .into_iter()
                 .for_each(|default| self.emit_expr(default.default_val));
             self.write_instr(BUILD_TUPLE);
             self.write_arg(defaults_len);
             self.stack_dec_n(defaults_len - 1);
-            make_function_flag += MakeFunctionFlags::Defaults as usize;
+            *function_flag += MakeFunctionFlags::Defaults as usize;
         }
+    }
+
+    fn emit_subr_def(&mut self, class_name: Option<&str>, sig: SubrSignature, body: DefBody) {
+        log!(info "entered {} ({sig} = {})", fn_name!(), body.block);
+        let name = sig.ident.inspect().clone();
+        let mut make_function_flag = 0;
+        let params = self.gen_param_names(&sig.params);
+        let kwonlyargcount = if sig.params.var_params.is_some() {
+            sig.params.defaults.len()
+        } else {
+            0
+        };
+        self.emit_params(
+            sig.params.var_params.as_deref(),
+            sig.params.defaults,
+            &mut make_function_flag,
+        );
         let mut flags = 0;
         if sig.params.var_params.is_some() {
             flags += CodeObjFlags::VarArgs as u32;
@@ -1431,6 +1479,7 @@ impl PyCodeGenerator {
             sig.params.guards,
             Some(name.clone()),
             params,
+            kwonlyargcount as u32,
             sig.captured_names.clone(),
             flags,
         );
@@ -1464,7 +1513,10 @@ impl PyCodeGenerator {
         }
         // stack_dec: <code obj> + <name> -> <function>
         self.stack_dec();
-        if make_function_flag & MakeFunctionFlags::Defaults as usize != 0 {
+        if make_function_flag
+            & (MakeFunctionFlags::Defaults as usize | MakeFunctionFlags::KwDefaults as usize)
+            != 0
+        {
             self.stack_dec();
         }
         self.emit_store_instr(sig.ident, Name);
@@ -1474,18 +1526,16 @@ impl PyCodeGenerator {
         log!(info "entered {} ({lambda})", fn_name!());
         let mut make_function_flag = 0;
         let params = self.gen_param_names(&lambda.params);
-        if !lambda.params.defaults.is_empty() {
-            let defaults_len = lambda.params.defaults.len();
-            lambda
-                .params
-                .defaults
-                .into_iter()
-                .for_each(|default| self.emit_expr(default.default_val));
-            self.write_instr(BUILD_TUPLE);
-            self.write_arg(defaults_len);
-            self.stack_dec_n(defaults_len - 1);
-            make_function_flag += MakeFunctionFlags::Defaults as usize;
-        }
+        let kwonlyargcount = if lambda.params.var_params.is_some() {
+            lambda.params.defaults.len()
+        } else {
+            0
+        };
+        self.emit_params(
+            lambda.params.var_params.as_deref(),
+            lambda.params.defaults,
+            &mut make_function_flag,
+        );
         let flags = if lambda.params.var_params.is_some() {
             CodeObjFlags::VarArgs as u32
         } else {
@@ -1496,6 +1546,7 @@ impl PyCodeGenerator {
             lambda.params.guards,
             Some(format!("<lambda_{}>", lambda.id).into()),
             params,
+            kwonlyargcount as u32,
             lambda.captured_names.clone(),
             flags,
         );
@@ -1686,7 +1737,7 @@ impl PyCodeGenerator {
                 let args = Args::pos_only(vec![PosArg::new(*bin.lhs), PosArg::new(*bin.rhs)], None);
                 self.emit_push_null();
                 self.emit_load_name_instr(Identifier::private("#UnionType"));
-                self.emit_args_311(args, Name, false);
+                self.emit_args_311(args, Name);
                 return;
             }
             // short circuiting
@@ -2596,10 +2647,9 @@ impl PyCodeGenerator {
                     self.emit_index_args(call.args);
                 }
                 other => {
-                    let is_py_api = other.is_py_api();
                     self.emit_push_null();
                     self.emit_expr(other);
-                    self.emit_args_311(call.args, Name, is_py_api);
+                    self.emit_args_311(call.args, Name);
                 }
             }
         }
@@ -2628,7 +2678,7 @@ impl PyCodeGenerator {
             "sum" if self.py_version.minor <= Some(7) && args.get_kw("start").is_some() => {
                 self.load_builtins();
                 self.emit_load_name_instr(Identifier::private("#sum"));
-                self.emit_args_311(args, Name, true);
+                self.emit_args_311(args, Name);
             }
             other if local.ref_t().is_poly_type_meta() && other != "classof" => {
                 if self.py_version.minor <= Some(9) {
@@ -2636,7 +2686,7 @@ impl PyCodeGenerator {
                     self.emit_load_name_instr(Identifier::private("#FakeGenericAlias"));
                     let mut args = args;
                     args.insert_pos(0, PosArg::new(Expr::Accessor(Accessor::Ident(local))));
-                    self.emit_args_311(args, Name, true);
+                    self.emit_args_311(args, Name);
                 } else {
                     self.emit_load_name_instr(local);
                     self.emit_index_args(args);
@@ -2644,10 +2694,9 @@ impl PyCodeGenerator {
             }
             // "pyimport" | "py" are here
             _ => {
-                let is_py_api = local.is_py_api();
                 self.emit_push_null();
                 self.emit_load_name_instr(local);
-                self.emit_args_311(args, Name, is_py_api);
+                self.emit_args_311(args, Name);
             }
         }
     }
@@ -2676,13 +2725,12 @@ impl PyCodeGenerator {
             return self.emit_call_fake_method(obj, func_name, method_name, args);
         }
         let is_type = method_name.ref_t().is_poly_type_meta();
-        let is_py_api = method_name.is_py_api();
         self.emit_expr(obj);
         self.emit_load_method_instr(method_name);
         if is_type {
             self.emit_index_args(args);
         } else {
-            self.emit_args_311(args, BoundAttr, is_py_api);
+            self.emit_args_311(args, BoundAttr);
         }
     }
 
@@ -2712,7 +2760,7 @@ impl PyCodeGenerator {
         }
     }
 
-    fn emit_args_311(&mut self, mut args: Args, kind: AccessKind, is_py_api: bool) {
+    fn emit_args_311(&mut self, mut args: Args, kind: AccessKind) {
         let argc = args.len();
         let pos_len = args.pos_args.len();
         let mut kws = Vec::with_capacity(args.kw_len());
@@ -2727,12 +2775,7 @@ impl PyCodeGenerator {
             }
         }
         while let Some(arg) = args.try_remove_kw(0) {
-            let kw = if is_py_api {
-                arg.keyword.content
-            } else {
-                escape_name(&arg.keyword.content, &VisibilityModifier::Private, 0, 0)
-            };
-            kws.push(ValueObj::Str(kw));
+            kws.push(ValueObj::Str(arg.keyword.content));
             self.emit_expr(arg.expr);
         }
         let kwsc = if !kws.is_empty() {
@@ -2868,7 +2911,7 @@ impl PyCodeGenerator {
         self.emit_push_null();
         self.emit_load_name_instr(method_name);
         args.insert_pos(0, PosArg::new(obj));
-        self.emit_args_311(args, Name, true);
+        self.emit_args_311(args, Name);
     }
 
     // assert takes 1 or 2 arguments (0: cond, 1: message)
@@ -3071,7 +3114,7 @@ impl PyCodeGenerator {
     /// Emits independent code blocks (e.g., linked other modules)
     fn emit_code(&mut self, code: Block) {
         let mut gen = self.inherit();
-        let code = gen.emit_block(code, vec![], None, vec![], vec![], 0);
+        let code = gen.emit_block(code, vec![], None, vec![], 0, vec![], 0);
         self.emit_load_const(code);
     }
 
@@ -3363,6 +3406,7 @@ impl PyCodeGenerator {
             self.unit_size,
             self.py_version,
             vec![],
+            0,
             Str::rc(self.cfg.input.enclosed_name()),
             &name,
             firstlineno,
@@ -3573,12 +3617,14 @@ impl PyCodeGenerator {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn emit_block(
         &mut self,
         block: Block,
         guards: Vec<GuardClause>,
         opt_name: Option<Str>,
         params: Vec<Str>,
+        kwonlyargcount: u32,
         captured_names: Vec<Identifier>,
         flags: u32,
     ) -> CodeObj {
@@ -3597,6 +3643,7 @@ impl PyCodeGenerator {
             self.unit_size,
             self.py_version,
             params,
+            kwonlyargcount,
             Str::rc(self.cfg.input.enclosed_name()),
             name,
             firstlineno,
@@ -3848,6 +3895,7 @@ impl PyCodeGenerator {
             self.unit_size,
             self.py_version,
             vec![],
+            0,
             Str::rc(self.cfg.input.enclosed_name()),
             "<module>",
             1,

@@ -67,6 +67,8 @@ pub enum CommonOpcode {
     MAKE_FUNCTION = 132,
     CALL_FUNCTION_EX = 142,
     EXTENDED_ARG = 144,
+    BUILD_CONST_KEY_MAP = 156,
+    BUILD_STRING = 157,
     LOAD_METHOD = 160,
     NOT_IMPLEMENTED = 255,
 }
@@ -132,6 +134,8 @@ impl TryFrom<u8> for CommonOpcode {
             132 => MAKE_FUNCTION,
             142 => CALL_FUNCTION_EX,
             144 => EXTENDED_ARG,
+            156 => BUILD_CONST_KEY_MAP,
+            157 => BUILD_STRING,
             160 => LOAD_METHOD,
             255 => NOT_IMPLEMENTED,
             _other => return Err(()),

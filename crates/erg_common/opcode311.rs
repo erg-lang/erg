@@ -97,6 +97,8 @@ impl_u8_enum! {Opcode311;
     RESUME = 151,
     MATCH_CLASS = 152,
     FORMAT_VALUE = 155,
+    BUILD_CONST_KEY_MAP = 156,
+    BUILD_STRING = 157,
     LOAD_METHOD = 160,
     LIST_EXTEND = 162,
     PRECALL = 166,
