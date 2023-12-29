@@ -5,6 +5,7 @@ from _erg_int import IntMut
 from _erg_contains_operator import contains_operator
 from _erg_result import is_ok
 from _erg_result import Error
+from _erg_type import UnionType
 
 class Array(list):
     @staticmethod
@@ -87,6 +88,8 @@ class Array(list):
             return True
         elif isinstance(t, set):
             return self in t
+        elif isinstance(t, UnionType):
+            return any([self.type_check(_t) for _t in t.__args__])
         elif not hasattr(t, "__args__"):
             return isinstance(self, t)
         elem_t = t.__args__[0]

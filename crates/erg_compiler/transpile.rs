@@ -418,7 +418,9 @@ impl PyScriptGenerator {
             .replace("from _erg_result import is_ok", "")
             .replace("from _erg_control import then__", "")
             .replace("from _erg_contains_operator import contains_operator", "")
-            .replace("from _erg_type import is_type, _isinstance", "")
+            .replace("from _erg_type import is_type", "")
+            .replace("from _erg_type import _isinstance", "")
+            .replace("from _erg_type import UnionType", "")
     }
 
     fn load_namedtuple_if_not(&mut self) {

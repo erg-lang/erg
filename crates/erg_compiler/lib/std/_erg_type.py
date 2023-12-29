@@ -11,6 +11,16 @@ class UnionType:
         __args__: list # list[type]
         def __init__(self, *args):
             self.__args__ = args
+        def __str__(self):
+            s = "UnionType["
+            for i, arg in enumerate(self.__args__):
+                if i > 0:
+                    s += ", "
+                s += str(arg)
+            s += "]"
+            return s
+        def __repr__(self):
+            return self.__str__()
 
 class FakeGenericAlias:
         __origin__: type
@@ -24,13 +34,13 @@ except ImportError:
     GenericAlias = FakeGenericAlias
 
 def is_type(x) -> bool:
-    return isinstance(x, (type, GenericAlias, UnionType))
+    return isinstance(x, (type, FakeGenericAlias, GenericAlias, UnionType))
 
 # The behavior of `builtins.isinstance` depends on the Python version.
 def _isinstance(obj, classinfo) -> bool:
-    if isinstance(classinfo, (GenericAlias, UnionType)):
+    if isinstance(classinfo, (FakeGenericAlias, GenericAlias, UnionType)):
         if classinfo.__origin__ == Union:
-            return any(isinstance(obj, t) for t in classinfo.__args__)
+            return any(_isinstance(obj, t) for t in classinfo.__args__)
         else:
             return isinstance(obj, classinfo.__origin__)
     elif is_type(classinfo):
