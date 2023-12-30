@@ -623,7 +623,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             let arg_ts = ctx.params.iter().map(|(_, vi)| &vi.t);
             for ((tp, arg), arg_t) in ctx.typ.typarams().iter().zip(args.pos_args()).zip(arg_ts) {
                 if let ast::Expr::Accessor(ast::Accessor::Ident(ident)) = &arg.expr {
-                    if arg_t.is_type() {
+                    if self.module.context.subtype_of(arg_t, &Type::Type) {
                         if let Ok(tv) = self.module.context.convert_tp_into_type(tp.clone()) {
                             tv_ctx.push_or_init_tyvar(&ident.name, &tv, &self.module.context);
                             continue;
@@ -861,7 +861,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 .module
                 .context
                 .registered_info(ident.inspect(), ident.is_const())
-                .is_some_and(|(_, vi)| t.is_type() || vi.t.is_type())
+                .is_some_and(|(_, vi)| {
+                    self.module.context.subtype_of(t, &Type::Type)
+                        || self.module.context.subtype_of(&vi.t, &Type::Type)
+                })
         {
             let typ = self.module.context.get_type_ctx(ident.inspect());
             if typ.is_some_and(|ctx| ctx.has("__call__")) {

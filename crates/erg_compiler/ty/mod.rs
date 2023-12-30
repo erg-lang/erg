@@ -2245,6 +2245,7 @@ impl Type {
         }
     }
 
+    /// NOTE: don't use this, use `Context::subtype_of(t, &Type::Type)` instead
     pub fn is_type(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_type(),

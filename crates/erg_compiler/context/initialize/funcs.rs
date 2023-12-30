@@ -665,7 +665,7 @@ impl Context {
         );
         let patch = ConstSubr::Builtin(BuiltinConstSubr::new(PATCH, patch_func, patch_t, None));
         self.register_builtin_const(PATCH, vis.clone(), ValueObj::Subr(patch));
-        let t_resolve_path = nd_func(vec![kw(KW_PATH, Str)], None, mono(GENERIC_MODULE));
+        let t_resolve_path = nd_func(vec![kw(KW_PATH, Str)], None, Str);
         let resolve_path = ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_RESOLVE_PATH,
             resolve_path_func,
@@ -673,7 +673,7 @@ impl Context {
             None,
         ));
         self.register_builtin_const(FUNC_RESOLVE_PATH, vis.clone(), ValueObj::Subr(resolve_path));
-        let t_resolve_decl_path = nd_func(vec![kw(KW_PATH, Str)], None, mono(GENERIC_MODULE));
+        let t_resolve_decl_path = nd_func(vec![kw(KW_PATH, Str)], None, Str);
         let resolve_decl_path = ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_RESOLVE_DECL_PATH,
             resolve_decl_path_func,

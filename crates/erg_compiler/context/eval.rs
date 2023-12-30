@@ -1925,11 +1925,20 @@ impl Context {
                 self.convert_tp_into_type(t)
             }
             // TyParam(Ts: Array(Type)) -> Type(Ts: Array(Type))
-            TyParam::FreeVar(fv) if fv.get_type().is_some() => Ok(named_free_var(
-                fv.unbound_name().unwrap(),
-                fv.level().unwrap(),
-                fv.constraint().unwrap(),
-            )),
+            // TyParam(?S(: Str)) -> Err(...),
+            // TyParam(?D(: GenericDict)) -> Ok(?D(: GenericDict)),
+            // FIXME: GenericDict
+            TyParam::FreeVar(fv)
+                if fv.get_type().is_some_and(|t| {
+                    self.subtype_of(&t, &Type::Type) || &t.qual_name() == "GenericDict"
+                }) =>
+            {
+                Ok(named_free_var(
+                    fv.unbound_name().unwrap(),
+                    fv.level().unwrap(),
+                    fv.constraint().unwrap(),
+                ))
+            }
             TyParam::Type(t) => Ok(t.as_ref().clone()),
             TyParam::Mono(name) => Ok(Type::Mono(name)),
             TyParam::App { name, args } => Ok(Type::Poly { name, params: args }),
@@ -2599,7 +2608,16 @@ impl Context {
             TyParam::App { ref name, ref args } => self
                 .rec_get_const_obj(name)
                 .and_then(|v| {
-                    let ty = self.convert_value_into_type(v.clone()).ok()?;
+                    let ty = match self.convert_value_into_type(v.clone()) {
+                        Ok(ty) => ty,
+                        Err(ValueObj::Subr(subr)) => {
+                            // REVIEW: evaluation of polymorphic types
+                            return subr.sig_t().return_t().cloned();
+                        }
+                        Err(_) => {
+                            return None;
+                        }
+                    };
                     let instance = self
                         .instantiate_def_type(&ty)
                         .map_err(|err| {

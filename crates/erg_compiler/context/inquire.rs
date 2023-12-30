@@ -2246,7 +2246,7 @@ impl Context {
         );
         log!(info "Substituted:\ninstance: {instance}");
         debug_assert!(
-            instance.is_type() || instance.has_no_qvar(),
+            self.subtype_of(&instance, &Type::Type) || instance.has_no_qvar(),
             "{instance} has qvar (obj: {obj}, attr: {}",
             fmt_option!(attr_name)
         );
