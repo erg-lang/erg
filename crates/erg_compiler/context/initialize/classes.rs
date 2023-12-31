@@ -2053,6 +2053,9 @@ impl Context {
             as_dict,
             Some("_asdict"),
         );
+        let mut record_meta_type = Self::builtin_mono_class(RECORD_META_TYPE, 2);
+        record_meta_type.register_superclass(mono(RECORD), &record);
+        record_meta_type.register_superclass(Type, &type_);
         /* GenericNamedTuple */
         let mut generic_named_tuple = Self::builtin_mono_class(GENERIC_NAMED_TUPLE, 2);
         generic_named_tuple.register_superclass(mono(GENERIC_TUPLE), &generic_tuple);
@@ -2991,6 +2994,12 @@ impl Context {
         quant.register_superclass(mono(PROC), &proc);
         let mut qfunc = Self::builtin_mono_class(QUANTIFIED_FUNC, 2);
         qfunc.register_superclass(mono(FUNC), &func);
+        let mut proc_meta_type = Self::builtin_mono_class(PROC_META_TYPE, 2);
+        proc_meta_type.register_superclass(mono(PROC), &proc);
+        proc_meta_type.register_superclass(Type, &type_);
+        let mut func_meta_type = Self::builtin_mono_class(FUNC_META_TYPE, 2);
+        func_meta_type.register_superclass(mono(FUNC), &func);
+        func_meta_type.register_superclass(mono(PROC_META_TYPE), &proc_meta_type);
         self.register_builtin_type(Never, never, vis.clone(), Const, Some(NEVER));
         self.register_builtin_type(Obj, obj, vis.clone(), Const, Some(FUNC_OBJECT));
         // self.register_type(mono(RECORD), vec![], record, Visibility::BUILTIN_PRIVATE, Const);
@@ -3061,6 +3070,13 @@ impl Context {
         );
         self.register_builtin_type(_tuple_t, tuple_, vis.clone(), Const, Some(FUNC_TUPLE));
         self.register_builtin_type(mono(RECORD), record, vis.clone(), Const, Some(RECORD));
+        self.register_builtin_type(
+            mono(RECORD_META_TYPE),
+            record_meta_type,
+            vis.clone(),
+            Const,
+            Some(FUNC_META_TYPE),
+        );
         self.register_builtin_type(
             mono(GENERIC_NAMED_TUPLE),
             generic_named_tuple,
@@ -3250,6 +3266,20 @@ impl Context {
                 Visibility::BUILTIN_PRIVATE,
                 Const,
                 Some(QUANTIFIED_FUNC),
+            );
+            self.register_builtin_type(
+                mono(PROC_META_TYPE),
+                proc_meta_type,
+                Visibility::BUILTIN_PRIVATE,
+                Const,
+                Some(PROC_META_TYPE),
+            );
+            self.register_builtin_type(
+                mono(FUNC_META_TYPE),
+                func_meta_type,
+                Visibility::BUILTIN_PRIVATE,
+                Const,
+                Some(FUNC_META_TYPE),
             );
         } else {
             self.register_builtin_const(MUT_INT, vis.clone(), ValueObj::builtin_class(Int));

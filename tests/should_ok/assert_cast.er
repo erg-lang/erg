@@ -29,3 +29,7 @@ b as Bytes or NoneType = bytes "aaa", "utf-8"
 _ = if b != None:
     do b.decode("utf-8")
     do ""
+
+p! as Obj = print!
+assert p! in (*objs: Obj) => NoneType
+p!("OK")

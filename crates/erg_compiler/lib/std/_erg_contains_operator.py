@@ -5,6 +5,7 @@ from _erg_type import _isinstance
 from _erg_type import UnionType
 
 from collections import namedtuple
+from typing import Callable
 
 # (elem in y) == contains_operator(y, elem)
 def contains_operator(y, elem) -> bool:
@@ -62,5 +63,8 @@ def contains_operator(y, elem) -> bool:
     elif _isinstance(elem, list):
         from _erg_array import Array
         return contains_operator(y, Array(elem))
+    elif _isinstance(elem, Callable):
+        # TODO:
+        return _isinstance(y, Callable)
     else:
         return elem in y

@@ -2745,6 +2745,15 @@ impl Context {
             }
             Type::Subr(subr) => match subr.kind {
                 SubrKind::Func => {
+                    if self.subtype_of(&subr.return_t, &Type) {
+                        if let Some(ctx) = self
+                            .get_builtins()
+                            .unwrap_or(self)
+                            .rec_local_get_mono_type("FuncMetaType")
+                        {
+                            return Some(ctx);
+                        }
+                    }
                     if let Some(ctx) = self
                         .get_builtins()
                         .unwrap_or(self)
@@ -2754,6 +2763,15 @@ impl Context {
                     }
                 }
                 SubrKind::Proc => {
+                    if self.subtype_of(&subr.return_t, &Type) {
+                        if let Some(ctx) = self
+                            .get_builtins()
+                            .unwrap_or(self)
+                            .rec_local_get_mono_type("ProcMetaType")
+                        {
+                            return Some(ctx);
+                        }
+                    }
                     if let Some(ctx) = self
                         .get_builtins()
                         .unwrap_or(self)
@@ -2769,13 +2787,16 @@ impl Context {
             Type::Poly { name, .. } => {
                 return self.get_poly_type(name);
             }
-            /*Type::Record(rec) if rec.values().all(|attr| self.supertype_of(&Type, attr)) => {
-                return self
-                    .get_builtins()
-                    .unwrap_or(self)
-                    .rec_local_get_mono_type("RecordType");
-            }*/
-            Type::Record(_) => {
+            Type::Record(rec) => {
+                if rec.values().all(|t| self.subtype_of(t, &Type)) {
+                    if let Some(ctx) = self
+                        .get_builtins()
+                        .unwrap_or(self)
+                        .rec_local_get_mono_type("RecordMetaType")
+                    {
+                        return Some(ctx);
+                    }
+                }
                 return self
                     .get_builtins()
                     .unwrap_or(self)

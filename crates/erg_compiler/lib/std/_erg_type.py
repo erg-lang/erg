@@ -1,3 +1,5 @@
+from typing import Callable
+
 try:
     from typing import Union
 except ImportError:
@@ -43,7 +45,8 @@ def _isinstance(obj, classinfo) -> bool:
             return any(_isinstance(obj, t) for t in classinfo.__args__)
         else:
             return isinstance(obj, classinfo.__origin__)
-    elif is_type(classinfo):
-        return isinstance(obj, classinfo)
     else:
-        return False
+        try:
+            return isinstance(obj, classinfo)
+        except:
+            return False
