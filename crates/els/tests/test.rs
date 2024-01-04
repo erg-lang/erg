@@ -60,6 +60,32 @@ fn test_completion() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
+fn test_completion_item_resolve() -> Result<(), Box<dyn std::error::Error>> {
+    let mut client = Server::bind_fake_client();
+    client.request_initialize()?;
+    client.notify_initialized()?;
+    let uri_a = NormalizedUrl::from_file_path(Path::new(FILE_A).canonicalize()?)?;
+    client.notify_open(FILE_A)?;
+    client.notify_change(uri_a.clone().raw(), add_char(2, 0, "x"))?;
+    client.notify_change(uri_a.clone().raw(), add_char(2, 1, "."))?;
+    let resp = client.request_completion(uri_a.clone().raw(), 2, 2, ".")?;
+    if let Some(CompletionResponse::Array(items)) = resp {
+        assert!(items.len() >= 40);
+        assert!(items.iter().any(|item| item.label == "abs"));
+        let Some(item) = items.into_iter().find(|item| item.label == "bit_count") else {
+            return Err("`bit_count` method not found".into());
+        };
+        assert!(item.documentation.is_none());
+        let resolved = client.request_completion_item_resolve(item)?;
+        assert_eq!(resolved.label, "bit_count");
+        assert!(resolved.documentation.is_some());
+    } else {
+        return Err(format!("not items: {resp:?}").into());
+    }
+    Ok(())
+}
+
+#[test]
 fn test_neighbor_completion() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = Server::bind_fake_client();
     client.request_initialize()?;
