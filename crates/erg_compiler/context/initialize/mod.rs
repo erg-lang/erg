@@ -15,7 +15,7 @@ use std::path::PathBuf;
 use erg_common::config::ErgConfig;
 use erg_common::consts::{DEBUG_MODE, ERG_MODE, PYTHON_MODE};
 use erg_common::dict;
-use erg_common::env::{erg_pystd_path, erg_std_decl_path};
+use erg_common::env::{erg_core_decl_path, erg_pystd_path};
 use erg_common::error::Location;
 #[allow(unused_imports)]
 use erg_common::log;
@@ -729,7 +729,7 @@ impl Context {
         let module = if &self.name[..] == "<builtins>" {
             builtins_path()
         } else {
-            erg_std_decl_path().join(format!("{}.d.er", self.name))
+            erg_core_decl_path().join(format!("{}.d.er", self.name))
         };
         let abs_loc = AbsLocation::new(Some(module.into()), loc);
         self.register_builtin_impl(name, t, muty, vis, py_name, abs_loc);

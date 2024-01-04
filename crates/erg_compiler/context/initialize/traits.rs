@@ -14,7 +14,7 @@ use DefaultInfo::*;
 use Mutability::*;
 
 impl Context {
-    /// see std/prelude.er
+    /// see core/prelude.er
     /// All type boundaries are defined in each subroutine
     /// `push_subtype_bound`, etc. are used for type boundary determination in user-defined APIs
     // 型境界はすべて各サブルーチンで定義する

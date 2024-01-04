@@ -433,29 +433,29 @@ impl PyScriptGenerator {
     // TODO: name escaping
     fn load_range_ops_if_not(&mut self) {
         if !self.range_ops_loaded {
-            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_result.py"));
-            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_int.py"));
-            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_nat.py"));
-            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_str.py"));
-            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_range.py"));
+            self.prelude += &Self::replace_import(include_str!("lib/core/_erg_result.py"));
+            self.prelude += &Self::replace_import(include_str!("lib/core/_erg_int.py"));
+            self.prelude += &Self::replace_import(include_str!("lib/core/_erg_nat.py"));
+            self.prelude += &Self::replace_import(include_str!("lib/core/_erg_str.py"));
+            self.prelude += &Self::replace_import(include_str!("lib/core/_erg_range.py"));
             self.range_ops_loaded = true;
         }
     }
 
     fn load_contains_op_if_not(&mut self) {
         if !self.contains_op_loaded {
-            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_result.py"));
-            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_range.py"));
-            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_type.py"));
+            self.prelude += &Self::replace_import(include_str!("lib/core/_erg_result.py"));
+            self.prelude += &Self::replace_import(include_str!("lib/core/_erg_range.py"));
+            self.prelude += &Self::replace_import(include_str!("lib/core/_erg_type.py"));
             self.prelude +=
-                &Self::replace_import(include_str!("lib/std/_erg_contains_operator.py"));
+                &Self::replace_import(include_str!("lib/core/_erg_contains_operator.py"));
             self.contains_op_loaded = true;
         }
     }
 
     fn load_mutate_op_if_not(&mut self) {
         if !self.mutate_op_loaded {
-            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_mutate_operator.py"));
+            self.prelude += &Self::replace_import(include_str!("lib/core/_erg_mutate_operator.py"));
             self.mutate_op_loaded = true;
         }
     }
@@ -465,15 +465,15 @@ impl PyScriptGenerator {
             self.load_builtin_controls_if_not();
             self.load_contains_op_if_not();
             if self.range_ops_loaded {
-                self.prelude += &Self::replace_import(include_str!("lib/std/_erg_float.py"));
-                self.prelude += &Self::replace_import(include_str!("lib/std/_erg_array.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/core/_erg_float.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/core/_erg_array.py"));
             } else {
-                self.prelude += &Self::replace_import(include_str!("lib/std/_erg_int.py"));
-                self.prelude += &Self::replace_import(include_str!("lib/std/_erg_nat.py"));
-                self.prelude += &Self::replace_import(include_str!("lib/std/_erg_bool.py"));
-                self.prelude += &Self::replace_import(include_str!("lib/std/_erg_str.py"));
-                self.prelude += &Self::replace_import(include_str!("lib/std/_erg_float.py"));
-                self.prelude += &Self::replace_import(include_str!("lib/std/_erg_array.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/core/_erg_int.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/core/_erg_nat.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/core/_erg_bool.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/core/_erg_str.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/core/_erg_float.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/core/_erg_array.py"));
             }
             self.builtin_types_loaded = true;
         }
@@ -481,14 +481,14 @@ impl PyScriptGenerator {
 
     fn load_builtin_controls_if_not(&mut self) {
         if !self.builtin_control_loaded {
-            self.prelude += include_str!("lib/std/_erg_control.py");
+            self.prelude += include_str!("lib/core/_erg_control.py");
             self.builtin_control_loaded = true;
         }
     }
 
     fn load_convertors_if_not(&mut self) {
         if !self.convertors_loaded {
-            self.prelude += &Self::replace_import(include_str!("lib/std/_erg_convertors.py"));
+            self.prelude += &Self::replace_import(include_str!("lib/core/_erg_convertors.py"));
             self.convertors_loaded = true;
         }
     }
