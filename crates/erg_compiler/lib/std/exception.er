@@ -1,0 +1,15 @@
+unsound = import "unsound"
+
+# TODO: exception: Exception
+unsound.pyexec("""
+def try_(p, exc=lambda _: None):
+    try:
+        return p()
+    except Exception as e:
+        return exc(e)
+""")
+.try! = unsound.pyeval("try_")
+assert .try! in |T, U|(
+    p!: () => T,
+    exc!: (exception: Obj) => U := (exception: Obj) => NoneType
+) => T or U
