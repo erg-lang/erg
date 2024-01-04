@@ -1,0 +1,11 @@
+exc = import "exception"
+
+s = exc.try! do! str("helo")
+# s: Str or NoneType
+assert s == "helo"
+assert s.isascii()
+
+i = exc.try! do! int(1 / 0), (exception) =>
+    print! exception # division by zero
+    0
+assert i == 0

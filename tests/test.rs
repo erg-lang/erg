@@ -127,6 +127,11 @@ fn exec_use_ansicolor() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_use_exception() -> Result<(), ()> {
+    expect_success("examples/use_exception.er", 0)
+}
+
+#[test]
 fn exec_erg_compiler() -> Result<(), ()> {
     let py_command = opt_which_python().unwrap();
     if module_exists(&py_command, "erg_compiler") {

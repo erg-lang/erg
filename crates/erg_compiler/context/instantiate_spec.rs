@@ -17,7 +17,7 @@ use erg_parser::ast::{
 use erg_parser::token::TokenKind;
 use erg_parser::Parser;
 
-use crate::ty::free::{CanbeFree, Constraint};
+use crate::ty::free::{CanbeFree, Constraint, HasLevel};
 use crate::ty::typaram::{IntervalOp, OpKind, TyParam, TyParamLambda, TyParamOrdering};
 use crate::ty::value::ValueObj;
 use crate::ty::{constructors::*, Predicate, RefinementType, VisibilityModifier};
@@ -1798,7 +1798,16 @@ impl Context {
         t_spec: &ast::TypeSpec,
         tv_cache: &mut TyVarCache,
     ) -> TyCheckResult<Type> {
-        self.instantiate_typespec_full(t_spec, None, tv_cache, RegistrationMode::Normal, false)
+        let t = self.instantiate_typespec_full(
+            t_spec,
+            None,
+            tv_cache,
+            RegistrationMode::Normal,
+            false,
+        )?;
+        t.lift();
+        let t = self.generalize_t(t);
+        Ok(t)
     }
 
     pub(crate) fn instantiate_field(&self, ident: &Identifier) -> TyCheckResult<Field> {

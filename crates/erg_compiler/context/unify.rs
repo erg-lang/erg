@@ -1405,6 +1405,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 }
             }
             (Subr(_) | Record(_), Type) => {}
+            (Guard(_), Bool) | (Bool, Guard(_)) => {}
             // REVIEW: correct?
             (Poly { name, .. }, Type) if &name[..] == "Array" || &name[..] == "Tuple" => {}
             (Poly { .. }, _) => {
@@ -1457,6 +1458,9 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 sub_ctx.super_traits.iter()
             };
             let mut min_compatible = None;
+            if sups.clone().count() == 0 {
+                min_compatible = Some(&sub_ctx.typ);
+            }
             for sup_ty in sups {
                 if self.ctx.subtype_of(sup_ty, maybe_sup) {
                     if let Some(min) = min_compatible {

@@ -848,7 +848,8 @@ impl Context {
                 tp_enum(Type, set! { ty_tp(U.clone()) }),
                 tp_enum(Type, set! { ty_tp(T.clone() | U.clone()) }),
             )
-            .quantify();
+            .quantify()
+            & bin_op(Type, Type, Type);
         self.register_builtin_py_impl(OP_OR, or_t, Const, Visibility::BUILTIN_PRIVATE, Some("or_"));
         let and_t = bin_op(Bool, Bool, Bool)
             & bin_op(

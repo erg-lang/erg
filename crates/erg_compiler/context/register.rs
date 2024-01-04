@@ -540,19 +540,6 @@ impl Context {
         }
     }
 
-    pub(crate) fn assign_bounds(&mut self, tv_cache: &TyVarCache) {
-        for tyvar in tv_cache.tyvar_instances.keys() {
-            let vi =
-                VarInfo::nd_parameter(Type::Type, self.absolutize(tyvar.loc()), self.name.clone());
-            self.locals.insert(tyvar.clone(), vi);
-        }
-        for (typaram, tp) in tv_cache.typaram_instances.iter() {
-            let t = self.get_tp_t(tp).unwrap_or(Type::Obj);
-            let vi = VarInfo::nd_parameter(t, self.absolutize(typaram.loc()), self.name.clone());
-            self.locals.insert(typaram.clone(), vi);
-        }
-    }
-
     pub(crate) fn assign_params(
         &mut self,
         params: &mut hir::Params,

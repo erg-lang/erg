@@ -2734,7 +2734,30 @@ impl Context {
                     return Some(res);
                 }
             }
-            Type::Quantified(_) => {
+            Type::Quantified(quant) => {
+                if self
+                    .get_nominal_type_ctx(quant)
+                    .is_some_and(|ctx| &ctx.typ.qual_name() == "ProcMetaType")
+                {
+                    if let Some(ctx) = self
+                        .get_builtins()
+                        .unwrap_or(self)
+                        .rec_local_get_mono_type("QuantifiedProcMetaType")
+                    {
+                        return Some(ctx);
+                    }
+                } else if self
+                    .get_nominal_type_ctx(quant)
+                    .is_some_and(|ctx| &ctx.typ.qual_name() == "FuncMetaType")
+                {
+                    if let Some(ctx) = self
+                        .get_builtins()
+                        .unwrap_or(self)
+                        .rec_local_get_mono_type("QuantifiedFuncMetaType")
+                    {
+                        return Some(ctx);
+                    }
+                }
                 if let Some(ctx) = self
                     .get_builtins()
                     .unwrap_or(self)

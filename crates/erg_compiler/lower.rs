@@ -821,7 +821,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         log!(info "entered {}({acc})", fn_name!());
         match acc {
             ast::Accessor::Ident(ident) => {
-                let ident = self.lower_ident(ident, expect)?;
+                let ident = self.lower_ident(ident, expect);
                 let acc = hir::Accessor::Ident(ident);
                 Ok(acc)
             }
@@ -888,11 +888,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         }
     }
 
-    fn lower_ident(
-        &mut self,
-        ident: ast::Identifier,
-        expect: Option<&Type>,
-    ) -> LowerResult<hir::Identifier> {
+    fn lower_ident(&mut self, ident: ast::Identifier, expect: Option<&Type>) -> hir::Identifier {
         // `match` is a special form, typing is magic
         let (vi, __name__) = if ident.vis.is_private()
             && (&ident.inspect()[..] == "match" || &ident.inspect()[..] == "match!")
@@ -962,7 +958,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         {
             self.module.context.captured_names.push(ident.clone());
         }
-        Ok(ident)
+        ident
     }
 
     fn get_guard_type(&self, expr: &ast::Expr) -> Option<Type> {

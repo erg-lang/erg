@@ -6,7 +6,7 @@ use std::process;
 
 use erg_common::cache::CacheSet;
 use erg_common::config::ErgConfig;
-use erg_common::env::erg_std_path;
+use erg_common::env::erg_core_path;
 use erg_common::error::{ErrorDisplay, Location};
 use erg_common::fresh::SharedFreshNameGenerator;
 use erg_common::io::Input;
@@ -3809,7 +3809,7 @@ impl PyCodeGenerator {
         );
         self.emit_load_name_instr(Identifier::private("#path"));
         self.emit_load_method_instr(Identifier::public("append"));
-        self.emit_load_const(erg_std_path().to_str().unwrap());
+        self.emit_load_const(erg_core_path().to_str().unwrap());
         self.emit_call_instr(1, BoundAttr);
         self.stack_dec();
         self.emit_pop_top();

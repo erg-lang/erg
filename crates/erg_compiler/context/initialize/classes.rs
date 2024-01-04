@@ -2992,7 +2992,10 @@ impl Context {
         named_func.register_marker_trait(self, mono(NAMED)).unwrap();
         let mut quant = Self::builtin_mono_class(QUANTIFIED, 2);
         quant.register_superclass(mono(PROC), &proc);
+        let mut qproc = Self::builtin_mono_class(QUANTIFIED_PROC, 2);
+        qproc.register_superclass(mono(PROC), &proc);
         let mut qfunc = Self::builtin_mono_class(QUANTIFIED_FUNC, 2);
+        qfunc.register_superclass(mono(QUANTIFIED_PROC), &qproc);
         qfunc.register_superclass(mono(FUNC), &func);
         let mut proc_meta_type = Self::builtin_mono_class(PROC_META_TYPE, 2);
         proc_meta_type.register_superclass(mono(PROC), &proc);
@@ -3000,6 +3003,12 @@ impl Context {
         let mut func_meta_type = Self::builtin_mono_class(FUNC_META_TYPE, 2);
         func_meta_type.register_superclass(mono(FUNC), &func);
         func_meta_type.register_superclass(mono(PROC_META_TYPE), &proc_meta_type);
+        let mut qproc_meta_type = Self::builtin_mono_class(QUANTIFIED_PROC_META_TYPE, 2);
+        qproc_meta_type.register_superclass(mono(PROC_META_TYPE), &proc);
+        qproc_meta_type.register_superclass(mono(QUANTIFIED_PROC), &qproc);
+        let mut qfunc_meta_type = Self::builtin_mono_class(QUANTIFIED_FUNC_META_TYPE, 2);
+        qfunc_meta_type.register_superclass(mono(QUANTIFIED_PROC_META_TYPE), &qproc_meta_type);
+        qfunc_meta_type.register_superclass(mono(QUANTIFIED_FUNC), &qfunc);
         self.register_builtin_type(Never, never, vis.clone(), Const, Some(NEVER));
         self.register_builtin_type(Obj, obj, vis.clone(), Const, Some(FUNC_OBJECT));
         // self.register_type(mono(RECORD), vec![], record, Visibility::BUILTIN_PRIVATE, Const);
@@ -3261,6 +3270,13 @@ impl Context {
                 Some(QUANTIFIED),
             );
             self.register_builtin_type(
+                mono(QUANTIFIED_PROC),
+                qproc,
+                Visibility::BUILTIN_PRIVATE,
+                Const,
+                Some(QUANTIFIED_PROC),
+            );
+            self.register_builtin_type(
                 mono(QUANTIFIED_FUNC),
                 qfunc,
                 Visibility::BUILTIN_PRIVATE,
@@ -3280,6 +3296,20 @@ impl Context {
                 Visibility::BUILTIN_PRIVATE,
                 Const,
                 Some(FUNC_META_TYPE),
+            );
+            self.register_builtin_type(
+                mono(QUANTIFIED_PROC_META_TYPE),
+                qproc_meta_type,
+                Visibility::BUILTIN_PRIVATE,
+                Const,
+                Some(QUANTIFIED_PROC_META_TYPE),
+            );
+            self.register_builtin_type(
+                mono(QUANTIFIED_FUNC_META_TYPE),
+                qfunc_meta_type,
+                Visibility::BUILTIN_PRIVATE,
+                Const,
+                Some(QUANTIFIED_FUNC_META_TYPE),
             );
         } else {
             self.register_builtin_const(MUT_INT, vis.clone(), ValueObj::builtin_class(Int));

@@ -17,6 +17,7 @@ add1 x: Int = x + 1
 then|T|(x: T or NoneType, f: (a: T) -> T) =
     match x:
         None -> x
-        (y: T) -> f y
+        # y: T
+        y -> f y
 assert then(1, add1) == 2
 assert then(None, add1) == None

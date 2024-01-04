@@ -1229,9 +1229,6 @@ impl Context {
         log!(info "{}: current namespace: {name}", fn_name!());
         self.outer = Some(Box::new(mem::take(self)));
         // self.level += 1;
-        if let Some(tv_cache) = tv_cache.as_ref() {
-            self.assign_bounds(tv_cache)
-        };
         self.cfg = self.get_outer().unwrap().cfg.clone();
         self.shared = self.get_outer().unwrap().shared.clone();
         self.higher_order_caller = self.get_outer().unwrap().higher_order_caller.clone();
@@ -1325,6 +1322,9 @@ impl Context {
                 .iter()
                 .flat_map(|ctx| ctx.type_dir(namespace)),
         );
+        if let Some(tv_cache) = &self.tv_cache {
+            attrs.guaranteed_extend(tv_cache.var_infos.iter());
+        }
         for sup in self.super_classes.iter() {
             if let Some(sup_ctx) = namespace.get_nominal_type_ctx(sup) {
                 if sup_ctx.name == self.name {
