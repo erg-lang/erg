@@ -2,14 +2,21 @@ unsound = import "unsound"
 
 # TODO: exception: Exception
 unsound.pyexec("""
-def try_(p, exc=lambda _: None):
+def try_(p, exc=lambda _: None, els=lambda: None, fin=lambda: None):
     try:
-        return p()
+        res = p()
     except Exception as e:
-        return exc(e)
+        res = exc(e)
+    else:
+        els()
+    finally:
+        fin()
+        return res
 """)
 .try! = unsound.pyeval("try_")
 assert .try! in |T, U|(
     p!: () => T,
-    exc!: (exception: Obj) => U := (exception: Obj) => NoneType
+    exc!: (exception: Obj) => U := (exception: Obj) => NoneType,
+    else! := () => NoneType,
+    finally! := () => NoneType,
 ) => T or U
