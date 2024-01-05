@@ -37,27 +37,90 @@ Ergは標準でパッケージマネージャーが付属しており、`pack`�
 以下は`package.er`の記述例である。
 
 ```python
-name = "example" # package name
-author = "John Smith" # package author name
-version = "0.1.0"
-description = "An awesome package"
-categories = ["cli"] # package categories
-type = "app" # "app" or "lib"
-license = "" # e.g. "MIT", "APACHE-2.0", "MIT OR Apache-2.0"
-pre_build = "" # script filename to be executed before build
-post_build = "" # script filename to be executed after build
-dependencies = {
+.name = "example" # package name
+.authors = ["John Smith"] # package author name
+.version = "0.1.0"
+.description = "An awesome package"
+.categories = ["cli"] # package categories
+.type = "app" # "app" or "lib"
+.license = "" # e.g. "MIT", "APACHE-2.0", "MIT OR Apache-2.0"
+.pre_build = "" # script filename to be executed before build
+.post_build = "" # script filename to be executed after build
+.dependencies = {
     # The latest one is selected if the version is not specified
     # If the version specification is omitted, the package manager automatically adds the version of the last successful build to the comments
-    foo  = pack("foo") # [INFO] the last successfully built version: 1.2.1
+    foo  = "foo" # [INFO] the last successfully built version: 1.2.1
     # Packages can be renamed
-    bar1 = pack("bar", "1.*.*") # [INFO] the last successfully built version: 1.2.0
-    bar2 = pack("bar", "2.*.*") # [INFO] the last successfully built version: 2.0.0
-    baz  = pack("baz", "1.1.0")
+    bar1 = { name = "bar"; version = "1.*.*"} # [INFO] the last successfully built version: 1.2.0
+    bar2 = { name = "bar"; version = "2.*.*"} # [INFO] the last successfully built version: 2.0.0
+    baz  = { name = "baz"; version = "1.1.0"}
 }
-deprecated = False
-successors = [] # alternative packages (when a package is deprecated)
+.deprecated = False
+.successors = [] # alternative packages (when a package is deprecated)
 ```
+
+### name
+
+パッケージ名を指定する。パッケージ名は大文字小文字を区別しない。また、`_`と`-`は区別されない。アルファベット以外の文字も使用可能。
+
+### authors
+
+パッケージの管理者名を指定する。メールアドレスの付記が推奨される。
+
+### version
+
+パッケージのバージョンを指定する。バージョンはセマンティックバージョニングに従う必要がある。
+
+### description
+
+パッケージの簡潔な説明。
+
+### categories
+
+パッケージのカテゴリ。[package.erg-lang.org](https://package.erg-lang.org)ではこれを元にパッケージが分類される。
+
+### type
+
+パッケージの種類。`app`か`lib`を指定する。`app`の場合は実行ファイルが生成される。`lib`の場合はライブラリとなる。
+
+### license
+
+パッケージのライセンス。パッケージをレジストリに登録する際にはライセンスの指定が必須となる。
+
+### pre_build
+
+ビルド前に実行するスクリプトファイル名を指定する。
+
+### post_build
+
+ビルド後に実行するスクリプトファイル名を指定する。
+
+### dependencies
+
+パッケージの依存関係を指定する。
+
+```bnf
+dependencies ::= '{' dependency* '}'
+dependency ::=
+    name '=' package_name
+    | name '=' '{' 'name' '=' package_name (';' 'version' '=' version_spec)? ';'? '}'
+    | name '=' '{' 'git' '=' git_url ';'? '}'
+name ::= <identifier>
+package_name ::= <string>
+version_spec ::= <string>
+git_url ::= <string>
+```
+
+`name`はimportする際に指定するパッケージ名であり、別名をつけることで同じ依存関係の別バージョンも利用できる。`package_name`はレジストリに登録されているパッケージの識別子である。`version_spec`はパッケージのバージョンであり、省略可能である。省略した場合は最新のバージョンが利用される。セマンティックバージョニングに従う必要がある。
+`git`はレジストリを使わずにgitリポジトリから直接パッケージをインストールする場合に指定する。`git_url`はgitリポジトリのURLである。
+
+### deprecated
+
+パッケージがもうメンテナンスされていないなどの理由で非推奨になっている場合は`True`を指定する。
+
+### successors
+
+パッケージが非推奨になった場合に代わりに使えるパッケージを指定する。
 
 ## セマンティックバージョニング
 

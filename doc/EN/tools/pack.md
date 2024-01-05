@@ -35,27 +35,95 @@ Also see [package_system.md](../syntax/35_package_system.md) for the Erg package
 Below is an example of `package.er`.
 
 ```python
-name = "example" # package name
-author = "John Smith" # package author name
-version="0.1.0"
-description = "An awesome package"
-categories = ["cli"] # package categories
-type = "app" # "app" or "lib"
-license = "" # e.g. "MIT", "APACHE-2.0", "MIT OR Apache-2.0"
-pre_build = "" # script filename to be executed before build
-post_build = "" # script filename to be executed after build
-dependencies = {
+.name = "example" # package name
+.authors = ["John Smith"] # package author name
+.version = "0.1.0"
+.description = "An awesome package"
+.categories = ["cli"] # package categories
+.type = "app" # "app" or "lib"
+.license = "" # e.g. "MIT", "APACHE-2.0", "MIT OR Apache-2.0"
+.pre_build = "" # script filename to be executed before build
+.post_build = "" # script filename to be executed after build
+.dependencies = {
     # The latest one is selected if the version is not specified
     # If the version specification is omitted, the package manager automatically adds the version of the last successful build to the comments
-    foo = pack("foo") # [INFO] the last successfully built version: 1.2.1
+    foo  = "foo" # [INFO] the last successfully built version: 1.2.1
     # Packages can be renamed
-    bar1 = pack("bar", "1.*.*") # [INFO] the last successfully built version: 1.2.0
-    bar2 = pack("bar", "2.*.*") # [INFO] the last successfully built version: 2.0.0
-    baz = pack("baz", "1.1.0")
+    bar1 = { name = "bar"; version = "1.*.*"} # [INFO] the last successfully built version: 1.2.0
+    bar2 = { name = "bar"; version = "2.*.*"} # [INFO] the last successfully built version: 2.0.0
+    baz  = { name = "baz"; version = "1.1.0"}
 }
-deprecated=False
-successors = [] # alternative packages (when a package is deprecated)
+.deprecated = False
+.successors = [] # alternative packages (when a package is deprecated)
 ```
+
+### name
+
+The name of the package. Package names are case-insensitive. Also, `_` and `-` are not distinguished. Non-alphabetic characters may be used.
+
+### authors
+
+The names of the package maintainer. It is recommended to include an email address.
+
+### version
+
+The version of the package. Versions must follow semantic versioning.
+
+### description
+
+A brief description of the package.
+
+### categories
+
+The category of the package. [package.erg-lang.org](https://package.erg-lang.org) classifies packages based on this.
+
+### type
+
+The type of the package. Specify `app` or `lib`. If `app` is specified, an executable file is generated. If `lib` is specified, it becomes a library.
+
+### license
+
+The license of the package. License specification is required when registering a package in the registry.
+
+### pre_build
+
+The path to the script to be executed before building.
+
+### post_build
+
+The path to the script to be executed after building.
+
+### dependencies
+
+The dependencies of the package.
+
+```bnf
+dependencies ::= '{' dependency* '}'
+dependency ::=
+    name '=' package_name
+    | name '=' '{' 'name' '=' package_name (';' 'version' '=' version_spec)? ';'? '}'
+    | name '=' '{' 'git' '=' git_url ';'? '}'
+name ::= <identifier>
+package_name ::= <string>
+version_spec ::= <string>
+git_url ::= <string>
+```
+
+`name` is the package name to be specified when importing, and by giving it a different name, you can also use a different version of the same dependency.
+
+`package_name` is the identifier of the package registered in the registry.
+
+`version_spec` is the version of the package and is optional. If omitted, the latest version is used. It must follow semantic versioning.
+
+`git` is specified when installing a package directly from a git repository without using the registry. `git_url` is the URL of the git repository.
+
+### deprecated
+
+If the package is no longer maintained for some reason, specify `True`.
+
+### successors
+
+Specify the package that can be used instead of the package that has been deprecated.
 
 ## Semantic versioning
 
