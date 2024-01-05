@@ -1,7 +1,7 @@
 use std::fs::remove_file;
 use std::io::{Read, Write};
 use std::net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream};
-use std::process;
+use std::process::{self, Command, Stdio};
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -394,5 +394,34 @@ impl DummyVM {
     /// Evaluates code passed as a string.
     pub fn eval(&mut self, src: String) -> Result<String, EvalErrors> {
         Runnable::eval(self, src)
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct PackageManagerRunner {}
+
+impl PackageManagerRunner {
+    pub fn new() -> Self {
+        Self {}
+    }
+
+    pub fn run(cfg: ErgConfig) -> ExitStatus {
+        if Command::new("poise").arg("--version").output().is_err() {
+            eprintln!("Error: poise is not installed");
+            return ExitStatus::ERR1;
+        }
+        match Command::new("poise")
+            .stdin(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .args(&cfg.runtime_args)
+            .output()
+        {
+            Ok(out) => ExitStatus::new(out.status.code().unwrap_or(0), 0, 0),
+            Err(err) => {
+                eprintln!("Error: {}", err);
+                ExitStatus::ERR1
+            }
+        }
     }
 }

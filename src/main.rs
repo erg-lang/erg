@@ -14,7 +14,7 @@ use erg_compiler::transpile::Transpiler;
 use erg_compiler::ty::deserialize::Deserializer;
 use erg_compiler::{ASTBuilder, Compiler};
 
-use erg::DummyVM;
+use erg::{DummyVM, PackageManagerRunner};
 
 fn run() {
     let cfg = ErgConfig::parse();
@@ -28,6 +28,7 @@ fn run() {
         Transpile => Transpiler::run(cfg),
         Execute => DummyVM::run(cfg),
         Read => Deserializer::run(cfg),
+        Pack => PackageManagerRunner::run(cfg),
         LanguageServer => {
             #[cfg(feature = "els")]
             {

@@ -27,6 +27,7 @@ pub enum ErgMode {
     Execute,
     LanguageServer,
     Read,
+    Pack,
 }
 
 impl TryFrom<&str> for ErgMode {
@@ -43,6 +44,7 @@ impl TryFrom<&str> for ErgMode {
             "run" | "execute" => Ok(Self::Execute),
             "server" | "language-server" => Ok(Self::LanguageServer),
             "byteread" | "read" | "reader" | "dis" => Ok(Self::Read),
+            "pack" | "package" => Ok(Self::Pack),
             _ => Err(()),
         }
     }
@@ -61,6 +63,7 @@ impl From<ErgMode> for &str {
             ErgMode::Execute => "execute",
             ErgMode::LanguageServer => "language-server",
             ErgMode::Read => "read",
+            ErgMode::Pack => "pack",
         }
     }
 }
@@ -404,6 +407,12 @@ USAGE:
                 _ => {
                     if let Ok(mode) = ErgMode::try_from(&arg[..]) {
                         cfg.mode = mode;
+                        if cfg.mode == ErgMode::Pack {
+                            for arg in args {
+                                cfg.runtime_args.push(Box::leak(arg.into_boxed_str()));
+                            }
+                            break;
+                        }
                     } else {
                         let path = PathBuf::from_str(&arg[..])
                             .unwrap_or_else(|_| panic!("invalid file path: {arg}"));
