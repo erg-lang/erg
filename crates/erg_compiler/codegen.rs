@@ -796,9 +796,9 @@ impl PyCodeGenerator {
             "NoneType" => {
                 self.emit_push_null();
                 self.emit_load_name_instr(Identifier::public("type"));
-                self.emit_load_const(ValueObj::None);
-                self.emit_precall_and_call(1);
-                self.stack_dec();
+                let none = Expr::Literal(Literal::new(ValueObj::None, Token::DUMMY));
+                let args = Args::single(PosArg::new(none));
+                self.emit_args_311(args, AccessKind::Name);
                 return;
             }
             _ => {}
@@ -1003,8 +1003,8 @@ impl PyCodeGenerator {
     #[track_caller]
     fn crash(&mut self, description: &str) -> ! {
         if cfg!(debug_assertions) || cfg!(feature = "debug") {
-            println!("current block: {}", self.cur_block());
-            panic!("internal error: {description}");
+            println!("internal error: {description}");
+            panic!("current block: {}", self.cur_block());
         } else {
             let err = CompileError::compiler_bug(
                 0,
@@ -1065,6 +1065,7 @@ impl PyCodeGenerator {
 
     fn emit_acc(&mut self, acc: Accessor) {
         log!(info "entered {} ({acc})", fn_name!());
+        let init_stack_len = self.stack_len();
         match acc {
             Accessor::Ident(ident) => {
                 self.emit_load_name_instr(ident);
@@ -1086,6 +1087,7 @@ impl PyCodeGenerator {
                 }
             }
         }
+        debug_assert_eq!(self.stack_len(), init_stack_len + 1);
     }
 
     fn emit_def(&mut self, def: Def) {
@@ -1524,6 +1526,7 @@ impl PyCodeGenerator {
 
     fn emit_lambda(&mut self, lambda: Lambda) {
         log!(info "entered {} ({lambda})", fn_name!());
+        let init_stack_len = self.stack_len();
         let mut make_function_flag = 0;
         let params = self.gen_param_names(&lambda.params);
         let kwonlyargcount = if lambda.params.var_params.is_some() {
@@ -1565,6 +1568,7 @@ impl PyCodeGenerator {
         if make_function_flag & MakeFunctionFlags::Defaults as usize != 0 {
             self.stack_dec();
         }
+        debug_assert_eq!(self.stack_len(), init_stack_len + 1);
     }
 
     fn enclose_vars(&mut self, flag: &mut usize) {
@@ -1659,6 +1663,7 @@ impl PyCodeGenerator {
 
     fn emit_unaryop(&mut self, unary: UnaryOp) {
         log!(info "entered {} ({unary})", fn_name!());
+        let init_stack_len = self.stack_len();
         let val_t = unary
             .info
             .t
@@ -1706,10 +1711,12 @@ impl PyCodeGenerator {
             }
             self.stack_dec();
         }
+        debug_assert_eq!(self.stack_len(), init_stack_len + 1);
     }
 
     fn emit_binop(&mut self, bin: BinOp) {
         log!(info "entered {} ({bin})", fn_name!());
+        let init_stack_len = self.stack_len();
         // TODO: and/orのプリミティブ命令の実装
         // Range operators are not operators in Python
         match &bin.op.kind {
@@ -1803,6 +1810,7 @@ impl PyCodeGenerator {
         self.emit_expr(*bin.lhs);
         self.emit_expr(*bin.rhs);
         self.emit_binop_instr(bin.op, type_pair);
+        debug_assert_eq!(self.stack_len(), init_stack_len + 1);
     }
 
     fn emit_binop_instr(&mut self, binop: Token, type_pair: TypePair) {
@@ -3012,6 +3020,7 @@ impl PyCodeGenerator {
     // TODO: tuple comprehension
     // TODO: tuples can be const
     fn emit_tuple(&mut self, tuple: Tuple) {
+        let init_stack_len = self.stack_len();
         match tuple {
             Tuple::Normal(mut tup) => {
                 let len = tup.elems.len();
@@ -3027,9 +3036,11 @@ impl PyCodeGenerator {
                 }
             }
         }
+        debug_assert_eq!(self.stack_len(), init_stack_len + 1);
     }
 
     fn emit_set(&mut self, set: crate::hir::Set) {
+        let init_stack_len = self.stack_len();
         match set {
             crate::hir::Set::Normal(mut set) => {
                 let len = set.elems.len();
@@ -3050,9 +3061,11 @@ impl PyCodeGenerator {
                 self.write_arg(1);
             }
         }
+        debug_assert_eq!(self.stack_len(), init_stack_len + 1);
     }
 
     fn emit_dict(&mut self, dict: crate::hir::Dict) {
+        let init_stack_len = self.stack_len();
         match dict {
             crate::hir::Dict::Normal(dic) => {
                 let len = dic.kvs.len();
@@ -3070,6 +3083,7 @@ impl PyCodeGenerator {
             }
             other => todo!("{other}"),
         }
+        debug_assert_eq!(self.stack_len(), init_stack_len + 1);
     }
 
     #[allow(clippy::identity_op)]
