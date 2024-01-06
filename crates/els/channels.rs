@@ -81,7 +81,7 @@ impl SendChannels {
         let (tx_call_hierarchy_prepare, rx_call_hierarchy_prepare) = mpsc::channel();
         let (tx_call_hierarchy_incoming, rx_call_hierarchy_incoming) = mpsc::channel();
         let (tx_call_hierarchy_outgoing, rx_call_hierarchy_outgoing) = mpsc::channel();
-        let (tx_foldging_range, rx_folding_range) = mpsc::channel();
+        let (tx_folding_range, rx_folding_range) = mpsc::channel();
         let (tx_health_check, rx_health_check) = mpsc::channel();
         (
             Self {
@@ -105,7 +105,7 @@ impl SendChannels {
                 call_hierarchy_prepare: tx_call_hierarchy_prepare,
                 call_hierarchy_incoming: tx_call_hierarchy_incoming,
                 call_hierarchy_outgoing: tx_call_hierarchy_outgoing,
-                folding_range: tx_foldging_range,
+                folding_range: tx_folding_range,
                 health_check: tx_health_check,
             },
             ReceiveChannels {

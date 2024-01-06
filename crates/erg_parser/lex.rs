@@ -272,7 +272,7 @@ impl Lexer /*<'a>*/ {
     }
 
     /// Detect `c` is a bidirectional overriding character.
-    /// [CVE-2021-42574: homoglyph atack](https://blog.rust-lang.org/2021/11/01/cve-2021-42574.html) countermeasures.
+    /// [CVE-2021-42574: homoglyph attack](https://blog.rust-lang.org/2021/11/01/cve-2021-42574.html) countermeasures.
     pub fn is_bidi(c: char) -> bool {
         matches!(c, '\u{200F}' | '\u{202B}' | '\u{202E}' | '\u{2067}')
     }
