@@ -30,6 +30,13 @@ _ = if b != None:
     do b.decode("utf-8")
     do ""
 
+s1 as Obj = "abc"
+assert s1 in (Int or Str)
+s2 as Obj = "abc"
+assert s2 in (Str or Int)
+s3 as Obj = "abc"
+assert s3 in (Int or NoneType or Str)
+
 p! as Obj = print!
 assert p! in (*objs: Obj) => NoneType
 p!("OK")
