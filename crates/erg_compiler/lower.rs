@@ -2968,7 +2968,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         let mut builder = GenericHIRBuilder::<A>::new_submodule(mod_ctx, &mod_name);
         builder.lowerer.module.context.cfg.input = inline.input.clone();
         builder.cfg_mut().input = inline.input.clone();
-        let mode = if path.to_string_lossy().ends_with("d.er") {
+        let mode = if path.to_string_lossy().ends_with(".d.er") {
             "declare"
         } else {
             "exec"
@@ -2985,7 +2985,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             }
         };
         let ctx = builder.pop_mod_ctx().unwrap();
-        let cache = if path.to_string_lossy().ends_with("d.er") {
+        let cache = if path.to_string_lossy().ends_with(".d.er") {
             &self.module.context.shared().py_mod_cache
         } else {
             &self.module.context.shared().mod_cache

@@ -25,7 +25,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         } else if let Some(visitor) = self.get_visitor(uri) {
             Ok(visitor.get_info(token))
         } else {
-            self.send_log("not found")?;
+            self.send_log("definition not found")?;
             Ok(None)
         }
     }

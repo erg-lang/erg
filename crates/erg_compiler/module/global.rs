@@ -97,7 +97,7 @@ impl SharedCompilerResource {
     }
 
     pub fn insert_module(&self, path: NormalizedPathBuf, entry: ModuleEntry) {
-        if path.to_string_lossy().ends_with("d.er") {
+        if path.to_string_lossy().ends_with(".d.er") {
             self.py_mod_cache.insert(path, entry);
         } else {
             self.mod_cache.insert(path, entry);
@@ -105,7 +105,7 @@ impl SharedCompilerResource {
     }
 
     pub fn remove_module(&self, path: &std::path::Path) -> Option<ModuleEntry> {
-        if path.to_string_lossy().ends_with("d.er") {
+        if path.to_string_lossy().ends_with(".d.er") {
             self.py_mod_cache.remove(path)
         } else {
             self.mod_cache.remove(path)
@@ -113,7 +113,7 @@ impl SharedCompilerResource {
     }
 
     pub fn get_module(&self, path: &std::path::Path) -> Option<MappedRwLockReadGuard<ModuleEntry>> {
-        if path.to_string_lossy().ends_with("d.er") {
+        if path.to_string_lossy().ends_with(".d.er") {
             self.py_mod_cache.get(path)
         } else {
             self.mod_cache.get(path)
@@ -121,7 +121,7 @@ impl SharedCompilerResource {
     }
 
     pub fn raw_ref_ctx(&self, path: &std::path::Path) -> Option<&ModuleContext> {
-        if path.to_string_lossy().ends_with("d.er") {
+        if path.to_string_lossy().ends_with(".d.er") {
             self.py_mod_cache.raw_ref_ctx(path)
         } else {
             self.mod_cache.raw_ref_ctx(path)

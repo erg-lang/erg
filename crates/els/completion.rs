@@ -31,6 +31,7 @@ use lsp_types::{
     MarkupContent, MarkupKind, Position, Range, TextEdit,
 };
 
+use crate::_log;
 use crate::server::{ELSResult, Flags, RedirectableStdout, Server};
 use crate::util::{self, loc_to_pos, NormalizedUrl};
 
@@ -494,7 +495,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         &mut self,
         params: CompletionParams,
     ) -> ELSResult<Option<CompletionResponse>> {
-        self.send_log(format!("completion requested: {params:?}"))?;
+        _log!(self, "completion requested: {params:?}");
         let uri = NormalizedUrl::new(params.text_document_position.text_document.uri);
         let path = util::uri_to_path(&uri);
         let mut pos = params.text_document_position.position;
@@ -587,6 +588,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 _ => None,
             });
         let Some(mod_ctx) = self.get_mod_ctx(&uri) else {
+            _log!(self, "module context not found: {uri}");
             return Ok(None);
         };
         for (name, vi) in contexts.into_iter().flat_map(|ctx| ctx.local_dir()) {
@@ -637,7 +639,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             }
             result.extend(self.neighbor_completion(&uri, arg_pt, &mut already_appeared));
         }
-        self.send_log(format!("completion items: {}", result.len()))?;
+        _log!(self, "completion items: {}", result.len());
         Ok(Some(CompletionResponse::Array(result)))
     }
 

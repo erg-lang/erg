@@ -755,7 +755,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         Some(MappedRwLockReadGuard::map(ent, |ent| &ent.module))
     }
 
-    pub(crate) fn raw_get_mod_ctx(&self, uri: &NormalizedUrl) -> Option<&ModuleContext> {
+    pub(crate) fn get_raw_mod_ctx(&self, uri: &NormalizedUrl) -> Option<&ModuleContext> {
         let path = uri.to_file_path().ok()?;
         self.shared.raw_ref_ctx(&path)
     }
@@ -789,7 +789,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
 
     pub(crate) fn get_visitor(&self, uri: &NormalizedUrl) -> Option<HIRVisitor> {
         let path = uri.to_file_path().ok()?;
-        let ent = self.shared.get_module(&path)?;
+        let Some(ent) = self.shared.get_module(&path) else {
+            _log!(self, "module not found: {uri}");
+            return None;
+        };
         ent.hir.as_ref()?;
         let hir = MappedRwLockReadGuard::map(ent, |ent| ent.hir.as_ref().unwrap());
         Some(HIRVisitor::new(hir, &self.file_cache, uri.clone()))
@@ -810,7 +813,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
 
     pub(crate) fn get_local_ctx(&self, uri: &NormalizedUrl, pos: Position) -> Vec<&Context> {
         let mut ctxs = vec![];
-        if let Some(mod_ctx) = self.raw_get_mod_ctx(uri) {
+        if let Some(mod_ctx) = self.get_raw_mod_ctx(uri) {
             if let Some(visitor) = self.get_visitor(uri) {
                 // FIXME:
                 let mut ns = visitor.get_namespace(pos);
@@ -826,7 +829,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             }
             ctxs.push(&mod_ctx.context);
         }
-        let builtin_ctx = self.get_builtin_module();
+        let builtin_ctx = self.get_raw_builtin_module();
         ctxs.extend(builtin_ctx);
         ctxs
     }
@@ -859,7 +862,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     continue;
                 };
                 let uri = NormalizedUrl::from_file_path(neighbor.path()).unwrap();
-                if let Some(mod_ctx) = self.raw_get_mod_ctx(&uri) {
+                if let Some(mod_ctx) = self.get_raw_mod_ctx(&uri) {
                     ctxs.push(&mod_ctx.context);
                 }
             }
@@ -872,7 +875,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         uri: &NormalizedUrl,
         attr_marker_pos: Position,
     ) -> ELSResult<(Option<Type>, Vec<&Context>)> {
-        let Some(module) = self.raw_get_mod_ctx(uri) else {
+        let Some(module) = self.get_raw_mod_ctx(uri) else {
             return Ok((None, vec![]));
         };
         let maybe_token = self.file_cache.get_receiver(uri, attr_marker_pos);
@@ -909,7 +912,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         }
     }
 
-    pub(crate) fn get_builtin_module(&self) -> Option<&Context> {
+    pub(crate) fn get_raw_builtin_module(&self) -> Option<&Context> {
         self.shared.raw_ref_builtins_ctx().map(|mc| &mc.context)
     }
 

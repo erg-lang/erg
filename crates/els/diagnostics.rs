@@ -185,11 +185,11 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             return Ok(());
         }
         let Some(old) = self.get_ast(&uri) else {
-            crate::_log!(self, "not found");
+            crate::_log!(self, "AST not found: {uri}");
             return Ok(());
         };
         let Ok(new) = self.build_ast(&uri) else {
-            crate::_log!(self, "not found");
+            crate::_log!(self, "AST not found: {uri}");
             return Ok(());
         };
         let ast_diff = ASTDiff::diff(old, &new);

@@ -125,7 +125,7 @@ COMMAND
     compile                              compile
     transpile                            transpile
     run|exec                             execute (default mode)
-    server                               execute language server",
+    server                               start Erg language server",
     )
 }
 

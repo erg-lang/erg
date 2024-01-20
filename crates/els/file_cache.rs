@@ -146,7 +146,7 @@ impl FileCache {
             .files
             .borrow_mut()
             .get(uri)
-            .ok_or("not found")?
+            .ok_or("file entry not found")?
             .code
             .clone())
     }
@@ -241,7 +241,7 @@ impl FileCache {
     ) -> ELSResult<Option<String>> {
         self.load_once(uri)?;
         let ent = self.files.borrow_mut();
-        let file = ent.get(uri).ok_or("not found")?;
+        let file = ent.get(uri).ok_or("file entry not found")?;
         let mut code = String::new();
         for (i, line) in file.code.lines().enumerate() {
             if i >= range.start.line as usize && i <= range.end.line as usize {
