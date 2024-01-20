@@ -2,7 +2,7 @@ use std::any::type_name;
 use std::io;
 use std::io::{stdin, BufRead, Read};
 use std::ops::Not;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc};
@@ -910,9 +910,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     }
 
     pub(crate) fn get_builtin_module(&self) -> Option<&Context> {
-        self.shared
-            .raw_ref_ctx(Path::new("<builtins>"))
-            .map(|mc| &mc.context)
+        self.shared.raw_ref_builtins_ctx().map(|mc| &mc.context)
     }
 
     pub(crate) fn clear_cache(&mut self, uri: &NormalizedUrl) {

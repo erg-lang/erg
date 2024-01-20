@@ -128,6 +128,10 @@ impl SharedCompilerResource {
         }
     }
 
+    pub fn raw_ref_builtins_ctx(&self) -> Option<&ModuleContext> {
+        self.mod_cache.raw_ref_builtins_ctx()
+    }
+
     pub fn raw_modules(&self) -> impl Iterator<Item = &ModuleEntry> {
         self.mod_cache
             .raw_values()

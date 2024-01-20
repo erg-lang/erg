@@ -263,6 +263,14 @@ impl SharedModuleCache {
         ref_.get(path).map(|entry| &entry.module)
     }
 
+    // HACK: <builtins> is referenced very frequently and mutable references are not taken,
+    // so it can be take without lock.
+    pub fn raw_ref_builtins_ctx(&self) -> Option<&ModuleContext> {
+        let ref_ = unsafe { self.0.as_ptr().as_ref().unwrap() };
+        ref_.get(std::path::Path::new("<builtins>"))
+            .map(|entry| &entry.module)
+    }
+
     pub fn register<P: Into<NormalizedPathBuf>>(
         &self,
         path: P,
