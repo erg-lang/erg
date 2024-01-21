@@ -292,6 +292,18 @@ impl SharedModuleCache {
         self.0.borrow_mut().remove(path)
     }
 
+    #[allow(clippy::result_unit_err)]
+    pub fn try_remove<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Result<Option<ModuleEntry>, ()>
+    where
+        NormalizedPathBuf: Borrow<Q>,
+    {
+        if let Some(mut lock) = self.0.try_borrow_mut() {
+            Ok(lock.remove(path))
+        } else {
+            Err(())
+        }
+    }
+
     pub fn remove_by_id(&self, id: ModId) -> Option<ModuleEntry> {
         self.0.borrow_mut().remove_by_id(id)
     }

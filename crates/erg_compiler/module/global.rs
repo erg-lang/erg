@@ -1,6 +1,7 @@
 use erg_common::config::ErgConfig;
 use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::shared::MappedRwLockReadGuard;
+use erg_common::spawn::safe_yield;
 
 use crate::context::{Context, ModuleContext};
 
@@ -104,11 +105,23 @@ impl SharedCompilerResource {
         }
     }
 
+    /// This is intended to be called from a language server, etc.,
+    /// this blocks until it gets a lock.
     pub fn remove_module(&self, path: &std::path::Path) -> Option<ModuleEntry> {
         if path.to_string_lossy().ends_with(".d.er") {
-            self.py_mod_cache.remove(path)
+            loop {
+                if let Ok(entry) = self.py_mod_cache.try_remove(path) {
+                    return entry;
+                }
+                safe_yield();
+            }
         } else {
-            self.mod_cache.remove(path)
+            loop {
+                if let Ok(entry) = self.mod_cache.try_remove(path) {
+                    return entry;
+                }
+                safe_yield();
+            }
         }
     }
 

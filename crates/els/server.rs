@@ -58,6 +58,7 @@ use crate::completion::CompletionCache;
 use crate::file_cache::FileCache;
 use crate::hir_visitor::{ExprKind, HIRVisitor};
 use crate::message::{ErrorMessage, LSPResult};
+use crate::scheduler::Scheduler;
 use crate::util::{self, loc_to_pos, project_root_of, NormalizedUrl};
 
 pub const HEALTH_CHECKER_ID: i64 = 10000;
@@ -181,6 +182,7 @@ pub struct Server<Checker: BuildRunnable = PackageBuilder, Parser: Parsable = Si
     pub(crate) shared: SharedCompilerResource,
     pub(crate) channels: Option<SendChannels>,
     pub(crate) stdout_redirect: Option<mpsc::Sender<Value>>,
+    pub(crate) scheduler: Scheduler,
     pub(crate) _parser: std::marker::PhantomData<fn() -> Parser>,
     pub(crate) _checker: std::marker::PhantomData<fn() -> Checker>,
 }
@@ -221,6 +223,7 @@ impl<C: BuildRunnable, P: Parsable> Clone for Server<C, P> {
             channels: self.channels.clone(),
             flags: self.flags.clone(),
             stdout_redirect: self.stdout_redirect.clone(),
+            scheduler: self.scheduler.clone(),
             _parser: std::marker::PhantomData,
             _checker: std::marker::PhantomData,
         }
@@ -244,6 +247,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             channels: None,
             flags,
             stdout_redirect,
+            scheduler: Scheduler::new(),
             _parser: std::marker::PhantomData,
             _checker: std::marker::PhantomData,
         }
@@ -622,17 +626,25 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             move || loop {
                 let msg = receiver.recv().unwrap();
                 match msg {
-                    WorkerMessage::Request(id, params) => match handler(&mut _self, params) {
-                        Ok(result) => {
-                            let _ = _self.send_stdout(&LSPResult::new(id, result));
+                    WorkerMessage::Request(id, params) => {
+                        _self.scheduler.register(id, R::METHOD);
+                        if _self.scheduler.acquire(id).is_none() {
+                            _log!(_self, "canceled: {id}");
+                            continue;
                         }
-                        Err(err) => {
-                            let _ = _self.send_stdout(&ErrorMessage::new(
-                                Some(id),
-                                format!("err from {}: {err}", type_name::<R>()).into(),
-                            ));
+                        match handler(&mut _self, params) {
+                            Ok(result) => {
+                                let _ = _self.send_stdout(&LSPResult::new(id, result));
+                            }
+                            Err(err) => {
+                                let _ = _self.send_stdout(&ErrorMessage::new(
+                                    Some(id),
+                                    format!("err from {}: {err}", type_name::<R>()).into(),
+                                ));
+                            }
                         }
-                    },
+                        _self.scheduler.finish(id);
+                    }
                     WorkerMessage::Kill => {
                         break;
                     }
@@ -721,6 +733,14 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     self.quick_check_file(uri)?;
                 }
                 self.file_cache.incremental_update(params);
+                Ok(())
+            }
+            "$/cancelRequest" => {
+                let id = msg["params"]["id"].as_i64().unwrap();
+                let task = self.scheduler.cancel(id);
+                if task.is_some() {
+                    _log!(self, "cancellation approved: {id}");
+                }
                 Ok(())
             }
             _ => self.send_log(format!("received notification: {method}")),

@@ -16,6 +16,7 @@ mod inlay_hint;
 mod message;
 mod references;
 mod rename;
+mod scheduler;
 mod semantic;
 mod server;
 mod sig_help;
