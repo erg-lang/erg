@@ -33,6 +33,7 @@ pub const fn get_ver_from_magic_num(magic_num: u32) -> PythonVersion {
         3420..=3425 => PythonVersion::new(3, Some(9), Some(0)),
         3430..=3439 => PythonVersion::new(3, Some(10), Some(0)), // main: 3439
         3495 => PythonVersion::new(3, Some(11), Some(0)),
+        3531 => PythonVersion::new(3, Some(12), Some(0)),
         _ => panic!("unknown magic number"),
     }
 }

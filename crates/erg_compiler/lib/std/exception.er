@@ -3,15 +3,16 @@ unsound = import "unsound"
 # TODO: exception: Exception
 unsound.pyexec("""
 def try_(p, exc=lambda _: None, els=lambda: None, fin=lambda: None):
+    __result = None
     try:
-        res = p()
+        __result = p()
     except Exception as e:
-        res = exc(e)
+        __result = exc(e)
     else:
         els()
     finally:
         fin()
-        return res
+        return __result
 """)
 .try! = unsound.pyeval("try_")
 assert .try! in |T, U|(

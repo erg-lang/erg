@@ -775,7 +775,7 @@ impl PyCodeGenerator {
         let kind = RegisterNameKind::from_ident(&ident);
         let escaped = escape_ident(ident);
         match &escaped[..] {
-            "if__" | "for__" | "while__" | "with__" | "discard__" => {
+            "if__" | "for__" | "while__" | "with__" | "discard__" | "assert__" => {
                 self.load_control();
             }
             "int__" | "nat__" | "str__" | "float__" => {
