@@ -97,14 +97,21 @@ pub struct Package {
     pub name: &'static str,
     pub as_name: &'static str,
     pub version: &'static str,
+    pub path: Option<&'static str>,
 }
 
 impl Package {
-    pub const fn new(name: &'static str, as_name: &'static str, version: &'static str) -> Self {
+    pub const fn new(
+        name: &'static str,
+        as_name: &'static str,
+        version: &'static str,
+        path: Option<&'static str>,
+    ) -> Self {
         Self {
             name,
             as_name,
             version,
+            path,
         }
     }
 }
@@ -303,6 +310,31 @@ impl ErgConfig {
                         Box::leak(name),
                         Box::leak(as_name),
                         Box::leak(version),
+                        None,
+                    ));
+                }
+                "--use-local-package" => {
+                    let name = args
+                        .next()
+                        .expect("`name` of `--use-package` is not passed")
+                        .into_boxed_str();
+                    let as_name = args
+                        .next()
+                        .expect("`as_name` of `--use-package` is not passed")
+                        .into_boxed_str();
+                    let version = args
+                        .next()
+                        .expect("`version` of `--use-package` is not passed")
+                        .into_boxed_str();
+                    let path = args
+                        .next()
+                        .expect("`path` of `--use-package` is not passed")
+                        .into_boxed_str();
+                    cfg.packages.push(Package::new(
+                        Box::leak(name),
+                        Box::leak(as_name),
+                        Box::leak(version),
+                        Some(Box::leak(path)),
                     ));
                 }
                 "--ping" => {

@@ -300,8 +300,19 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 return cfg;
             };
             let version = version.token.content.replace('\"', "");
-            let package =
-                erg_common::config::Package::new(name.leak(), as_name.leak(), version.leak());
+            let path = rec.get("path").and_then(|path| {
+                if let Some(ast::Expr::Literal(lit)) = path.body.block.first() {
+                    Some(lit.token.content.replace('\"', ""))
+                } else {
+                    None
+                }
+            });
+            let package = erg_common::config::Package::new(
+                name.leak(),
+                as_name.leak(),
+                version.leak(),
+                path.map(|p| &*p.leak()),
+            );
             cfg.packages.push(package);
         }
         cfg

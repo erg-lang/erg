@@ -518,12 +518,12 @@ impl Input {
     fn resolve_project_dep_path(&self, path: &Path, cfg: &ErgConfig) -> Option<PathBuf> {
         let name = format!("{}", path.display());
         let pkg = cfg.packages.iter().find(|p| p.as_name == name)?;
-        let path = erg_pkgs_path()
-            .join(pkg.name)
-            .join(pkg.version)
-            .join("src")
-            .join("lib.er");
-        Some(path)
+        let path = if let Some(path) = pkg.path {
+            PathBuf::from(path).canonicalize().ok()?
+        } else {
+            erg_pkgs_path().join(pkg.name).join(pkg.version)
+        };
+        Some(path.join("src").join("lib.er"))
     }
 
     /// resolution order:
