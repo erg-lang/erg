@@ -103,10 +103,12 @@ dependency ::=
     name '=' package_name
     | name '=' '{' 'name' '=' package_name (';' 'version' '=' version_spec)? ';'? '}'
     | name '=' '{' 'git' '=' git_url ';'? '}'
+    | name '=' '{' 'path' '=' path ';'? '}'
 name ::= <identifier>
 package_name ::= <string>
 version_spec ::= <string>
 git_url ::= <string>
+path ::= <string>
 ```
 
 `name` is the package name to be specified when importing, and by giving it a different name, you can also use a different version of the same dependency.
@@ -116,6 +118,8 @@ git_url ::= <string>
 `version_spec` is the version of the package and is optional. If omitted, the latest version is used. It must follow semantic versioning.
 
 `git` is specified when installing a package directly from a git repository without using the registry. `git_url` is the URL of the git repository.
+
+`path` is specified when using a local package.
 
 ### deprecated
 

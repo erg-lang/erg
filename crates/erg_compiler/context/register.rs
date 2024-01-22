@@ -2132,7 +2132,11 @@ impl Context {
     }
 
     fn import_erg_mod(&self, __name__: &Str, loc: &impl Locational) -> CompileResult<PathBuf> {
-        let path = match self.cfg.input.resolve_real_path(Path::new(&__name__[..])) {
+        let path = match self
+            .cfg
+            .input
+            .resolve_real_path(Path::new(&__name__[..]), &self.cfg)
+        {
             Some(path) => path,
             None => {
                 return Err(self.import_err(line!(), __name__, loc));

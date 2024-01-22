@@ -1209,6 +1209,10 @@ impl RecordAttrs {
     pub fn extend(&mut self, attrs: RecordAttrs) {
         self.0.extend(attrs.0);
     }
+
+    pub fn get(&self, name: &str) -> Option<&Def> {
+        self.0.iter().find(|def| def.sig.ident().inspect() == name)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -1263,6 +1267,10 @@ impl Record {
         let t = enum_unwrap!(&mut self.t, Type::Record);
         t.insert(Field::from(attr.sig.ident()), attr.body.block.t());
         self.attrs.push(attr);
+    }
+
+    pub fn get(&self, name: &str) -> Option<&Def> {
+        self.attrs.get(name)
     }
 }
 
@@ -2982,6 +2990,15 @@ impl Locational for Module {
 }
 
 impl_stream!(Module, Expr);
+
+impl Module {
+    pub fn get_attr(&self, name: &str) -> Option<&Def> {
+        self.0.iter().find_map(|e| match e {
+            Expr::Def(def) if def.sig.ident().inspect() == name => Some(def),
+            _ => None,
+        })
+    }
+}
 
 /// High-level Intermediate Representation
 /// AST with type information added

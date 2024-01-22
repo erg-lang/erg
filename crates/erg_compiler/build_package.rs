@@ -492,7 +492,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
             return Ok(());
         }
         let path = Path::new(&__name__[..]);
-        let import_path = match cfg.input.resolve_path(path) {
+        let import_path = match cfg.input.resolve_path(path, cfg) {
             Some(path) => path,
             None => {
                 for _ in 0..600 {

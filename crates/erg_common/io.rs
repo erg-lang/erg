@@ -5,9 +5,11 @@ use std::path::{Path, PathBuf};
 use std::process;
 use std::process::Stdio;
 
+use crate::config::ErgConfig;
 use crate::consts::EXPERIMENTAL_MODE;
 use crate::env::{
-    erg_path, erg_py_external_lib_path, erg_pystd_path, erg_std_path, python_site_packages,
+    erg_path, erg_pkgs_path, erg_py_external_lib_path, erg_pystd_path, erg_std_path,
+    python_site_packages,
 };
 use crate::pathutil::{add_postfix_foreach, remove_postfix};
 use crate::python_util::get_sys_path;
@@ -479,8 +481,8 @@ impl Input {
         ))
     }
 
-    pub fn resolve_path(&self, path: &Path) -> Option<PathBuf> {
-        self.resolve_real_path(path)
+    pub fn resolve_path(&self, path: &Path, cfg: &ErgConfig) -> Option<PathBuf> {
+        self.resolve_real_path(path, cfg)
             .or_else(|| self.resolve_decl_path(path))
     }
 
@@ -489,7 +491,8 @@ impl Input {
     /// 2. `./{path/to}/__init__.er`
     /// 3. `std/{path/to}.er`
     /// 4. `std/{path/to}/__init__.er`
-    pub fn resolve_real_path(&self, path: &Path) -> Option<PathBuf> {
+    /// 5. `pkgs/{path/to}/lib.er`
+    pub fn resolve_real_path(&self, path: &Path, cfg: &ErgConfig) -> Option<PathBuf> {
         if let Ok(path) = self.resolve_local(path) {
             Some(path)
         } else if let Ok(path) = erg_std_path()
@@ -503,11 +506,24 @@ impl Input {
             .canonicalize()
         {
             Some(normalize_path(path))
+        } else if let Some(pkg) = self.resolve_project_dep_path(path, cfg) {
+            Some(normalize_path(pkg))
         } else if path == Path::new("unsound") {
             Some(PathBuf::from("unsound"))
         } else {
             None
         }
+    }
+
+    fn resolve_project_dep_path(&self, path: &Path, cfg: &ErgConfig) -> Option<PathBuf> {
+        let name = format!("{}", path.display());
+        let pkg = cfg.packages.iter().find(|p| p.as_name == name)?;
+        let path = if let Some(path) = pkg.path {
+            PathBuf::from(path).canonicalize().ok()?
+        } else {
+            erg_pkgs_path().join(pkg.name).join(pkg.version)
+        };
+        Some(path.join("src").join("lib.er"))
     }
 
     /// resolution order:

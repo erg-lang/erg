@@ -105,14 +105,17 @@ dependency ::=
     name '=' package_name
     | name '=' '{' 'name' '=' package_name (';' 'version' '=' version_spec)? ';'? '}'
     | name '=' '{' 'git' '=' git_url ';'? '}'
+    | name '=' '{' 'path' '=' path ';'? '}'
 name ::= <identifier>
 package_name ::= <string>
 version_spec ::= <string>
 git_url ::= <string>
+path ::= <string>
 ```
 
 `name`はimportする際に指定するパッケージ名であり、別名をつけることで同じ依存関係の別バージョンも利用できる。`package_name`はレジストリに登録されているパッケージの識別子である。`version_spec`はパッケージのバージョンであり、省略可能である。省略した場合は最新のバージョンが利用される。セマンティックバージョニングに従う必要がある。
 `git`はレジストリを使わずにgitリポジトリから直接パッケージをインストールする場合に指定する。`git_url`はgitリポジトリのURLである。
+`path`はローカルのパッケージを使用する場合に指定する。
 
 ### deprecated
 

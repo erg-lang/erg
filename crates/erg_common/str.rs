@@ -191,6 +191,13 @@ impl Str {
         Str::Rc(s.into())
     }
 
+    pub fn leak(self) -> &'static str {
+        match self {
+            Str::Rc(s) => Box::leak(s.into()),
+            Str::Static(s) => s,
+        }
+    }
+
     pub fn into_rc(self) -> ArcStr {
         match self {
             Str::Rc(s) => s,

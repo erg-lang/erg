@@ -3086,7 +3086,7 @@ impl Context {
             str_namespace.push_str(namespaces.remove(0));
         }
         let path = Path::new(&str_namespace);
-        let mut path = self.cfg.input.resolve_path(path)?;
+        let mut path = self.cfg.input.resolve_path(path, &self.cfg)?;
         for p in namespaces.into_iter() {
             path = Input::try_push_path(path, Path::new(p)).ok()?;
         }
