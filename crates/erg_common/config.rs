@@ -92,6 +92,23 @@ impl From<&str> for TranspileTarget {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Package {
+    pub name: &'static str,
+    pub as_name: &'static str,
+    pub version: &'static str,
+}
+
+impl Package {
+    pub const fn new(name: &'static str, as_name: &'static str, version: &'static str) -> Self {
+        Self {
+            name,
+            as_name,
+            version,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ErgConfig {
     pub mode: ErgMode,
@@ -122,6 +139,7 @@ pub struct ErgConfig {
     pub ps1: &'static str,
     pub ps2: &'static str,
     pub runtime_args: Vec<&'static str>,
+    pub packages: Vec<Package>,
 }
 
 impl Default for ErgConfig {
@@ -146,6 +164,7 @@ impl Default for ErgConfig {
             ps1: ">>> ",
             ps2: "... ",
             runtime_args: vec![],
+            packages: vec![],
         }
     }
 }
@@ -266,6 +285,25 @@ impl ErgConfig {
                         eprintln!("invalid mode: {mode}");
                         process::exit(1);
                     });
+                }
+                "--use-package" => {
+                    let name = args
+                        .next()
+                        .expect("`name` of `--use-package` is not passed")
+                        .into_boxed_str();
+                    let as_name = args
+                        .next()
+                        .expect("`as_name` of `--use-package` is not passed")
+                        .into_boxed_str();
+                    let version = args
+                        .next()
+                        .expect("`version` of `--use-package` is not passed")
+                        .into_boxed_str();
+                    cfg.packages.push(Package::new(
+                        Box::leak(name),
+                        Box::leak(as_name),
+                        Box::leak(version),
+                    ));
                 }
                 "--ping" => {
                     println!("pong");
