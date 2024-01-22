@@ -888,6 +888,10 @@ impl NormalArray {
     pub fn get(&self, index: usize) -> Option<&Expr> {
         self.elems.pos_args.get(index).map(|a| &a.expr)
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Expr> {
+        self.elems.pos_args.iter().map(|a| &a.expr)
+    }
 }
 
 #[pyclass]
@@ -1229,6 +1233,14 @@ impl From<Vec<Def>> for RecordAttrs {
     }
 }
 
+impl RecordAttrs {
+    pub fn get(&self, name: &str) -> Option<&Def> {
+        self.0
+            .iter()
+            .find(|attr| attr.sig.ident().is_some_and(|n| n.inspect() == name))
+    }
+}
+
 #[pyclass(get_all, set_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NormalRecord {
@@ -1279,7 +1291,7 @@ impl From<MixedRecord> for NormalRecord {
 #[pymethods]
 impl NormalRecord {
     #[pyo3(name = "get")]
-    fn _get(&self, name: &str) -> Option<Expr> {
+    fn _get(&self, name: &str) -> Option<Def> {
         self.get(name).cloned()
     }
 
@@ -1299,15 +1311,8 @@ impl NormalRecord {
 }
 
 impl NormalRecord {
-    pub fn get(&self, name: &str) -> Option<&Expr> {
-        for attr in self.attrs.iter() {
-            if let Signature::Var(var) = &attr.sig {
-                if var.inspect().is_some_and(|n| n == name) {
-                    return attr.body.block.last();
-                }
-            }
-        }
-        None
+    pub fn get(&self, name: &str) -> Option<&Def> {
+        self.attrs.get(name)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Def> {
@@ -1377,6 +1382,16 @@ impl Record {
         match self {
             Self::Normal(normal) => normal.keys().collect(),
             Self::Mixed(mixed) => mixed.keys().collect(),
+        }
+    }
+
+    pub fn get(&self, name: &str) -> Option<&Def> {
+        match self {
+            Self::Normal(normal) => normal.get(name),
+            Self::Mixed(mixed) => mixed.get(name).and_then(|attr| match attr {
+                RecordAttrOrIdent::Attr(attr) => Some(attr),
+                RecordAttrOrIdent::Ident(_) => None,
+            }),
         }
     }
 }
@@ -6130,6 +6145,13 @@ impl Module {
 
     pub fn block(&self) -> &Block {
         &self.0
+    }
+
+    pub fn get_attr(&self, name: &str) -> Option<&Def> {
+        self.0.iter().find_map(|e| match e {
+            Expr::Def(def) if def.sig.ident().is_some_and(|id| id.inspect() == name) => Some(def),
+            _ => None,
+        })
     }
 }
 

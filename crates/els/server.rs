@@ -14,7 +14,9 @@ use erg_common::env::erg_path;
 use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::shared::{MappedRwLockReadGuard, Shared};
 use erg_common::spawn::{safe_yield, spawn_new_thread};
-use erg_common::{fn_name, normalize_path};
+use erg_common::traits::Stream;
+use erg_common::vfs::VFS;
+use erg_common::{fn_name, lsp_log, normalize_path};
 
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::build_package::PackageBuilder;
@@ -233,6 +235,7 @@ impl<C: BuildRunnable, P: Parsable> Clone for Server<C, P> {
 impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub fn new(cfg: ErgConfig, stdout_redirect: Option<mpsc::Sender<Value>>) -> Self {
         let flags = Flags::default();
+        let cfg = Self::register_packages(cfg);
         Self {
             comp_cache: CompletionCache::new(cfg.copy(), flags.clone()),
             shared: SharedCompilerResource::new(cfg.copy()),
@@ -251,6 +254,57 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             _parser: std::marker::PhantomData,
             _checker: std::marker::PhantomData,
         }
+    }
+
+    fn register_packages(mut cfg: ErgConfig) -> ErgConfig {
+        use erg_compiler::erg_parser::ast;
+        let home = normalize_path(std::env::current_dir().unwrap_or_default());
+        let Ok(src) = VFS.read(home.join("package.lock.er")) else {
+            lsp_log!("package.lock.er not found");
+            return cfg;
+        };
+        let Ok(artifact) = <erg_compiler::erg_parser::Parser as Parsable>::parse(src) else {
+            lsp_log!("failed to parse package.lock.er");
+            return cfg;
+        };
+        let Some(pkgs) = artifact.ast.get_attr("packages") else {
+            lsp_log!("failed to get packages: {}", artifact.ast);
+            return cfg;
+        };
+        let Some(ast::Expr::Array(ast::Array::Normal(arr))) = pkgs.body.block.first() else {
+            lsp_log!("packages must be an array: {pkgs}");
+            return cfg;
+        };
+        for rec in arr.iter() {
+            let ast::Expr::Record(rec) = rec else {
+                lsp_log!("packages must be records: {rec}");
+                return cfg;
+            };
+            let Some(ast::Expr::Literal(name)) =
+                rec.get("name").and_then(|name| name.body.block.first())
+            else {
+                return cfg;
+            };
+            let name = name.token.content.replace('\"', "");
+            let Some(ast::Expr::Literal(as_name)) = rec
+                .get("as_name")
+                .and_then(|as_name| as_name.body.block.first())
+            else {
+                return cfg;
+            };
+            let as_name = as_name.token.content.replace('\"', "");
+            let Some(ast::Expr::Literal(version)) = rec
+                .get("version")
+                .and_then(|version| version.body.block.first())
+            else {
+                return cfg;
+            };
+            let version = version.token.content.replace('\"', "");
+            let package =
+                erg_common::config::Package::new(name.leak(), as_name.leak(), version.leak());
+            cfg.packages.push(package);
+        }
+        cfg
     }
 
     pub fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {

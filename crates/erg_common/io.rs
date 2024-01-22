@@ -521,6 +521,7 @@ impl Input {
         let path = erg_pkgs_path()
             .join(pkg.name)
             .join(pkg.version)
+            .join("src")
             .join("lib.er");
         Some(path)
     }
