@@ -406,6 +406,14 @@ impl Input {
         mut dir: PathBuf,
         path: &Path,
     ) -> Result<PathBuf, std::io::Error> {
+        if path == Path::new("") {
+            let path = dir
+                .join("__init__.d.er")
+                .canonicalize()
+                .or_else(|_| dir.join("__pycache__").join("__init__.d.er").canonicalize())
+                .or_else(|_| dir.canonicalize())?;
+            return Ok(path);
+        }
         let mut comps = path.components();
         let last = comps
             .next_back()
@@ -622,7 +630,9 @@ impl Input {
     }
 
     pub fn try_push_path(mut path: PathBuf, add: &Path) -> Result<PathBuf, String> {
-        path.pop(); // __init__.d.er
+        if path.ends_with("__init__.d.er") {
+            path.pop();
+        }
         if let Ok(path) = path.join(add).canonicalize() {
             Ok(normalize_path(path))
         } else if let Ok(path) = path.join(format!("{}.d.er", add.display())).canonicalize() {
