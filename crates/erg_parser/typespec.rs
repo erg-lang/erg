@@ -225,41 +225,58 @@ impl Parser {
         Ok(t_spec)
     }
 
+    fn args_to_const_args(args: Args) -> Result<ConstArgs, ParseError> {
+        let (_pos_args, _var_args, _kw_args, _kw_var, paren) = args.deconstruct();
+        let mut pos_args = vec![];
+        for arg in _pos_args.into_iter() {
+            let const_expr = Self::validate_const_expr(arg.expr)?;
+            pos_args.push(ConstPosArg::new(const_expr));
+        }
+        let var_args = if let Some(var_args) = _var_args {
+            let const_var_args = Self::validate_const_expr(var_args.expr)?;
+            Some(ConstPosArg::new(const_var_args))
+        } else {
+            None
+        };
+        let mut kw_args = vec![];
+        for arg in _kw_args.into_iter() {
+            let const_expr = Self::validate_const_expr(arg.expr)?;
+            kw_args.push(ConstKwArg::new(arg.keyword, const_expr));
+        }
+        let kw_var = if let Some(kw_var) = _kw_var {
+            let const_kw_var = Self::validate_const_expr(kw_var.expr)?;
+            Some(ConstPosArg::new(const_kw_var))
+        } else {
+            None
+        };
+        Ok(ConstArgs::new(pos_args, var_args, kw_args, kw_var, paren))
+    }
+
+    fn acc_to_const_acc(accessor: Accessor) -> Result<ConstAccessor, ParseError> {
+        match accessor {
+            Accessor::Ident(ident) => Ok(ConstAccessor::Local(ident)),
+            Accessor::Attr(attr) => {
+                let obj = Self::validate_const_expr(*attr.obj)?;
+                Ok(ConstAccessor::Attr(ConstAttribute::new(obj, attr.ident)))
+            }
+            other => {
+                let err = ParseError::simple_syntax_error(line!() as usize, other.loc());
+                Err(err)
+            }
+        }
+    }
+
     pub(crate) fn call_to_predecl_type_spec(call: Call) -> Result<PreDeclTypeSpec, ParseError> {
         match *call.obj {
-            Expr::Accessor(Accessor::Ident(ident)) => {
-                let (_pos_args, _var_args, _kw_args, _kw_var, paren) = call.args.deconstruct();
-                let mut pos_args = vec![];
-                for arg in _pos_args.into_iter() {
-                    let const_expr = Self::validate_const_expr(arg.expr)?;
-                    pos_args.push(ConstPosArg::new(const_expr));
-                }
-                let var_args = if let Some(var_args) = _var_args {
-                    let const_var_args = Self::validate_const_expr(var_args.expr)?;
-                    Some(ConstPosArg::new(const_var_args))
-                } else {
-                    None
-                };
-                let mut kw_args = vec![];
-                for arg in _kw_args.into_iter() {
-                    let const_expr = Self::validate_const_expr(arg.expr)?;
-                    kw_args.push(ConstKwArg::new(arg.keyword, const_expr));
-                }
-                let kw_var = if let Some(kw_var) = _kw_var {
-                    let const_kw_var = Self::validate_const_expr(kw_var.expr)?;
-                    Some(ConstPosArg::new(const_kw_var))
-                } else {
-                    None
-                };
+            Expr::Accessor(acc) => {
+                let acc = Self::acc_to_const_acc(acc)?;
                 let acc = if let Some(attr) = call.attr_name {
-                    ConstAccessor::attr(ConstExpr::Accessor(ConstAccessor::Local(ident)), attr)
+                    ConstAccessor::attr(ConstExpr::Accessor(acc), attr)
                 } else {
-                    ConstAccessor::Local(ident)
+                    acc
                 };
-                Ok(PreDeclTypeSpec::poly(
-                    acc,
-                    ConstArgs::new(pos_args, var_args, kw_args, kw_var, paren),
-                ))
+                let args = Self::args_to_const_args(call.args)?;
+                Ok(PreDeclTypeSpec::poly(acc, args))
             }
             other => {
                 let err = ParseError::simple_syntax_error(line!() as usize, other.loc());

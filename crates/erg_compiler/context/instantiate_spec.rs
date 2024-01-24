@@ -7,12 +7,11 @@ use erg_common::Str;
 use erg_common::{assume_unreachable, dict, set, try_map_mut};
 
 use ast::{
-    NonDefaultParamSignature, ParamTySpec, PolyTypeSpec, PreDeclTypeSpec, TypeBoundSpec,
-    TypeBoundSpecs, TypeSpec,
+    NonDefaultParamSignature, ParamTySpec, PreDeclTypeSpec, TypeBoundSpec, TypeBoundSpecs, TypeSpec,
 };
 use erg_parser::ast::{
-    self, ConstApp, ConstArray, ConstExpr, ConstSet, Identifier, VarName, VisModifierSpec,
-    VisRestriction,
+    self, ConstApp, ConstArgs, ConstArray, ConstExpr, ConstSet, Identifier, VarName,
+    VisModifierSpec, VisRestriction,
 };
 use erg_parser::token::TokenKind;
 use erg_parser::Parser;
@@ -502,9 +501,38 @@ impl Context {
             ast::PreDeclTypeSpec::Mono(simple) => {
                 self.instantiate_mono_t(simple, opt_decl_t, tmp_tv_cache, not_found_is_qvar)
             }
-            ast::PreDeclTypeSpec::Poly(poly) => {
-                self.instantiate_poly_t(poly, opt_decl_t, tmp_tv_cache, not_found_is_qvar)
-            }
+            ast::PreDeclTypeSpec::Poly(poly) => match &poly.acc {
+                ast::ConstAccessor::Local(local) => self.instantiate_local_poly_t(
+                    local,
+                    &poly.args,
+                    opt_decl_t,
+                    tmp_tv_cache,
+                    not_found_is_qvar,
+                ),
+                ast::ConstAccessor::Attr(attr) => {
+                    let ctxs = self.get_singular_ctxs(&attr.obj.clone().downgrade(), self)?;
+                    for ctx in ctxs {
+                        if let Ok(typ) = ctx.instantiate_local_poly_t(
+                            &attr.name,
+                            &poly.args,
+                            opt_decl_t,
+                            tmp_tv_cache,
+                            not_found_is_qvar,
+                        ) {
+                            return Ok(typ);
+                        }
+                    }
+                    Err(TyCheckErrors::from(TyCheckError::no_var_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        attr.loc(),
+                        self.caused_by(),
+                        attr.name.inspect(),
+                        self.get_similar_name(attr.name.inspect()),
+                    )))
+                }
+                _ => type_feature_error!(self, poly.loc(), &format!("instantiating type {poly}")),
+            },
             ast::PreDeclTypeSpec::Attr { namespace, t } => {
                 if let Ok(receiver) = Parser::validate_const_expr(namespace.as_ref().clone()) {
                     if let Ok(receiver_t) = self.instantiate_const_expr_as_type(
@@ -627,29 +655,30 @@ impl Context {
         }
     }
 
-    fn instantiate_poly_t(
+    fn instantiate_local_poly_t(
         &self,
-        poly_spec: &PolyTypeSpec,
+        name: &Identifier,
+        args: &ConstArgs,
         _opt_decl_t: Option<&ParamTy>,
         tmp_tv_cache: &mut TyVarCache,
         not_found_is_qvar: bool,
     ) -> TyCheckResult<Type> {
-        match poly_spec.acc.to_string().trim_start_matches([':', '.']) {
+        match name.inspect().trim_start_matches([':', '.']) {
             "Array" => {
                 let ctx = &self
                     .get_nominal_type_ctx(&array_t(Type::Obj, TyParam::Failure))
                     .unwrap()
                     .ctx;
                 // TODO: kw
-                let mut args = poly_spec.args.pos_args();
-                if let Some(first) = args.next() {
+                let mut pos_args = args.pos_args();
+                if let Some(first) = pos_args.next() {
                     let t = self.instantiate_const_expr_as_type(
                         &first.expr,
                         Some((ctx, 0)),
                         tmp_tv_cache,
                         not_found_is_qvar,
                     )?;
-                    let len = if let Some(len) = args.next() {
+                    let len = if let Some(len) = pos_args.next() {
                         self.instantiate_const_expr(
                             &len.expr,
                             Some((ctx, 1)),
@@ -665,12 +694,12 @@ impl Context {
                 }
             }
             "Ref" => {
-                let mut args = poly_spec.args.pos_args();
-                let Some(first) = args.next() else {
+                let mut pos_args = args.pos_args();
+                let Some(first) = pos_args.next() else {
                     return Err(TyCheckErrors::from(TyCheckError::args_missing_error(
                         self.cfg.input.clone(),
                         line!() as usize,
-                        poly_spec.args.loc(),
+                        args.loc(),
                         "Ref",
                         self.caused_by(),
                         vec![Str::from("T")],
@@ -686,12 +715,12 @@ impl Context {
             }
             "RefMut" => {
                 // TODO after
-                let mut args = poly_spec.args.pos_args();
-                let Some(first) = args.next() else {
+                let mut pos_args = args.pos_args();
+                let Some(first) = pos_args.next() else {
                     return Err(TyCheckErrors::from(TyCheckError::args_missing_error(
                         self.cfg.input.clone(),
                         line!() as usize,
-                        poly_spec.args.loc(),
+                        args.loc(),
                         "RefMut",
                         self.caused_by(),
                         vec![Str::from("T")],
@@ -706,12 +735,12 @@ impl Context {
                 Ok(ref_mut(t, None))
             }
             "Structural" => {
-                let mut args = poly_spec.args.pos_args();
-                let Some(first) = args.next() else {
+                let mut pos_args = args.pos_args();
+                let Some(first) = pos_args.next() else {
                     return Err(TyCheckErrors::from(TyCheckError::args_missing_error(
                         self.cfg.input.clone(),
                         line!() as usize,
-                        poly_spec.args.loc(),
+                        args.loc(),
                         "Structural",
                         self.caused_by(),
                         vec![Str::from("Type")],
@@ -726,12 +755,12 @@ impl Context {
                 Ok(t.structuralize())
             }
             "NamedTuple" => {
-                let mut args = poly_spec.args.pos_args();
-                let Some(first) = args.next() else {
+                let mut pose_args = args.pos_args();
+                let Some(first) = pose_args.next() else {
                     return Err(TyCheckErrors::from(TyCheckError::args_missing_error(
                         self.cfg.input.clone(),
                         line!() as usize,
-                        poly_spec.args.loc(),
+                        args.loc(),
                         "NamedTuple",
                         self.caused_by(),
                         vec![Str::from("Fields")],
@@ -774,7 +803,7 @@ impl Context {
                     return Err(TyCheckErrors::from(TyCheckError::no_type_error(
                         self.cfg.input.clone(),
                         line!() as usize,
-                        poly_spec.acc.loc(),
+                        name.loc(),
                         self.caused_by(),
                         other,
                         self.get_similar_name(other),
@@ -783,7 +812,7 @@ impl Context {
                 // FIXME: kw args
                 let mut new_params = vec![];
                 for ((i, arg), (name, param_vi)) in
-                    poly_spec.args.pos_args().enumerate().zip(ctx.params.iter())
+                    args.pos_args().enumerate().zip(ctx.params.iter())
                 {
                     let param = self.instantiate_const_expr(
                         &arg.expr,
