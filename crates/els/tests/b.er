@@ -5,3 +5,4 @@
 .C = Class { .a = Int }
 .C.
     func self = self
+    aplus self, x = self.a + x

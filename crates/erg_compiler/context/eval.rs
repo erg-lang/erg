@@ -713,8 +713,18 @@ impl Context {
                 self.pop();
                 errs
             })?;
+            let call = if let Some(Expr::Call(call)) = &def.body.block.first() {
+                Some(call)
+            } else {
+                None
+            };
             let (_ctx, errs) = self.check_decls_and_pop();
-            self.register_gen_const(def.sig.ident().unwrap(), obj, def.def_kind().is_other())?;
+            self.register_gen_const(
+                def.sig.ident().unwrap(),
+                obj,
+                call,
+                def.def_kind().is_other(),
+            )?;
             if errs.is_empty() {
                 Ok(ValueObj::None)
             } else {

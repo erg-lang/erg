@@ -216,6 +216,19 @@ fn test_rename() -> Result<(), Box<dyn std::error::Error>> {
     for (_, change) in edit.changes.unwrap() {
         assert_eq!(change.len(), 1);
     }
+    client.notify_save(uri_b.clone().raw())?;
+    client.wait_diagnostics()?;
+    let edit = client
+        .request_rename(uri_b.clone().raw(), 4, 14, "b")?
+        .unwrap();
+    assert_eq!(edit.changes.as_ref().unwrap().iter().count(), 2);
+    for (uri, change) in edit.changes.unwrap() {
+        if uri.as_str().ends_with("b.er") {
+            assert_eq!(change.len(), 2);
+        } else {
+            assert_eq!(change.len(), 1); // c.er
+        }
+    }
     Ok(())
 }
 

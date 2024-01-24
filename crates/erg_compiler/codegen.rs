@@ -86,12 +86,21 @@ fn debind(ident: &Identifier) -> Option<Str> {
     }
 }
 
-fn escape_name(name: &str, vis: &VisibilityModifier, def_line: u32, def_col: u32) -> Str {
+fn escape_name(
+    name: &str,
+    vis: &VisibilityModifier,
+    def_line: u32,
+    def_col: u32,
+    is_attr: bool,
+) -> Str {
     let name = name.replace('!', "__erg_proc__");
     let name = name.replace('$', "__erg_shared__");
     // For public APIs, mangling is not performed because `hasattr`, etc. cannot be used.
     // For automatically generated variables, there is no possibility of conflict.
     if vis.is_private() && !name.starts_with('%') {
+        if is_attr {
+            return Str::from(format!("::{name}"));
+        }
         let line_mangling = match (def_line, def_col) {
             (0, 0) => "".to_string(),
             (0, _) => format!("_C{def_col}"),
@@ -115,6 +124,7 @@ fn escape_ident(ident: Identifier) -> Str {
             &ident.vi.vis.modifier,
             ident.vi.def_loc.loc.ln_begin().unwrap_or(0),
             ident.vi.def_loc.loc.col_begin().unwrap_or(0),
+            ident.vi.kind.is_instance_attr(),
         )
     } else if let Some(py_name) = ident.vi.py_name {
         py_name
@@ -126,6 +136,7 @@ fn escape_ident(ident: Identifier) -> Str {
             vis,
             ident.vi.def_loc.loc.ln_begin().unwrap_or(0),
             ident.vi.def_loc.loc.col_begin().unwrap_or(0),
+            ident.vi.kind.is_instance_attr(),
         )
     }
 }
@@ -1055,6 +1066,7 @@ impl PyCodeGenerator {
                         &VisibilityModifier::Public,
                         vi.def_loc.loc.ln_begin().unwrap_or(0),
                         vi.def_loc.loc.col_begin().unwrap_or(0),
+                        false,
                     )
                     .to_string()
                 }
@@ -1430,6 +1442,7 @@ impl PyCodeGenerator {
                         &VisibilityModifier::Public,
                         0,
                         0,
+                        false,
                     )
                 })
                 .collect::<Vec<_>>();

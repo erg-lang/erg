@@ -1170,7 +1170,7 @@ impl Context {
                     let t = Type::Mono(format!("{}{ident}", self.name).into());
                     let class = GenTypeObj::class(t, None, None, false);
                     let class = ValueObj::Type(TypeObj::Generated(class));
-                    self.register_gen_const(ident, class, false)
+                    self.register_gen_const(ident, class, Some(call), false)
                 }
                 "Trait" => {
                     let ident = var.ident().unwrap();
@@ -1178,7 +1178,7 @@ impl Context {
                     let trait_ =
                         GenTypeObj::trait_(t, TypeObj::builtin_type(Type::Failure), None, false);
                     let trait_ = ValueObj::Type(TypeObj::Generated(trait_));
-                    self.register_gen_const(ident, trait_, false)
+                    self.register_gen_const(ident, trait_, Some(call), false)
                 }
                 _ => Ok(()),
             },
@@ -1189,6 +1189,11 @@ impl Context {
     pub(crate) fn register_const_def(&mut self, def: &ast::Def) -> TyCheckResult<()> {
         let id = Some(def.body.id);
         let __name__ = def.sig.ident().map(|i| i.inspect()).unwrap_or(UBAR);
+        let call = if let Some(ast::Expr::Call(call)) = &def.body.block.first() {
+            Some(call)
+        } else {
+            None
+        };
         match &def.sig {
             ast::Signature::Subr(sig) => {
                 if sig.is_const() {
@@ -1226,6 +1231,7 @@ impl Context {
                     self.register_gen_const(
                         def.sig.ident().unwrap(),
                         obj,
+                        call,
                         def.def_kind().is_other(),
                     )?;
                 } else {
@@ -1266,7 +1272,7 @@ impl Context {
                     }
                     self.pop();
                     if let Some(ident) = sig.ident() {
-                        self.register_gen_const(ident, obj, def.def_kind().is_other())?;
+                        self.register_gen_const(ident, obj, call, def.def_kind().is_other())?;
                     }
                 } else {
                     self.pre_define_var(sig, id)?;
@@ -1517,6 +1523,7 @@ impl Context {
         &mut self,
         ident: &Identifier,
         obj: ValueObj,
+        call: Option<&ast::Call>,
         alias: bool,
     ) -> CompileResult<()> {
         let vis = self.instantiate_vis_modifier(&ident.vis)?;
@@ -1538,7 +1545,7 @@ impl Context {
                         let meta_t = gen.meta_type();
                         self.register_type_alias(ident, gen.into_typ(), meta_t)
                     }
-                    TypeObj::Generated(gen) => self.register_gen_type(ident, gen),
+                    TypeObj::Generated(gen) => self.register_gen_type(ident, gen, call),
                     TypeObj::Builtin { t, meta_t } => self.register_type_alias(ident, t, meta_t),
                 },
                 // TODO: not all value objects are comparable
@@ -1567,6 +1574,7 @@ impl Context {
         &mut self,
         ident: &Identifier,
         gen: GenTypeObj,
+        call: Option<&ast::Call>,
     ) -> CompileResult<()> {
         match gen {
             GenTypeObj::Class(_) => {
@@ -1579,7 +1587,7 @@ impl Context {
                         2,
                         self.level,
                     );
-                    self.gen_class_new_method(&gen, &mut ctx)?;
+                    self.gen_class_new_method(&gen, call, &mut ctx)?;
                     self.register_gen_mono_type(ident, gen, ctx, Const)
                 } else {
                     let params = gen
@@ -1599,7 +1607,7 @@ impl Context {
                         2,
                         self.level,
                     );
-                    self.gen_class_new_method(&gen, &mut ctx)?;
+                    self.gen_class_new_method(&gen, call, &mut ctx)?;
                     self.register_gen_poly_type(ident, gen, ctx, Const)
                 }
             }
@@ -1641,7 +1649,7 @@ impl Context {
                                 ..
                             } = additional
                             {
-                                self.register_instance_attrs(&mut ctx, rec)?;
+                                self.register_instance_attrs(&mut ctx, rec, call)?;
                             }
                             param_t
                                 .map(|t| self.intersection(t, additional.typ()))
@@ -1710,7 +1718,7 @@ impl Context {
                         ..
                     }) = gen.base_or_sup()
                     {
-                        self.register_instance_attrs(&mut ctx, req)?;
+                        self.register_instance_attrs(&mut ctx, req, call)?;
                     }
                     self.register_gen_mono_type(ident, gen, ctx, Const)
                 } else {
@@ -1744,7 +1752,7 @@ impl Context {
                         None
                     };
                     if let Some(additional) = additional {
-                        self.register_instance_attrs(&mut ctx, additional)?;
+                        self.register_instance_attrs(&mut ctx, additional, call)?;
                     }
                     for sup in super_classes.into_iter() {
                         if let Some(sup_ctx) = self.get_nominal_type_ctx(&sup) {
@@ -1802,14 +1810,38 @@ impl Context {
         &self,
         ctx: &mut Context,
         rec: &Dict<Field, Type>,
+        call: Option<&ast::Call>,
     ) -> CompileResult<()> {
+        let record = call.and_then(|call| {
+            if let Some(ast::Expr::Record(record)) = call
+                .args
+                .get_left_or_key("Base")
+                .or_else(|| call.args.get_left_or_key("Requirement"))
+                .or_else(|| call.args.get_left_or_key("Super"))
+            {
+                Some(record)
+            } else {
+                None
+            }
+        });
         for (field, t) in rec.iter() {
+            let loc = record
+                .as_ref()
+                .and_then(|record| {
+                    record
+                        .keys()
+                        .iter()
+                        .find(|id| id.inspect() == &field.symbol)
+                        .map(|name| self.absolutize(name.loc()))
+                })
+                .unwrap_or(AbsLocation::unknown());
             let varname = VarName::from_str(field.symbol.clone());
             let vi = VarInfo::instance_attr(
                 field.clone(),
                 t.clone(),
                 self.kind.clone(),
                 ctx.name.clone(),
+                loc,
             );
             // self.index().register(&vi);
             if let Some(_ent) = ctx.decls.insert(varname.clone(), vi) {
@@ -1825,7 +1857,12 @@ impl Context {
         Ok(())
     }
 
-    fn gen_class_new_method(&self, gen: &GenTypeObj, ctx: &mut Context) -> CompileResult<()> {
+    fn gen_class_new_method(
+        &self,
+        gen: &GenTypeObj,
+        call: Option<&ast::Call>,
+        ctx: &mut Context,
+    ) -> CompileResult<()> {
         let mut methods = Self::methods(None, self.cfg.clone(), self.shared.clone(), 2, self.level);
         let new_t = if let Some(base) = gen.base_or_sup() {
             match base {
@@ -1833,7 +1870,7 @@ impl Context {
                     t: Type::Record(rec),
                     ..
                 } => {
-                    self.register_instance_attrs(ctx, rec)?;
+                    self.register_instance_attrs(ctx, rec, call)?;
                 }
                 other => {
                     methods.register_fixed_auto_impl(

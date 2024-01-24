@@ -393,7 +393,13 @@ impl VarInfo {
         )
     }
 
-    pub fn instance_attr(field: Field, t: Type, kind: ContextKind, namespace: Str) -> Self {
+    pub fn instance_attr(
+        field: Field,
+        t: Type,
+        kind: ContextKind,
+        namespace: Str,
+        loc: AbsLocation,
+    ) -> Self {
         let muty = if field.is_const() {
             Mutability::Const
         } else {
@@ -407,7 +413,7 @@ impl VarInfo {
             None,
             kind,
             None,
-            AbsLocation::unknown(),
+            loc,
         )
     }
 

@@ -21,6 +21,8 @@ use lsp_types::{
     WorkspaceEdit,
 };
 
+#[allow(unused_imports)]
+use crate::_log;
 use crate::server::{ELSResult, RedirectableStdout, Server};
 use crate::util::{self, NormalizedUrl};
 
@@ -31,7 +33,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let uri = NormalizedUrl::new(params.text_document_position.text_document.uri);
         let pos = params.text_document_position.position;
         if let Some(tok) = self.file_cache.get_symbol(&uri, pos) {
-            // self.send_log(format!("token: {tok}"))?;
+            // _log!(self, "tok: {tok}");
             if let Some(vi) = self
                 .get_visitor(&uri)
                 .and_then(|visitor| visitor.get_info(&tok))

@@ -702,6 +702,13 @@ impl<'a> HIRVisitor<'a> {
                 return Some(param.sig.vi.clone());
             }
         }
+        for guard in params.guards.iter() {
+            if let GuardClause::Bind(bind) = guard {
+                if let Some(vi) = self.get_def_info(bind, token) {
+                    return Some(vi);
+                }
+            }
+        }
         None
     }
 
