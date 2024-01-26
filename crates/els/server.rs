@@ -318,12 +318,35 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         cfg
     }
 
-    pub fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn run(mut self) {
+        let mut _self = self.clone();
+        let mut handle = spawn_new_thread(
+            move || loop {
+                let msg = _self.read_message().unwrap();
+                if let Err(err) = _self.dispatch(msg) {
+                    lsp_log!("error: {err}");
+                }
+            },
+            fn_name!(),
+        );
         loop {
-            let msg = self.read_message()?;
-            if let Err(err) = self.dispatch(msg) {
-                lsp_log!("error: {err}");
+            // recover from crash
+            if handle.is_finished() {
+                self.send_error_info("The compiler has crashed. Restarting...")
+                    .unwrap();
+                self.restart();
+                let mut _self = self.clone();
+                handle = spawn_new_thread(
+                    move || loop {
+                        let msg = _self.read_message().unwrap();
+                        if let Err(err) = _self.dispatch(msg) {
+                            lsp_log!("error: {err}");
+                        }
+                    },
+                    fn_name!(),
+                );
             }
+            safe_yield();
         }
         // Ok(())
     }

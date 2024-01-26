@@ -33,8 +33,8 @@ fn run() {
             #[cfg(feature = "els")]
             {
                 use els::ErgLanguageServer;
-                let mut server = ErgLanguageServer::new(cfg, None);
-                server.run().unwrap();
+                let server = ErgLanguageServer::new(cfg, None);
+                server.run();
                 ExitStatus::OK
             }
             #[cfg(not(feature = "els"))]
