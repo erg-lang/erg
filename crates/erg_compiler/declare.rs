@@ -876,7 +876,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 .module
                 .context
                 .registered_info(ident.inspect(), ident.is_const())
-                .is_some_and(|(_, vi)| !vi.kind.is_builtin())
+                .is_some_and(|(_, vi)| {
+                    !vi.kind.is_builtin()
+                        && vi.def_loc != self.module.context.absolutize(ident.loc())
+                })
         {
             return Err(LowerErrors::from(LowerError::reassign_error(
                 self.cfg().input.clone(),
@@ -1030,8 +1033,35 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         }
     }
 
+    fn pre_declare_chunk(&mut self, expr: &ast::Expr) {
+        match expr {
+            ast::Expr::TypeAscription(tasc) => {
+                let _ = self.declare_ident(tasc.clone());
+            }
+            ast::Expr::Compound(compound) => {
+                for chunk in compound.iter() {
+                    self.pre_declare_chunk(chunk);
+                }
+            }
+            ast::Expr::Dummy(dummy) => {
+                for elem in dummy.iter() {
+                    self.pre_declare_chunk(elem);
+                }
+            }
+            ast::Expr::InlineModule(inline) => {
+                for chunk in inline.ast.module.iter() {
+                    self.pre_declare_chunk(chunk);
+                }
+            }
+            _ => {}
+        }
+    }
+
     pub(crate) fn declare_module(&mut self, ast: AST) -> HIR {
         let mut module = hir::Module::with_capacity(ast.module.len());
+        for chunk in ast.module.iter() {
+            self.pre_declare_chunk(chunk);
+        }
         let _ = self.module.context.register_const(ast.module.block());
         for chunk in ast.module.into_iter() {
             match self.declare_chunk(chunk, false) {

@@ -2279,7 +2279,9 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             return unreachable_error!(LowerErrors, LowerError, self);
         };
         if let Some(sup_type) = call.args.get_left_or_key("Super") {
-            Self::check_inheritable(&self.cfg, &mut self.errs, type_obj, sup_type, &hir_def.sig);
+            if let Err(err) = self.check_inheritable(type_obj, sup_type, &hir_def.sig) {
+                self.errs.extend(err);
+            }
         }
         let Some(__new__) = class_ctx
             .get_current_scope_var(&VarName::from_static("__new__"))
@@ -2416,35 +2418,39 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         Ok(hir::ReDef::new(attr, hir::Block::new(vec![expr])))
     }
 
-    /// HACK: Cannot be methodized this because `&self` has been taken immediately before.
     fn check_inheritable(
-        cfg: &ErgConfig,
-        errs: &mut LowerErrors,
+        &self,
         type_obj: &GenTypeObj,
         sup_class: &hir::Expr,
         sub_sig: &hir::Signature,
-    ) {
+    ) -> LowerResult<()> {
         if let Some(TypeObj::Generated(gen)) = type_obj.base_or_sup() {
-            if let Some(impls) = gen.impls() {
-                if !impls.contains_intersec(&mono("InheritableType")) {
-                    errs.push(LowerError::inheritance_error(
-                        cfg.input.clone(),
-                        line!() as usize,
-                        sup_class.to_string(),
-                        sup_class.loc(),
-                        sub_sig.ident().inspect().into(),
-                    ));
+            if let Some(ctx) = self.module.context.get_nominal_type_ctx(gen.typ()) {
+                for super_trait in ctx.super_traits.iter() {
+                    if self
+                        .module
+                        .context
+                        .subtype_of(super_trait, &mono("InheritableType"))
+                    {
+                        return Ok(());
+                    }
                 }
-            } else {
-                errs.push(LowerError::inheritance_error(
-                    cfg.input.clone(),
-                    line!() as usize,
-                    sup_class.to_string(),
-                    sup_class.loc(),
-                    sub_sig.ident().inspect().into(),
-                ));
             }
+            if let Some(impls) = gen.impls() {
+                if impls.contains_intersec(&mono("InheritableType")) {
+                    return Ok(());
+                }
+            }
+            return Err(LowerError::inheritance_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                sup_class.to_string(),
+                sup_class.loc(),
+                sub_sig.ident().inspect().into(),
+            )
+            .into());
         }
+        Ok(())
     }
 
     fn check_override(&mut self, class: &Type, impl_trait: Option<&Type>) {

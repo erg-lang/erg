@@ -10,6 +10,7 @@
 .doModuleCleanups!: () => NoneType
 
 .TestCase!: ClassType
+.TestCase! <: InheritableType
 .TestCase!.
     __call__: (methodName := Str) -> .TestCase!
     setUp!: (self: Ref(.TestCase!)) => NoneType
