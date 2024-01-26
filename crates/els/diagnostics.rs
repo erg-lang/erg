@@ -179,6 +179,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         Ok(())
     }
 
+    // TODO: reset mutable dependent types
     pub(crate) fn quick_check_file(&mut self, uri: NormalizedUrl) -> ELSResult<()> {
         if self.file_cache.editing.borrow().contains(&uri) {
             _log!(self, "skipped: {uri}");
@@ -355,6 +356,44 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let mut _self = self.clone();
         spawn_new_thread(
             move || {
+                macro_rules! work_done {
+                    ($token: expr) => {{
+                        let progress_end = WorkDoneProgressEnd {
+                            message: Some(format!("checked 0 files")),
+                        };
+                        let params = ProgressParams {
+                            token: $token.clone(),
+                            value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(progress_end)),
+                        };
+                        _self
+                            .send_stdout(&json!({
+                                "jsonrpc": "2.0",
+                                "method": "$/progress",
+                                "params": params,
+                            }))
+                            .unwrap();
+                        _self.flags.workspace_checked.store(true, Ordering::Relaxed);
+                        return;
+                    }};
+                    ($token: expr, $uris: expr) => {{
+                        let progress_end = WorkDoneProgressEnd {
+                            message: Some(format!("checked {} files", $uris.len())),
+                        };
+                        let params = ProgressParams {
+                            token: $token.clone(),
+                            value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(progress_end)),
+                        };
+                        _self
+                            .send_stdout(&json!({
+                                "jsonrpc": "2.0",
+                                "method": "$/progress",
+                                "params": params,
+                            }))
+                            .unwrap();
+                        _self.flags.workspace_checked.store(true, Ordering::Relaxed);
+                        return;
+                    }};
+                }
                 while !_self.flags.client_initialized() {
                     safe_yield();
                 }
@@ -369,17 +408,22 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     "params": progress_token,
                 }));
                 let Some(project_root) = project_root_of(&current_dir().unwrap()) else {
-                    _self.flags.workspace_checked.store(true, Ordering::Relaxed);
-                    return;
+                    work_done!(token);
                 };
                 let src_dir = if project_root.join("src").is_dir() {
                     project_root.join("src")
                 } else {
                     project_root
                 };
-                let Ok(main_uri) = NormalizedUrl::from_file_path(src_dir.join("main.er")) else {
-                    _self.flags.workspace_checked.store(true, Ordering::Relaxed);
-                    return;
+                let main_path = if src_dir.join("main.er").exists() {
+                    src_dir.join("main.er")
+                } else if src_dir.join("lib.er").exists() {
+                    src_dir.join("lib.er")
+                } else {
+                    work_done!(token);
+                };
+                let Ok(main_uri) = NormalizedUrl::from_file_path(main_path) else {
+                    work_done!(token);
                 };
                 let uris = Self::project_files(src_dir);
                 let progress_begin = WorkDoneProgressBegin {
@@ -401,21 +445,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     .unwrap();
                 let code = _self.file_cache.get_entire_code(&main_uri).unwrap();
                 let _ = _self.check_file(main_uri, code);
-                let progress_end = WorkDoneProgressEnd {
-                    message: Some(format!("checked {} files", uris.len())),
-                };
-                let params = ProgressParams {
-                    token: token.clone(),
-                    value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(progress_end)),
-                };
-                _self
-                    .send_stdout(&json!({
-                        "jsonrpc": "2.0",
-                        "method": "$/progress",
-                        "params": params,
-                    }))
-                    .unwrap();
-                _self.flags.workspace_checked.store(true, Ordering::Relaxed);
+                work_done!(token, uris);
             },
             fn_name!(),
         );

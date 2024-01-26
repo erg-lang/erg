@@ -24,7 +24,7 @@ fn test_open() -> Result<(), Box<dyn std::error::Error>> {
     client.notify_initialized()?;
     client.wait_messages(3)?;
     client.notify_open(FILE_A)?;
-    client.wait_messages(3)?;
+    client.wait_messages(4)?;
     assert!(client.responses.iter().any(|val| val
         .to_string()
         .contains("tests/a.er passed, found warns: 0")));
