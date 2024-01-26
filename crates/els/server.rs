@@ -322,7 +322,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         loop {
             let msg = self.read_message()?;
             if let Err(err) = self.dispatch(msg) {
-                self.send_error_info(format!("err: {err:?}"))?;
+                lsp_log!("error: {err}");
             }
         }
         // Ok(())
