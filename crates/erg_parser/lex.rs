@@ -242,9 +242,9 @@ impl Lexer /*<'a>*/ {
         token
     }
 
-    fn emit_token(&mut self, kind: TokenKind, cont: &str) -> Token {
+    fn emit_singleline_token(&mut self, kind: TokenKind, cont: &str) -> Token {
         let cont = self.str_cache.get(cont);
-        let lineno = (self.lineno_token_starts + 2).saturating_sub(cont.lines().count() as u32);
+        let lineno = self.lineno_token_starts + 1;
         // cannot use String::len() for multi-byte characters
         let cont_len = cont.chars().count();
         let token = Token::new(kind, cont, lineno, self.col_token_starts);
@@ -255,11 +255,11 @@ impl Lexer /*<'a>*/ {
 
     #[inline]
     fn accept(&mut self, kind: TokenKind, cont: &str) -> Option<LexResult<Token>> {
-        Some(Ok(self.emit_token(kind, cont)))
+        Some(Ok(self.emit_singleline_token(kind, cont)))
     }
 
     fn deny_feature(&mut self, cont: &str, feat_name: &str) -> Option<LexResult<Token>> {
-        let token = self.emit_token(Illegal, cont);
+        let token = self.emit_singleline_token(Illegal, cont);
         Some(Err(LexError::feature_error(0, token.loc(), feat_name)))
     }
 
@@ -376,7 +376,7 @@ impl Lexer /*<'a>*/ {
         let mut s = "".to_string();
         while self.peek_cur_ch().map(|cur| cur != '\n').unwrap_or(false) {
             if Self::is_bidi(self.peek_cur_ch().unwrap()) {
-                let comment = self.emit_token(Illegal, &s);
+                let comment = self.emit_singleline_token(Illegal, &s);
                 return Err(LexError::syntax_error(
                     line!() as usize,
                     comment.loc(),
@@ -420,7 +420,7 @@ impl Lexer /*<'a>*/ {
                 }
             }
             if Self::is_bidi(c) {
-                let comment = self.emit_token(Illegal, &s);
+                let comment = self.emit_singleline_token(Illegal, &s);
                 return Err(LexError::syntax_error(
                     line!() as usize,
                     comment.loc(),
@@ -435,7 +435,7 @@ impl Lexer /*<'a>*/ {
             }
             s.push(self.consume().unwrap());
         }
-        let comment = self.emit_token(Illegal, &s);
+        let comment = self.emit_singleline_token(Illegal, &s);
         let hint = switch_lang!(
             "japanese" => format!("`]#`の数があと{nest_level}個必要です"),
             "simplified_chinese" => format!("需要{nest_level}个`]#`"),
@@ -463,13 +463,13 @@ impl Lexer /*<'a>*/ {
         let is_empty = is_space || is_linebreak;
         let is_toplevel = is_line_break_after && !is_empty;
         if is_toplevel && self.enclosure_level == 0 {
-            let dedent = self.emit_token(Dedent, "");
+            let dedent = self.emit_singleline_token(Dedent, "");
             self.indent_stack.pop();
             self.col_token_starts = 0;
             return Some(Ok(dedent));
         } else if is_linebreak && self.enclosure_level == 0 {
             self.consume();
-            let token = self.emit_token(Newline, "\n");
+            let token = self.emit_singleline_token(Newline, "\n");
             self.lineno_token_starts += 1;
             self.col_token_starts = 0;
             return Some(Ok(token));
@@ -480,7 +480,7 @@ impl Lexer /*<'a>*/ {
         }
         // indent in the first line: error
         if !spaces.is_empty() && self.prev_token.is(BOF) {
-            let space = self.emit_token(Illegal, &spaces);
+            let space = self.emit_singleline_token(Illegal, &spaces);
             Some(Err(LexError::syntax_error(
                 line!() as usize,
                 space.loc(),
@@ -505,7 +505,7 @@ impl Lexer /*<'a>*/ {
         let spaces_len = spaces.len();
         // same as the CPython's limit
         if spaces_len > 100 {
-            let token = self.emit_token(Indent, &spaces);
+            let token = self.emit_singleline_token(Indent, &spaces);
             return Some(Err(LexError::syntax_error(
                 line!() as usize,
                 token.loc(),
@@ -548,7 +548,7 @@ impl Lexer /*<'a>*/ {
             Ordering::Less => {
                 let indent_len = spaces_len.saturating_sub(sum_indent);
                 self.col_token_starts += sum_indent as u32;
-                let indent = self.emit_token(Indent, &" ".repeat(indent_len));
+                let indent = self.emit_singleline_token(Indent, &" ".repeat(indent_len));
                 self.indent_stack.push(indent_len);
                 Some(Ok(indent))
             }
@@ -556,10 +556,10 @@ impl Lexer /*<'a>*/ {
                 self.cursor -= spaces_len;
                 self.indent_stack.pop();
                 if is_valid_dedent {
-                    let dedent = self.emit_token(Dedent, "");
+                    let dedent = self.emit_singleline_token(Dedent, "");
                     Some(Ok(dedent))
                 } else {
-                    let invalid_dedent = self.emit_token(Dedent, "");
+                    let invalid_dedent = self.emit_singleline_token(Dedent, "");
                     let hint = if self.peek_cur_ch() == Some('\n') {
                         Some("unnecessary spaces after linebreak".into())
                     } else { None };
@@ -596,9 +596,9 @@ impl Lexer /*<'a>*/ {
                     break;
                 }
             }
-            Ok(self.emit_token(RatioLit, &num))
+            Ok(self.emit_singleline_token(RatioLit, &num))
         } else {
-            let token = self.emit_token(RatioLit, &num);
+            let token = self.emit_singleline_token(RatioLit, &num);
             Err(LexError::syntax_error(
                 line!() as usize,
                 token.loc(),
@@ -645,7 +645,7 @@ impl Lexer /*<'a>*/ {
                         return self.lex_exponent(num);
                     } else {
                         // IntLit * Symbol(e.g. 3x + 1)
-                        let token = self.emit_token(Illegal, &(num + &c.to_string()));
+                        let token = self.emit_singleline_token(Illegal, &(num + &c.to_string()));
                         return Err(LexError::feature_error(
                             line!() as usize,
                             token.loc(),
@@ -663,7 +663,7 @@ impl Lexer /*<'a>*/ {
         } else {
             NatLit
         };
-        Ok(self.emit_token(kind, &num))
+        Ok(self.emit_singleline_token(kind, &num))
     }
 
     /// number '.' ~~
@@ -683,11 +683,11 @@ impl Lexer /*<'a>*/ {
                 } else {
                     NatLit
                 };
-                Ok(self.emit_token(kind, &num))
+                Ok(self.emit_singleline_token(kind, &num))
             }
             Some('_') => {
                 self.consume();
-                let token = self.emit_token(Illegal, &(num + "_"));
+                let token = self.emit_singleline_token(Illegal, &(num + "_"));
                 Err(LexError::simple_syntax_error(0, token.loc()))
             }
             // RatioLit without zero (e.g. 3.)
@@ -706,7 +706,7 @@ impl Lexer /*<'a>*/ {
                 break;
             }
         }
-        Ok(self.emit_token(BinLit, &num))
+        Ok(self.emit_singleline_token(BinLit, &num))
     }
 
     fn lex_oct(&mut self, mut num: String) -> LexResult<Token> {
@@ -717,7 +717,7 @@ impl Lexer /*<'a>*/ {
                 break;
             }
         }
-        Ok(self.emit_token(OctLit, &num))
+        Ok(self.emit_singleline_token(OctLit, &num))
     }
 
     fn lex_hex(&mut self, mut num: String) -> LexResult<Token> {
@@ -728,7 +728,7 @@ impl Lexer /*<'a>*/ {
                 break;
             }
         }
-        Ok(self.emit_token(HexLit, &num))
+        Ok(self.emit_singleline_token(HexLit, &num))
     }
 
     /// int_part_and_point must be like `12.`
@@ -743,7 +743,7 @@ impl Lexer /*<'a>*/ {
                 break;
             }
         }
-        Ok(self.emit_token(RatioLit, &num))
+        Ok(self.emit_singleline_token(RatioLit, &num))
     }
 
     fn lex_symbol(&mut self, first_ch: char) -> LexResult<Token> {
@@ -759,7 +759,8 @@ impl Lexer /*<'a>*/ {
             cont.push(self.consume().unwrap());
         }
         if cont.is_empty() {
-            let token = self.emit_token(Illegal, &self.peek_cur_ch().unwrap().to_string());
+            let token =
+                self.emit_singleline_token(Illegal, &self.peek_cur_ch().unwrap().to_string());
             return Err(LexError::compiler_bug(
                 0,
                 token.loc(),
@@ -791,7 +792,7 @@ impl Lexer /*<'a>*/ {
             "_" => UBar,
             _ => Symbol,
         };
-        Ok(self.emit_token(kind, &cont))
+        Ok(self.emit_singleline_token(kind, &cont))
     }
 
     fn str_line_break_error(token: Token, line: usize) -> LexError {
@@ -869,7 +870,7 @@ impl Lexer /*<'a>*/ {
     }
 
     fn invalid_unicode_character(&mut self, s: &str) -> LexError {
-        let token = self.emit_token(Illegal, s);
+        let token = self.emit_singleline_token(Illegal, s);
         LexError::syntax_error(
             line!() as usize,
             token.loc(),
@@ -889,17 +890,17 @@ impl Lexer /*<'a>*/ {
             match c {
                 '\n' => match self.interpol_stack.last().unwrap() {
                     Interpolation::SingleLine if self.interpol_stack.len() == 1 => {
-                        let token = self.emit_token(Illegal, &s);
+                        let token = self.emit_singleline_token(Illegal, &s);
                         return Err(Self::str_line_break_error(token, line!() as usize));
                     }
                     _ => {
-                        let token = self.emit_token(Illegal, &s);
+                        let token = self.emit_singleline_token(Illegal, &s);
                         return Err(Self::unclosed_interpol_error(token));
                     }
                 },
                 '"' => {
                     s.push(self.consume().unwrap());
-                    let token = self.emit_token(StrLit, &s);
+                    let token = self.emit_singleline_token(StrLit, &s);
                     return Ok(token);
                 }
                 _ => {
@@ -910,7 +911,7 @@ impl Lexer /*<'a>*/ {
                             '{' => {
                                 s.push_str("\\{");
                                 self.interpol_stack.push(Interpolation::SingleLine);
-                                let token = self.emit_token(StrInterpLeft, &s);
+                                let token = self.emit_singleline_token(StrInterpLeft, &s);
                                 return Ok(token);
                             }
                             '0' => s.push('\0'),
@@ -923,7 +924,7 @@ impl Lexer /*<'a>*/ {
                                     if c.is_ascii_hexdigit() {
                                         hex.push(c);
                                     } else {
-                                        let token = self.emit_token(Illegal, &s);
+                                        let token = self.emit_singleline_token(Illegal, &s);
                                         return Err(Self::invalid_escape_error(c, token));
                                     }
                                 }
@@ -936,7 +937,8 @@ impl Lexer /*<'a>*/ {
                             't' => s.push_str("    "), // tab is invalid, so changed into 4 whitespace
                             '\\' => s.push('\\'),
                             _ => {
-                                let token = self.emit_token(Illegal, &format!("\\{next_c}"));
+                                let token =
+                                    self.emit_singleline_token(Illegal, &format!("\\{next_c}"));
                                 return Err(Self::invalid_escape_error(next_c, token));
                             }
                         }
@@ -949,7 +951,7 @@ impl Lexer /*<'a>*/ {
                 }
             }
         }
-        let token = self.emit_token(Illegal, &s);
+        let token = self.emit_singleline_token(Illegal, &s);
         Err(Self::unclosed_string_error(token, "\"", line!() as usize))
     }
 
@@ -1035,7 +1037,7 @@ impl Lexer /*<'a>*/ {
                 }
             }
         }
-        let token = self.emit_token(Illegal, &s);
+        let token = self.emit_multiline_token(Illegal, col_begin, &s);
         if self.interpol_stack.len() == 1 {
             Err(Self::unclosed_string_error(
                 token,
@@ -1061,15 +1063,15 @@ impl Lexer /*<'a>*/ {
                     }
                     Interpolation::SingleLine => {
                         if self.peek_next_ch().is_some() {
-                            let token = self.emit_token(Illegal, &s);
+                            let token = self.emit_singleline_token(Illegal, &s);
                             return Err(Self::str_line_break_error(token, line!() as usize));
                         } else {
-                            let token = self.emit_token(Illegal, &s);
+                            let token = self.emit_singleline_token(Illegal, &s);
                             return Err(Self::unclosed_string_error(token, "", line!() as usize));
                         }
                     }
                     Interpolation::Not => {
-                        let token = self.emit_token(Illegal, &s);
+                        let token = self.emit_singleline_token(Illegal, &s);
                         return Err(Self::unclosed_interpol_error(token));
                     }
                 },
@@ -1082,7 +1084,7 @@ impl Lexer /*<'a>*/ {
                             if next_c.is_none() {
                                 self.interpol_stack.pop();
                                 s.push(c);
-                                let token = self.emit_token(Illegal, &s);
+                                let token = self.emit_singleline_token(Illegal, &s);
                                 return Err(Self::unclosed_string_error(
                                     token,
                                     quote.quotes(),
@@ -1093,7 +1095,7 @@ impl Lexer /*<'a>*/ {
                                 self.interpol_stack.pop();
                                 s.push(c);
                                 s.push(self.consume().unwrap());
-                                let token = self.emit_token(Illegal, &s);
+                                let token = self.emit_singleline_token(Illegal, &s);
                                 return Err(Self::unclosed_string_error(
                                     token,
                                     quote.quotes(),
@@ -1107,7 +1109,7 @@ impl Lexer /*<'a>*/ {
                                 self.consume().unwrap();
                                 self.consume().unwrap();
                                 s.push_str(quote.quotes());
-                                let token = self.emit_token(StrInterpRight, &s);
+                                let token = self.emit_singleline_token(StrInterpRight, &s);
                                 return Ok(token);
                             }
                             // else unclosed_string_error
@@ -1115,7 +1117,7 @@ impl Lexer /*<'a>*/ {
                         Interpolation::SingleLine => {
                             self.interpol_stack.pop();
                             s.push(c);
-                            let token = self.emit_token(StrInterpRight, &s);
+                            let token = self.emit_singleline_token(StrInterpRight, &s);
                             return Ok(token);
                         }
                         Interpolation::Not => {}
@@ -1128,7 +1130,7 @@ impl Lexer /*<'a>*/ {
                         match next_c {
                             '{' => {
                                 s.push_str("\\{");
-                                let token = self.emit_token(StrInterpMid, &s);
+                                let token = self.emit_singleline_token(StrInterpMid, &s);
                                 return Ok(token);
                             }
                             '0' => s.push('\0'),
@@ -1139,7 +1141,8 @@ impl Lexer /*<'a>*/ {
                             't' => s.push_str("    "), // tab is invalid, so changed into 4 whitespace
                             '\\' => s.push('\\'),
                             _ => {
-                                let token = self.emit_token(Illegal, &format!("\\{next_c}"));
+                                let token =
+                                    self.emit_singleline_token(Illegal, &format!("\\{next_c}"));
                                 return Err(Self::invalid_escape_error(next_c, token));
                             }
                         }
@@ -1152,7 +1155,7 @@ impl Lexer /*<'a>*/ {
                 }
             }
         }
-        let token = self.emit_token(Illegal, &s);
+        let token = self.emit_singleline_token(Illegal, &s);
         Err(Self::unclosed_string_error(token, "", line!() as usize))
     }
 
@@ -1161,7 +1164,7 @@ impl Lexer /*<'a>*/ {
         while let Some(c) = self.peek_cur_ch() {
             match c {
                 '\n' => {
-                    let token = self.emit_token(Illegal, &s);
+                    let token = self.emit_singleline_token(Illegal, &s);
                     return Err(LexError::simple_syntax_error(line!() as usize, token.loc()));
                 }
                 '\'' => {
@@ -1169,7 +1172,7 @@ impl Lexer /*<'a>*/ {
                     if self.peek_cur_ch() == Some('!') {
                         s.push(self.consume().unwrap());
                     }
-                    let token = self.emit_token(Symbol, &s);
+                    let token = self.emit_singleline_token(Symbol, &s);
                     return Ok(token);
                 }
                 _ => {
@@ -1181,7 +1184,7 @@ impl Lexer /*<'a>*/ {
                 }
             }
         }
-        let token = self.emit_token(Illegal, &s);
+        let token = self.emit_singleline_token(Illegal, &s);
         Err(LexError::syntax_error(
             line!() as usize,
             token.loc(),
@@ -1258,7 +1261,7 @@ impl Iterator for Lexer /*<'a>*/ {
                             _ => self.accept(LeftOpen, "<.."),
                         }
                     } else {
-                        let token = self.emit_token(Illegal, "<.");
+                        let token = self.emit_singleline_token(Illegal, "<.");
                         Some(Err(LexError::syntax_error(
                             line!() as usize,
                             token.loc(),
@@ -1397,7 +1400,7 @@ impl Iterator for Lexer /*<'a>*/ {
                     Some(OpFix::Infix) => Plus,
                     Some(OpFix::Prefix) => PrePlus,
                     _ => {
-                        let token = self.emit_token(Illegal, "+");
+                        let token = self.emit_singleline_token(Illegal, "+");
                         return Some(Err(LexError::simple_syntax_error(0, token.loc())));
                     }
                 };
@@ -1424,7 +1427,7 @@ impl Iterator for Lexer /*<'a>*/ {
                             }
                         }
                         _ => {
-                            let token = self.emit_token(Illegal, "-");
+                            let token = self.emit_singleline_token(Illegal, "-");
                             Some(Err(LexError::simple_syntax_error(0, token.loc())))
                         }
                     }
@@ -1437,7 +1440,7 @@ impl Iterator for Lexer /*<'a>*/ {
                         Some(OpFix::Infix) => Pow,
                         Some(OpFix::Prefix) => PreDblStar,
                         _ => {
-                            let token = self.emit_token(Illegal, "*");
+                            let token = self.emit_singleline_token(Illegal, "*");
                             return Some(Err(LexError::simple_syntax_error(0, token.loc())));
                         }
                     };
@@ -1448,7 +1451,7 @@ impl Iterator for Lexer /*<'a>*/ {
                         Some(OpFix::Infix) => Star,
                         Some(OpFix::Prefix) => PreStar,
                         _ => {
-                            let token = self.emit_token(Illegal, "*");
+                            let token = self.emit_singleline_token(Illegal, "*");
                             return Some(Err(LexError::simple_syntax_error(0, token.loc())));
                         }
                     };
@@ -1471,14 +1474,14 @@ impl Iterator for Lexer /*<'a>*/ {
                     self.col_token_starts = 0;
                     self.next()
                 } else {
-                    let token = self.emit_token(Newline, "\n");
+                    let token = self.emit_singleline_token(Newline, "\n");
                     self.lineno_token_starts += 1;
                     self.col_token_starts = 0;
                     Some(Ok(token))
                 }
             }
             Some('\t') => {
-                let token = self.emit_token(Illegal, "\t");
+                let token = self.emit_singleline_token(Illegal, "\t");
                 Some(Err(LexError::syntax_error(
                     line!() as usize,
                     token.loc(),
@@ -1508,7 +1511,7 @@ impl Iterator for Lexer /*<'a>*/ {
                 }
                 // TODO: more description
                 Some(other) => {
-                    let token = self.emit_token(Illegal, &format!("\\{other}"));
+                    let token = self.emit_singleline_token(Illegal, &format!("\\{other}"));
                     Some(Err(LexError::syntax_error(
                         line!() as usize,
                         token.loc(),
@@ -1522,7 +1525,7 @@ impl Iterator for Lexer /*<'a>*/ {
                     )))
                 }
                 None => {
-                    let token = self.emit_token(Illegal, "\\");
+                    let token = self.emit_singleline_token(Illegal, "\\");
                     Some(Err(LexError::simple_syntax_error(
                         line!() as usize,
                         token.loc(),
@@ -1535,7 +1538,7 @@ impl Iterator for Lexer /*<'a>*/ {
                 let next_c = self.peek_next_ch();
                 match (c, next_c) {
                     (None, _) => {
-                        let token = self.emit_token(Illegal, "\"");
+                        let token = self.emit_singleline_token(Illegal, "\"");
                         Some(Err(LexError::syntax_error(
                             line!() as usize,
                             token.loc(),
@@ -1555,7 +1558,7 @@ impl Iterator for Lexer /*<'a>*/ {
                     }
                     (Some('"'), None) => {
                         self.consume(); // consume second '"'
-                        let token = self.emit_token(StrLit, "\"\"");
+                        let token = self.emit_singleline_token(StrLit, "\"\"");
                         Some(Ok(token))
                     }
                     _ => Some(self.lex_single_str()),
@@ -1566,7 +1569,7 @@ impl Iterator for Lexer /*<'a>*/ {
                 let next_c = self.peek_next_ch();
                 match (c, next_c) {
                     (None, _) => {
-                        let token = self.emit_token(Illegal, "'");
+                        let token = self.emit_singleline_token(Illegal, "'");
                         Some(Err(LexError::syntax_error(
                             line!() as usize,
                             token.loc(),
@@ -1586,7 +1589,7 @@ impl Iterator for Lexer /*<'a>*/ {
                     }
                     (Some('\''), _) => {
                         self.consume(); // consume second '\''
-                        let token = self.emit_token(Illegal, "''");
+                        let token = self.emit_singleline_token(Illegal, "''");
                         Some(Err(LexError::simple_syntax_error(0, token.loc())))
                     }
                     _ => Some(self.lex_raw_ident()),
@@ -1603,7 +1606,7 @@ impl Iterator for Lexer /*<'a>*/ {
                             op.push('`');
                             return self.accept(Symbol, &op);
                         } else {
-                            let token = self.emit_token(Illegal, &op);
+                            let token = self.emit_singleline_token(Illegal, &op);
                             let hint = if op.contains('+') {
                                 Some(
                                     switch_lang!(
@@ -1631,7 +1634,7 @@ impl Iterator for Lexer /*<'a>*/ {
                     }
                     op.push(c);
                 }
-                let token = self.emit_token(Illegal, &op);
+                let token = self.emit_singleline_token(Illegal, &op);
                 Some(Err(LexError::syntax_error(
                     line!() as usize,
                     token.loc(),
@@ -1650,7 +1653,7 @@ impl Iterator for Lexer /*<'a>*/ {
             Some(c) if Self::is_valid_start_symbol_ch(c) => Some(self.lex_symbol(c)),
             // Invalid character (e.g. space-like character)
             Some(invalid) => {
-                let token = self.emit_token(Illegal, &invalid.to_string());
+                let token = self.emit_singleline_token(Illegal, &invalid.to_string());
                 Some(Err(LexError::syntax_error(
                     line!() as usize,
                     token.loc(),

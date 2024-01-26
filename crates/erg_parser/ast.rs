@@ -2907,6 +2907,7 @@ impl NestedDisplay for ConstKwArg {
     }
 }
 
+impl_display_from_nested!(ConstKwArg);
 impl_locational!(ConstKwArg, keyword, expr);
 
 #[pymethods]
