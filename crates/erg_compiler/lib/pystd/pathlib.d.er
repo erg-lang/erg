@@ -11,11 +11,19 @@
     suffixes: [Str; _]
     stem: Str
     __call__: (*segments: Str) -> .PurePath
+    absolute: (self: .PurePath) -> .PurePath
     as_posix: (self: .PurePath) -> Str
     as_uri: (self: .PurePath) -> Str
     is_absolute: (self: .PurePath) -> Bool
+    is_block_device: (self: .PurePath) -> Bool
+    is_dir: (self: .PurePath) -> Bool
+    is_file: (self: .PurePath) -> Bool
+    is_fifo: (self: .PurePath) -> Bool
+    is_mount: (self: .PurePath) -> Bool
     is_relative_to: (self: .PurePath, *other: .PurePath) -> Bool
     is_reserved: (self: .PurePath) -> Bool
+    is_socket: (self: .PurePath) -> Bool
+    is_symlink: (self: .PurePath) -> Bool
     joinpath: (self: .PurePath, *other: .PurePath) -> .PurePath
     match: (self: .PurePath, pattern: Str) -> Bool
     relative_to: (self: .PurePath, *other: .PurePath) -> .PurePath
@@ -28,10 +36,29 @@
 .Path <: .PurePath
 .Path.
     __call__: (*segments: Str) -> .Path
+    absolute: (self: .Path) -> .Path
+    as_uri: (self: .Path) -> Str
     cwd!: () => .Path
-    home!: () => .Path
-    samefile!: (self: .Path, other: .Path) => Bool
-    open!: (self: .Path, mode := Str) => File!
     chmod!: (self: .Path, mode: Nat) => NoneType
+    exists!: (self: .Path) => Bool
+    expanduser!: (self: .Path) => .Path
+    home!: () => .Path
+    iterdir!: (self: .Path) => Iterable .Path
+    joinpath: (self: .Path, *other: .Path) -> .Path
+    mkdir!: (self: .Path, mode := Nat, parents := Bool, exist_ok := Bool) => NoneType
+    open!: (self: .Path, mode := Str) => File!
+    rmdir!: (self: .Path) => NoneType
+    read_bytes!: (self: .Path) => Bytes
+    read_text!: (self: .Path, encoding := Str, errors := Str) => Str
+    rename!: (self: .Path, target: PathLike) => NoneType
+    samefile!: (self: .Path, other: .Path) => Bool
+    touch!: (self: .Path, mode := Nat, exist_ok := Bool) => NoneType
+    unlink!: (self: .Path, missing_ok := Bool) => NoneType
+    write_bytes!: (self: .Path, data: Bytes) => NoneType
+    write_text!: (self: .Path, data: Str, encoding := Str, errors := Str) => NoneType
+    relative_to: (self: .Path, *other: .Path) -> .Path
+    with_name: (self: .Path, name: Str) -> .Path
+    with_stem: (self: .Path, suffix: Str) -> .Path
+    with_suffix: (self: .Path, suffix: Str) -> .Path
 .PosixPath: ClassType
 .WindowsPath: ClassType
