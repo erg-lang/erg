@@ -275,6 +275,10 @@ impl<ASTBuilder: ASTBuildable> GenericASTLowerer<ASTBuilder> {
         ContextProvider::get_var_info(self, name)
     }
 
+    pub fn clear(&mut self) {
+        Runnable::clear(self);
+    }
+
     pub fn unregister(&mut self, name: &str) -> Option<VarInfo> {
         self.module.context.unregister(name)
     }

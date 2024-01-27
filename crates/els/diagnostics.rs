@@ -168,14 +168,14 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 .mod_cache
                 .register(path, ast, artifact.object, ctx);
         }
-        self.shared.errors.extend(artifact.errors);
-        self.shared.warns.extend(artifact.warns);
         let dependents = self.dependents_of(&uri);
         for dep in dependents {
             // _log!(self, "dep: {dep}");
             let code = self.file_cache.get_entire_code(&dep)?.to_string();
             self.check_file(dep, code)?;
         }
+        self.shared.errors.extend(artifact.errors);
+        self.shared.warns.extend(artifact.warns);
         Ok(())
     }
 

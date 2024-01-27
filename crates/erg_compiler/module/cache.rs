@@ -50,7 +50,7 @@ impl fmt::Display for ModuleEntry {
 }
 
 impl ModuleEntry {
-    pub fn new(id: ModId, ast: Option<Module>, hir: Option<HIR>, ctx: ModuleContext) -> Self {
+    pub const fn new(id: ModId, ast: Option<Module>, hir: Option<HIR>, ctx: ModuleContext) -> Self {
         Self {
             id,
             ast,
@@ -68,8 +68,12 @@ impl ModuleEntry {
         }
     }
 
-    pub fn cfg(&self) -> &ErgConfig {
+    pub const fn cfg(&self) -> &ErgConfig {
         &self.module.context.cfg
+    }
+
+    pub const fn is_complete(&self) -> bool {
+        self.ast.is_some() && self.hir.is_some()
     }
 }
 

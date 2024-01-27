@@ -22,6 +22,7 @@ use std::path::Path;
 
 use erg_common::config::ErgConfig;
 use erg_common::consts::DEBUG_MODE;
+use erg_common::consts::ERG_MODE;
 use erg_common::consts::PYTHON_MODE;
 use erg_common::dict::Dict;
 use erg_common::error::Location;
@@ -1134,6 +1135,27 @@ impl Context {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        let default_locals = if ERG_MODE { 4 } else { 3 };
+        self.super_classes.is_empty()
+            && self.super_traits.is_empty()
+            && self.methods_list.is_empty()
+            && self.const_param_defaults.is_empty()
+            && self.method_to_traits.is_empty()
+            && self.method_to_classes.is_empty()
+            && self.method_impl_patches.is_empty()
+            && self.params.is_empty()
+            && self.params_spec.is_empty()
+            && self.decls.is_empty()
+            && self.future_defined_locals.is_empty()
+            && self.deleted_locals.is_empty()
+            && self.consts.is_empty()
+            && self.mono_types.is_empty()
+            && self.poly_types.is_empty()
+            && self.patches.is_empty()
+            && self.locals.len() <= default_locals
+    }
+
     pub(crate) fn path(&self) -> Str {
         // NOTE: maybe this need to be changed if we want to support nested classes/traits
         if self.kind == ContextKind::Module {
@@ -1446,5 +1468,9 @@ impl ModuleContext {
 
     pub fn get_top_cfg(&self) -> ErgConfig {
         self.context.cfg.clone()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.context.is_empty()
     }
 }

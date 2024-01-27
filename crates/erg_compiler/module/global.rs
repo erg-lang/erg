@@ -66,17 +66,23 @@ impl SharedCompilerResource {
 
     /// Clear all information about the module.
     /// Graph information is not cleared (due to ELS).
-    pub fn clear(&self, path: &NormalizedPathBuf) {
+    pub fn clear(&self, path: &NormalizedPathBuf) -> Option<ModuleEntry> {
+        let mut old = None;
         for child in self.graph.children(path) {
             self.clear(&child);
         }
-        self.mod_cache.remove(path);
-        self.py_mod_cache.remove(path);
+        if let Some(ent) = self.mod_cache.remove(path) {
+            old = Some(ent);
+        }
+        if let Some(ent) = self.py_mod_cache.remove(path) {
+            old = Some(ent);
+        }
         self.index.remove_path(path);
         // self.graph.remove(path);
         self.promises.remove(path);
         self.errors.remove(path);
         self.warns.remove(path);
+        old
     }
 
     pub fn clear_path(&self, path: &NormalizedPathBuf) {

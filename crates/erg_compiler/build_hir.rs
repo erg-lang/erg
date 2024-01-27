@@ -241,4 +241,8 @@ impl<ASTBuilder: ASTBuildable> GenericHIRBuilder<ASTBuilder> {
     pub fn current_ctx(&self) -> &Context {
         &self.lowerer.module.context
     }
+
+    pub fn clear(&mut self) {
+        Runnable::clear(self);
+    }
 }

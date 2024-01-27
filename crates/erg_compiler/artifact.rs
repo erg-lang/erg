@@ -99,6 +99,11 @@ impl ErrorArtifact {
     pub const fn new(errors: CompileErrors, warns: CompileErrors) -> Self {
         Self { errors, warns }
     }
+
+    pub fn clear(&mut self) {
+        self.errors.clear();
+        self.warns.clear();
+    }
 }
 
 pub trait Buildable<T = HIR> {

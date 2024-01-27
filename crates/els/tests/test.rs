@@ -386,6 +386,7 @@ fn test_dependents_check() -> Result<(), Box<dyn std::error::Error>> {
     client.notify_open(FILE_C)?;
     client.wait_messages(4)?;
     let uri_b = NormalizedUrl::from_file_path(Path::new(FILE_B).canonicalize()?)?;
+    // delete b.er:3, causing an error in c.er
     client.notify_change(uri_b.clone().raw(), delete_line(2))?;
     client.wait_messages(2)?;
     client.responses.clear();
@@ -404,6 +405,18 @@ fn test_dependents_check() -> Result<(), Box<dyn std::error::Error>> {
         c_diags.diagnostics[0].severity,
         Some(DiagnosticSeverity::ERROR)
     );
+    // insert invalid code to b.er:8, causing a syntax error in b.er but not c.er
+    client.notify_change(uri_b.clone().raw(), add_char(7, 0, "a.\n"))?;
+    client.wait_messages(2)?;
+    client.responses.clear();
+    client.notify_save(uri_b.clone().raw())?;
+    let b_diags = client.wait_diagnostics()?;
+    assert_eq!(b_diags.diagnostics.len(), 1, "{:?}", b_diags.diagnostics,);
+    let c_diags = client.wait_diagnostics()?;
+    assert!(c_diags
+        .diagnostics
+        .iter()
+        .all(|diag| !diag.message.contains("expected: Indent, got: EOF")));
     Ok(())
 }
 

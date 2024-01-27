@@ -216,6 +216,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: BuildRunnable> Runnable
     }
 
     fn clear(&mut self) {
+        self.finalize();
         self.main_builder.clear();
         // don't initialize the ownership checker
     }
@@ -307,15 +308,23 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         }
     }
 
+    pub fn finalize(&mut self) {
+        self.cyclic.clear();
+        self.submodules.clear();
+        self.asts.clear();
+        self.parse_errors.clear();
+    }
+
     pub fn build(
         &mut self,
         src: String,
         mode: &str,
     ) -> Result<CompleteArtifact, IncompleteArtifact> {
         let mut ast_builder = ASTBuilder::new(self.cfg.copy());
-        let artifact = ast_builder
-            .build_ast(src)
-            .map_err(|err| IncompleteArtifact::new(None, err.errors.into(), err.warns.into()))?;
+        let artifact = ast_builder.build_ast(src).map_err(|err| {
+            self.finalize();
+            IncompleteArtifact::new(None, err.errors.into(), err.warns.into())
+        })?;
         self.build_root(artifact.ast, mode)
     }
 
@@ -323,7 +332,10 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         let mut ast_builder = ASTBuilder::new(self.cfg.copy());
         let artifact = ast_builder
             .build_ast(self.cfg.input.read())
-            .map_err(|err| IncompleteArtifact::new(None, err.errors.into(), err.warns.into()))?;
+            .map_err(|err| {
+                self.finalize();
+                IncompleteArtifact::new(None, err.errors.into(), err.warns.into())
+            })?;
         self.build_root(artifact.ast, "exec")
     }
 
@@ -340,6 +352,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         if self.parse_errors.errors.is_empty() {
             self.shared.warns.extend(self.parse_errors.warns.flush());
         } else {
+            self.finalize();
             return Err(IncompleteArtifact::new(
                 None,
                 self.parse_errors.errors.flush(),
@@ -520,6 +533,26 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         };
         let import_path = NormalizedPathBuf::from(import_path.clone());
         self.shared.graph.add_node_if_none(&import_path);
+        // root -> a -> b -> a
+        // b: submodule
+        if self
+            .shared
+            .graph
+            .inc_ref(&from_path, import_path.clone())
+            .is_err()
+        {
+            self.submodules.push(from_path.clone());
+            return Err(ResolveError::CycleDetected {
+                path: import_path,
+                submod_input: cfg.input.clone(),
+            });
+        }
+        if import_path == from_path
+            || self.submodules.contains(&import_path)
+            || self.asts.contains_key(&import_path)
+        {
+            return Ok(());
+        }
         let result = if import_path.extension() == Some(OsStr::new("er")) {
             let mut ast_builder = DefaultASTBuilder::new(cfg.copy());
             ast_builder.build_ast(src)
@@ -548,26 +581,6 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
                 }
             }
         };
-        // root -> a -> b -> a
-        // b: submodule
-        if self
-            .shared
-            .graph
-            .inc_ref(&from_path, import_path.clone())
-            .is_err()
-        {
-            self.submodules.push(from_path.clone());
-            return Err(ResolveError::CycleDetected {
-                path: import_path,
-                submod_input: cfg.input.clone(),
-            });
-        }
-        if import_path == from_path
-            || self.submodules.contains(&import_path)
-            || self.asts.contains_key(&import_path)
-        {
-            return Ok(());
-        }
         if let Err(ResolveError::CycleDetected { path, submod_input }) =
             self.resolve(&mut ast, &import_cfg)
         {
@@ -606,8 +619,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         }
         log!(info "All dependencies have started to analyze");
         debug_power_assert!(self.asts.len(), ==, 0);
-        self.cyclic.clear();
-        self.submodules.clear();
+        self.finalize();
         self.main_builder.build_from_ast(ast, mode)
     }
 
