@@ -510,16 +510,6 @@ impl Parser {
                 ));
             }
         };
-        if !self.cur_is(EOF) {
-            let loc = self.peek().map(|t| t.loc()).unwrap_or_default();
-            self.errs
-                .push(ParseError::compiler_bug(0, loc, fn_name!(), line!()));
-            return Err(IncompleteArtifact::new(
-                Some(module),
-                mem::take(&mut self.warns),
-                mem::take(&mut self.errs),
-            ));
-        }
         log!(info "the parsing process has completed (errs: {}).", self.errs.len());
         log!(info "AST:\n{module}");
         if self.errs.is_empty() {
@@ -562,8 +552,13 @@ impl Parser {
                 None => {
                     if !self.errs.is_empty() {
                         debug_exit_info!(self);
-                        self.errs.push(self.unexpected_none(line!(), caused_by!()));
-                        return Err(());
+                        let err = if let Some(last) = chunks.last() {
+                            self.skip_and_throw_invalid_chunk_err(caused_by!(), line!(), last.loc())
+                        } else {
+                            self.unexpected_none(line!(), caused_by!())
+                        };
+                        self.errs.push(err);
+                        break;
                     } else {
                         switch_unreachable!()
                     }
