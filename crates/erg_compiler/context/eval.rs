@@ -2609,6 +2609,37 @@ impl Context {
                     (lhs, rhs) => Ok(Predicate::general_eq(lhs, rhs)),
                 }
             }
+            Predicate::GeneralNotEqual { lhs, rhs } => {
+                match (self.eval_pred(*lhs)?, self.eval_pred(*rhs)?) {
+                    (Predicate::Value(lhs), Predicate::Value(rhs)) => {
+                        Ok(Predicate::Value(ValueObj::Bool(lhs != rhs)))
+                    }
+                    (lhs, rhs) => Ok(Predicate::general_ne(lhs, rhs)),
+                }
+            }
+            Predicate::GeneralGreaterEqual { lhs, rhs } => {
+                match (self.eval_pred(*lhs)?, self.eval_pred(*rhs)?) {
+                    (Predicate::Value(lhs), Predicate::Value(rhs)) => {
+                        let Some(ValueObj::Bool(res)) = lhs.try_ge(rhs) else {
+                            // TODO:
+                            return feature_error!(self, Location::Unknown, "evaluating >=");
+                        };
+                        Ok(Predicate::Value(ValueObj::Bool(res)))
+                    }
+                    (lhs, rhs) => Ok(Predicate::general_ge(lhs, rhs)),
+                }
+            }
+            Predicate::GeneralLessEqual { lhs, rhs } => {
+                match (self.eval_pred(*lhs)?, self.eval_pred(*rhs)?) {
+                    (Predicate::Value(lhs), Predicate::Value(rhs)) => {
+                        let Some(ValueObj::Bool(res)) = lhs.try_le(rhs) else {
+                            return feature_error!(self, Location::Unknown, "evaluating <=");
+                        };
+                        Ok(Predicate::Value(ValueObj::Bool(res)))
+                    }
+                    (lhs, rhs) => Ok(Predicate::general_le(lhs, rhs)),
+                }
+            }
             Predicate::Equal { lhs, rhs } => Ok(Predicate::eq(lhs, self.eval_tp(rhs)?)),
             Predicate::NotEqual { lhs, rhs } => Ok(Predicate::ne(lhs, self.eval_tp(rhs)?)),
             Predicate::LessEqual { lhs, rhs } => Ok(Predicate::le(lhs, self.eval_tp(rhs)?)),

@@ -341,6 +341,21 @@ impl Generalizer {
                 let rhs = self.generalize_pred(*rhs, uninit);
                 Predicate::general_eq(lhs, rhs)
             }
+            Predicate::GeneralGreaterEqual { lhs, rhs } => {
+                let lhs = self.generalize_pred(*lhs, uninit);
+                let rhs = self.generalize_pred(*rhs, uninit);
+                Predicate::general_ge(lhs, rhs)
+            }
+            Predicate::GeneralLessEqual { lhs, rhs } => {
+                let lhs = self.generalize_pred(*lhs, uninit);
+                let rhs = self.generalize_pred(*rhs, uninit);
+                Predicate::general_le(lhs, rhs)
+            }
+            Predicate::GeneralNotEqual { lhs, rhs } => {
+                let lhs = self.generalize_pred(*lhs, uninit);
+                let rhs = self.generalize_pred(*rhs, uninit);
+                Predicate::general_ne(lhs, rhs)
+            }
             Predicate::Equal { lhs, rhs } => {
                 let rhs = self.generalize_tp(rhs, uninit);
                 Predicate::eq(lhs, rhs)
@@ -595,6 +610,51 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                         Ok(Predicate::Value(ValueObj::Bool(lhs == rhs)))
                     }
                     (lhs, rhs) => Ok(Predicate::general_eq(lhs, rhs)),
+                }
+            }
+            Predicate::GeneralNotEqual { lhs, rhs } => {
+                let lhs = self.deref_pred(*lhs)?;
+                let rhs = self.deref_pred(*rhs)?;
+                match (lhs, rhs) {
+                    (Predicate::Value(lhs), Predicate::Value(rhs)) => {
+                        Ok(Predicate::Value(ValueObj::Bool(lhs != rhs)))
+                    }
+                    (lhs, rhs) => Ok(Predicate::general_ne(lhs, rhs)),
+                }
+            }
+            Predicate::GeneralGreaterEqual { lhs, rhs } => {
+                let lhs = self.deref_pred(*lhs)?;
+                let rhs = self.deref_pred(*rhs)?;
+                match (lhs, rhs) {
+                    (Predicate::Value(lhs), Predicate::Value(rhs)) => {
+                        let Some(ValueObj::Bool(res)) = lhs.try_ge(rhs) else {
+                            // TODO:
+                            return Err(TyCheckErrors::from(TyCheckError::dummy_infer_error(
+                                self.ctx.cfg.input.clone(),
+                                fn_name!(),
+                                line!(),
+                            )));
+                        };
+                        Ok(Predicate::Value(ValueObj::Bool(res)))
+                    }
+                    (lhs, rhs) => Ok(Predicate::general_ge(lhs, rhs)),
+                }
+            }
+            Predicate::GeneralLessEqual { lhs, rhs } => {
+                let lhs = self.deref_pred(*lhs)?;
+                let rhs = self.deref_pred(*rhs)?;
+                match (lhs, rhs) {
+                    (Predicate::Value(lhs), Predicate::Value(rhs)) => {
+                        let Some(ValueObj::Bool(res)) = lhs.try_le(rhs) else {
+                            return Err(TyCheckErrors::from(TyCheckError::dummy_infer_error(
+                                self.ctx.cfg.input.clone(),
+                                fn_name!(),
+                                line!(),
+                            )));
+                        };
+                        Ok(Predicate::Value(ValueObj::Bool(res)))
+                    }
+                    (lhs, rhs) => Ok(Predicate::general_le(lhs, rhs)),
                 }
             }
             Predicate::Call {

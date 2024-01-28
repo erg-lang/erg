@@ -25,10 +25,6 @@ pub enum Predicate {
         lhs: Str,
         rhs: TyParam,
     },
-    GeneralEqual {
-        lhs: Box<Predicate>,
-        rhs: Box<Predicate>,
-    },
     /// i > 0 == i >= 0 and i != 0
     GreaterEqual {
         lhs: Str,
@@ -42,6 +38,22 @@ pub enum Predicate {
     NotEqual {
         lhs: Str,
         rhs: TyParam,
+    },
+    GeneralEqual {
+        lhs: Box<Predicate>,
+        rhs: Box<Predicate>,
+    },
+    GeneralLessEqual {
+        lhs: Box<Predicate>,
+        rhs: Box<Predicate>,
+    },
+    GeneralGreaterEqual {
+        lhs: Box<Predicate>,
+        rhs: Box<Predicate>,
+    },
+    GeneralNotEqual {
+        lhs: Box<Predicate>,
+        rhs: Box<Predicate>,
     },
     Or(Box<Predicate>, Box<Predicate>),
     And(Box<Predicate>, Box<Predicate>),
@@ -69,10 +81,13 @@ impl fmt::Display for Predicate {
                 )
             }
             Self::Equal { lhs, rhs } => write!(f, "{lhs} == {rhs}"),
-            Self::GeneralEqual { lhs, rhs } => write!(f, "{lhs} == {rhs}"),
             Self::GreaterEqual { lhs, rhs } => write!(f, "{lhs} >= {rhs}"),
             Self::LessEqual { lhs, rhs } => write!(f, "{lhs} <= {rhs}"),
             Self::NotEqual { lhs, rhs } => write!(f, "{lhs} != {rhs}"),
+            Self::GeneralEqual { lhs, rhs } => write!(f, "{lhs} == {rhs}"),
+            Self::GeneralLessEqual { lhs, rhs } => write!(f, "{lhs} <= {rhs}"),
+            Self::GeneralGreaterEqual { lhs, rhs } => write!(f, "{lhs} >= {rhs}"),
+            Self::GeneralNotEqual { lhs, rhs } => write!(f, "{lhs} != {rhs}"),
             Self::Or(l, r) => write!(f, "({l}) or ({r})"),
             Self::And(l, r) => write!(f, "({l}) and ({r})"),
             Self::Not(p) => write!(f, "not ({p})"),
@@ -108,11 +123,6 @@ impl LimitedDisplay for Predicate {
                 write!(f, "{lhs} == ")?;
                 rhs.limited_fmt(f, limit - 1)
             }
-            Self::GeneralEqual { lhs, rhs } => {
-                lhs.limited_fmt(f, limit - 1)?;
-                write!(f, " == ")?;
-                rhs.limited_fmt(f, limit - 1)
-            }
             Self::GreaterEqual { lhs, rhs } => {
                 write!(f, "{lhs} >= ")?;
                 rhs.limited_fmt(f, limit - 1)
@@ -123,6 +133,26 @@ impl LimitedDisplay for Predicate {
             }
             Self::NotEqual { lhs, rhs } => {
                 write!(f, "{lhs} != ")?;
+                rhs.limited_fmt(f, limit - 1)
+            }
+            Self::GeneralEqual { lhs, rhs } => {
+                lhs.limited_fmt(f, limit - 1)?;
+                write!(f, " == ")?;
+                rhs.limited_fmt(f, limit - 1)
+            }
+            Self::GeneralLessEqual { lhs, rhs } => {
+                lhs.limited_fmt(f, limit - 1)?;
+                write!(f, " <= ")?;
+                rhs.limited_fmt(f, limit - 1)
+            }
+            Self::GeneralGreaterEqual { lhs, rhs } => {
+                lhs.limited_fmt(f, limit - 1)?;
+                write!(f, " >= ")?;
+                rhs.limited_fmt(f, limit - 1)
+            }
+            Self::GeneralNotEqual { lhs, rhs } => {
+                lhs.limited_fmt(f, limit - 1)?;
+                write!(f, " != ")?;
                 rhs.limited_fmt(f, limit - 1)
             }
             Self::Or(l, r) => {
@@ -216,7 +246,12 @@ impl HasLevel for Predicate {
             | Self::GreaterEqual { rhs, .. }
             | Self::LessEqual { rhs, .. }
             | Self::NotEqual { rhs, .. } => rhs.level(),
-            Self::GeneralEqual { lhs, rhs } => lhs.level().zip(rhs.level()).map(|(a, b)| a.min(b)),
+            Self::GeneralEqual { lhs, rhs }
+            | Self::GeneralLessEqual { lhs, rhs }
+            | Self::GeneralGreaterEqual { lhs, rhs }
+            | Self::GeneralNotEqual { lhs, rhs } => {
+                lhs.level().zip(rhs.level()).map(|(a, b)| a.min(b))
+            }
             Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
                 lhs.level().zip(rhs.level()).map(|(a, b)| a.min(b))
             }
@@ -243,7 +278,10 @@ impl HasLevel for Predicate {
             | Self::NotEqual { rhs, .. } => {
                 rhs.set_level(level);
             }
-            Self::GeneralEqual { lhs, rhs } => {
+            Self::GeneralEqual { lhs, rhs }
+            | Self::GeneralLessEqual { lhs, rhs }
+            | Self::GeneralGreaterEqual { lhs, rhs }
+            | Self::GeneralNotEqual { lhs, rhs } => {
                 lhs.set_level(level);
                 rhs.set_level(level);
             }
@@ -288,6 +326,27 @@ impl Predicate {
 
     pub fn general_eq(lhs: Predicate, rhs: Predicate) -> Self {
         Self::GeneralEqual {
+            lhs: Box::new(lhs),
+            rhs: Box::new(rhs),
+        }
+    }
+
+    pub fn general_ge(lhs: Predicate, rhs: Predicate) -> Self {
+        Self::GeneralGreaterEqual {
+            lhs: Box::new(lhs),
+            rhs: Box::new(rhs),
+        }
+    }
+
+    pub fn general_le(lhs: Predicate, rhs: Predicate) -> Self {
+        Self::GeneralLessEqual {
+            lhs: Box::new(lhs),
+            rhs: Box::new(rhs),
+        }
+    }
+
+    pub fn general_ne(lhs: Predicate, rhs: Predicate) -> Self {
+        Self::GeneralNotEqual {
             lhs: Box::new(lhs),
             rhs: Box::new(rhs),
         }
@@ -462,6 +521,18 @@ impl Predicate {
                 lhs.change_subject_name(name.clone()),
                 rhs.change_subject_name(name),
             ),
+            Self::GeneralGreaterEqual { lhs, rhs } => Self::general_ge(
+                lhs.change_subject_name(name.clone()),
+                rhs.change_subject_name(name),
+            ),
+            Self::GeneralLessEqual { lhs, rhs } => Self::general_le(
+                lhs.change_subject_name(name.clone()),
+                rhs.change_subject_name(name),
+            ),
+            Self::GeneralNotEqual { lhs, rhs } => Self::general_ne(
+                lhs.change_subject_name(name.clone()),
+                rhs.change_subject_name(name),
+            ),
             _ => self,
         }
     }
@@ -481,6 +552,15 @@ impl Predicate {
             Self::Not(pred) => Self::not(pred.substitute(var, tp)),
             Self::GeneralEqual { lhs, rhs } => {
                 Self::general_eq(lhs.substitute(var, tp), rhs.substitute(var, tp))
+            }
+            Self::GeneralGreaterEqual { lhs, rhs } => {
+                Self::general_ge(lhs.substitute(var, tp), rhs.substitute(var, tp))
+            }
+            Self::GeneralLessEqual { lhs, rhs } => {
+                Self::general_le(lhs.substitute(var, tp), rhs.substitute(var, tp))
+            }
+            Self::GeneralNotEqual { lhs, rhs } => {
+                Self::general_ne(lhs.substitute(var, tp), rhs.substitute(var, tp))
             }
             Self::Call {
                 receiver,
@@ -539,7 +619,10 @@ impl Predicate {
             | Self::GreaterEqual { rhs, .. }
             | Self::LessEqual { rhs, .. }
             | Self::NotEqual { rhs, .. } => rhs.qvars(),
-            Self::GeneralEqual { lhs, rhs } => {
+            Self::GeneralEqual { lhs, rhs }
+            | Self::GeneralLessEqual { lhs, rhs }
+            | Self::GeneralGreaterEqual { lhs, rhs }
+            | Self::GeneralNotEqual { lhs, rhs } => {
                 lhs.qvars().concat(rhs.qvars()).into_iter().collect()
             }
             Self::And(lhs, rhs) | Self::Or(lhs, rhs) => lhs.qvars().concat(rhs.qvars()),
@@ -558,7 +641,10 @@ impl Predicate {
             | Self::GreaterEqual { rhs, .. }
             | Self::LessEqual { rhs, .. }
             | Self::NotEqual { rhs, .. } => rhs.has_qvar(),
-            Self::GeneralEqual { lhs, rhs } => lhs.has_qvar() || rhs.has_qvar(),
+            Self::GeneralEqual { lhs, rhs }
+            | Self::GeneralLessEqual { lhs, rhs }
+            | Self::GeneralGreaterEqual { lhs, rhs }
+            | Self::GeneralNotEqual { lhs, rhs } => lhs.has_qvar() || rhs.has_qvar(),
             Self::Or(lhs, rhs) | Self::And(lhs, rhs) => lhs.has_qvar() || rhs.has_qvar(),
             Self::Not(pred) => pred.has_qvar(),
         }
@@ -575,7 +661,10 @@ impl Predicate {
             | Self::GreaterEqual { rhs, .. }
             | Self::LessEqual { rhs, .. }
             | Self::NotEqual { rhs, .. } => rhs.has_unbound_var(),
-            Self::GeneralEqual { lhs, rhs } => lhs.has_unbound_var() || rhs.has_unbound_var(),
+            Self::GeneralEqual { lhs, rhs }
+            | Self::GeneralLessEqual { lhs, rhs }
+            | Self::GeneralGreaterEqual { lhs, rhs }
+            | Self::GeneralNotEqual { lhs, rhs } => lhs.has_unbound_var() || rhs.has_unbound_var(),
             Self::Or(lhs, rhs) | Self::And(lhs, rhs) => {
                 lhs.has_unbound_var() || rhs.has_unbound_var()
             }
@@ -595,7 +684,10 @@ impl Predicate {
             | Self::GreaterEqual { rhs, .. }
             | Self::LessEqual { rhs, .. }
             | Self::NotEqual { rhs, .. } => rhs.has_undoable_linked_var(),
-            Self::GeneralEqual { lhs, rhs } => {
+            Self::GeneralEqual { lhs, rhs }
+            | Self::GeneralLessEqual { lhs, rhs }
+            | Self::GeneralGreaterEqual { lhs, rhs }
+            | Self::GeneralNotEqual { lhs, rhs } => {
                 lhs.has_undoable_linked_var() || rhs.has_undoable_linked_var()
             }
             Self::Or(lhs, rhs) | Self::And(lhs, rhs) => {
@@ -650,7 +742,10 @@ impl Predicate {
             | Self::GreaterEqual { rhs, .. }
             | Self::LessEqual { rhs, .. }
             | Self::NotEqual { rhs, .. } => vec![rhs],
-            Self::GeneralEqual { .. } => vec![],
+            Self::GeneralEqual { .. }
+            | Self::GeneralLessEqual { .. }
+            | Self::GeneralGreaterEqual { .. }
+            | Self::GeneralNotEqual { .. } => vec![],
             Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
                 lhs.typarams().into_iter().chain(rhs.typarams()).collect()
             }

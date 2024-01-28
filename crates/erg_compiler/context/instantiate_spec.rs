@@ -1491,6 +1491,15 @@ impl Context {
                             other if bin.op.kind == TokenKind::DblEq => {
                                 return Ok(Predicate::general_eq(other, rhs));
                             }
+                            other if bin.op.kind == TokenKind::NotEq => {
+                                return Ok(Predicate::general_ne(other, rhs));
+                            }
+                            other if bin.op.kind == TokenKind::GreEq => {
+                                return Ok(Predicate::general_ge(other, rhs));
+                            }
+                            other if bin.op.kind == TokenKind::LessEq => {
+                                return Ok(Predicate::general_le(other, rhs));
+                            }
                             _ => {
                                 return type_feature_error!(
                                     self,
@@ -1504,6 +1513,15 @@ impl Context {
                             Predicate::Const(var) => TyParam::Mono(var),
                             other if bin.op.kind == TokenKind::DblEq => {
                                 return Ok(Predicate::general_eq(Predicate::Const(var), other));
+                            }
+                            other if bin.op.kind == TokenKind::NotEq => {
+                                return Ok(Predicate::general_ne(Predicate::Const(var), other));
+                            }
+                            other if bin.op.kind == TokenKind::GreEq => {
+                                return Ok(Predicate::general_ge(Predicate::Const(var), other));
+                            }
+                            other if bin.op.kind == TokenKind::LessEq => {
+                                return Ok(Predicate::general_le(Predicate::Const(var), other));
                             }
                             _ => {
                                 return type_feature_error!(

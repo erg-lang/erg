@@ -1535,7 +1535,10 @@ impl Context {
                 }
             }
             // REVIEW
-            Predicate::GeneralEqual { rhs, .. } => self.get_pred_type(rhs),
+            Predicate::GeneralEqual { rhs, .. }
+            | Predicate::GeneralGreaterEqual { rhs, .. }
+            | Predicate::GeneralLessEqual { rhs, .. }
+            | Predicate::GeneralNotEqual { rhs, .. } => self.get_pred_type(rhs),
             // x == 1 or x == "a" => Int or Str
             Predicate::Or(lhs, rhs) => {
                 self.union(&self.get_pred_type(lhs), &self.get_pred_type(rhs))
@@ -1670,6 +1673,27 @@ impl Context {
             (
                 Pred::GeneralEqual { lhs, rhs },
                 Pred::GeneralEqual {
+                    lhs: lhs2,
+                    rhs: rhs2,
+                },
+            )
+            | (
+                Pred::GeneralGreaterEqual { lhs, rhs },
+                Pred::GeneralGreaterEqual {
+                    lhs: lhs2,
+                    rhs: rhs2,
+                },
+            )
+            | (
+                Pred::GeneralLessEqual { lhs, rhs },
+                Pred::GeneralLessEqual {
+                    lhs: lhs2,
+                    rhs: rhs2,
+                },
+            )
+            | (
+                Pred::GeneralNotEqual { lhs, rhs },
+                Pred::GeneralNotEqual {
                     lhs: lhs2,
                     rhs: rhs2,
                 },

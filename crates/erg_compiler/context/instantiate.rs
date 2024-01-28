@@ -600,6 +600,21 @@ impl Context {
                 let rhs = self.instantiate_pred(*rhs, tmp_tv_cache, loc)?;
                 Ok(Predicate::general_eq(lhs, rhs))
             }
+            Predicate::GeneralGreaterEqual { lhs, rhs } => {
+                let lhs = self.instantiate_pred(*lhs, tmp_tv_cache, loc)?;
+                let rhs = self.instantiate_pred(*rhs, tmp_tv_cache, loc)?;
+                Ok(Predicate::general_ge(lhs, rhs))
+            }
+            Predicate::GeneralLessEqual { lhs, rhs } => {
+                let lhs = self.instantiate_pred(*lhs, tmp_tv_cache, loc)?;
+                let rhs = self.instantiate_pred(*rhs, tmp_tv_cache, loc)?;
+                Ok(Predicate::general_le(lhs, rhs))
+            }
+            Predicate::GeneralNotEqual { lhs, rhs } => {
+                let lhs = self.instantiate_pred(*lhs, tmp_tv_cache, loc)?;
+                let rhs = self.instantiate_pred(*rhs, tmp_tv_cache, loc)?;
+                Ok(Predicate::general_ne(lhs, rhs))
+            }
             _ => Ok(pred),
         }
     }

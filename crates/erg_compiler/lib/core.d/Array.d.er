@@ -49,3 +49,10 @@
     assert [1, 2, 3].product() == 6
     '''
     prod: |T: Type|(self: Array(T, _), start := T) -> T
+    '''
+    Returns the reversed array.
+    '''
+    '''erg
+    assert [1, 2, 3].reversed() == [3, 2, 1]
+    '''
+    reversed: |T: Type, N: Nat|(self: Array(T, N)) -> Array(T, N)

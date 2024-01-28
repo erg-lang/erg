@@ -619,6 +619,26 @@ pub(crate) fn array_prod(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
     Ok(arr)
 }
 
+fn _array_reversed(arr: ValueObj, _ctx: &Context) -> Result<ValueObj, String> {
+    match arr {
+        ValueObj::Array(a) => {
+            let mut vec = a.to_vec();
+            vec.reverse();
+            Ok(ValueObj::Array(vec.into()))
+        }
+        _ => Err(format!("Cannot reverse {arr}")),
+    }
+}
+
+pub(crate) fn array_reversed(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let arr = args
+        .remove_left_or_key("Self")
+        .ok_or_else(|| not_passed("Self"))?;
+    let res = _array_reversed(arr, ctx).unwrap();
+    let arr = TyParam::Value(res);
+    Ok(arr)
+}
+
 pub(crate) fn __range_getitem__(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
     let slf = args
         .remove_left_or_key("Self")

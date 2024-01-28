@@ -1637,6 +1637,19 @@ impl Context {
             None,
         )));
         array_.register_builtin_const(FUNC_PROD, Visibility::BUILTIN_PUBLIC, prod);
+        let reversed_t = no_var_fn_met(
+            array_t(T.clone(), TyParam::erased(Nat)),
+            vec![],
+            vec![],
+            array_t(T.clone(), TyParam::erased(Nat)),
+        );
+        let reversed = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_REVERSED,
+            array_reversed,
+            reversed_t.quantify(),
+            None,
+        )));
+        array_.register_builtin_const(FUNC_REVERSED, Visibility::BUILTIN_PUBLIC, reversed);
         /* Slice */
         let mut slice = Self::builtin_mono_class(SLICE, 3);
         slice.register_superclass(Obj, &obj);

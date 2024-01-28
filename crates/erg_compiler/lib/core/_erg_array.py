@@ -111,6 +111,9 @@ class Array(list):
         from functools import reduce
         return reduce(lambda x, y: x * y, self, start)
 
+    def reversed(self):
+        return Array(list.__reversed__(self))
+
 class UnsizedArray:
     elem: object
     def __init__(self, elem):
