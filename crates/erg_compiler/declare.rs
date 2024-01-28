@@ -11,7 +11,7 @@ use erg_parser::desugar::Desugarer;
 use crate::context::instantiate::TyVarCache;
 use crate::context::{ClassDefType, Context, MethodContext, MethodPair, TraitImpl};
 use crate::lower::GenericASTLowerer;
-use crate::ty::constructors::{array_t, mono, mono_q_tp, poly, v_enum};
+use crate::ty::constructors::{array_t, mono, mono_q, mono_q_tp, poly, v_enum};
 use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{HasType, TyParam, Type, Visibility};
@@ -810,8 +810,6 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     .module
                     .context
                     .instantiate_typespec_with_tv_cache(&tasc.t_spec.t_spec, &mut tv_cache)?;
-                t.lift();
-                let t = self.module.context.generalize_t(t);
                 match kind {
                     AscriptionKind::TypeOf | AscriptionKind::AsCast => {
                         self.declare_instance(&ident, &t, py_name)?;
@@ -920,7 +918,11 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     .iter()
                     .map(|p| {
                         let c = Constraint::new_type_of(p.typ().clone());
-                        mono_q_tp(p.name().unwrap_or(&Str::ever("_")), c)
+                        if self.module.context.subtype_of(p.typ(), &Type::Type) {
+                            TyParam::t(mono_q(p.name().unwrap_or(&Str::ever("_")), c))
+                        } else {
+                            mono_q_tp(p.name().unwrap_or(&Str::ever("_")), c)
+                        }
                     })
                     .collect();
                 let t = poly(format!("{}{ident}", self.module.context.path()), params);

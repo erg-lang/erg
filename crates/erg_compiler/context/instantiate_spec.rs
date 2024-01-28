@@ -840,7 +840,7 @@ impl Context {
                     let arg_t = self
                         .get_tp_t(&param)
                         .map_err(|err| {
-                            log!(err "{err}");
+                            log!(err "{param}: {err}");
                             err
                         })
                         .unwrap_or(Obj);

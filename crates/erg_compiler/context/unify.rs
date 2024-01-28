@@ -450,6 +450,20 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     )))
                 }
             }
+            (TyParam::Erased(t), TyParam::Type(sup)) => {
+                if self.ctx.subtype_of(t, &Type::Type) {
+                    Ok(())
+                } else {
+                    Err(TyCheckErrors::from(TyCheckError::subtyping_error(
+                        self.ctx.cfg.input.clone(),
+                        line!() as usize,
+                        t,
+                        sup,
+                        self.loc.loc(),
+                        self.ctx.caused_by(),
+                    )))
+                }
+            }
             (sub, TyParam::Type(sup)) => {
                 let l = self.ctx.convert_tp_into_type(sub.clone()).map_err(|_| {
                     TyCheckError::tp_to_type_error(
@@ -1457,22 +1471,31 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             } else {
                 sub_ctx.super_traits.iter()
             };
-            let mut min_compatible = None;
+            // A trait may be over-implemented.
+            // Choose from the more specialized implementations,
+            // but there may also be trait implementations that have no subtype relationship at all.
+            // e.g. Vector: Mul(Vector) and Mul(Nat)
+            let mut compatibles = vec![];
             if sups.clone().count() == 0 {
-                min_compatible = Some(&sub_ctx.typ);
+                compatibles.push(&sub_ctx.typ);
             }
             for sup_ty in sups {
                 if self.ctx.subtype_of(sup_ty, maybe_sup) {
-                    if let Some(min) = min_compatible {
-                        if self.ctx.subtype_of(sup_ty, min) {
-                            min_compatible = Some(sup_ty);
+                    if !compatibles.is_empty() {
+                        let mut idx = compatibles.len();
+                        for (i, comp) in compatibles.iter().enumerate() {
+                            if self.ctx.subtype_of(sup_ty, comp) {
+                                idx = i;
+                                break;
+                            }
                         }
+                        compatibles.insert(idx, sup_ty);
                     } else {
-                        min_compatible = Some(sup_ty);
+                        compatibles.push(sup_ty);
                     }
                 }
             }
-            if let Some(sup_ty) = min_compatible {
+            'l: for sup_ty in compatibles {
                 let _substituter = Substituter::substitute_self(sup_ty, maybe_sub, self.ctx);
                 let sub_instance = self.ctx.instantiate_def_type(sup_ty)?;
                 let variances = self
@@ -1480,6 +1503,29 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     .get_nominal_type_ctx(&sub_instance)
                     .map(|ctx| ctx.type_params_variance().into_iter().map(Some).collect())
                     .unwrap_or(vec![None; sup_params.len()]);
+                let list = UndoableLinkedList::new();
+                for (l_maybe_sub, r_maybe_sup) in
+                    sub_instance.typarams().iter().zip(sup_params.iter())
+                {
+                    list.push_tp(l_maybe_sub);
+                    list.push_tp(r_maybe_sup);
+                }
+                let unifier = Unifier::new(self.ctx, self.loc, Some(&list), false, None);
+                for ((l_maybe_sub, r_maybe_sup), variance) in sub_instance
+                    .typarams()
+                    .iter()
+                    .zip(sup_params.iter())
+                    .zip(variances.iter())
+                {
+                    if unifier
+                        .sub_unify_tp(l_maybe_sub, r_maybe_sup, *variance, false)
+                        .is_err()
+                    {
+                        log!(err "failed to unify {l_maybe_sub} <: {r_maybe_sup}");
+                        continue 'l;
+                    }
+                }
+                drop(list);
                 for ((l_maybe_sub, r_maybe_sup), variance) in sub_instance
                     .typarams()
                     .iter()
@@ -1489,9 +1535,8 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     self.sub_unify_tp(l_maybe_sub, r_maybe_sup, variance, false)?;
                 }
                 return Ok(());
-            } else {
-                log!(err "no compatible supertype found: {maybe_sub} <: {maybe_sup}");
             }
+            log!(err "no compatible supertype found: {maybe_sub} <: {maybe_sup}");
         }
         Err(TyCheckErrors::from(TyCheckError::unification_error(
             self.ctx.cfg.input.clone(),

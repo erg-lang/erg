@@ -1943,6 +1943,7 @@ impl Context {
                     self.subtype_of(&t, &Type::Type) || &t.qual_name() == "GenericDict"
                 }) =>
             {
+                // FIXME: This procedure is clearly erroneous because it breaks the type variable linkage.
                 Ok(named_free_var(
                     fv.unbound_name().unwrap(),
                     fv.level().unwrap(),
