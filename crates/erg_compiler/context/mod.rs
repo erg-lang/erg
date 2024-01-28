@@ -286,6 +286,12 @@ impl std::ops::Mul for Variance {
     }
 }
 
+impl Variance {
+    pub const fn is_invariant(&self) -> bool {
+        matches!(self, Variance::Invariant)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ParamSpec {
     pub(crate) name: Option<Str>,

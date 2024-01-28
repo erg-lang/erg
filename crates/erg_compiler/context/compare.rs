@@ -902,7 +902,7 @@ impl Context {
             },
             (TyParam::Array(sup), TyParam::Array(sub))
             | (TyParam::Tuple(sup), TyParam::Tuple(sub)) => {
-                if sup.len() > sub.len() {
+                if sup.len() > sub.len() || (variance.is_invariant() && sup.len() != sub.len()) {
                     return false;
                 }
                 for (sup_p, sub_p) in sup.iter().zip(sub.iter()) {
@@ -914,7 +914,9 @@ impl Context {
             }
             // {Int: Str} :> {Int: Str, Bool: Int}
             (TyParam::Dict(sup_d), TyParam::Dict(sub_d)) => {
-                if sup_d.len() > sub_d.len() {
+                if sup_d.len() > sub_d.len()
+                    || (variance.is_invariant() && sup_d.len() != sub_d.len())
+                {
                     return false;
                 }
                 for (sub_k, sub_v) in sub_d.iter() {
@@ -930,6 +932,26 @@ impl Context {
                     }
                 }
                 true
+            }
+            (TyParam::Record(sup_r), TyParam::Record(sub_r)) => {
+                if sup_r.len() > sub_r.len()
+                    || (variance.is_invariant() && sup_r.len() != sub_r.len())
+                {
+                    return false;
+                }
+                for (sub_k, sub_v) in sub_r.iter() {
+                    if let Some(sup_v) = sup_r.get(sub_k) {
+                        if !self.supertype_of_tp(sup_v, sub_v, variance) {
+                            return false;
+                        }
+                    } else {
+                        return false;
+                    }
+                }
+                true
+            }
+            (TyParam::UnsizedArray(sup), TyParam::UnsizedArray(sub)) => {
+                self.supertype_of_tp(sup, sub, variance)
             }
             (TyParam::Type(sup), TyParam::Type(sub)) => match variance {
                 Variance::Contravariant => self.subtype_of(sup, sub),
