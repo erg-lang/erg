@@ -1611,6 +1611,32 @@ impl Context {
             array_t(T.clone(), TyParam::erased(Nat)),
         );
         array_.register_py_builtin(FUNC_DEDUP, t.quantify(), Some(FUNC_DEDUP), 28);
+        let sum_t = no_var_fn_met(
+            array_t(T.clone(), TyParam::erased(Nat)),
+            vec![],
+            vec![kw("start", T.clone())],
+            T.clone(),
+        );
+        let sum = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_SUM,
+            array_sum,
+            sum_t.quantify(),
+            None,
+        )));
+        array_.register_builtin_const(FUNC_SUM, Visibility::BUILTIN_PUBLIC, sum);
+        let prod_t = no_var_fn_met(
+            array_t(T.clone(), TyParam::erased(Nat)),
+            vec![],
+            vec![kw("start", T.clone())],
+            T.clone(),
+        );
+        let prod = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_PROD,
+            array_prod,
+            prod_t.quantify(),
+            None,
+        )));
+        array_.register_builtin_const(FUNC_PROD, Visibility::BUILTIN_PUBLIC, prod);
         /* Slice */
         let mut slice = Self::builtin_mono_class(SLICE, 3);
         slice.register_superclass(Obj, &obj);

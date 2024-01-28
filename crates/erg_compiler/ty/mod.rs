@@ -1913,6 +1913,7 @@ impl Type {
             | Self::NotImplementedType
             | Self::Ellipsis
             | Self::Never => true,
+            // Self::Refinement(refine) => refine.t.is_mono_value_class(),
             _ => false,
         }
     }
@@ -3153,7 +3154,7 @@ impl Type {
     pub fn refinement_values(&self) -> Option<Vec<&TyParam>> {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.unsafe_crack().refinement_values(),
-            Self::Refinement(refine) => Some(refine.pred.possible_values()),
+            Self::Refinement(refine) => Some(refine.pred.possible_tps()),
             _ => None,
         }
     }
@@ -3552,7 +3553,7 @@ impl Type {
             Self::Poly { name, params } => {
                 let params = params
                     .into_iter()
-                    .map(|tp| tp.replace(target, to))
+                    .map(|tp| tp.replace_t(target, to))
                     .collect();
                 Self::Poly { name, params }
             }
@@ -3570,8 +3571,11 @@ impl Type {
                 attr_name,
                 args,
             } => {
-                let args = args.into_iter().map(|tp| tp.replace(target, to)).collect();
-                proj_call(lhs.replace(target, to), attr_name, args)
+                let args = args
+                    .into_iter()
+                    .map(|tp| tp.replace_t(target, to))
+                    .collect();
+                proj_call(lhs.replace_t(target, to), attr_name, args)
             }
             Self::Structural(ty) => ty._replace(target, to).structuralize(),
             Self::Guard(guard) => Self::Guard(GuardType::new(

@@ -2572,9 +2572,43 @@ impl Context {
         }
     }
 
+    pub(crate) fn bool_eval_pred(&self, p: Predicate) -> EvalResult<bool> {
+        let evaled = self.eval_pred(p)?;
+        Ok(matches!(evaled, Predicate::Value(ValueObj::Bool(true))))
+    }
+
     pub(crate) fn eval_pred(&self, p: Predicate) -> EvalResult<Predicate> {
         match p {
             Predicate::Value(_) | Predicate::Const(_) => Ok(p),
+            Predicate::Call {
+                receiver,
+                name,
+                args,
+            } => {
+                let receiver = self.eval_tp(receiver)?;
+                let mut new_args = vec![];
+                for arg in args {
+                    new_args.push(self.eval_tp(arg)?);
+                }
+                let t = if let Some(name) = name {
+                    self.eval_proj_call(receiver, name, new_args, &())?
+                } else {
+                    return feature_error!(self, Location::Unknown, "eval_pred: Predicate::Call");
+                };
+                if let TyParam::Value(v) = t {
+                    Ok(Predicate::Value(v))
+                } else {
+                    feature_error!(self, Location::Unknown, "eval_pred: Predicate::Call")
+                }
+            }
+            Predicate::GeneralEqual { lhs, rhs } => {
+                match (self.eval_pred(*lhs)?, self.eval_pred(*rhs)?) {
+                    (Predicate::Value(lhs), Predicate::Value(rhs)) => {
+                        Ok(Predicate::Value(ValueObj::Bool(lhs == rhs)))
+                    }
+                    (lhs, rhs) => Ok(Predicate::general_eq(lhs, rhs)),
+                }
+            }
             Predicate::Equal { lhs, rhs } => Ok(Predicate::eq(lhs, self.eval_tp(rhs)?)),
             Predicate::NotEqual { lhs, rhs } => Ok(Predicate::ne(lhs, self.eval_tp(rhs)?)),
             Predicate::LessEqual { lhs, rhs } => Ok(Predicate::le(lhs, self.eval_tp(rhs)?)),

@@ -137,10 +137,6 @@ impl TyVarCache {
         }
     }
 
-    fn _instantiate_pred(&self, _pred: Predicate) -> Predicate {
-        todo!()
-    }
-
     /// Some of the quantified types are circulating.
     /// e.g.
     /// ```erg
@@ -575,6 +571,23 @@ impl Context {
             Predicate::Value(value) => {
                 let value = self.instantiate_value(value, tmp_tv_cache, loc)?;
                 Ok(Predicate::Value(value))
+            }
+            Predicate::Call {
+                receiver,
+                name,
+                args,
+            } => {
+                let receiver = self.instantiate_tp(receiver, tmp_tv_cache, loc)?;
+                let mut new_args = Vec::with_capacity(args.len());
+                for arg in args {
+                    new_args.push(self.instantiate_tp(arg, tmp_tv_cache, loc)?);
+                }
+                Ok(Predicate::call(receiver, name, new_args))
+            }
+            Predicate::GeneralEqual { lhs, rhs } => {
+                let lhs = self.instantiate_pred(*lhs, tmp_tv_cache, loc)?;
+                let rhs = self.instantiate_pred(*rhs, tmp_tv_cache, loc)?;
+                Ok(Predicate::general_eq(lhs, rhs))
             }
             _ => Ok(pred),
         }

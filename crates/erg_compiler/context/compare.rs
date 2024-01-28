@@ -614,6 +614,12 @@ impl Context {
                         return false;
                     }
                 }
+                for tp in r.pred.possible_tps() {
+                    let substituted = l.pred.clone().substitute(&l.var, tp);
+                    if self.bool_eval_pred(substituted).is_ok_and(|b| b) {
+                        return true;
+                    }
+                }
                 self.is_super_pred_of(&l.pred, &r.pred)
             }
             (Nat | Bool, re @ Refinement(_)) => {
@@ -633,6 +639,7 @@ impl Context {
             // Array({1, 2}, _) :> {[3, 4]} == false
             (l, Refinement(r)) => {
                 // Type / {S: Set(Str) | S == {"a", "b"}}
+                // TODO: GeneralEq
                 if let Pred::Equal { rhs, .. } = r.pred.as_ref() {
                     if self.subtype_of(l, &Type) && self.convert_tp_into_type(rhs.clone()).is_ok() {
                         return true;
@@ -1514,6 +1521,21 @@ impl Context {
             | Predicate::LessEqual { rhs, .. } => self.get_tp_t(rhs).unwrap_or(Obj),
             Predicate::Not(pred) => self.get_pred_type(pred),
             Predicate::Value(val) => val.class(),
+            Predicate::Call { receiver, name, .. } => {
+                let receiver_t = self.get_tp_t(receiver).unwrap_or(Obj);
+                if let Some(name) = name {
+                    let ctx = self.get_nominal_type_ctx(&receiver_t).unwrap();
+                    if let Some((_, method)) = ctx.get_var_info(name) {
+                        method.t.return_t().cloned().unwrap_or(Obj)
+                    } else {
+                        Obj
+                    }
+                } else {
+                    receiver_t.return_t().cloned().unwrap_or(Obj)
+                }
+            }
+            // REVIEW
+            Predicate::GeneralEqual { rhs, .. } => self.get_pred_type(rhs),
             // x == 1 or x == "a" => Int or Str
             Predicate::Or(lhs, rhs) => {
                 self.union(&self.get_pred_type(lhs), &self.get_pred_type(rhs))
@@ -1645,6 +1667,13 @@ impl Context {
                         .map(|ord| ord.canbe_eq())
                         .unwrap_or(false)
             }
+            (
+                Pred::GeneralEqual { lhs, rhs },
+                Pred::GeneralEqual {
+                    lhs: lhs2,
+                    rhs: rhs2,
+                },
+            ) => self.is_super_pred_of(lhs, lhs2) && self.is_super_pred_of(rhs, rhs2),
             // {T >= 0} :> {T >= 1}, {T >= 0} :> {T == 1}
             (
                 Pred::GreaterEqual { rhs, .. },

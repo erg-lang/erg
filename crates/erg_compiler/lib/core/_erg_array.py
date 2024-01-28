@@ -104,6 +104,13 @@ class Array(list):
     def update_nth(self, index, f):
         self[index] = f(self[index])
 
+    def sum(self, start=0):
+        return sum(self, start)
+
+    def prod(self, start=1):
+        from functools import reduce
+        return reduce(lambda x, y: x * y, self, start)
+
 class UnsizedArray:
     elem: object
     def __init__(self, elem):

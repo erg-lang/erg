@@ -519,6 +519,106 @@ pub(crate) fn array_shape(mut args: ValueArgs, ctx: &Context) -> EvalValueResult
     Ok(arr)
 }
 
+fn _array_sum(arr: ValueObj, _ctx: &Context) -> Result<ValueObj, String> {
+    match arr {
+        ValueObj::Array(a) => {
+            let mut sum = 0f64;
+            for v in a.iter() {
+                match v {
+                    ValueObj::Nat(n) => {
+                        sum += *n as f64;
+                    }
+                    ValueObj::Int(n) => {
+                        sum += *n as f64;
+                    }
+                    ValueObj::Float(n) => {
+                        sum += *n;
+                    }
+                    ValueObj::Inf => {
+                        return Ok(ValueObj::Inf);
+                    }
+                    ValueObj::NegInf => {
+                        return Ok(ValueObj::NegInf);
+                    }
+                    _ => {
+                        return Err(format!("Cannot sum {v}"));
+                    }
+                }
+            }
+            if sum.round() == sum && sum >= 0.0 {
+                Ok(ValueObj::Nat(sum as u64))
+            } else if sum.round() == sum {
+                Ok(ValueObj::Int(sum as i32))
+            } else {
+                Ok(ValueObj::Float(sum))
+            }
+        }
+        _ => Err(format!("Cannot sum {arr}")),
+    }
+}
+
+/// ```erg
+/// [1, 2].sum() == [3,]
+/// ```
+pub(crate) fn array_sum(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let arr = args
+        .remove_left_or_key("Self")
+        .ok_or_else(|| not_passed("Self"))?;
+    let res = _array_sum(arr, ctx).unwrap();
+    let arr = TyParam::Value(res);
+    Ok(arr)
+}
+
+fn _array_prod(arr: ValueObj, _ctx: &Context) -> Result<ValueObj, String> {
+    match arr {
+        ValueObj::Array(a) => {
+            let mut prod = 1f64;
+            for v in a.iter() {
+                match v {
+                    ValueObj::Nat(n) => {
+                        prod *= *n as f64;
+                    }
+                    ValueObj::Int(n) => {
+                        prod *= *n as f64;
+                    }
+                    ValueObj::Float(n) => {
+                        prod *= *n;
+                    }
+                    ValueObj::Inf => {
+                        return Ok(ValueObj::Inf);
+                    }
+                    ValueObj::NegInf => {
+                        return Ok(ValueObj::NegInf);
+                    }
+                    _ => {
+                        return Err(format!("Cannot prod {v}"));
+                    }
+                }
+            }
+            if prod.round() == prod && prod >= 0.0 {
+                Ok(ValueObj::Nat(prod as u64))
+            } else if prod.round() == prod {
+                Ok(ValueObj::Int(prod as i32))
+            } else {
+                Ok(ValueObj::Float(prod))
+            }
+        }
+        _ => Err(format!("Cannot prod {arr}")),
+    }
+}
+
+/// ```erg
+/// [1, 2].prod() == [2,]
+/// ```
+pub(crate) fn array_prod(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let arr = args
+        .remove_left_or_key("Self")
+        .ok_or_else(|| not_passed("Self"))?;
+    let res = _array_prod(arr, ctx).unwrap();
+    let arr = TyParam::Value(res);
+    Ok(arr)
+}
+
 pub(crate) fn __range_getitem__(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
     let slf = args
         .remove_left_or_key("Self")

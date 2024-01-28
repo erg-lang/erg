@@ -30,7 +30,7 @@
     dtype: Type
     size: Nat
     copy: |T, S: [Nat; _]|(self: .NDArray(T, S),) -> .NDArray(T, S)
-    reshape: |T, Old: [Nat; _], S: [Nat; _]|(
+    reshape: |T, Old: [Nat; _], S: {A: [Nat; _] | A.prod() == Old.prod()}|(
         self: .NDArray(T, Old),
         shape: {S},
     ) -> .NDArray(T, S)

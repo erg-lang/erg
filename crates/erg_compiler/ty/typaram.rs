@@ -1067,6 +1067,10 @@ impl TyParam {
         Self::Erased(Box::new(t))
     }
 
+    pub fn unsized_array(elem: TyParam) -> Self {
+        Self::UnsizedArray(Box::new(elem))
+    }
+
     // if self: Ratio, Succ(self) => self+ε
     pub fn succ(self) -> Self {
         Self::app("succ".into(), vec![self])
@@ -1436,12 +1440,198 @@ impl TyParam {
         }
     }
 
-    pub fn replace(self, target: &Type, to: &Type) -> TyParam {
+    pub fn substitute(self, var: &str, to: &TyParam) -> TyParam {
+        if self.tvar_name().is_some_and(|n| &n == var) {
+            return to.clone();
+        }
+        match self {
+            TyParam::FreeVar(fv) if fv.is_linked() => fv.crack().clone().substitute(var, to),
+            TyParam::App { name, args } => {
+                let new_args = args
+                    .into_iter()
+                    .map(|arg| arg.substitute(var, to))
+                    .collect::<Vec<_>>();
+                TyParam::app(name, new_args)
+            }
+            TyParam::BinOp { op, lhs, rhs } => {
+                let new_lhs = lhs.substitute(var, to);
+                let new_rhs = rhs.substitute(var, to);
+                TyParam::bin(op, new_lhs, new_rhs)
+            }
+            TyParam::UnaryOp { op, val } => {
+                let new_val = val.substitute(var, to);
+                TyParam::unary(op, new_val)
+            }
+            TyParam::UnsizedArray(elem) => TyParam::unsized_array(elem.substitute(var, to)),
+            TyParam::Array(tps) => {
+                let new_tps = tps.into_iter().map(|t| t.substitute(var, to)).collect();
+                TyParam::Array(new_tps)
+            }
+            TyParam::Tuple(tps) => {
+                let new_tps = tps.into_iter().map(|t| t.substitute(var, to)).collect();
+                TyParam::Tuple(new_tps)
+            }
+            TyParam::Set(tps) => {
+                let new_tps = tps.into_iter().map(|t| t.substitute(var, to)).collect();
+                TyParam::Set(new_tps)
+            }
+            TyParam::Dict(tps) => {
+                let new_tps = tps
+                    .into_iter()
+                    .map(|(k, v)| (k.substitute(var, to), v.substitute(var, to)))
+                    .collect();
+                TyParam::Dict(new_tps)
+            }
+            TyParam::Record(rec) => {
+                let new_rec = rec
+                    .into_iter()
+                    .map(|(k, v)| (k, v.substitute(var, to)))
+                    .collect();
+                TyParam::Record(new_rec)
+            }
+            TyParam::DataClass { name, fields } => {
+                let new_fields = fields
+                    .into_iter()
+                    .map(|(k, v)| (k, v.substitute(var, to)))
+                    .collect();
+                TyParam::DataClass {
+                    name,
+                    fields: new_fields,
+                }
+            }
+            TyParam::Lambda(lambda) => {
+                let new_body = lambda
+                    .body
+                    .into_iter()
+                    .map(|tp| tp.substitute(var, to))
+                    .collect();
+                TyParam::Lambda(TyParamLambda {
+                    body: new_body,
+                    ..lambda
+                })
+            }
+            TyParam::Proj { obj, attr } => {
+                let new_obj = obj.substitute(var, to);
+                TyParam::Proj {
+                    obj: Box::new(new_obj),
+                    attr,
+                }
+            }
+            TyParam::ProjCall { obj, attr, args } => {
+                let new_obj = obj.substitute(var, to);
+                let new_args = args
+                    .into_iter()
+                    .map(|arg| arg.substitute(var, to))
+                    .collect::<Vec<_>>();
+                TyParam::ProjCall {
+                    obj: Box::new(new_obj),
+                    attr,
+                    args: new_args,
+                }
+            }
+            self_ => self_,
+        }
+    }
+
+    pub fn replace(self, target: &TyParam, to: &TyParam) -> TyParam {
+        if &self == target {
+            return to.clone();
+        }
+        match self {
+            TyParam::FreeVar(fv) if fv.is_linked() => fv.crack().clone().replace(target, to),
+            TyParam::App { name, args } => {
+                let new_args = args
+                    .into_iter()
+                    .map(|arg| arg.replace(target, to))
+                    .collect::<Vec<_>>();
+                TyParam::app(name, new_args)
+            }
+            TyParam::BinOp { op, lhs, rhs } => {
+                let new_lhs = lhs.replace(target, to);
+                let new_rhs = rhs.replace(target, to);
+                TyParam::bin(op, new_lhs, new_rhs)
+            }
+            TyParam::UnaryOp { op, val } => {
+                let new_val = val.replace(target, to);
+                TyParam::unary(op, new_val)
+            }
+            TyParam::UnsizedArray(elem) => TyParam::unsized_array(elem.replace(target, to)),
+            TyParam::Array(tps) => {
+                let new_tps = tps.into_iter().map(|t| t.replace(target, to)).collect();
+                TyParam::Array(new_tps)
+            }
+            TyParam::Tuple(tps) => {
+                let new_tps = tps.into_iter().map(|t| t.replace(target, to)).collect();
+                TyParam::Tuple(new_tps)
+            }
+            TyParam::Set(tps) => {
+                let new_tps = tps.into_iter().map(|t| t.replace(target, to)).collect();
+                TyParam::Set(new_tps)
+            }
+            TyParam::Dict(tps) => {
+                let new_tps = tps
+                    .into_iter()
+                    .map(|(k, v)| (k.replace(target, to), v.replace(target, to)))
+                    .collect();
+                TyParam::Dict(new_tps)
+            }
+            TyParam::Record(rec) => {
+                let new_rec = rec
+                    .into_iter()
+                    .map(|(k, v)| (k, v.replace(target, to)))
+                    .collect();
+                TyParam::Record(new_rec)
+            }
+            TyParam::DataClass { name, fields } => {
+                let new_fields = fields
+                    .into_iter()
+                    .map(|(k, v)| (k, v.replace(target, to)))
+                    .collect();
+                TyParam::DataClass {
+                    name,
+                    fields: new_fields,
+                }
+            }
+            TyParam::Lambda(lambda) => {
+                let new_body = lambda
+                    .body
+                    .into_iter()
+                    .map(|tp| tp.replace(target, to))
+                    .collect();
+                TyParam::Lambda(TyParamLambda {
+                    body: new_body,
+                    ..lambda
+                })
+            }
+            TyParam::Proj { obj, attr } => {
+                let new_obj = obj.replace(target, to);
+                TyParam::Proj {
+                    obj: Box::new(new_obj),
+                    attr,
+                }
+            }
+            TyParam::ProjCall { obj, attr, args } => {
+                let new_obj = obj.replace(target, to);
+                let new_args = args
+                    .into_iter()
+                    .map(|arg| arg.replace(target, to))
+                    .collect::<Vec<_>>();
+                TyParam::ProjCall {
+                    obj: Box::new(new_obj),
+                    attr,
+                    args: new_args,
+                }
+            }
+            self_ => self_,
+        }
+    }
+
+    pub fn replace_t(self, target: &Type, to: &Type) -> TyParam {
         match self {
             TyParam::Value(ValueObj::Type(obj)) => {
                 TyParam::t(obj.typ().clone()._replace(target, to))
             }
-            TyParam::FreeVar(fv) if fv.is_linked() => fv.crack().clone().replace(target, to),
+            TyParam::FreeVar(fv) if fv.is_linked() => fv.crack().clone().replace_t(target, to),
             TyParam::Type(ty) => TyParam::t(ty._replace(target, to)),
             self_ => self_,
         }

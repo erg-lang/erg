@@ -1462,6 +1462,20 @@ impl Context {
                 self.inc_ref_local(local, self, tmp_tv_cache);
                 Ok(Predicate::Const(local.inspect().clone()))
             }
+            ast::ConstExpr::App(app) => {
+                let receiver = self.instantiate_const_expr(&app.obj, None, tmp_tv_cache, false)?;
+                let name = app.attr_name.as_ref().map(|n| n.inspect().to_owned());
+                let mut args = vec![];
+                for arg in app.args.pos_args() {
+                    let arg = self.instantiate_const_expr(&arg.expr, None, tmp_tv_cache, false)?;
+                    args.push(arg);
+                }
+                Ok(Predicate::Call {
+                    receiver,
+                    name,
+                    args,
+                })
+            }
             ast::ConstExpr::BinOp(bin) => {
                 let lhs = self.instantiate_pred_from_expr(&bin.lhs, tmp_tv_cache)?;
                 let rhs = self.instantiate_pred_from_expr(&bin.rhs, tmp_tv_cache)?;
@@ -1472,16 +1486,25 @@ impl Context {
                     | TokenKind::LessEq
                     | TokenKind::Gre
                     | TokenKind::GreEq => {
-                        let Predicate::Const(var) = lhs else {
-                            return type_feature_error!(
-                                self,
-                                bin.loc(),
-                                &format!("instantiating predicate `{expr}`")
-                            );
+                        let var = match lhs {
+                            Predicate::Const(var) => var,
+                            other if bin.op.kind == TokenKind::DblEq => {
+                                return Ok(Predicate::general_eq(other, rhs));
+                            }
+                            _ => {
+                                return type_feature_error!(
+                                    self,
+                                    bin.loc(),
+                                    &format!("instantiating predicate `{expr}`")
+                                );
+                            }
                         };
                         let rhs = match rhs {
                             Predicate::Value(value) => TyParam::Value(value),
                             Predicate::Const(var) => TyParam::Mono(var),
+                            other if bin.op.kind == TokenKind::DblEq => {
+                                return Ok(Predicate::general_eq(Predicate::Const(var), other));
+                            }
                             _ => {
                                 return type_feature_error!(
                                     self,

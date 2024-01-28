@@ -1150,6 +1150,12 @@ impl<T: CanbeFree + Send + Clone> Free<T> {
         let new_constraint = Constraint::new_sandwiched(sub, f(sup));
         self.update_constraint(new_constraint, true);
     }
+
+    /// interior-mut
+    pub fn update_type(&self, new_type: Type) {
+        let new_constraint = Constraint::new_type_of(new_type);
+        self.update_constraint(new_constraint, true);
+    }
 }
 
 impl Free<TyParam> {

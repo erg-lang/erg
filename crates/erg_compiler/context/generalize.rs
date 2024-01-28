@@ -323,7 +323,24 @@ impl Generalizer {
                 *typ.typ_mut() = self.generalize_t(mem::take(typ.typ_mut()), uninit);
                 Predicate::Value(ValueObj::Type(typ))
             }
+            Predicate::Call {
+                receiver,
+                name,
+                args,
+            } => {
+                let receiver = self.generalize_tp(receiver, uninit);
+                let mut new_args = vec![];
+                for arg in args.into_iter() {
+                    new_args.push(self.generalize_tp(arg, uninit));
+                }
+                Predicate::call(receiver, name, new_args)
+            }
             Predicate::Value(_) => pred,
+            Predicate::GeneralEqual { lhs, rhs } => {
+                let lhs = self.generalize_pred(*lhs, uninit);
+                let rhs = self.generalize_pred(*rhs, uninit);
+                Predicate::general_eq(lhs, rhs)
+            }
             Predicate::Equal { lhs, rhs } => {
                 let rhs = self.generalize_tp(rhs, uninit);
                 Predicate::eq(lhs, rhs)
@@ -413,6 +430,11 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
             // REVIEW:
             TyParam::FreeVar(_) if self.ctx.level == 0 => {
                 Ok(TyParam::erased(self.ctx.get_tp_t(&tp).unwrap_or(Type::Obj)))
+            }
+            TyParam::FreeVar(fv) if fv.get_type().is_some() => {
+                let t = self.deref_tyvar(fv.get_type().unwrap())?;
+                fv.update_type(t);
+                Ok(TyParam::FreeVar(fv))
             }
             TyParam::Type(t) => Ok(TyParam::t(self.deref_tyvar(*t)?)),
             TyParam::Erased(t) => Ok(TyParam::erased(self.deref_tyvar(*t)?)),
@@ -536,6 +558,78 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 TyCheckError::dummy_infer_error(self.ctx.cfg.input.clone(), fn_name!(), line!()),
             )),
             t => Ok(t),
+        }
+    }
+
+    fn deref_pred(&mut self, pred: Predicate) -> TyCheckResult<Predicate> {
+        match pred {
+            Predicate::Equal { lhs, rhs } => {
+                let rhs = self.deref_tp(rhs)?;
+                Ok(Predicate::eq(lhs, rhs))
+            }
+            Predicate::GreaterEqual { lhs, rhs } => {
+                let rhs = self.deref_tp(rhs)?;
+                Ok(Predicate::ge(lhs, rhs))
+            }
+            Predicate::LessEqual { lhs, rhs } => {
+                let rhs = self.deref_tp(rhs)?;
+                Ok(Predicate::le(lhs, rhs))
+            }
+            Predicate::NotEqual { lhs, rhs } => {
+                let rhs = self.deref_tp(rhs)?;
+                Ok(Predicate::ne(lhs, rhs))
+            }
+            Predicate::GeneralEqual { lhs, rhs } => {
+                let lhs = self.deref_pred(*lhs)?;
+                let rhs = self.deref_pred(*rhs)?;
+                match (lhs, rhs) {
+                    (Predicate::Value(lhs), Predicate::Value(rhs)) => {
+                        Ok(Predicate::Value(ValueObj::Bool(lhs == rhs)))
+                    }
+                    (lhs, rhs) => Ok(Predicate::general_eq(lhs, rhs)),
+                }
+            }
+            Predicate::Call {
+                receiver,
+                name,
+                args,
+            } => {
+                let Ok(receiver) = self.deref_tp(receiver.clone()) else {
+                    return Ok(Predicate::call(receiver, name, args));
+                };
+                let mut new_args = vec![];
+                for arg in args.into_iter() {
+                    let Ok(arg) = self.deref_tp(arg) else {
+                        return Ok(Predicate::call(receiver, name, new_args));
+                    };
+                    new_args.push(arg);
+                }
+                let evaled = if let Some(name) = &name {
+                    self.ctx
+                        .eval_proj_call(receiver.clone(), name.clone(), new_args.clone(), &())
+                } else {
+                    return Ok(Predicate::call(receiver, name, new_args));
+                };
+                match evaled {
+                    Ok(TyParam::Value(value)) => Ok(Predicate::Value(value)),
+                    _ => Ok(Predicate::call(receiver, name, new_args)),
+                }
+            }
+            Predicate::And(lhs, rhs) => {
+                let lhs = self.deref_pred(*lhs)?;
+                let rhs = self.deref_pred(*rhs)?;
+                Ok(Predicate::and(lhs, rhs))
+            }
+            Predicate::Or(lhs, rhs) => {
+                let lhs = self.deref_pred(*lhs)?;
+                let rhs = self.deref_pred(*rhs)?;
+                Ok(Predicate::or(lhs, rhs))
+            }
+            Predicate::Not(pred) => {
+                let pred = self.deref_pred(*pred)?;
+                Ok(!pred)
+            }
+            _ => Ok(pred),
         }
     }
 
@@ -741,9 +835,10 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 Ok(Type::NamedTuple(rec))
             }
             Type::Refinement(refine) => {
+                log!(err "deref_tyvar: {} / {}", refine.t, refine.pred);
                 let t = self.deref_tyvar(*refine.t)?;
-                // TODO: deref_predicate
-                Ok(refinement(refine.var, t, *refine.pred))
+                let pred = self.deref_pred(*refine.pred)?;
+                Ok(refinement(refine.var, t, pred))
             }
             Type::And(l, r) => {
                 let l = self.deref_tyvar(*l)?;
@@ -797,6 +892,12 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
     fn validate_subsup(&mut self, sub_t: Type, super_t: Type) -> TyCheckResult<Type> {
         // TODO: Subr, ...
         match (sub_t, super_t) {
+            /*(sub_t @ Type::Refinement(_), super_t @ Type::Refinement(_)) => {
+                self.validate_simple_subsup(sub_t, super_t)
+            }
+            (Type::Refinement(refine), super_t) => {
+                self.validate_simple_subsup(*refine.t, super_t)
+            }*/
             // See tests\should_err\subtyping.er:8~13
             (
                 Type::Poly {
