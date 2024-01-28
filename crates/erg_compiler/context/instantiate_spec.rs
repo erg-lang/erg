@@ -1820,12 +1820,7 @@ impl Context {
                     not_found_is_qvar,
                 )?;
                 let name = VarName::new(refine.var.clone());
-                let tp = TyParam::named_free_var(
-                    refine.var.inspect().clone(),
-                    self.level,
-                    Constraint::new_type_of(t.clone()),
-                );
-                tmp_tv_cache.push_or_init_typaram(&name, &tp, self);
+                tmp_tv_cache.push_refine_var(&name, t.clone(), self);
                 let pred = self
                     .instantiate_pred_from_expr(&refine.pred, tmp_tv_cache)
                     .map_err(|err| {

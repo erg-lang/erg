@@ -377,6 +377,8 @@ impl Generalizer {
 
 pub struct Dereferencer<'c, 'q, 'l, L: Locational> {
     ctx: &'c Context,
+    /// This is basically the same as `ctx.level`, but can be changed
+    level: usize,
     coerce: bool,
     variance_stack: Vec<Variance>,
     qnames: &'q Set<Str>,
@@ -393,6 +395,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
     ) -> Self {
         Self {
             ctx,
+            level: ctx.level,
             coerce,
             variance_stack: vec![Invariant, variance],
             qnames,
@@ -402,6 +405,10 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
 
     pub fn simple(ctx: &'c Context, qnames: &'q Set<Str>, loc: &'l L) -> Self {
         Self::new(ctx, Variance::Covariant, true, qnames, loc)
+    }
+
+    pub fn set_level(&mut self, level: usize) {
+        self.level = level;
     }
 
     fn push_variance(&mut self, variance: Variance) {
@@ -428,8 +435,9 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 Ok(TyParam::FreeVar(fv))
             }
             // REVIEW:
-            TyParam::FreeVar(_) if self.ctx.level == 0 => {
-                Ok(TyParam::erased(self.ctx.get_tp_t(&tp).unwrap_or(Type::Obj)))
+            TyParam::FreeVar(_) if self.level == 0 => {
+                let t = self.ctx.get_tp_t(&tp).unwrap_or(Type::Obj);
+                Ok(TyParam::erased(self.deref_tyvar(t)?))
             }
             TyParam::FreeVar(fv) if fv.get_type().is_some() => {
                 let t = self.deref_tyvar(fv.get_type().unwrap())?;
@@ -554,7 +562,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                     attr,
                 })
             }
-            TyParam::Failure if self.ctx.level == 0 => Err(TyCheckErrors::from(
+            TyParam::Failure if self.level == 0 => Err(TyCheckErrors::from(
                 TyCheckError::dummy_infer_error(self.ctx.cfg.input.clone(), fn_name!(), line!()),
             )),
             t => Ok(t),
@@ -671,7 +679,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
             // ?T(:> {1, "a"}, <: Eq(?T(:> {1, "a"}, ...)) ==> Error!
             Type::FreeVar(fv) if fv.constraint_is_sandwiched() => {
                 let (sub_t, super_t) = fv.get_subsup().unwrap();
-                if self.ctx.level <= fv.level().unwrap() {
+                if self.level <= fv.level().unwrap() {
                     // we need to force linking to avoid infinite loop
                     // e.g. fv == ?T(<: Int, :> Add(?T))
                     //      fv == ?T(:> ?T.Output, <: Add(Int))
@@ -717,7 +725,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 }
             }
             Type::FreeVar(fv) if fv.is_unbound() => {
-                if self.ctx.level == 0 {
+                if self.level == 0 {
                     match &*fv.crack_constraint() {
                         Constraint::TypeOf(t) if !t.is_type() => {
                             return Err(TyCheckErrors::from(TyCheckError::dummy_infer_error(
@@ -835,7 +843,6 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 Ok(Type::NamedTuple(rec))
             }
             Type::Refinement(refine) => {
-                log!(err "deref_tyvar: {} / {}", refine.t, refine.pred);
                 let t = self.deref_tyvar(*refine.t)?;
                 let pred = self.deref_pred(*refine.pred)?;
                 Ok(refinement(refine.var, t, pred))
@@ -857,10 +864,10 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
             Type::Proj { lhs, rhs } => {
                 let proj = self
                     .ctx
-                    .eval_proj(*lhs.clone(), rhs.clone(), self.ctx.level, self.loc)
+                    .eval_proj(*lhs.clone(), rhs.clone(), self.level, self.loc)
                     .or_else(|_| {
                         let lhs = self.deref_tyvar(*lhs)?;
-                        self.ctx.eval_proj(lhs, rhs, self.ctx.level, self.loc)
+                        self.ctx.eval_proj(lhs, rhs, self.level, self.loc)
                     })
                     .unwrap_or(Failure);
                 Ok(proj)
@@ -877,7 +884,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 }
                 let proj = self
                     .ctx
-                    .eval_proj_call_t(lhs, attr_name, new_args, self.ctx.level, self.loc)
+                    .eval_proj_call_t(lhs, attr_name, new_args, self.level, self.loc)
                     .unwrap_or(Failure);
                 Ok(proj)
             }
@@ -1073,6 +1080,7 @@ impl Context {
     pub fn readable_type(&self, t: Type) -> Type {
         let qnames = set! {};
         let mut dereferencer = Dereferencer::new(self, Covariant, false, &qnames, &());
+        dereferencer.set_level(0);
         dereferencer.deref_tyvar(t.clone()).unwrap_or(t)
     }
 

@@ -257,6 +257,17 @@ impl TyVarCache {
         }
     }
 
+    pub(crate) fn push_refine_var(&mut self, name: &VarName, t: Type, ctx: &Context) {
+        if name.inspect() == "_" {
+            return;
+        }
+        let vi = VarInfo::type_var(t, ctx.absolutize(name.loc()), ctx.name.clone());
+        ctx.index().register(name.inspect().clone(), &vi);
+        self.var_infos.insert(name.clone(), vi);
+        let tp = TyParam::mono(name.inspect());
+        self.typaram_instances.insert(name.clone(), tp);
+    }
+
     pub(crate) fn dummy_push_or_init_typaram(
         &mut self,
         name: &VarName,

@@ -1441,7 +1441,7 @@ impl TyParam {
     }
 
     pub fn substitute(self, var: &str, to: &TyParam) -> TyParam {
-        if self.tvar_name().is_some_and(|n| &n == var) {
+        if self.qual_name().is_some_and(|n| &n == var) {
             return to.clone();
         }
         match self {
