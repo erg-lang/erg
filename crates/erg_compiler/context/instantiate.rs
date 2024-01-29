@@ -158,9 +158,14 @@ impl TyVarCache {
         self.already_appeared.insert(name);
     }
 
-    pub(crate) fn push_or_init_tyvar(&mut self, name: &VarName, tv: &Type, ctx: &Context) {
+    pub(crate) fn push_or_init_tyvar(
+        &mut self,
+        name: &VarName,
+        tv: &Type,
+        ctx: &Context,
+    ) -> TyCheckResult<()> {
         if name.inspect() == "_" {
-            return;
+            return Ok(());
         }
         if let Some(inst) = self.tyvar_instances.get(name) {
             self.update_tyvar(inst, tv, ctx);
@@ -178,6 +183,7 @@ impl TyVarCache {
             ctx.index().register(name.inspect().clone(), &vi);
             self.var_infos.insert(name.clone(), vi);
         }
+        Ok(())
     }
 
     pub(crate) fn dummy_push_or_init_tyvar(&mut self, name: &VarName, tv: &Type, ctx: &Context) {
@@ -235,9 +241,24 @@ impl TyVarCache {
         }
     }
 
-    pub(crate) fn push_or_init_typaram(&mut self, name: &VarName, tp: &TyParam, ctx: &Context) {
+    pub(crate) fn push_or_init_typaram(
+        &mut self,
+        name: &VarName,
+        tp: &TyParam,
+        ctx: &Context,
+    ) -> TyCheckResult<()> {
         if name.inspect() == "_" {
-            return;
+            return Ok(());
+        }
+        if ctx.rec_get_const_obj(name.inspect()).is_some() {
+            return Err(TyCheckError::reassign_error(
+                ctx.cfg.input.clone(),
+                line!() as usize,
+                name.loc(),
+                ctx.caused_by(),
+                name.inspect(),
+            )
+            .into());
         }
         // FIXME:
         if let Some(inst) = self.typaram_instances.get(name) {
@@ -255,6 +276,7 @@ impl TyVarCache {
             self.var_infos.insert(name.clone(), vi);
             self.typaram_instances.insert(name.clone(), tp.clone());
         }
+        Ok(())
     }
 
     pub(crate) fn push_refine_var(&mut self, name: &VarName, t: Type, ctx: &Context) {

@@ -366,10 +366,12 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     maybe_sub.link(sup_tp, self.undoable);
                     Ok(())
                 } else {
-                    Err(TyCheckErrors::from(TyCheckError::unreachable(
+                    Err(TyCheckErrors::from(TyCheckError::feature_error(
                         self.ctx.cfg.input.clone(),
-                        fn_name!(),
-                        line!(),
+                        line!() as usize,
+                        self.loc.loc(),
+                        &format!("unifying {sub_fv} and {sup_tp}"),
+                        self.ctx.caused_by(),
                     )))
                 }
             }
@@ -412,10 +414,12 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     // self.sub_unify(&tp_t, &fv_t)
                     Ok(())
                 } else {
-                    Err(TyCheckErrors::from(TyCheckError::unreachable(
+                    Err(TyCheckErrors::from(TyCheckError::feature_error(
                         self.ctx.cfg.input.clone(),
-                        fn_name!(),
-                        line!(),
+                        line!() as usize,
+                        self.loc.loc(),
+                        &format!("unifying {sub_tp} and {sup_fv}"),
+                        self.ctx.caused_by(),
                     )))
                 }
             }
@@ -523,10 +527,12 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     } else {
                         log!(err "{sup} does not have key {sub_k}");
                         // TODO:
-                        return Err(TyCheckErrors::from(TyCheckError::unreachable(
+                        return Err(TyCheckErrors::from(TyCheckError::feature_error(
                             self.ctx.cfg.input.clone(),
-                            fn_name!(),
-                            line!(),
+                            line!() as usize,
+                            self.loc.loc(),
+                            &format!("unifying {sub} and {sup}"),
+                            self.ctx.caused_by(),
                         )));
                     }
                 }

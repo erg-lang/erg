@@ -1465,11 +1465,11 @@ impl Context {
                 if let ast::Expr::Accessor(ast::Accessor::Ident(ident)) = &arg.expr {
                     if self.subtype_of(arg_t, &Type::Type) {
                         if let Ok(tv) = self.convert_tp_into_type(tp.clone()) {
-                            tv_ctx.push_or_init_tyvar(&ident.name, &tv, self);
+                            let _ = tv_ctx.push_or_init_tyvar(&ident.name, &tv, self);
                             continue;
                         }
                     }
-                    tv_ctx.push_or_init_typaram(&ident.name, tp, self);
+                    let _ = tv_ctx.push_or_init_typaram(&ident.name, tp, self);
                 }
             }
         }

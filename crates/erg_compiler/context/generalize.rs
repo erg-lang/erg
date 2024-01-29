@@ -676,7 +676,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                     self.ctx
                         .eval_proj_call(receiver.clone(), name.clone(), new_args.clone(), &())
                 } else {
-                    return Ok(Predicate::call(receiver, name, new_args));
+                    self.ctx.eval_call(receiver.clone(), new_args.clone(), &())
                 };
                 match evaled {
                     Ok(TyParam::Value(value)) => Ok(Predicate::Value(value)),

@@ -1785,13 +1785,13 @@ impl NestedDisplay for Call {
 }
 
 impl TryFrom<Expr> for Call {
-    type Error = Expr;
+    type Error = ();
     fn try_from(expr: Expr) -> Result<Self, Self::Error> {
         match expr {
             Expr::Call(call) => Ok(call),
             Expr::TypeAscription(tasc) => Self::try_from(*tasc.expr),
             Expr::Accessor(Accessor::TypeApp(tapp)) => Self::try_from(*tapp.obj),
-            _ => Err(expr),
+            _ => Err(()),
         }
     }
 }

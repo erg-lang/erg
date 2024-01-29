@@ -1516,7 +1516,7 @@ impl Context {
             .register_marker_trait(
                 self,
                 poly(
-                    SHAPE,
+                    HAS_SHAPE,
                     vec![ty_tp(arr_t.clone()).proj_call(FUNC_SHAPE.into(), vec![])],
                 ),
             )
