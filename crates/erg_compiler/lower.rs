@@ -1528,9 +1528,14 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
     fn lower_params(
         &mut self,
         params: ast::Params,
+        bounds: ast::TypeBoundSpecs,
         expect: Option<&SubrType>,
     ) -> LowerResult<hir::Params> {
         log!(info "entered {}({})", fn_name!(), params);
+        let mut tmp_tv_ctx = self
+            .module
+            .context
+            .instantiate_ty_bounds(&bounds, RegistrationMode::Normal)?;
         let mut errs = LowerErrors::empty();
         let mut hir_non_defaults = vec![];
         for non_default in params.non_defaults.into_iter() {
@@ -1577,10 +1582,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             vec![],
             params.parens,
         );
-        if let Err(errs) = self
-            .module
-            .context
-            .assign_params(&mut hir_params, expect.cloned())
+        if let Err(errs) =
+            self.module
+                .context
+                .assign_params(&mut hir_params, &mut tmp_tv_ctx, expect.cloned())
         {
             self.errs.extend(errs);
         }
@@ -1642,7 +1647,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 .grow(&name, kind, Private, Some(tv_cache));
         }
         let params = self
-            .lower_params(lambda.sig.params, expect)
+            .lower_params(lambda.sig.params, lambda.sig.bounds, expect)
             .map_err(|errs| {
                 if !in_statement {
                     self.pop_append_errs();
@@ -2025,7 +2030,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 self.lower_subr_block(subr_t, sig, decorators, body)
             }
             Type::Failure => {
-                let params = self.lower_params(sig.params, None)?;
+                let params = self.lower_params(sig.params, sig.bounds.clone(), None)?;
                 if let Err(errs) = self.module.context.register_const(&body.block) {
                     self.errs.extend(errs);
                 }
@@ -2067,7 +2072,11 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         decorators: Set<hir::Expr>,
         body: ast::DefBody,
     ) -> LowerResult<hir::Def> {
-        let params = self.lower_params(sig.params.clone(), Some(&registered_subr_t))?;
+        let params = self.lower_params(
+            sig.params.clone(),
+            sig.bounds.clone(),
+            Some(&registered_subr_t),
+        )?;
         if let Err(errs) = self.module.context.register_const(&body.block) {
             self.errs.extend(errs);
         }

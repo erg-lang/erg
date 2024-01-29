@@ -1456,6 +1456,25 @@ impl Context {
             }
         }
     }
+
+    pub(crate) fn get_tv_ctx(&self, ident: &ast::Identifier, args: &ast::Args) -> TyVarCache {
+        let mut tv_ctx = TyVarCache::new(self.level, self);
+        if let Some(ctx) = self.get_type_ctx(ident.inspect()) {
+            let arg_ts = ctx.params.iter().map(|(_, vi)| &vi.t);
+            for ((tp, arg), arg_t) in ctx.typ.typarams().iter().zip(args.pos_args()).zip(arg_ts) {
+                if let ast::Expr::Accessor(ast::Accessor::Ident(ident)) = &arg.expr {
+                    if self.subtype_of(arg_t, &Type::Type) {
+                        if let Ok(tv) = self.convert_tp_into_type(tp.clone()) {
+                            tv_ctx.push_or_init_tyvar(&ident.name, &tv, self);
+                            continue;
+                        }
+                    }
+                    tv_ctx.push_or_init_typaram(&ident.name, tp, self);
+                }
+            }
+        }
+        tv_ctx
+    }
 }
 
 #[derive(Debug, Clone, Default)]

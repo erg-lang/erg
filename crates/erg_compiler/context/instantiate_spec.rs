@@ -389,7 +389,12 @@ impl Context {
                 mode,
                 not_found_is_qvar,
             )
-            .map_err(|errs| (Type::Failure, errs))?
+            .map_err(|errs| {
+                (
+                    opt_decl_t.map_or(Type::Failure, |pt| pt.typ().clone()),
+                    errs,
+                )
+            })?
         } else {
             match &sig.pat {
                 ast::ParamPattern::Lit(lit) => {
