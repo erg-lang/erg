@@ -135,6 +135,7 @@ impl UndoableLinkedList {
     }
 }
 
+/// Substitute concrete type/type parameters to the type containing type variables and hold until dropped.
 #[derive(Debug)]
 pub struct Substituter<'c> {
     ctx: &'c Context,
@@ -1988,6 +1989,7 @@ impl Context {
             }
             TyParam::Type(t) => Ok(t.as_ref().clone()),
             TyParam::Mono(name) => Ok(Type::Mono(name)),
+            // REVIEW: should be checked?
             TyParam::App { name, args } => Ok(Type::Poly { name, params: args }),
             TyParam::Proj { obj, attr } => {
                 let lhs = self.convert_tp_into_type(*obj)?;
@@ -2965,6 +2967,7 @@ impl Context {
             (TyParam::Tuple(l), TyParam::Tuple(r)) => l == r,
             (TyParam::Set(l), TyParam::Set(r)) => l == r, // FIXME:
             (TyParam::Dict(l), TyParam::Dict(r)) => l == r,
+            (TyParam::Lambda(l), TyParam::Lambda(r)) => l == r,
             (TyParam::FreeVar { .. }, TyParam::FreeVar { .. }) => true,
             (TyParam::Mono(l), TyParam::Mono(r)) => {
                 if l == r {

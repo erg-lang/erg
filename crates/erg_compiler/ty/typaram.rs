@@ -321,6 +321,14 @@ impl PartialEq for TyParam {
                 },
             ) => obj == r_obj && attr == r_attr,
             (
+                Self::ProjCall { obj, attr, args },
+                Self::ProjCall {
+                    obj: r_obj,
+                    attr: r_attr,
+                    args: r_args,
+                },
+            ) => obj == r_obj && attr == r_attr && args == r_args,
+            (
                 Self::App {
                     name: ln,
                     args: lps,

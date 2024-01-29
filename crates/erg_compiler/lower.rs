@@ -1808,6 +1808,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         };
         let t = if ty.has_unbound_var() {
             // TODO:
+            // use crate::ty::free::HasLevel;
             // ty.lift();
             // self.module.context.generalize_t(ty)
             ty.quantify()

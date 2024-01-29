@@ -574,6 +574,30 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 }
                 Ok(())
             }
+            (TyParam::Lambda(sub_l), TyParam::Lambda(sup_l)) => {
+                for (sup_nd, sub_nd) in sup_l.nd_params.iter().zip(sub_l.nd_params.iter()) {
+                    self.sub_unify(sub_nd.typ(), sup_nd.typ())?;
+                }
+                if let Some((sup_var, sub_var)) =
+                    sup_l.var_params.as_ref().zip(sub_l.var_params.as_ref())
+                {
+                    self.sub_unify(sub_var.typ(), sup_var.typ())?;
+                }
+                for (sup_d, sub_d) in sup_l.d_params.iter().zip(sub_l.d_params.iter()) {
+                    self.sub_unify(sub_d.typ(), sup_d.typ())?;
+                }
+                if let Some((sup_kw_var, sub_kw_var)) = sup_l
+                    .kw_var_params
+                    .as_ref()
+                    .zip(sub_l.kw_var_params.as_ref())
+                {
+                    self.sub_unify(sub_kw_var.typ(), sup_kw_var.typ())?;
+                }
+                for (sub_expr, sup_expr) in sub_l.body.iter().zip(sup_l.body.iter()) {
+                    self.sub_unify_tp(sub_expr, sup_expr, _variance, allow_divergence)?;
+                }
+                Ok(())
+            }
             (l, TyParam::Value(sup)) => {
                 let sup = match Context::convert_value_into_tp(sup.clone()) {
                     Ok(r) => r,
@@ -685,6 +709,69 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     self.ctx.caused_by(),
                 ))),
             },
+            (
+                Predicate::GeneralEqual { lhs, rhs },
+                Predicate::GeneralEqual {
+                    lhs: sup_lhs,
+                    rhs: sup_rhs,
+                },
+            )
+            | (
+                Predicate::GeneralNotEqual { lhs, rhs },
+                Predicate::GeneralNotEqual {
+                    lhs: sup_lhs,
+                    rhs: sup_rhs,
+                },
+            )
+            | (
+                Predicate::GeneralGreaterEqual { lhs, rhs },
+                Predicate::GeneralGreaterEqual {
+                    lhs: sup_lhs,
+                    rhs: sup_rhs,
+                },
+            )
+            | (
+                Predicate::GeneralLessEqual { lhs, rhs },
+                Predicate::GeneralLessEqual {
+                    lhs: sup_lhs,
+                    rhs: sup_rhs,
+                },
+            ) => {
+                self.sub_unify_pred(lhs, sup_lhs)?;
+                self.sub_unify_pred(rhs, sup_rhs)
+            }
+            (
+                Pred::Call { receiver, args, .. },
+                Pred::Call {
+                    receiver: sup_receiver,
+                    args: sup_args,
+                    ..
+                },
+            ) => {
+                self.sub_unify_tp(receiver, sup_receiver, None, false)?;
+                for (l, r) in args.iter().zip(sup_args.iter()) {
+                    self.sub_unify_tp(l, r, None, false)?;
+                }
+                Ok(())
+            }
+            (call @ Predicate::Call { .. }, Predicate::Value(ValueObj::Bool(b)))
+            | (Predicate::Value(ValueObj::Bool(b)), call @ Predicate::Call { .. }) => {
+                if let Ok(Predicate::Value(ValueObj::Bool(evaled))) =
+                    self.ctx.eval_pred(call.clone())
+                {
+                    if &evaled == b {
+                        return Ok(());
+                    }
+                }
+                Err(TyCheckErrors::from(TyCheckError::pred_unification_error(
+                    self.ctx.cfg.input.clone(),
+                    line!() as usize,
+                    sub_pred,
+                    sup_pred,
+                    self.loc.loc(),
+                    self.ctx.caused_by(),
+                )))
+            }
             _ => Err(TyCheckErrors::from(TyCheckError::pred_unification_error(
                 self.ctx.cfg.input.clone(),
                 line!() as usize,
