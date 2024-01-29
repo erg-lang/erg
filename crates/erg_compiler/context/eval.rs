@@ -646,7 +646,12 @@ impl Context {
         }
     }
 
-    fn call(&self, subr: ConstSubr, args: ValueArgs, loc: Location) -> EvalResult<TyParam> {
+    pub(crate) fn call(
+        &self,
+        subr: ConstSubr,
+        args: ValueArgs,
+        loc: Location,
+    ) -> EvalResult<TyParam> {
         match subr {
             ConstSubr::User(user) => {
                 // HACK: should avoid cloning

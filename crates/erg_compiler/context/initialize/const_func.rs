@@ -5,6 +5,7 @@ use std::path::Path;
 use erg_common::dict::Dict;
 #[allow(unused_imports)]
 use erg_common::log;
+use erg_common::traits::Stream;
 use erg_common::{dict, set};
 
 use crate::context::eval::UndoableLinkedList;
@@ -797,6 +798,127 @@ pub(crate) fn as_record(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<T
         };
     }
     Ok(ValueObj::builtin_type(Type::Record(dict)).into())
+}
+
+pub(crate) fn abs_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let num = args
+        .remove_left_or_key("num")
+        .ok_or_else(|| not_passed("num"))?;
+    match num {
+        ValueObj::Nat(n) => Ok(ValueObj::Nat(n).into()),
+        ValueObj::Int(n) => Ok(ValueObj::Nat(n.unsigned_abs() as u64).into()),
+        ValueObj::Bool(b) => Ok(ValueObj::Nat(b as u64).into()),
+        ValueObj::Float(n) => Ok(ValueObj::Float(n.abs()).into()),
+        ValueObj::Inf => Ok(ValueObj::Inf.into()),
+        ValueObj::NegInf => Ok(ValueObj::Inf.into()),
+        _ => Err(type_mismatch("Num", num, "num")),
+    }
+}
+
+pub(crate) fn all_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let iterable = args
+        .remove_left_or_key("iterable")
+        .ok_or_else(|| not_passed("iterable"))?;
+    let arr = match iterable {
+        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::Tuple(t) => t.to_vec(),
+        ValueObj::Set(s) => s.into_iter().collect(),
+        _ => {
+            return Err(type_mismatch("Iterable(Bool)", iterable, "iterable"));
+        }
+    };
+    let mut all = true;
+    for v in arr.iter() {
+        match v {
+            ValueObj::Bool(b) => {
+                all &= *b;
+            }
+            _ => {
+                return Err(type_mismatch("Bool", v, "iterable.next()"));
+            }
+        }
+    }
+    Ok(ValueObj::Bool(all).into())
+}
+
+pub(crate) fn any_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let iterable = args
+        .remove_left_or_key("iterable")
+        .ok_or_else(|| not_passed("iterable"))?;
+    let arr = match iterable {
+        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::Tuple(t) => t.to_vec(),
+        ValueObj::Set(s) => s.into_iter().collect(),
+        _ => {
+            return Err(type_mismatch("Iterable(Bool)", iterable, "iterable"));
+        }
+    };
+    let mut any = false;
+    for v in arr.iter() {
+        match v {
+            ValueObj::Bool(b) => {
+                any |= *b;
+            }
+            _ => {
+                return Err(type_mismatch("Bool", v, "iterable.next()"));
+            }
+        }
+    }
+    Ok(ValueObj::Bool(any).into())
+}
+
+pub(crate) fn len_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let container = args
+        .remove_left_or_key("iterable")
+        .ok_or_else(|| not_passed("iterable"))?;
+    let len = match container {
+        ValueObj::Array(a) => a.len(),
+        ValueObj::Tuple(t) => t.len(),
+        ValueObj::Set(s) => s.len(),
+        ValueObj::Dict(d) => d.len(),
+        ValueObj::Record(r) => r.len(),
+        ValueObj::Str(s) => s.len(),
+        _ => {
+            return Err(type_mismatch("Container", container, "container"));
+        }
+    };
+    Ok(ValueObj::Nat(len as u64).into())
+}
+
+pub(crate) fn map_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let iterable = args
+        .remove_left_or_key("iterable")
+        .ok_or_else(|| not_passed("iterable"))?;
+    let func = args
+        .remove_left_or_key("func")
+        .ok_or_else(|| not_passed("func"))?;
+    let arr = match iterable {
+        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::Tuple(t) => t.to_vec(),
+        ValueObj::Set(s) => s.into_iter().collect(),
+        _ => {
+            return Err(type_mismatch("Iterable(Bool)", iterable, "iterable"));
+        }
+    };
+    let subr = match func {
+        ValueObj::Subr(f) => f,
+        _ => {
+            return Err(type_mismatch("Subr", func, "func"));
+        }
+    };
+    let mut mapped = vec![];
+    for v in arr.into_iter() {
+        let args = ValueArgs::pos_only(vec![v]);
+        match ctx.call(subr.clone(), args, Location::Unknown) {
+            Ok(res) => {
+                mapped.push(res);
+            }
+            Err(mut err) => {
+                return Err(EvalValueError::from(*err.remove(0).core));
+            }
+        }
+    }
+    Ok(TyParam::Array(mapped))
 }
 
 pub(crate) fn resolve_path_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {

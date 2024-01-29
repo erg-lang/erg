@@ -2089,8 +2089,10 @@ impl Context {
         record.register_py_builtin_const(
             FUNC_AS_DICT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             as_dict,
             Some("_asdict"),
+            None,
         );
         let mut record_meta_type = Self::builtin_mono_class(RECORD_META_TYPE, 2);
         record_meta_type.register_superclass(mono(RECORD), &record);

@@ -24,16 +24,34 @@ impl Context {
         let U = mono_q(TY_U, instanceof(Type));
         let Path = mono_q_tp(PATH, instanceof(Str));
         let t_abs = nd_func(vec![kw(KW_N, mono(NUM))], None, Nat);
+        let abs = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_ABS,
+            abs_func,
+            t_abs.clone(),
+            None,
+        )));
         let t_all = no_var_func(
             vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(Bool)]))],
             vec![],
             Bool,
         );
+        let all = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_ALL,
+            all_func,
+            t_all.clone(),
+            None,
+        )));
         let t_any = no_var_func(
             vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(Bool)]))],
             vec![],
             Bool,
         );
+        let any = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_ANY,
+            any_func,
+            t_any.clone(),
+            None,
+        )));
         let t_ascii = nd_func(vec![kw(KW_OBJECT, Obj)], None, Str);
         let t_array = no_var_func(
             vec![],
@@ -169,6 +187,12 @@ impl Context {
                 .structuralize();
             func1(S, Nat)
         };
+        let len = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_LEN,
+            len_func,
+            t_len.clone(),
+            None,
+        )));
         let t_log = func(
             vec![],
             Some(kw(KW_OBJECTS, ref_(Obj))),
@@ -190,6 +214,12 @@ impl Context {
             poly(MAP, vec![ty_tp(U.clone())]),
         )
         .quantify();
+        let map = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_MAP,
+            map_func,
+            t_map.clone(),
+            None,
+        )));
         let O = mono_q(TY_O, subtypeof(mono(ORD)));
         // TODO: iterable should be non-empty
         let t_max = nd_func(
@@ -286,9 +316,30 @@ impl Context {
             poly(ZIP, vec![ty_tp(T.clone()), ty_tp(U.clone())]),
         )
         .quantify();
-        self.register_py_builtin(FUNC_ABS, t_abs, Some(FUNC_ABS), 11);
-        self.register_py_builtin(FUNC_ALL, t_all, Some(FUNC_ALL), 22);
-        self.register_py_builtin(FUNC_ANY, t_any, Some(FUNC_ANY), 33);
+        self.register_py_builtin_const(
+            FUNC_ABS,
+            vis.clone(),
+            Some(t_abs),
+            abs,
+            Some(FUNC_ABS),
+            Some(11),
+        );
+        self.register_py_builtin_const(
+            FUNC_ALL,
+            vis.clone(),
+            Some(t_all),
+            all,
+            Some(FUNC_ALL),
+            Some(22),
+        );
+        self.register_py_builtin_const(
+            FUNC_ANY,
+            vis.clone(),
+            Some(t_any),
+            any,
+            Some(FUNC_ANY),
+            Some(33),
+        );
         self.register_py_builtin(FUNC_ARRAY, t_array, Some(FUNC_LIST), 215);
         self.register_py_builtin(FUNC_ASCII, t_ascii, Some(FUNC_ASCII), 53);
         // Leave as `Const`, as it may negatively affect assert casting.
@@ -386,8 +437,22 @@ impl Context {
             Some(FUNC_ISSUBCLASS),
         );
         self.register_builtin_py_impl(FUNC_ITER, t_iter, Immutable, vis.clone(), Some(FUNC_ITER));
-        self.register_builtin_py_impl(FUNC_LEN, t_len, Immutable, vis.clone(), Some(FUNC_LEN));
-        self.register_builtin_py_impl(FUNC_MAP, t_map, Immutable, vis.clone(), Some(FUNC_MAP));
+        self.register_py_builtin_const(
+            FUNC_LEN,
+            vis.clone(),
+            Some(t_len),
+            len,
+            Some(FUNC_LEN),
+            None,
+        );
+        self.register_py_builtin_const(
+            FUNC_MAP,
+            vis.clone(),
+            Some(t_map),
+            map,
+            Some(FUNC_MAP),
+            None,
+        );
         self.register_builtin_py_impl(FUNC_MAX, t_max, Immutable, vis.clone(), Some(FUNC_MAX));
         self.register_builtin_py_impl(
             FUNC_MEMORYVIEW,
