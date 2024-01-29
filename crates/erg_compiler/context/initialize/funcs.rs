@@ -122,6 +122,12 @@ impl Context {
             poly(FILTER, vec![ty_tp(T.clone())]),
         )
         .quantify();
+        let filter = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_FILTER,
+            filter_func,
+            t_filter.clone(),
+            None,
+        )));
         let t_format = no_var_func(vec![kw(KW_VALUE, Obj)], vec![kw(KW_SPEC, Str)], Str);
         let t_frozenset = nd_func(
             vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
@@ -228,6 +234,12 @@ impl Context {
             O.clone(),
         )
         .quantify();
+        let max = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_MAX,
+            max_func,
+            t_max.clone(),
+            None,
+        )));
         let t_memoryview = nd_func(
             vec![kw(
                 KW_OBJ,
@@ -242,10 +254,22 @@ impl Context {
             O,
         )
         .quantify();
+        let min = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_MIN,
+            min_func,
+            t_min.clone(),
+            None,
+        )));
         let t_nat = nd_func(vec![kw(KW_OBJ, Obj)], None, Nat);
         // e.g. not(b: Bool!): Bool!
         let B = mono_q(TY_B, subtypeof(Bool));
         let t_not = nd_func(vec![kw(KW_B, B.clone())], None, B).quantify();
+        let not = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_NOT,
+            not_func,
+            t_not.clone(),
+            None,
+        )));
         let t_oct = nd_func(vec![kw(KW_X, Int)], None, Str);
         let t_ord = nd_func(vec![kw(KW_C, Str)], None, Nat);
         let t_panic = nd_func(vec![kw(KW_MSG, Str)], None, Never);
@@ -298,6 +322,12 @@ impl Context {
         .quantify();
         let t_staticmethod = nd_func(vec![kw(KW_FUNC, F.clone())], None, F.clone()).quantify();
         let t_str = nd_func(vec![kw(KW_OBJECT, Obj)], None, Str);
+        let str_ = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_STR,
+            str_func,
+            t_str.clone(),
+            None,
+        )));
         let A = mono_q(TY_A, Constraint::Uninited);
         let A = mono_q(TY_A, subtypeof(poly(ADD, vec![ty_tp(A)])));
         let t_sum = no_var_func(
@@ -316,6 +346,12 @@ impl Context {
             poly(ZIP, vec![ty_tp(T.clone()), ty_tp(U.clone())]),
         )
         .quantify();
+        let zip = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_ZIP,
+            zip_func,
+            t_zip.clone(),
+            None,
+        )));
         self.register_py_builtin_const(
             FUNC_ABS,
             vis.clone(),
@@ -399,12 +435,13 @@ impl Context {
             vis.clone(),
             Some(FUNC_FORMAT),
         );
-        self.register_builtin_py_impl(
+        self.register_py_builtin_const(
             FUNC_FILTER,
-            t_filter,
-            Immutable,
             vis.clone(),
+            Some(t_filter),
+            filter,
             Some(FUNC_FILTER),
+            None,
         );
         self.register_builtin_py_impl(FUNC_FROZENSET, t_frozenset, Immutable, vis.clone(), None);
         self.register_builtin_py_impl(
@@ -453,7 +490,14 @@ impl Context {
             Some(FUNC_MAP),
             None,
         );
-        self.register_builtin_py_impl(FUNC_MAX, t_max, Immutable, vis.clone(), Some(FUNC_MAX));
+        self.register_py_builtin_const(
+            FUNC_MAX,
+            vis.clone(),
+            Some(t_max),
+            max,
+            Some(FUNC_MAX),
+            None,
+        );
         self.register_builtin_py_impl(
             FUNC_MEMORYVIEW,
             t_memoryview,
@@ -461,8 +505,15 @@ impl Context {
             vis.clone(),
             Some(FUNC_MEMORYVIEW),
         );
-        self.register_builtin_py_impl(FUNC_MIN, t_min, Immutable, vis.clone(), Some(FUNC_MIN));
-        self.register_builtin_py_impl(FUNC_NOT, t_not, Immutable, vis.clone(), None); // `not` is not a function in Python
+        self.register_py_builtin_const(
+            FUNC_MIN,
+            vis.clone(),
+            Some(t_min),
+            min,
+            Some(FUNC_MIN),
+            None,
+        );
+        self.register_py_builtin_const(FUNC_NOT, vis.clone(), Some(t_not), not, None, None); // `not` is not a function in Python
         self.register_builtin_py_impl(FUNC_OCT, t_oct, Immutable, vis.clone(), Some(FUNC_OCT));
         self.register_builtin_py_impl(FUNC_ORD, t_ord, Immutable, vis.clone(), Some(FUNC_ORD));
         self.register_builtin_py_impl(FUNC_POW, t_pow, Immutable, vis.clone(), Some(FUNC_POW));
@@ -559,9 +610,23 @@ impl Context {
             vis.clone(),
             Some(FUNC_STATICMETHOD),
         );
-        self.register_builtin_py_impl(FUNC_STR, t_str, Immutable, vis.clone(), Some(FUNC_STR__));
+        self.register_py_builtin_const(
+            FUNC_STR,
+            vis.clone(),
+            Some(t_str),
+            str_,
+            Some(FUNC_STR__),
+            None,
+        );
         self.register_builtin_py_impl(FUNC_SUM, t_sum, Immutable, vis.clone(), Some(FUNC_SUM));
-        self.register_builtin_py_impl(FUNC_ZIP, t_zip, Immutable, vis.clone(), Some(FUNC_ZIP));
+        self.register_py_builtin_const(
+            FUNC_ZIP,
+            vis.clone(),
+            Some(t_zip),
+            zip,
+            Some(FUNC_ZIP),
+            None,
+        );
         let name = if PYTHON_MODE { FUNC_INT } else { FUNC_INT__ };
         self.register_builtin_py_impl(FUNC_INT, t_int, Immutable, vis.clone(), Some(name));
         if DEBUG_MODE {

@@ -867,6 +867,49 @@ pub(crate) fn any_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<T
     Ok(ValueObj::Bool(any).into())
 }
 
+pub(crate) fn filter_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let iterable = args
+        .remove_left_or_key("iterable")
+        .ok_or_else(|| not_passed("iterable"))?;
+    let func = args
+        .remove_left_or_key("func")
+        .ok_or_else(|| not_passed("func"))?;
+    let arr = match iterable {
+        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::Tuple(t) => t.to_vec(),
+        ValueObj::Set(s) => s.into_iter().collect(),
+        _ => {
+            return Err(type_mismatch("Iterable(T)", iterable, "iterable"));
+        }
+    };
+    let subr = match func {
+        ValueObj::Subr(f) => f,
+        _ => {
+            return Err(type_mismatch("Subr", func, "func"));
+        }
+    };
+    let mut filtered = vec![];
+    for v in arr.into_iter() {
+        let args = ValueArgs::pos_only(vec![v.clone()]);
+        match ctx.call(subr.clone(), args, Location::Unknown) {
+            Ok(res) => match ctx.convert_tp_into_value(res) {
+                Ok(res) => {
+                    if res.is_true() {
+                        filtered.push(v);
+                    }
+                }
+                Err(tp) => {
+                    return Err(type_mismatch("Bool", tp, "func"));
+                }
+            },
+            Err(mut err) => {
+                return Err(EvalValueError::from(*err.remove(0).core));
+            }
+        }
+    }
+    Ok(TyParam::Value(ValueObj::Array(filtered.into())))
+}
+
 pub(crate) fn len_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
     let container = args
         .remove_left_or_key("iterable")
@@ -919,6 +962,93 @@ pub(crate) fn map_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<Ty
         }
     }
     Ok(TyParam::Array(mapped))
+}
+
+pub(crate) fn max_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let iterable = args
+        .remove_left_or_key("iterable")
+        .ok_or_else(|| not_passed("iterable"))?;
+    let arr = match iterable {
+        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::Tuple(t) => t.to_vec(),
+        ValueObj::Set(s) => s.into_iter().collect(),
+        _ => {
+            return Err(type_mismatch("Iterable(Ord)", iterable, "iterable"));
+        }
+    };
+    let mut max = ValueObj::NegInf;
+    if arr.is_empty() {
+        return Err(ErrorCore::new(
+            vec![SubMessage::only_loc(Location::Unknown)],
+            "max() arg is an empty sequence",
+            line!() as usize,
+            ErrorKind::ValueError,
+            Location::Unknown,
+        )
+        .into());
+    }
+    for v in arr.into_iter() {
+        if v.is_num() {
+            if max.clone().try_lt(v.clone()).is_some_and(|b| b.is_true()) {
+                max = v;
+            }
+        } else {
+            return Err(type_mismatch("Ord", v, "iterable.next()"));
+        }
+    }
+    Ok(max.into())
+}
+
+pub(crate) fn min_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let iterable = args
+        .remove_left_or_key("iterable")
+        .ok_or_else(|| not_passed("iterable"))?;
+    let arr = match iterable {
+        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::Tuple(t) => t.to_vec(),
+        ValueObj::Set(s) => s.into_iter().collect(),
+        _ => {
+            return Err(type_mismatch("Iterable(Ord)", iterable, "iterable"));
+        }
+    };
+    let mut min = ValueObj::Inf;
+    if arr.is_empty() {
+        return Err(ErrorCore::new(
+            vec![SubMessage::only_loc(Location::Unknown)],
+            "min() arg is an empty sequence",
+            line!() as usize,
+            ErrorKind::ValueError,
+            Location::Unknown,
+        )
+        .into());
+    }
+    for v in arr.into_iter() {
+        if v.is_num() {
+            if min.clone().try_gt(v.clone()).is_some_and(|b| b.is_true()) {
+                min = v;
+            }
+        } else {
+            return Err(type_mismatch("Ord", v, "iterable.next()"));
+        }
+    }
+    Ok(min.into())
+}
+
+pub(crate) fn not_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let val = args
+        .remove_left_or_key("val")
+        .ok_or_else(|| not_passed("val"))?;
+    match val {
+        ValueObj::Bool(b) => Ok(ValueObj::Bool(!b).into()),
+        _ => Err(type_mismatch("Bool", val, "val")),
+    }
+}
+
+pub(crate) fn str_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let val = args
+        .remove_left_or_key("val")
+        .ok_or_else(|| not_passed("val"))?;
+    Ok(ValueObj::Str(val.to_string().into()).into())
 }
 
 pub(crate) fn resolve_path_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
@@ -1002,4 +1132,35 @@ pub(crate) fn pred_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<
         }
     };
     Ok(val.into())
+}
+
+// TODO: varargs
+pub(crate) fn zip_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let iterable1 = args
+        .remove_left_or_key("iterable1")
+        .ok_or_else(|| not_passed("iterable1"))?;
+    let iterable2 = args
+        .remove_left_or_key("iterable2")
+        .ok_or_else(|| not_passed("iterable2"))?;
+    let iterable1 = match iterable1 {
+        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::Tuple(t) => t.to_vec(),
+        ValueObj::Set(s) => s.into_iter().collect(),
+        _ => {
+            return Err(type_mismatch("Iterable(T)", iterable1, "iterable1"));
+        }
+    };
+    let iterable2 = match iterable2 {
+        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::Tuple(t) => t.to_vec(),
+        ValueObj::Set(s) => s.into_iter().collect(),
+        _ => {
+            return Err(type_mismatch("Iterable(T)", iterable2, "iterable2"));
+        }
+    };
+    let mut zipped = vec![];
+    for (v1, v2) in iterable1.into_iter().zip(iterable2.into_iter()) {
+        zipped.push(ValueObj::Tuple(vec![v1, v2].into()));
+    }
+    Ok(TyParam::Value(ValueObj::Array(zipped.into())))
 }

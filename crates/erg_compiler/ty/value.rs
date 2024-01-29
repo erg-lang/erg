@@ -1000,6 +1000,14 @@ impl ValueObj {
         matches!(self, Self::Bool(_))
     }
 
+    pub const fn is_true(&self) -> bool {
+        matches!(self, Self::Bool(true))
+    }
+
+    pub const fn is_false(&self) -> bool {
+        matches!(self, Self::Bool(false))
+    }
+
     pub const fn is_str(&self) -> bool {
         matches!(self, Self::Str(_))
     }
