@@ -663,7 +663,7 @@ fn exec_recursive_fn_err() -> Result<(), ()> {
 
 #[test]
 fn exec_refinement_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/refinement.er", 0, 8)
+    expect_failure("tests/should_err/refinement.er", 0, 9)
 }
 
 #[test]

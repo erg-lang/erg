@@ -1492,10 +1492,13 @@ impl Context {
                 .rec_get_const_obj(&name)
                 .map(|v| TyParam::value(v.clone()))
                 .ok_or_else(|| {
-                    EvalErrors::from(EvalError::unreachable(
+                    EvalErrors::from(EvalError::no_var_error(
                         self.cfg.input.clone(),
-                        fn_name!(),
-                        line!(),
+                        line!() as usize,
+                        Location::Unknown,
+                        self.caused_by(),
+                        &name,
+                        None,
                     ))
                 }),
             TyParam::App { name, args } => self.eval_app(name, args),
@@ -1659,10 +1662,14 @@ impl Context {
                 }
             }
             Type::Refinement(refine) => {
-                let pred = self
-                    .eval_pred(*refine.pred)
-                    .map_err(|errs| (Failure, errs))?;
-                Ok(refinement(refine.var, *refine.t, pred))
+                if refine.pred.variables().is_empty() {
+                    let pred = self
+                        .eval_pred(*refine.pred)
+                        .map_err(|errs| (Failure, errs))?;
+                    Ok(refinement(refine.var, *refine.t, pred))
+                } else {
+                    Ok(Type::Refinement(refine))
+                }
             }
             // [?T; 0].MutType! == [?T; !0]
             // ?T(<: Add(?R(:> Int))).Output == ?T(<: Add(?R)).Output

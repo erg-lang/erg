@@ -784,4 +784,28 @@ impl Predicate {
             _ => vec![],
         }
     }
+
+    pub fn variables(&self) -> Set<Str> {
+        match self {
+            Self::Value(_) => set! {},
+            Self::Const(name) => set! { name.clone() },
+            Self::Call { receiver, args, .. } => {
+                let mut set = receiver.variables();
+                for arg in args {
+                    set.extend(arg.variables());
+                }
+                set
+            }
+            Self::Equal { rhs, .. }
+            | Self::GreaterEqual { rhs, .. }
+            | Self::LessEqual { rhs, .. }
+            | Self::NotEqual { rhs, .. } => rhs.variables(),
+            Self::GeneralEqual { lhs, rhs }
+            | Self::GeneralLessEqual { lhs, rhs }
+            | Self::GeneralGreaterEqual { lhs, rhs }
+            | Self::GeneralNotEqual { lhs, rhs } => lhs.variables().concat(rhs.variables()),
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => lhs.variables().concat(rhs.variables()),
+            Self::Not(pred) => pred.variables(),
+        }
+    }
 }

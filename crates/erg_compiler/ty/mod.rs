@@ -3984,6 +3984,71 @@ impl Type {
             _ => None,
         }
     }
+
+    pub fn variables(&self) -> Set<Str> {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().variables(),
+            Self::FreeVar(fv) if fv.get_subsup().is_some() => {
+                let (sub, sup) = fv.get_subsup().unwrap();
+                fv.do_avoiding_recursion(|| sub.variables().union(&sup.variables()))
+            }
+            Self::Refinement(refine) => refine.t.variables().concat(refine.pred.variables()),
+            Self::Mono(name) => set! { name.clone() },
+            Self::Poly { name, params } => {
+                let mut set = set! { name.clone() };
+                for param in params.iter() {
+                    set.extend(param.variables());
+                }
+                set
+            }
+            Self::Ref(t) => t.variables(),
+            Self::RefMut { before, after } => {
+                let mut set = before.variables();
+                if let Some(after) = after.as_ref() {
+                    set.extend(after.variables());
+                }
+                set
+            }
+            Self::Subr(sub) => {
+                let mut set = set! {};
+                for nd in sub.non_default_params.iter() {
+                    set.extend(nd.typ().variables());
+                }
+                if let Some(var) = sub.var_params.as_ref() {
+                    set.extend(var.typ().variables());
+                }
+                for d in sub.default_params.iter() {
+                    set.extend(d.typ().variables());
+                }
+                set.extend(sub.return_t.variables());
+                set
+            }
+            Self::Callable { param_ts, return_t } => {
+                let mut set = set! {};
+                for t in param_ts.iter() {
+                    set.extend(t.variables());
+                }
+                set.extend(return_t.variables());
+                set
+            }
+            Self::And(l, r) | Self::Or(l, r) => l.variables().union(&r.variables()),
+            Self::Not(ty) => ty.variables(),
+            Self::Bounded { sub, sup } => sub.variables().union(&sup.variables()),
+            Self::Quantified(ty) | Self::Structural(ty) => ty.variables(),
+            Self::Record(rec) => rec.values().flat_map(|t| t.variables()).collect(),
+            Self::NamedTuple(r) => r.iter().flat_map(|(_, t)| t.variables()).collect(),
+            Self::Proj { lhs, .. } => lhs.variables(),
+            Self::ProjCall { lhs, args, .. } => {
+                let mut set = lhs.variables();
+                for arg in args.iter() {
+                    set.extend(arg.variables());
+                }
+                set
+            }
+            Self::Guard(guard) => guard.to.variables(),
+            _ => set! {},
+        }
+    }
 }
 
 pub struct ReplaceTable<'t> {

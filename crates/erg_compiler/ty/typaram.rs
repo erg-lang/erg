@@ -1856,6 +1856,49 @@ impl TyParam {
             _ => Str::ever(""),
         }
     }
+
+    pub fn variables(&self) -> Set<Str> {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().variables(),
+            Self::FreeVar(fv) if fv.get_type().is_some() => fv.get_type().unwrap().variables(),
+            Self::Mono(name) => set! { name.clone() },
+            Self::App { name, args } => {
+                let mut set = set! { name.clone() };
+                for arg in args {
+                    set.merge(arg.variables());
+                }
+                set
+            }
+            Self::Array(tps) | Self::Tuple(tps) => {
+                tps.iter().fold(set! {}, |acc, t| acc.concat(t.variables()))
+            }
+            Self::Set(tps) => tps.iter().fold(set! {}, |acc, t| acc.concat(t.variables())),
+            Self::Record(rec) | Self::DataClass { fields: rec, .. } => rec
+                .iter()
+                .fold(set! {}, |acc, (_, v)| acc.concat(v.variables())),
+            Self::Dict(tps) => tps.iter().fold(set! {}, |acc, (k, v)| {
+                acc.concat(k.variables().concat(v.variables()))
+            }),
+            Self::UnsizedArray(elem) => elem.variables(),
+            Self::BinOp { lhs, rhs, .. } => lhs.variables().concat(rhs.variables()),
+            Self::UnaryOp { val, .. } => val.variables(),
+            Self::Lambda(lambda) => lambda
+                .body
+                .iter()
+                .fold(set! {}, |acc, t| acc.concat(t.variables())),
+            Self::Proj { obj, .. } => obj.variables(),
+            Self::ProjCall { obj, args, .. } => {
+                let mut set = obj.variables();
+                for arg in args {
+                    set.merge(arg.variables());
+                }
+                set
+            }
+            Self::Type(t) | Self::Erased(t) => t.variables(),
+            Self::Value(ValueObj::Type(t)) => t.typ().variables(),
+            _ => set! {},
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
