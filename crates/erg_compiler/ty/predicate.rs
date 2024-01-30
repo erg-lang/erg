@@ -20,6 +20,7 @@ pub enum Predicate {
         name: Option<Str>,
         args: Vec<TyParam>,
     },
+    /// TODO: unify with GeneralEqual
     /// i == 0 => Eq{ lhs: "i", rhs: 0 }
     Equal {
         lhs: Str,

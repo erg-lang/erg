@@ -353,20 +353,23 @@ pub(crate) fn dict_keys(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<T
     let ValueObj::Dict(slf) = slf else {
         return Err(type_mismatch("Dict", slf, "Self"));
     };
-    let slf = slf
-        .into_iter()
+    let dict_type = slf
+        .iter()
         .map(|(k, v)| {
-            (
-                ctx.convert_value_into_type(k).unwrap(),
-                ctx.convert_value_into_type(v).unwrap(),
-            )
+            let k = ctx.convert_value_into_type(k.clone())?;
+            let v = ctx.convert_value_into_type(v.clone())?;
+            Ok((k, v))
         })
-        .collect::<Dict<_, _>>();
-    let union = slf
-        .keys()
-        .fold(Type::Never, |union, t| ctx.union(&union, t));
-    // let keys = poly(DICT_KEYS, vec![ty_tp(union)]);
-    Ok(ValueObj::builtin_type(union).into())
+        .collect::<Result<Dict<_, _>, ValueObj>>();
+    if let Ok(slf) = dict_type {
+        let union = slf
+            .keys()
+            .fold(Type::Never, |union, t| ctx.union(&union, t));
+        // let keys = poly(DICT_KEYS, vec![ty_tp(union)]);
+        Ok(ValueObj::builtin_type(union).into())
+    } else {
+        Ok(ValueObj::Array(slf.into_keys().collect::<Vec<_>>().into()).into())
+    }
 }
 
 /// `{Str: Int, Int: Float}.values() == Int or Float`
@@ -377,20 +380,23 @@ pub(crate) fn dict_values(mut args: ValueArgs, ctx: &Context) -> EvalValueResult
     let ValueObj::Dict(slf) = slf else {
         return Err(type_mismatch("Dict", slf, "Self"));
     };
-    let slf = slf
-        .into_iter()
+    let dict_type = slf
+        .iter()
         .map(|(k, v)| {
-            (
-                ctx.convert_value_into_type(k).unwrap(),
-                ctx.convert_value_into_type(v).unwrap(),
-            )
+            let k = ctx.convert_value_into_type(k.clone())?;
+            let v = ctx.convert_value_into_type(v.clone())?;
+            Ok((k, v))
         })
-        .collect::<Dict<_, _>>();
-    let union = slf
-        .values()
-        .fold(Type::Never, |union, t| ctx.union(&union, t));
-    // let values = poly(DICT_VALUES, vec![ty_tp(union)]);
-    Ok(ValueObj::builtin_type(union).into())
+        .collect::<Result<Dict<_, _>, ValueObj>>();
+    if let Ok(slf) = dict_type {
+        let union = slf
+            .values()
+            .fold(Type::Never, |union, t| ctx.union(&union, t));
+        // let values = poly(DICT_VALUES, vec![ty_tp(union)]);
+        Ok(ValueObj::builtin_type(union).into())
+    } else {
+        Ok(ValueObj::Array(slf.into_values().collect::<Vec<_>>().into()).into())
+    }
 }
 
 /// `{Str: Int, Int: Float}.items() == (Str, Int) or (Int, Float)`
@@ -401,20 +407,29 @@ pub(crate) fn dict_items(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
     let ValueObj::Dict(slf) = slf else {
         return Err(type_mismatch("Dict", slf, "Self"));
     };
-    let slf = slf
-        .into_iter()
+    let dict_type = slf
+        .iter()
         .map(|(k, v)| {
-            (
-                ctx.convert_value_into_type(k).unwrap(),
-                ctx.convert_value_into_type(v).unwrap(),
-            )
+            let k = ctx.convert_value_into_type(k.clone())?;
+            let v = ctx.convert_value_into_type(v.clone())?;
+            Ok((k, v))
         })
-        .collect::<Dict<_, _>>();
-    let union = slf.iter().fold(Type::Never, |union, (k, v)| {
-        ctx.union(&union, &tuple_t(vec![k.clone(), v.clone()]))
-    });
-    // let items = poly(DICT_ITEMS, vec![ty_tp(union)]);
-    Ok(ValueObj::builtin_type(union).into())
+        .collect::<Result<Dict<_, _>, ValueObj>>();
+    if let Ok(slf) = dict_type {
+        let union = slf.iter().fold(Type::Never, |union, (k, v)| {
+            ctx.union(&union, &tuple_t(vec![k.clone(), v.clone()]))
+        });
+        // let items = poly(DICT_ITEMS, vec![ty_tp(union)]);
+        Ok(ValueObj::builtin_type(union).into())
+    } else {
+        Ok(ValueObj::Array(
+            slf.into_iter()
+                .map(|(k, v)| ValueObj::Tuple(vec![k, v].into()))
+                .collect::<Vec<_>>()
+                .into(),
+        )
+        .into())
+    }
 }
 
 /// If the key is duplicated, the value of the right dict is used.
@@ -969,12 +984,12 @@ pub(crate) fn any_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<T
 }
 
 pub(crate) fn filter_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
-    let iterable = args
-        .remove_left_or_key("iterable")
-        .ok_or_else(|| not_passed("iterable"))?;
     let func = args
         .remove_left_or_key("func")
         .ok_or_else(|| not_passed("func"))?;
+    let iterable = args
+        .remove_left_or_key("iterable")
+        .ok_or_else(|| not_passed("iterable"))?;
     let arr = match iterable {
         ValueObj::Array(a) => a.to_vec(),
         ValueObj::Tuple(t) => t.to_vec(),
@@ -1030,12 +1045,12 @@ pub(crate) fn len_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<T
 }
 
 pub(crate) fn map_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
-    let iterable = args
-        .remove_left_or_key("iterable")
-        .ok_or_else(|| not_passed("iterable"))?;
     let func = args
         .remove_left_or_key("func")
         .ok_or_else(|| not_passed("func"))?;
+    let iterable = args
+        .remove_left_or_key("iterable")
+        .ok_or_else(|| not_passed("iterable"))?;
     let arr = match iterable {
         ValueObj::Array(a) => a.to_vec(),
         ValueObj::Tuple(t) => t.to_vec(),
