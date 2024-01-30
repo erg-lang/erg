@@ -79,6 +79,29 @@ impl Context {
             .map(|mod_ctx| &mod_ctx.context)
     }
 
+    /// if `name` is the name of the type, get the `__call__` method
+    pub(crate) fn get_current_scope_callable(&self, name: &VarName) -> Option<&VarInfo> {
+        #[cfg(feature = "py_compat")]
+        let search_name = self
+            .erg_to_py_names
+            .get(name.inspect())
+            .unwrap_or(name.inspect());
+        #[cfg(not(feature = "py_compat"))]
+        let search_name = name.inspect();
+        if let Some(ctx) = self.get_type_ctx(search_name) {
+            let __call__ = VarName::from_static("__call__");
+            if let Some(vi) = ctx.get_current_scope_non_param(&__call__) {
+                return Some(vi);
+            }
+            for methods in ctx.methods_list.iter() {
+                if let Some(vi) = methods.get_current_scope_non_param(&__call__) {
+                    return Some(vi);
+                }
+            }
+        }
+        self.get_current_scope_non_param(name)
+    }
+
     pub(crate) fn get_current_scope_non_param(&self, name: &VarName) -> Option<&VarInfo> {
         #[cfg(feature = "py_compat")]
         let search_name = self
@@ -1318,12 +1341,12 @@ impl Context {
                 )
             })?
         {
-            if let Some(vi) = ctx.get_current_scope_non_param(&attr_name.name) {
+            if let Some(vi) = ctx.get_current_scope_callable(&attr_name.name) {
                 self.validate_visibility(attr_name, vi, input, namespace)?;
                 return Ok(vi.clone());
             }
             for methods_ctx in ctx.methods_list.iter() {
-                if let Some(vi) = methods_ctx.get_current_scope_non_param(&attr_name.name) {
+                if let Some(vi) = methods_ctx.get_current_scope_callable(&attr_name.name) {
                     self.validate_visibility(attr_name, vi, input, namespace)?;
                     return Ok(vi.clone());
                 }
@@ -1342,12 +1365,12 @@ impl Context {
         }
         if let Ok(singular_ctxs) = self.get_singular_ctxs_by_hir_expr(obj, namespace) {
             for ctx in singular_ctxs {
-                if let Some(vi) = ctx.get_current_scope_non_param(&attr_name.name) {
+                if let Some(vi) = ctx.get_current_scope_callable(&attr_name.name) {
                     self.validate_visibility(attr_name, vi, input, namespace)?;
                     return Ok(vi.clone());
                 }
                 for method_ctx in ctx.methods_list.iter() {
-                    if let Some(vi) = method_ctx.get_current_scope_non_param(&attr_name.name) {
+                    if let Some(vi) = method_ctx.get_current_scope_callable(&attr_name.name) {
                         self.validate_visibility(attr_name, vi, input, namespace)?;
                         return Ok(vi.clone());
                     }
@@ -1381,12 +1404,12 @@ impl Context {
             _ => {}
         }
         for patch in self.find_patches_of(obj.ref_t()) {
-            if let Some(vi) = patch.get_current_scope_non_param(&attr_name.name) {
+            if let Some(vi) = patch.get_current_scope_callable(&attr_name.name) {
                 self.validate_visibility(attr_name, vi, input, namespace)?;
                 return Ok(vi.clone());
             }
             for methods_ctx in patch.methods_list.iter() {
-                if let Some(vi) = methods_ctx.get_current_scope_non_param(&attr_name.name) {
+                if let Some(vi) = methods_ctx.get_current_scope_callable(&attr_name.name) {
                     self.validate_visibility(attr_name, vi, input, namespace)?;
                     return Ok(vi.clone());
                 }
