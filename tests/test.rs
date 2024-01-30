@@ -108,7 +108,7 @@ fn exec_dependent() -> Result<(), ()> {
 
 #[test]
 fn exec_dependent_refinement() -> Result<(), ()> {
-    expect_success("tests/should_ok/dependent_refinement.er", 0)
+    expect_compile_success("tests/should_ok/dependent_refinement.er", 0)
 }
 
 #[test]
