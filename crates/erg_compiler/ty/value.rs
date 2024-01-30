@@ -1188,6 +1188,33 @@ impl ValueObj {
         }
     }
 
+    pub fn as_int(&self) -> Option<i32> {
+        match self {
+            Self::Int(i) => Some(*i),
+            Self::Nat(n) => i32::try_from(*n).ok(),
+            Self::Bool(b) => Some(if *b { 1 } else { 0 }),
+            Self::Float(f) if f.round() == *f => Some(*f as i32),
+            _ => None,
+        }
+    }
+
+    pub fn as_float(&self) -> Option<f64> {
+        match self {
+            Self::Int(i) => Some(*i as f64),
+            Self::Nat(n) => Some(*n as f64),
+            Self::Bool(b) => Some(if *b { 1.0 } else { 0.0 }),
+            Self::Float(f) => Some(*f),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(&self) -> Option<&Str> {
+        match self {
+            Self::Str(s) => Some(s),
+            _ => None,
+        }
+    }
+
     pub fn try_binary(self, other: Self, op: OpKind) -> Option<Self> {
         match op {
             OpKind::Add => self.try_add(other),

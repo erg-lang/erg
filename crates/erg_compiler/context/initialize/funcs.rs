@@ -302,6 +302,12 @@ impl Context {
             poly(REVERSED, vec![ty_tp(T.clone())]),
         )
         .quantify();
+        let reversed = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_REVERSED,
+            reversed_func,
+            t_reversed.clone(),
+            None,
+        )));
         let t_round = nd_func(vec![kw(KW_NUMBER, Float)], None, Int);
         let t_set = no_var_func(
             vec![],
@@ -336,6 +342,12 @@ impl Context {
             A,
         )
         .quantify();
+        let sum = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_SUM,
+            sum_func,
+            t_sum.clone(),
+            None,
+        )));
         let t_unreachable = d_func(vec![kw(KW_MSG, Obj)], Never);
         let t_zip = nd_func(
             vec![
@@ -574,12 +586,13 @@ impl Context {
             Some(FUNC_RANGE),
         );
         self.register_builtin_py_impl(FUNC_REPR, t_repr, Immutable, vis.clone(), Some(FUNC_REPR));
-        self.register_builtin_py_impl(
+        self.register_py_builtin_const(
             FUNC_REVERSED,
-            t_reversed,
-            Immutable,
             vis.clone(),
+            Some(t_reversed),
+            reversed,
             Some(FUNC_REVERSED),
+            None,
         );
         self.register_builtin_py_impl(
             FUNC_ROUND,
@@ -618,7 +631,14 @@ impl Context {
             Some(FUNC_STR__),
             None,
         );
-        self.register_builtin_py_impl(FUNC_SUM, t_sum, Immutable, vis.clone(), Some(FUNC_SUM));
+        self.register_py_builtin_const(
+            FUNC_SUM,
+            vis.clone(),
+            Some(t_sum),
+            sum,
+            Some(FUNC_SUM),
+            None,
+        );
         self.register_py_builtin_const(
             FUNC_ZIP,
             vis.clone(),
@@ -729,7 +749,7 @@ impl Context {
             ClassType,
         );
         let class = ConstSubr::Builtin(BuiltinConstSubr::new(CLASS, class_func, class_t, None));
-        self.register_builtin_const(CLASS, vis.clone(), ValueObj::Subr(class));
+        self.register_builtin_const(CLASS, vis.clone(), None, ValueObj::Subr(class));
         let inherit_t = no_var_func(
             vec![kw(KW_SUPER, ClassType)],
             vec![kw(KW_IMPL, Type), kw(KW_ADDITIONAL, Type)],
@@ -741,14 +761,14 @@ impl Context {
             inherit_t,
             None,
         ));
-        self.register_builtin_const(INHERIT, vis.clone(), ValueObj::Subr(inherit));
+        self.register_builtin_const(INHERIT, vis.clone(), None, ValueObj::Subr(inherit));
         let trait_t = no_var_func(
             vec![kw(KW_REQUIREMENT, Type)],
             vec![kw(KW_IMPL, Type)],
             TraitType,
         );
         let trait_ = ConstSubr::Builtin(BuiltinConstSubr::new(TRAIT, trait_func, trait_t, None));
-        self.register_builtin_const(TRAIT, vis.clone(), ValueObj::Subr(trait_));
+        self.register_builtin_const(TRAIT, vis.clone(), None, ValueObj::Subr(trait_));
         let subsume_t = no_var_func(
             vec![kw(KW_SUPER, TraitType)],
             vec![kw(KW_IMPL, Type), kw(KW_ADDITIONAL, Type)],
@@ -760,14 +780,14 @@ impl Context {
             subsume_t,
             None,
         ));
-        self.register_builtin_const(SUBSUME, vis.clone(), ValueObj::Subr(subsume));
+        self.register_builtin_const(SUBSUME, vis.clone(), None, ValueObj::Subr(subsume));
         let structural = ConstSubr::Builtin(BuiltinConstSubr::new(
             STRUCTURAL,
             structural_func,
             func1(Type, Type),
             None,
         ));
-        self.register_builtin_const(STRUCTURAL, vis.clone(), ValueObj::Subr(structural));
+        self.register_builtin_const(STRUCTURAL, vis.clone(), None, ValueObj::Subr(structural));
         // decorators
         let inheritable_t = func1(ClassType, ClassType);
         let inheritable = ConstSubr::Builtin(BuiltinConstSubr::new(
@@ -776,7 +796,7 @@ impl Context {
             inheritable_t,
             None,
         ));
-        self.register_builtin_const(INHERITABLE, vis.clone(), ValueObj::Subr(inheritable));
+        self.register_builtin_const(INHERITABLE, vis.clone(), None, ValueObj::Subr(inheritable));
         let F = mono_q(TY_F, instanceof(mono(GENERIC_CALLABLE)));
         let override_t = func1(F.clone(), F).quantify();
         let override_ = ConstSubr::Builtin(BuiltinConstSubr::new(
@@ -785,7 +805,7 @@ impl Context {
             override_t,
             None,
         ));
-        self.register_builtin_const(OVERRIDE, vis.clone(), ValueObj::Subr(override_));
+        self.register_builtin_const(OVERRIDE, vis.clone(), None, ValueObj::Subr(override_));
         // TODO: register Del function object
         let t_del = nd_func(vec![kw(KW_OBJ, Obj)], None, NoneType);
         self.register_builtin_erg_impl(DEL, t_del, Immutable, vis.clone());
@@ -795,7 +815,7 @@ impl Context {
             TraitType,
         );
         let patch = ConstSubr::Builtin(BuiltinConstSubr::new(PATCH, patch_func, patch_t, None));
-        self.register_builtin_const(PATCH, vis.clone(), ValueObj::Subr(patch));
+        self.register_builtin_const(PATCH, vis.clone(), None, ValueObj::Subr(patch));
         let t_resolve_path = nd_func(vec![kw(KW_PATH, Str)], None, Str);
         let resolve_path = ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_RESOLVE_PATH,
@@ -803,7 +823,12 @@ impl Context {
             t_resolve_path,
             None,
         ));
-        self.register_builtin_const(FUNC_RESOLVE_PATH, vis.clone(), ValueObj::Subr(resolve_path));
+        self.register_builtin_const(
+            FUNC_RESOLVE_PATH,
+            vis.clone(),
+            None,
+            ValueObj::Subr(resolve_path),
+        );
         let t_resolve_decl_path = nd_func(vec![kw(KW_PATH, Str)], None, Str);
         let resolve_decl_path = ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_RESOLVE_DECL_PATH,
@@ -814,14 +839,15 @@ impl Context {
         self.register_builtin_const(
             FUNC_RESOLVE_DECL_PATH,
             vis.clone(),
+            None,
             ValueObj::Subr(resolve_decl_path),
         );
         let t_succ = nd_func(vec![kw(KW_N, Nat)], None, Nat);
         let succ = ConstSubr::Builtin(BuiltinConstSubr::new(FUNC_SUCC, succ_func, t_succ, None));
-        self.register_builtin_const(FUNC_SUCC, vis.clone(), ValueObj::Subr(succ));
+        self.register_builtin_const(FUNC_SUCC, vis.clone(), None, ValueObj::Subr(succ));
         let t_pred = nd_func(vec![kw(KW_N, Nat)], None, Nat);
         let pred = ConstSubr::Builtin(BuiltinConstSubr::new(FUNC_PRED, pred_func, t_pred, None));
-        self.register_builtin_const(FUNC_PRED, vis.clone(), ValueObj::Subr(pred));
+        self.register_builtin_const(FUNC_PRED, vis.clone(), None, ValueObj::Subr(pred));
     }
 
     pub(super) fn init_builtin_py_specific_funcs(&mut self) {

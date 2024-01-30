@@ -40,6 +40,7 @@ impl Context {
         interval_add.register_builtin_const(
             "Output",
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Type::from(m.clone() + o.clone()..=n.clone() + p.clone())),
         );
         interval.register_trait(class.clone(), interval_add);
@@ -55,6 +56,7 @@ impl Context {
         interval_sub.register_builtin_const(
             "Output",
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Type::from(m - p..=n - o)),
         );
         interval.register_trait(class, interval_sub);

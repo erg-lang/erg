@@ -800,6 +800,28 @@ pub(crate) fn as_record(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<T
     Ok(ValueObj::builtin_type(Type::Record(dict)).into())
 }
 
+pub(crate) fn str_replace(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let slf = args
+        .remove_left_or_key("self")
+        .ok_or_else(|| not_passed("self"))?;
+    let old = args
+        .remove_left_or_key("old")
+        .ok_or_else(|| not_passed("old"))?;
+    let new = args
+        .remove_left_or_key("new")
+        .ok_or_else(|| not_passed("new"))?;
+    let Some(slf) = slf.as_str() else {
+        return Err(type_mismatch("Str", slf, "self"));
+    };
+    let Some(old) = old.as_str() else {
+        return Err(type_mismatch("Str", old, "old"));
+    };
+    let Some(new) = new.as_str() else {
+        return Err(type_mismatch("Str", new, "new"));
+    };
+    Ok(ValueObj::Str(slf.replace(&old[..], new).into()).into())
+}
+
 pub(crate) fn abs_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
     let num = args
         .remove_left_or_key("num")
@@ -1044,11 +1066,54 @@ pub(crate) fn not_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<T
     }
 }
 
+pub(crate) fn reversed_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let reversible = args
+        .remove_left_or_key("reversible")
+        .ok_or_else(|| not_passed("reversible"))?;
+    let arr = match reversible {
+        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::Tuple(t) => t.to_vec(),
+        _ => {
+            return Err(type_mismatch("Reversible", reversible, "reversible"));
+        }
+    };
+    let mut reversed = vec![];
+    for v in arr.into_iter().rev() {
+        reversed.push(v);
+    }
+    Ok(TyParam::Value(ValueObj::Array(reversed.into())))
+}
+
 pub(crate) fn str_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
     let val = args
         .remove_left_or_key("val")
         .ok_or_else(|| not_passed("val"))?;
     Ok(ValueObj::Str(val.to_string().into()).into())
+}
+
+pub(crate) fn sum_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let iterable = args
+        .remove_left_or_key("iterable")
+        .ok_or_else(|| not_passed("iterable"))?;
+    let arr = match iterable {
+        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::Tuple(t) => t.to_vec(),
+        ValueObj::Set(s) => s.into_iter().collect(),
+        ValueObj::Dict(d) => d.into_keys().collect(),
+        ValueObj::Record(r) => r.into_values().collect(),
+        _ => {
+            return Err(type_mismatch("Iterable(Add)", iterable, "iterable"));
+        }
+    };
+    let mut sum = ValueObj::Nat(0);
+    for v in arr.into_iter() {
+        if v.is_num() {
+            sum = sum.try_add(v).unwrap();
+        } else {
+            return Err(type_mismatch("Add", v, "iterable.next()"));
+        }
+    }
+    Ok(sum.into())
 }
 
 pub(crate) fn resolve_path_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {

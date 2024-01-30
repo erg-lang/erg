@@ -739,7 +739,13 @@ impl Context {
         self.register_builtin_impl(name, t, muty, vis, py_name, abs_loc);
     }
 
-    fn register_builtin_const(&mut self, name: &str, vis: Visibility, obj: ValueObj) {
+    fn register_builtin_const(
+        &mut self,
+        name: &str,
+        vis: Visibility,
+        t: Option<Type>,
+        obj: ValueObj,
+    ) {
         if self.rec_get_const_obj(name).is_some() {
             panic!("already registered: {} {name}", self.name);
         } else {
@@ -754,9 +760,10 @@ impl Context {
                     }
                 }
             }
+            let t = t.unwrap_or_else(|| v_enum(set! {obj.clone()}));
             // TODO: not all value objects are comparable
             let vi = VarInfo::new(
-                v_enum(set! {obj.clone()}),
+                t,
                 Const,
                 vis,
                 Builtin,
