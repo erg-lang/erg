@@ -847,18 +847,35 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
-        str_.register_builtin_py_impl(
+        let t_s_startswith = fn1_met(Str, Str, Bool);
+        let s_startswith = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_STARTSWITH,
-            fn1_met(Str, Str, Bool),
-            Immutable,
+            str_startswith,
+            t_s_startswith.clone(),
+            None,
+        )));
+        str_.register_py_builtin_const(
+            FUNC_STARTSWITH,
             Visibility::BUILTIN_PUBLIC,
+            Some(t_s_startswith),
+            s_startswith,
             Some(FUNC_STARTSWITH),
+            None,
         );
-        str_.register_py_builtin(
+        let t_s_endswith = fn1_met(Str, Str, Bool);
+        let s_endswith = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_ENDSWITH,
-            fn1_met(Str, Str, Bool),
+            str_endswith,
+            t_s_endswith.clone(),
+            None,
+        )));
+        str_.register_py_builtin_const(
+            FUNC_ENDSWITH,
+            Visibility::BUILTIN_PUBLIC,
+            Some(t_s_endswith),
+            s_endswith,
             Some(FUNC_ENDSWITH),
-            69,
+            Some(69),
         );
         str_.register_builtin_py_impl(
             FUNC_SPLIT,
@@ -888,12 +905,20 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_SPLITLINES),
         );
-        str_.register_builtin_py_impl(
+        let t_s_join = fn1_met(Str, poly(ITERABLE, vec![ty_tp(Str)]), Str);
+        let s_join = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_JOIN,
-            fn1_met(Str, poly(ITERABLE, vec![ty_tp(Str)]), Str),
-            Immutable,
+            str_join,
+            t_s_join.clone(),
+            None,
+        )));
+        str_.register_py_builtin_const(
+            FUNC_JOIN,
             Visibility::BUILTIN_PUBLIC,
+            Some(t_s_join),
+            s_join,
             Some(FUNC_JOIN),
+            None,
         );
         str_.register_py_builtin(
             FUNC_INDEX,
@@ -922,18 +947,27 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_RINDEX),
         );
-        str_.register_py_builtin(
+        let t_s_find = fn_met(
+            Str,
+            vec![kw(KW_SUB, Str)],
+            None,
+            vec![kw(KW_START, Nat), kw(KW_END, Nat)],
+            None,
+            or(Nat, v_enum(set! {(-1).into()})),
+        );
+        let s_find = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_FIND,
-            fn_met(
-                Str,
-                vec![kw(KW_SUB, Str)],
-                None,
-                vec![kw(KW_START, Nat), kw(KW_END, Nat)],
-                None,
-                or(Nat, v_enum(set! {(-1).into()})),
-            ),
+            str_find,
+            t_s_find.clone(),
+            None,
+        )));
+        str_.register_py_builtin_const(
+            FUNC_FIND,
+            Visibility::BUILTIN_PUBLIC,
+            Some(t_s_find),
+            s_find,
             Some(FUNC_FIND),
-            93,
+            Some(93),
         );
         str_.register_builtin_py_impl(
             FUNC_RFIND,

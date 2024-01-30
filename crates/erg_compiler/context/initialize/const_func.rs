@@ -800,6 +800,69 @@ pub(crate) fn as_record(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<T
     Ok(ValueObj::builtin_type(Type::Record(dict)).into())
 }
 
+pub(crate) fn str_endswith(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let slf = args
+        .remove_left_or_key("self")
+        .ok_or_else(|| not_passed("self"))?;
+    let suffix = args
+        .remove_left_or_key("suffix")
+        .ok_or_else(|| not_passed("suffix"))?;
+    let Some(slf) = slf.as_str() else {
+        return Err(type_mismatch("Str", slf, "self"));
+    };
+    let Some(suffix) = suffix.as_str() else {
+        return Err(type_mismatch("Str", suffix, "suffix"));
+    };
+    Ok(ValueObj::Bool(slf.ends_with(&suffix[..])).into())
+}
+
+pub(crate) fn str_find(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let slf = args
+        .remove_left_or_key("self")
+        .ok_or_else(|| not_passed("self"))?;
+    let sub = args
+        .remove_left_or_key("sub")
+        .ok_or_else(|| not_passed("sub"))?;
+    let Some(slf) = slf.as_str() else {
+        return Err(type_mismatch("Str", slf, "self"));
+    };
+    let Some(sub) = sub.as_str() else {
+        return Err(type_mismatch("Str", sub, "sub"));
+    };
+    Ok(ValueObj::Int(slf.find(&sub[..]).map_or(-1, |i| i as i32)).into())
+}
+
+pub(crate) fn str_join(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let slf = args
+        .remove_left_or_key("self")
+        .ok_or_else(|| not_passed("self"))?;
+    let iterable = args
+        .remove_left_or_key("iterable")
+        .ok_or_else(|| not_passed("iterable"))?;
+    let Some(slf) = slf.as_str() else {
+        return Err(type_mismatch("Str", slf, "self"));
+    };
+    let arr = match iterable {
+        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::Tuple(t) => t.to_vec(),
+        ValueObj::Set(s) => s.into_iter().collect(),
+        ValueObj::Dict(d) => d.into_keys().collect(),
+        _ => {
+            return Err(type_mismatch("Iterable(Str)", iterable, "iterable"));
+        }
+    };
+    let mut joined = String::new();
+    for v in arr.iter() {
+        let Some(v) = v.as_str() else {
+            return Err(type_mismatch("Str", v, "arr.next()"));
+        };
+        joined.push_str(&v[..]);
+        joined.push_str(&slf[..]);
+    }
+    joined.pop();
+    Ok(ValueObj::Str(joined.into()).into())
+}
+
 pub(crate) fn str_replace(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
     let slf = args
         .remove_left_or_key("self")
@@ -820,6 +883,22 @@ pub(crate) fn str_replace(mut args: ValueArgs, _ctx: &Context) -> EvalValueResul
         return Err(type_mismatch("Str", new, "new"));
     };
     Ok(ValueObj::Str(slf.replace(&old[..], new).into()).into())
+}
+
+pub(crate) fn str_startswith(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let slf = args
+        .remove_left_or_key("self")
+        .ok_or_else(|| not_passed("self"))?;
+    let prefix = args
+        .remove_left_or_key("prefix")
+        .ok_or_else(|| not_passed("prefix"))?;
+    let Some(slf) = slf.as_str() else {
+        return Err(type_mismatch("Str", slf, "self"));
+    };
+    let Some(prefix) = prefix.as_str() else {
+        return Err(type_mismatch("Str", prefix, "prefix"));
+    };
+    Ok(ValueObj::Bool(slf.starts_with(&prefix[..])).into())
 }
 
 pub(crate) fn abs_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
