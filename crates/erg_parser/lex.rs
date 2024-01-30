@@ -780,8 +780,6 @@ impl Lexer /*<'a>*/ {
             "contains" => ContainsOp,
             "is!" => IsOp,
             "isnot!" => IsNotOp,
-            "dot" => DotOp,
-            "cross" => CrossOp,
             "ref" => RefOp,
             "ref!" => RefMutOp,
             // これらはリテラルというより定数だが便宜的にリテラルということにしておく

@@ -98,7 +98,7 @@ const COLLECTION: &str = "Collection";
 const INDEXABLE: &str = "Indexable";
 const MAPPING: &str = "Mapping";
 const MUTABLE_MAPPING: &str = "Mapping!";
-const SHAPE: &str = "Shape";
+const HAS_SHAPE: &str = "HasShape";
 const EQ: &str = "Eq";
 const HASH: &str = "Hash";
 const EQ_HASH: &str = "EqHash";
@@ -419,6 +419,7 @@ const FUNC_DELATTR: &str = "delattr";
 const FUNC_NEARLY_EQ: &str = "nearly_eq";
 const FUNC_RESOLVE_PATH: &str = "ResolvePath";
 const FUNC_RESOLVE_DECL_PATH: &str = "ResolveDeclPath";
+const FUNC_PROD: &str = "prod";
 
 const OP_EQ: &str = "__eq__";
 const OP_HASH: &str = "__hash__";
@@ -738,7 +739,13 @@ impl Context {
         self.register_builtin_impl(name, t, muty, vis, py_name, abs_loc);
     }
 
-    fn register_builtin_const(&mut self, name: &str, vis: Visibility, obj: ValueObj) {
+    fn register_builtin_const(
+        &mut self,
+        name: &str,
+        vis: Visibility,
+        t: Option<Type>,
+        obj: ValueObj,
+    ) {
         if self.rec_get_const_obj(name).is_some() {
             panic!("already registered: {} {name}", self.name);
         } else {
@@ -753,9 +760,10 @@ impl Context {
                     }
                 }
             }
+            let t = t.unwrap_or_else(|| v_enum(set! {obj.clone()}));
             // TODO: not all value objects are comparable
             let vi = VarInfo::new(
-                v_enum(set! {obj.clone()}),
+                t,
                 Const,
                 vis,
                 Builtin,
@@ -773,8 +781,10 @@ impl Context {
         &mut self,
         name: &str,
         vis: Visibility,
+        t: Option<Type>,
         obj: ValueObj,
         py_name: Option<&'static str>,
+        lineno: Option<u32>,
     ) {
         if self.rec_get_const_obj(name).is_some() {
             panic!("already registered: {} {name}", self.name);
@@ -790,16 +800,26 @@ impl Context {
                     }
                 }
             }
+            let t = t.unwrap_or_else(|| v_enum(set! {obj.clone()}));
+            let loc = lineno
+                .map(|lineno| Location::range(lineno, 0, lineno, name.len() as u32))
+                .unwrap_or(Location::Unknown);
+            let module = if &self.name[..] == "<builtins>" {
+                builtins_path()
+            } else {
+                erg_core_decl_path().join(format!("{}.d.er", self.name))
+            };
+            let abs_loc = AbsLocation::new(Some(module.into()), loc);
             // TODO: not all value objects are comparable
             let vi = VarInfo::new(
-                v_enum(set! {obj.clone()}),
+                t,
                 Const,
                 vis,
                 Builtin,
                 None,
                 self.kind.clone(),
                 py_name.map(Str::ever),
-                AbsLocation::unknown(),
+                abs_loc,
             );
             self.consts.insert(VarName::from_str(Str::rc(name)), obj);
             self.locals.insert(VarName::from_str(Str::rc(name)), vi);

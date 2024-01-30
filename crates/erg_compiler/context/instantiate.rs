@@ -137,10 +137,6 @@ impl TyVarCache {
         }
     }
 
-    fn _instantiate_pred(&self, _pred: Predicate) -> Predicate {
-        todo!()
-    }
-
     /// Some of the quantified types are circulating.
     /// e.g.
     /// ```erg
@@ -162,9 +158,14 @@ impl TyVarCache {
         self.already_appeared.insert(name);
     }
 
-    pub(crate) fn push_or_init_tyvar(&mut self, name: &VarName, tv: &Type, ctx: &Context) {
+    pub(crate) fn push_or_init_tyvar(
+        &mut self,
+        name: &VarName,
+        tv: &Type,
+        ctx: &Context,
+    ) -> TyCheckResult<()> {
         if name.inspect() == "_" {
-            return;
+            return Ok(());
         }
         if let Some(inst) = self.tyvar_instances.get(name) {
             self.update_tyvar(inst, tv, ctx);
@@ -182,6 +183,7 @@ impl TyVarCache {
             ctx.index().register(name.inspect().clone(), &vi);
             self.var_infos.insert(name.clone(), vi);
         }
+        Ok(())
     }
 
     pub(crate) fn dummy_push_or_init_tyvar(&mut self, name: &VarName, tv: &Type, ctx: &Context) {
@@ -239,9 +241,24 @@ impl TyVarCache {
         }
     }
 
-    pub(crate) fn push_or_init_typaram(&mut self, name: &VarName, tp: &TyParam, ctx: &Context) {
+    pub(crate) fn push_or_init_typaram(
+        &mut self,
+        name: &VarName,
+        tp: &TyParam,
+        ctx: &Context,
+    ) -> TyCheckResult<()> {
         if name.inspect() == "_" {
-            return;
+            return Ok(());
+        }
+        if ctx.rec_get_const_obj(name.inspect()).is_some() {
+            return Err(TyCheckError::reassign_error(
+                ctx.cfg.input.clone(),
+                line!() as usize,
+                name.loc(),
+                ctx.caused_by(),
+                name.inspect(),
+            )
+            .into());
         }
         // FIXME:
         if let Some(inst) = self.typaram_instances.get(name) {
@@ -259,6 +276,18 @@ impl TyVarCache {
             self.var_infos.insert(name.clone(), vi);
             self.typaram_instances.insert(name.clone(), tp.clone());
         }
+        Ok(())
+    }
+
+    pub(crate) fn push_refine_var(&mut self, name: &VarName, t: Type, ctx: &Context) {
+        if name.inspect() == "_" {
+            return;
+        }
+        let vi = VarInfo::type_var(t, ctx.absolutize(name.loc()), ctx.name.clone());
+        ctx.index().register(name.inspect().clone(), &vi);
+        self.var_infos.insert(name.clone(), vi);
+        let tp = TyParam::mono(name.inspect());
+        self.typaram_instances.insert(name.clone(), tp);
     }
 
     pub(crate) fn dummy_push_or_init_typaram(
@@ -575,6 +604,38 @@ impl Context {
             Predicate::Value(value) => {
                 let value = self.instantiate_value(value, tmp_tv_cache, loc)?;
                 Ok(Predicate::Value(value))
+            }
+            Predicate::Call {
+                receiver,
+                name,
+                args,
+            } => {
+                let receiver = self.instantiate_tp(receiver, tmp_tv_cache, loc)?;
+                let mut new_args = Vec::with_capacity(args.len());
+                for arg in args {
+                    new_args.push(self.instantiate_tp(arg, tmp_tv_cache, loc)?);
+                }
+                Ok(Predicate::call(receiver, name, new_args))
+            }
+            Predicate::GeneralEqual { lhs, rhs } => {
+                let lhs = self.instantiate_pred(*lhs, tmp_tv_cache, loc)?;
+                let rhs = self.instantiate_pred(*rhs, tmp_tv_cache, loc)?;
+                Ok(Predicate::general_eq(lhs, rhs))
+            }
+            Predicate::GeneralGreaterEqual { lhs, rhs } => {
+                let lhs = self.instantiate_pred(*lhs, tmp_tv_cache, loc)?;
+                let rhs = self.instantiate_pred(*rhs, tmp_tv_cache, loc)?;
+                Ok(Predicate::general_ge(lhs, rhs))
+            }
+            Predicate::GeneralLessEqual { lhs, rhs } => {
+                let lhs = self.instantiate_pred(*lhs, tmp_tv_cache, loc)?;
+                let rhs = self.instantiate_pred(*rhs, tmp_tv_cache, loc)?;
+                Ok(Predicate::general_le(lhs, rhs))
+            }
+            Predicate::GeneralNotEqual { lhs, rhs } => {
+                let lhs = self.instantiate_pred(*lhs, tmp_tv_cache, loc)?;
+                let rhs = self.instantiate_pred(*rhs, tmp_tv_cache, loc)?;
+                Ok(Predicate::general_ne(lhs, rhs))
             }
             _ => Ok(pred),
         }

@@ -67,6 +67,7 @@ impl Context {
         complex.register_builtin_const(
             EPSILON,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::Float(2.220446049250313e-16),
         );
         complex.register_builtin_py_impl(
@@ -185,6 +186,7 @@ impl Context {
         float_add.register_builtin_const(
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Float),
         );
         float.register_trait(Float, float_add);
@@ -198,6 +200,7 @@ impl Context {
         float_sub.register_builtin_const(
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Float),
         );
         float.register_trait(Float, float_sub);
@@ -211,11 +214,13 @@ impl Context {
         float_mul.register_builtin_const(
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Float),
         );
         float_mul.register_builtin_const(
             POW_OUTPUT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Float),
         );
         float.register_trait(Float, float_mul);
@@ -229,11 +234,13 @@ impl Context {
         float_div.register_builtin_const(
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Float),
         );
         float_div.register_builtin_const(
             MOD_OUTPUT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Float),
         );
         float.register_trait(Float, float_div);
@@ -248,6 +255,7 @@ impl Context {
         float_floordiv.register_builtin_const(
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Float),
         );
         float.register_trait(Float, float_floordiv);
@@ -255,6 +263,7 @@ impl Context {
         float_pos.register_builtin_const(
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Float),
         );
         float_pos.register_builtin_erg_impl(
@@ -268,6 +277,7 @@ impl Context {
         float_neg.register_builtin_const(
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Float),
         );
         float_neg.register_builtin_erg_impl(
@@ -281,6 +291,7 @@ impl Context {
         float_mutizable.register_builtin_const(
             MUTABLE_MUT_TYPE,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(mono(MUT_FLOAT)),
         );
         float.register_trait(Float, float_mutizable);
@@ -339,6 +350,7 @@ impl Context {
         ratio_add.register_builtin_const(
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Ratio),
         );
         ratio.register_trait(Ratio, ratio_add);
@@ -352,6 +364,7 @@ impl Context {
         ratio_sub.register_builtin_const(
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Ratio),
         );
         ratio.register_trait(Ratio, ratio_sub);
@@ -365,11 +378,13 @@ impl Context {
         ratio_mul.register_builtin_const(
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Ratio),
         );
         ratio_mul.register_builtin_const(
             POW_OUTPUT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Ratio),
         );
         ratio.register_trait(Ratio, ratio_mul);
@@ -383,11 +398,13 @@ impl Context {
         ratio_div.register_builtin_const(
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Ratio),
         );
         ratio_div.register_builtin_const(
             MOD_OUTPUT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Ratio),
         );
         ratio.register_trait(Ratio, ratio_div);
@@ -402,6 +419,7 @@ impl Context {
         ratio_floordiv.register_builtin_const(
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Ratio),
         );
         ratio.register_trait(Ratio, ratio_floordiv);
@@ -409,6 +427,7 @@ impl Context {
         ratio_mutizable.register_builtin_const(
             MUTABLE_MUT_TYPE,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(mono(MUT_RATIO)),
         );
         ratio.register_trait(Ratio, ratio_mutizable);
@@ -508,6 +527,7 @@ impl Context {
         int_add.register_builtin_const(
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Int),
         );
         int.register_trait(Int, int_add);
@@ -516,6 +536,7 @@ impl Context {
         int_sub.register_builtin_const(
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Int),
         );
         int.register_trait(Int, int_sub);
@@ -524,11 +545,13 @@ impl Context {
         int_mul.register_builtin_const(
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Int),
         );
         int_mul.register_builtin_const(
             POW_OUTPUT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Nat),
         );
         int.register_trait(Int, int_mul);
@@ -542,6 +565,7 @@ impl Context {
         int_floordiv.register_builtin_const(
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Int),
         );
         int.register_trait(Int, int_floordiv);
@@ -549,6 +573,7 @@ impl Context {
         int_pos.register_builtin_const(
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Int),
         );
         int_pos.register_builtin_erg_impl(
@@ -562,6 +587,7 @@ impl Context {
         int_neg.register_builtin_const(
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Int),
         );
         int_neg.register_builtin_erg_impl(
@@ -575,6 +601,7 @@ impl Context {
         int_mutizable.register_builtin_const(
             MUTABLE_MUT_TYPE,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(mono(MUT_INT)),
         );
         int.register_trait(Int, int_mutizable);
@@ -639,6 +666,7 @@ impl Context {
         nat_add.register_builtin_const(
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Nat),
         );
         nat.register_trait(Nat, nat_add);
@@ -653,6 +681,7 @@ impl Context {
         nat_sub.register_builtin_const(
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Int),
         );
         nat.register_trait(Nat, nat_sub);
@@ -661,6 +690,7 @@ impl Context {
         nat_mul.register_builtin_const(
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Nat),
         );
         nat.register_trait(Nat, nat_mul);
@@ -674,6 +704,7 @@ impl Context {
         nat_floordiv.register_builtin_const(
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Nat),
         );
         nat.register_trait(Nat, nat_floordiv);
@@ -681,6 +712,7 @@ impl Context {
         nat_mutizable.register_builtin_const(
             MUTABLE_MUT_TYPE,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(mono(MUT_NAT)),
         );
         nat.register_trait(Nat, nat_mutizable);
@@ -732,6 +764,7 @@ impl Context {
         bool_mutizable.register_builtin_const(
             MUTABLE_MUT_TYPE,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(mono(MUT_BOOL)),
         );
         bool_.register_trait(Bool, bool_mutizable);
@@ -750,18 +783,25 @@ impl Context {
         str_.register_superclass(Obj, &obj);
         str_.register_marker_trait(self, mono(ORD)).unwrap();
         str_.register_marker_trait(self, mono(PATH_LIKE)).unwrap();
-        str_.register_builtin_erg_impl(
+        let t_s_replace = fn_met(
+            Str,
+            vec![kw(KW_PAT, Str), kw(KW_INTO, Str)],
+            None,
+            vec![],
+            None,
+            Str,
+        );
+        let s_replace = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_REPLACE,
-            fn_met(
-                Str,
-                vec![kw(KW_PAT, Str), kw(KW_INTO, Str)],
-                None,
-                vec![],
-                None,
-                Str,
-            ),
-            Immutable,
+            str_replace,
+            t_s_replace.clone(),
+            None,
+        )));
+        str_.register_builtin_const(
+            FUNC_REPLACE,
             Visibility::BUILTIN_PUBLIC,
+            Some(t_s_replace),
+            s_replace,
         );
         str_.register_py_builtin(
             FUNC_ENCODE,
@@ -807,18 +847,35 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
-        str_.register_builtin_py_impl(
+        let t_s_startswith = fn1_met(Str, Str, Bool);
+        let s_startswith = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_STARTSWITH,
-            fn1_met(Str, Str, Bool),
-            Immutable,
+            str_startswith,
+            t_s_startswith.clone(),
+            None,
+        )));
+        str_.register_py_builtin_const(
+            FUNC_STARTSWITH,
             Visibility::BUILTIN_PUBLIC,
+            Some(t_s_startswith),
+            s_startswith,
             Some(FUNC_STARTSWITH),
+            None,
         );
-        str_.register_py_builtin(
+        let t_s_endswith = fn1_met(Str, Str, Bool);
+        let s_endswith = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_ENDSWITH,
-            fn1_met(Str, Str, Bool),
+            str_endswith,
+            t_s_endswith.clone(),
+            None,
+        )));
+        str_.register_py_builtin_const(
+            FUNC_ENDSWITH,
+            Visibility::BUILTIN_PUBLIC,
+            Some(t_s_endswith),
+            s_endswith,
             Some(FUNC_ENDSWITH),
-            69,
+            Some(69),
         );
         str_.register_builtin_py_impl(
             FUNC_SPLIT,
@@ -848,12 +905,20 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_SPLITLINES),
         );
-        str_.register_builtin_py_impl(
+        let t_s_join = fn1_met(Str, poly(ITERABLE, vec![ty_tp(Str)]), Str);
+        let s_join = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_JOIN,
-            fn1_met(Str, poly(ITERABLE, vec![ty_tp(Str)]), Str),
-            Immutable,
+            str_join,
+            t_s_join.clone(),
+            None,
+        )));
+        str_.register_py_builtin_const(
+            FUNC_JOIN,
             Visibility::BUILTIN_PUBLIC,
+            Some(t_s_join),
+            s_join,
             Some(FUNC_JOIN),
+            None,
         );
         str_.register_py_builtin(
             FUNC_INDEX,
@@ -882,18 +947,27 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_RINDEX),
         );
-        str_.register_py_builtin(
+        let t_s_find = fn_met(
+            Str,
+            vec![kw(KW_SUB, Str)],
+            None,
+            vec![kw(KW_START, Nat), kw(KW_END, Nat)],
+            None,
+            or(Nat, v_enum(set! {(-1).into()})),
+        );
+        let s_find = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_FIND,
-            fn_met(
-                Str,
-                vec![kw(KW_SUB, Str)],
-                None,
-                vec![kw(KW_START, Nat), kw(KW_END, Nat)],
-                None,
-                or(Nat, v_enum(set! {(-1).into()})),
-            ),
+            str_find,
+            t_s_find.clone(),
+            None,
+        )));
+        str_.register_py_builtin_const(
+            FUNC_FIND,
+            Visibility::BUILTIN_PUBLIC,
+            Some(t_s_find),
+            s_find,
             Some(FUNC_FIND),
-            93,
+            Some(93),
         );
         str_.register_builtin_py_impl(
             FUNC_RFIND,
@@ -969,26 +1043,50 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_ISALNUM),
         );
-        str_.register_builtin_py_impl(
+        let t_s_isalpha = fn0_met(Str, Bool);
+        let s_isalpha = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_ISALPHA,
-            fn0_met(Str, Bool),
-            Immutable,
+            str_isalpha,
+            t_s_isalpha.clone(),
+            None,
+        )));
+        str_.register_py_builtin_const(
+            FUNC_ISALPHA,
             Visibility::BUILTIN_PUBLIC,
+            Some(t_s_isalpha),
+            s_isalpha,
             Some(FUNC_ISALPHA),
+            None,
         );
-        str_.register_builtin_py_impl(
+        let t_s_isascii = fn0_met(Str, Bool);
+        let s_isascii = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_ISASCII,
-            fn0_met(Str, Bool),
-            Immutable,
+            str_isascii,
+            t_s_isascii.clone(),
+            None,
+        )));
+        str_.register_py_builtin_const(
+            FUNC_ISASCII,
             Visibility::BUILTIN_PUBLIC,
+            Some(t_s_isascii),
+            s_isascii,
             Some(FUNC_ISASCII),
+            None,
         );
-        str_.register_builtin_py_impl(
+        let s_t_isdecimal = fn0_met(Str, Bool);
+        let s_isdecimal = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_ISDECIMAL,
-            fn0_met(Str, Bool),
-            Immutable,
+            str_isdecimal,
+            s_t_isdecimal.clone(),
+            None,
+        )));
+        str_.register_py_builtin_const(
+            FUNC_ISDECIMAL,
             Visibility::BUILTIN_PUBLIC,
+            Some(s_t_isdecimal),
+            s_isdecimal,
             Some(FUNC_ISDECIMAL),
+            None,
         );
         str_.register_builtin_py_impl(
             FUNC_ISDIGIT,
@@ -1097,6 +1195,7 @@ impl Context {
         str_add.register_builtin_const(
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Str),
         );
         str_.register_trait(Str, str_add);
@@ -1110,6 +1209,7 @@ impl Context {
         str_mul.register_builtin_const(
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Str),
         );
         str_.register_trait(Str, str_mul);
@@ -1117,6 +1217,7 @@ impl Context {
         str_mutizable.register_builtin_const(
             MUTABLE_MUT_TYPE,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(mono(MUT_STR)),
         );
         str_.register_trait(Str, str_mutizable);
@@ -1139,6 +1240,7 @@ impl Context {
         str_iterable.register_builtin_const(
             ITERATOR,
             vis.clone(),
+            None,
             ValueObj::builtin_class(mono(STR_ITERATOR)),
         );
         str_.register_trait(Str, str_iterable);
@@ -1463,6 +1565,7 @@ impl Context {
         array_add.register_builtin_const(
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(out_t),
         );
         array_.register_trait(arr_t.clone(), array_add);
@@ -1481,6 +1584,7 @@ impl Context {
         array_mutizable.register_builtin_const(
             MUTABLE_MUT_TYPE,
             Visibility::BUILTIN_PUBLIC,
+            None,
             mut_type,
         );
         array_.register_trait(arr_t.clone(), array_mutizable);
@@ -1508,7 +1612,12 @@ impl Context {
             array_getitem_t,
             None,
         )));
-        array_.register_builtin_const(FUNDAMENTAL_GETITEM, Visibility::BUILTIN_PUBLIC, get_item);
+        array_.register_builtin_const(
+            FUNDAMENTAL_GETITEM,
+            Visibility::BUILTIN_PUBLIC,
+            None,
+            get_item,
+        );
         array_
             .register_marker_trait(self, poly(INDEXABLE, vec![ty_tp(input), ty_tp(T.clone())]))
             .unwrap();
@@ -1516,7 +1625,7 @@ impl Context {
             .register_marker_trait(
                 self,
                 poly(
-                    SHAPE,
+                    HAS_SHAPE,
                     vec![ty_tp(arr_t.clone()).proj_call(FUNC_SHAPE.into(), vec![])],
                 ),
             )
@@ -1537,7 +1646,7 @@ impl Context {
             array_union_t,
             None,
         )));
-        array_.register_builtin_const(FUNC_UNION, Visibility::BUILTIN_PUBLIC, union);
+        array_.register_builtin_const(FUNC_UNION, Visibility::BUILTIN_PUBLIC, None, union);
         // shape: (self: [Type; _]) -> [Nat; _]
         let array_shape_t = fn0_met(
             array_t(Type, TyParam::erased(Nat)),
@@ -1550,7 +1659,7 @@ impl Context {
             array_shape_t,
             None,
         )));
-        array_.register_builtin_const(FUNC_SHAPE, Visibility::BUILTIN_PUBLIC, shape);
+        array_.register_builtin_const(FUNC_SHAPE, Visibility::BUILTIN_PUBLIC, None, shape);
         let mut array_eq = Self::builtin_methods(Some(mono(EQ)), 2);
         array_eq.register_builtin_erg_impl(
             OP_EQ,
@@ -1586,6 +1695,7 @@ impl Context {
         array_iterable.register_builtin_const(
             ITERATOR,
             vis.clone(),
+            None,
             ValueObj::builtin_class(array_iter),
         );
         array_.register_trait(arr_t.clone(), array_iterable);
@@ -1611,6 +1721,45 @@ impl Context {
             array_t(T.clone(), TyParam::erased(Nat)),
         );
         array_.register_py_builtin(FUNC_DEDUP, t.quantify(), Some(FUNC_DEDUP), 28);
+        let sum_t = no_var_fn_met(
+            array_t(T.clone(), TyParam::erased(Nat)),
+            vec![],
+            vec![kw("start", T.clone())],
+            T.clone(),
+        );
+        let sum = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_SUM,
+            array_sum,
+            sum_t.quantify(),
+            None,
+        )));
+        array_.register_builtin_const(FUNC_SUM, Visibility::BUILTIN_PUBLIC, None, sum);
+        let prod_t = no_var_fn_met(
+            array_t(T.clone(), TyParam::erased(Nat)),
+            vec![],
+            vec![kw("start", T.clone())],
+            T.clone(),
+        );
+        let prod = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_PROD,
+            array_prod,
+            prod_t.quantify(),
+            None,
+        )));
+        array_.register_builtin_const(FUNC_PROD, Visibility::BUILTIN_PUBLIC, None, prod);
+        let reversed_t = no_var_fn_met(
+            array_t(T.clone(), TyParam::erased(Nat)),
+            vec![],
+            vec![],
+            array_t(T.clone(), TyParam::erased(Nat)),
+        );
+        let reversed = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_REVERSED,
+            array_reversed,
+            reversed_t.quantify(),
+            None,
+        )));
+        array_.register_builtin_const(FUNC_REVERSED, Visibility::BUILTIN_PUBLIC, None, reversed);
         /* Slice */
         let mut slice = Self::builtin_mono_class(SLICE, 3);
         slice.register_superclass(Obj, &obj);
@@ -1659,6 +1808,7 @@ impl Context {
         set_mutizable.register_builtin_const(
             MUTABLE_MUT_TYPE,
             Visibility::BUILTIN_PUBLIC,
+            None,
             mut_type,
         );
         set_.register_trait(set_t.clone(), set_mutizable);
@@ -1676,6 +1826,7 @@ impl Context {
         set_iterable.register_builtin_const(
             ITERATOR,
             vis.clone(),
+            None,
             ValueObj::builtin_class(set_iter),
         );
         set_.register_trait(set_t.clone(), set_iterable);
@@ -1751,6 +1902,7 @@ impl Context {
         dict_mutizable.register_builtin_const(
             MUTABLE_MUT_TYPE,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(poly(MUT_DICT, vec![D.clone()])),
         );
         dict_.register_trait(dict_t.clone(), dict_mutizable);
@@ -1764,7 +1916,12 @@ impl Context {
             dict_getitem_t,
             None,
         )));
-        dict_.register_builtin_const(FUNDAMENTAL_GETITEM, Visibility::BUILTIN_PUBLIC, get_item);
+        dict_.register_builtin_const(
+            FUNDAMENTAL_GETITEM,
+            Visibility::BUILTIN_PUBLIC,
+            None,
+            get_item,
+        );
         dict_
             .register_marker_trait(
                 self,
@@ -1779,7 +1936,7 @@ impl Context {
             dict_keys_t,
             None,
         )));
-        dict_.register_builtin_const(KEYS, Visibility::BUILTIN_PUBLIC, keys);
+        dict_.register_builtin_const(KEYS, Visibility::BUILTIN_PUBLIC, None, keys);
         let mut dict_iterable = Self::builtin_methods(
             Some(poly(
                 ITERABLE,
@@ -1799,6 +1956,7 @@ impl Context {
         dict_iterable.register_builtin_const(
             ITERATOR,
             vis.clone(),
+            None,
             ValueObj::builtin_class(dict_keys_iterator),
         );
         dict_.register_trait(dict_t.clone(), dict_iterable);
@@ -1822,7 +1980,7 @@ impl Context {
             dict_values_t,
             None,
         )));
-        dict_.register_builtin_const(VALUES, Visibility::BUILTIN_PUBLIC, values);
+        dict_.register_builtin_const(VALUES, Visibility::BUILTIN_PUBLIC, None, values);
         let dict_items_t = fn0_met(
             dict_t.clone(),
             poly(DICT_ITEMS, vec![ty_tp(proj_call(D.clone(), ITEMS, vec![]))]),
@@ -1834,7 +1992,7 @@ impl Context {
             dict_items_t,
             None,
         )));
-        dict_.register_builtin_const(ITEMS, Visibility::BUILTIN_PUBLIC, items);
+        dict_.register_builtin_const(ITEMS, Visibility::BUILTIN_PUBLIC, None, items);
         let as_record_t =
             fn0_met(dict_t.clone(), proj_call(D.clone(), FUNC_AS_RECORD, vec![])).quantify();
         let as_record = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
@@ -1843,7 +2001,7 @@ impl Context {
             as_record_t,
             None,
         )));
-        dict_.register_builtin_const(FUNC_AS_RECORD, Visibility::BUILTIN_PUBLIC, as_record);
+        dict_.register_builtin_const(FUNC_AS_RECORD, Visibility::BUILTIN_PUBLIC, None, as_record);
         let Def = type_q("Default");
         let get_t = no_var_fn_met(
             dict_t.clone(),
@@ -1875,7 +2033,7 @@ impl Context {
             dict_concat_t,
             None,
         )));
-        dict_.register_builtin_const(FUNC_CONCAT, Visibility::BUILTIN_PUBLIC, concat);
+        dict_.register_builtin_const(FUNC_CONCAT, Visibility::BUILTIN_PUBLIC, None, concat);
         let dict_diff_t = fn1_met(
             dict_t.clone(),
             other_dict_t.clone(),
@@ -1891,7 +2049,7 @@ impl Context {
             dict_diff_t,
             None,
         )));
-        dict_.register_builtin_const(FUNC_DIFF, Visibility::BUILTIN_PUBLIC, diff);
+        dict_.register_builtin_const(FUNC_DIFF, Visibility::BUILTIN_PUBLIC, None, diff);
         /* Bytes */
         let mut bytes = Self::builtin_mono_class(BYTES, 2);
         bytes.register_superclass(Obj, &obj);
@@ -2021,6 +2179,7 @@ impl Context {
         tuple_iterable.register_builtin_const(
             ITERATOR,
             vis.clone(),
+            None,
             ValueObj::builtin_class(tuple_iterator),
         );
         tuple_.register_trait(_tuple_t.clone(), tuple_iterable);
@@ -2050,8 +2209,10 @@ impl Context {
         record.register_py_builtin_const(
             FUNC_AS_DICT,
             Visibility::BUILTIN_PUBLIC,
+            None,
             as_dict,
             Some("_asdict"),
+            None,
         );
         let mut record_meta_type = Self::builtin_mono_class(RECORD_META_TYPE, 2);
         record_meta_type.register_superclass(mono(RECORD), &record);
@@ -2085,6 +2246,7 @@ impl Context {
         generic_named_tuple.register_builtin_const(
             FUNDAMENTAL_GETITEM,
             Visibility::BUILTIN_PUBLIC,
+            None,
             get_item,
         );
         let mut named_tuple_iterable = Self::builtin_methods(
@@ -2109,6 +2271,7 @@ impl Context {
         named_tuple_iterable.register_builtin_const(
             ITERATOR,
             vis.clone(),
+            None,
             ValueObj::builtin_class(named_tuple_iterator),
         );
         generic_named_tuple.register_trait(mono(GENERIC_NAMED_TUPLE), named_tuple_iterable);
@@ -2120,7 +2283,12 @@ impl Context {
             named_tuple_union_t,
             None,
         )));
-        generic_named_tuple.register_builtin_const(FUNC_UNION, Visibility::BUILTIN_PUBLIC, union);
+        generic_named_tuple.register_builtin_const(
+            FUNC_UNION,
+            Visibility::BUILTIN_PUBLIC,
+            None,
+            union,
+        );
         /* Or (true or type) */
         let or_t = poly(OR, vec![ty_tp(L), ty_tp(R)]);
         let mut or = Self::builtin_poly_class(OR, vec![PS::t_nd(TY_L), PS::t_nd(TY_R)], 2);
@@ -2273,6 +2441,7 @@ impl Context {
         obj_mut_mutable.register_builtin_const(
             IMMUT_TYPE,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Obj),
         );
         let f_t = kw(KW_FUNC, no_var_func(vec![kw(KW_OLD, Int)], vec![], Int));
@@ -2297,6 +2466,7 @@ impl Context {
         float_mut_mutable.register_builtin_const(
             IMMUT_TYPE,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Float),
         );
         let f_t = kw(KW_FUNC, no_var_func(vec![kw(KW_OLD, Float)], vec![], Float));
@@ -2322,6 +2492,7 @@ impl Context {
         ratio_mut_mutable.register_builtin_const(
             IMMUT_TYPE,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Ratio),
         );
         let f_t = kw(KW_FUNC, no_var_func(vec![kw(KW_OLD, Ratio)], vec![], Ratio));
@@ -2363,6 +2534,7 @@ impl Context {
         int_mut_mutable.register_builtin_const(
             IMMUT_TYPE,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Int),
         );
         let f_t = kw(KW_FUNC, no_var_func(vec![kw(KW_OLD, Int)], vec![], Int));
@@ -2389,6 +2561,7 @@ impl Context {
         nat_mut_mutable.register_builtin_const(
             IMMUT_TYPE,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Nat),
         );
         let f_t = kw(KW_FUNC, no_var_func(vec![kw(KW_OLD, Nat)], vec![], Nat));
@@ -2415,6 +2588,7 @@ impl Context {
         bool_mut_mutable.register_builtin_const(
             IMMUT_TYPE,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Bool),
         );
         let f_t = kw(KW_FUNC, no_var_func(vec![kw(KW_OLD, Bool)], vec![], Bool));
@@ -2448,6 +2622,7 @@ impl Context {
         str_mut_mutable.register_builtin_const(
             IMMUT_TYPE,
             Visibility::BUILTIN_PUBLIC,
+            None,
             ValueObj::builtin_class(Str),
         );
         let f_t = kw(KW_FUNC, no_var_func(vec![kw(KW_OLD, Str)], vec![], Str));
@@ -2949,6 +3124,7 @@ impl Context {
         range_iterable.register_builtin_const(
             ITERATOR,
             vis.clone(),
+            None,
             ValueObj::builtin_class(range_iter),
         );
         range.register_trait(range_t.clone(), range_iterable);
@@ -2959,7 +3135,12 @@ impl Context {
             range_getitem_t,
             None,
         )));
-        range.register_builtin_const(FUNDAMENTAL_GETITEM, Visibility::BUILTIN_PUBLIC, get_item);
+        range.register_builtin_const(
+            FUNDAMENTAL_GETITEM,
+            Visibility::BUILTIN_PUBLIC,
+            None,
+            get_item,
+        );
         let mut g_callable = Self::builtin_mono_class(GENERIC_CALLABLE, 2);
         g_callable.register_superclass(Obj, &obj);
         let t_return = fn1_met(mono(GENERIC_CALLABLE), Obj, Never).quantify();
@@ -3312,8 +3493,8 @@ impl Context {
                 Some(QUANTIFIED_FUNC_META_TYPE),
             );
         } else {
-            self.register_builtin_const(MUT_INT, vis.clone(), ValueObj::builtin_class(Int));
-            self.register_builtin_const(MUT_STR, vis, ValueObj::builtin_class(Str));
+            self.register_builtin_const(MUT_INT, vis.clone(), None, ValueObj::builtin_class(Int));
+            self.register_builtin_const(MUT_STR, vis, None, ValueObj::builtin_class(Str));
         }
     }
 }

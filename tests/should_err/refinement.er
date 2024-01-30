@@ -10,3 +10,6 @@ _: {I: Int | I < 10 and I != 6} = 6 # ERR
 _: {I: Int | I < 5} = 6 # ERR
 _: {I: Int | I < 3 or I != 4} = 4 # ERR
 _: {I: Int | (I < 5 or I != 3) and I != 4} = 4 # ERR
+
+check _: {S: Str | S.replace("abc", "") == ""} = None
+check "abcd" # ERR

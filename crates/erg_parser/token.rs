@@ -124,10 +124,6 @@ pub enum TokenKind {
     AndOp,
     /// `or`
     OrOp,
-    /// `dot` (scalar product)
-    DotOp,
-    /// `cross` (vector product)
-    CrossOp,
     /// `ref` (special unary)
     RefOp,
     /// `ref!` (special unary)
@@ -279,7 +275,7 @@ impl TokenKind {
             Dot | DblColon => 200,                                    // .
             Pow => 190,                                               // **
             PrePlus | PreMinus | PreBitNot | RefOp | RefMutOp => 180, // (unary) + - * ~ ref ref!
-            Star | Slash | FloorDiv | Mod | CrossOp | DotOp => 170,   // * / // % cross dot
+            Star | Slash | FloorDiv | Mod => 170,                     // * / // %
             Plus | Minus => 160,                                      // + -
             Shl | Shr => 150,                                         // << >>
             BitAnd => 140,                                            // &&

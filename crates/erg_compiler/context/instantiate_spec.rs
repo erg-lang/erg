@@ -22,6 +22,7 @@ use crate::ty::value::ValueObj;
 use crate::ty::{constructors::*, Predicate, RefinementType, VisibilityModifier};
 use crate::ty::{Field, HasType, ParamTy, SubrKind, SubrType, Type};
 use crate::type_feature_error;
+use crate::varinfo::{AbsLocation, VarInfo};
 use TyParamOrdering::*;
 use Type::*;
 
@@ -125,8 +126,7 @@ impl Context {
                 // TODO: other than type `Type`
                 let constr = Constraint::new_type_of(Type);
                 let tv = named_free_var(name.inspect().clone(), self.level, constr);
-                tv_cache.push_or_init_tyvar(name, &tv, self);
-                Ok(())
+                tv_cache.push_or_init_tyvar(name, &tv, self)
             }
             TypeBoundSpec::NonDefault { lhs, spec } => {
                 let constr = match spec.op.kind {
@@ -147,10 +147,10 @@ impl Context {
                 };
                 if constr.get_sub_sup().is_none() {
                     let tp = TyParam::named_free_var(lhs.inspect().clone(), self.level, constr);
-                    tv_cache.push_or_init_typaram(lhs, &tp, self);
+                    tv_cache.push_or_init_typaram(lhs, &tp, self)?;
                 } else {
                     let tv = named_free_var(lhs.inspect().clone(), self.level, constr);
-                    tv_cache.push_or_init_tyvar(lhs, &tv, self);
+                    tv_cache.push_or_init_tyvar(lhs, &tv, self)?;
                 }
                 Ok(())
             }
@@ -389,7 +389,12 @@ impl Context {
                 mode,
                 not_found_is_qvar,
             )
-            .map_err(|errs| (Type::Failure, errs))?
+            .map_err(|errs| {
+                (
+                    opt_decl_t.map_or(Type::Failure, |pt| pt.typ().clone()),
+                    errs,
+                )
+            })?
         } else {
             match &sig.pat {
                 ast::ParamPattern::Lit(lit) => {
@@ -637,7 +642,7 @@ impl Context {
                     Ok(ctx.typ.clone())
                 } else if not_found_is_qvar {
                     let tyvar = named_free_var(Str::rc(other), self.level, Constraint::Uninited);
-                    tmp_tv_cache.push_or_init_tyvar(&ident.name, &tyvar, self);
+                    tmp_tv_cache.push_or_init_tyvar(&ident.name, &tyvar, self)?;
                     Ok(tyvar)
                 } else if let Some(decl_t) = opt_decl_t {
                     Ok(decl_t.typ().clone())
@@ -831,7 +836,7 @@ impl Context {
                                 Constraint::Uninited,
                             );
                             let varname = VarName::from_str(name);
-                            tmp_tv_cache.push_or_init_typaram(&varname, &tp, self);
+                            tmp_tv_cache.push_or_init_typaram(&varname, &tp, self)?;
                             Ok(tp)
                         } else {
                             Err(e)
@@ -840,7 +845,7 @@ impl Context {
                     let arg_t = self
                         .get_tp_t(&param)
                         .map_err(|err| {
-                            log!(err "{err}");
+                            log!(err "{param}: {err}");
                             err
                         })
                         .unwrap_or(Obj);
@@ -941,8 +946,14 @@ impl Context {
         }
         if not_found_is_qvar {
             let tyvar = named_free_var(name.inspect().clone(), self.level, Constraint::Uninited);
-            tmp_tv_cache.push_or_init_tyvar(&name.name, &tyvar, self);
+            tmp_tv_cache.push_or_init_tyvar(&name.name, &tyvar, self)?;
             return Ok(TyParam::t(tyvar));
+        }
+        if name.is_const() {
+            if let Some((_, vi)) = self.get_var_info(name.inspect()) {
+                self.inc_ref(name.inspect(), vi, name, self);
+                return Ok(TyParam::mono(name.inspect()));
+            }
         }
         Err(TyCheckErrors::from(TyCheckError::no_var_error(
             self.cfg.input.clone(),
@@ -1222,10 +1233,50 @@ impl Context {
                 } else {
                     None
                 };
+                let mut lambda_ctx = Context::instant(
+                    Str::ever("<lambda>"),
+                    self.cfg.clone(),
+                    0,
+                    self.shared.clone(),
+                    self.clone(),
+                );
+                for non_default in nd_params.iter() {
+                    let name = non_default
+                        .name()
+                        .map(|name| VarName::from_str(name.clone()));
+                    let vi = VarInfo::nd_parameter(
+                        non_default.typ().clone(),
+                        AbsLocation::unknown(),
+                        lambda_ctx.name.clone(),
+                    );
+                    lambda_ctx.params.push((name, vi));
+                }
+                if let Some(var_param) = var_params.as_ref() {
+                    let name = var_param.name().map(|name| VarName::from_str(name.clone()));
+                    let vi = VarInfo::nd_parameter(
+                        var_param.typ().clone(),
+                        AbsLocation::unknown(),
+                        lambda_ctx.name.clone(),
+                    );
+                    lambda_ctx.params.push((name, vi));
+                }
+                for default in d_params.iter() {
+                    let name = default.name().map(|name| VarName::from_str(name.clone()));
+                    let vi = VarInfo::d_parameter(
+                        default.typ().clone(),
+                        AbsLocation::unknown(),
+                        lambda_ctx.name.clone(),
+                    );
+                    lambda_ctx.params.push((name, vi));
+                }
                 let mut body = vec![];
                 for expr in lambda.body.iter() {
-                    let param =
-                        self.instantiate_const_expr(expr, None, tmp_tv_cache, not_found_is_qvar)?;
+                    let param = lambda_ctx.instantiate_const_expr(
+                        expr,
+                        None,
+                        tmp_tv_cache,
+                        not_found_is_qvar,
+                    )?;
                     body.push(param);
                 }
                 tmp_tv_cache.purge(&_tmp_tv_cache);
@@ -1462,6 +1513,20 @@ impl Context {
                 self.inc_ref_local(local, self, tmp_tv_cache);
                 Ok(Predicate::Const(local.inspect().clone()))
             }
+            ast::ConstExpr::App(app) => {
+                let receiver = self.instantiate_const_expr(&app.obj, None, tmp_tv_cache, false)?;
+                let name = app.attr_name.as_ref().map(|n| n.inspect().to_owned());
+                let mut args = vec![];
+                for arg in app.args.pos_args() {
+                    let arg = self.instantiate_const_expr(&arg.expr, None, tmp_tv_cache, false)?;
+                    args.push(arg);
+                }
+                Ok(Predicate::Call {
+                    receiver,
+                    name,
+                    args,
+                })
+            }
             ast::ConstExpr::BinOp(bin) => {
                 let lhs = self.instantiate_pred_from_expr(&bin.lhs, tmp_tv_cache)?;
                 let rhs = self.instantiate_pred_from_expr(&bin.rhs, tmp_tv_cache)?;
@@ -1472,16 +1537,43 @@ impl Context {
                     | TokenKind::LessEq
                     | TokenKind::Gre
                     | TokenKind::GreEq => {
-                        let Predicate::Const(var) = lhs else {
-                            return type_feature_error!(
-                                self,
-                                bin.loc(),
-                                &format!("instantiating predicate `{expr}`")
-                            );
+                        let var = match lhs {
+                            Predicate::Const(var) => var,
+                            other if bin.op.kind == TokenKind::DblEq => {
+                                return Ok(Predicate::general_eq(other, rhs));
+                            }
+                            other if bin.op.kind == TokenKind::NotEq => {
+                                return Ok(Predicate::general_ne(other, rhs));
+                            }
+                            other if bin.op.kind == TokenKind::GreEq => {
+                                return Ok(Predicate::general_ge(other, rhs));
+                            }
+                            other if bin.op.kind == TokenKind::LessEq => {
+                                return Ok(Predicate::general_le(other, rhs));
+                            }
+                            _ => {
+                                return type_feature_error!(
+                                    self,
+                                    bin.loc(),
+                                    &format!("instantiating predicate `{expr}`")
+                                );
+                            }
                         };
                         let rhs = match rhs {
                             Predicate::Value(value) => TyParam::Value(value),
                             Predicate::Const(var) => TyParam::Mono(var),
+                            other if bin.op.kind == TokenKind::DblEq => {
+                                return Ok(Predicate::general_eq(Predicate::Const(var), other));
+                            }
+                            other if bin.op.kind == TokenKind::NotEq => {
+                                return Ok(Predicate::general_ne(Predicate::Const(var), other));
+                            }
+                            other if bin.op.kind == TokenKind::GreEq => {
+                                return Ok(Predicate::general_ge(Predicate::Const(var), other));
+                            }
+                            other if bin.op.kind == TokenKind::LessEq => {
+                                return Ok(Predicate::general_le(Predicate::Const(var), other));
+                            }
                             _ => {
                                 return type_feature_error!(
                                     self,
@@ -1797,12 +1889,7 @@ impl Context {
                     not_found_is_qvar,
                 )?;
                 let name = VarName::new(refine.var.clone());
-                let tp = TyParam::named_free_var(
-                    refine.var.inspect().clone(),
-                    self.level,
-                    Constraint::new_type_of(t.clone()),
-                );
-                tmp_tv_cache.push_or_init_typaram(&name, &tp, self);
+                tmp_tv_cache.push_refine_var(&name, t.clone(), self);
                 let pred = self
                     .instantiate_pred_from_expr(&refine.pred, tmp_tv_cache)
                     .map_err(|err| {

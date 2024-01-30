@@ -1,0 +1,18 @@
+np = pyimport "numpy"
+
+a1 = np.zeros([3, 3])
+_ = a1.reshape([1, 9])
+_ = a1.reshape([3, 3])
+_ = a1.reshape([9, 1])
+
+a2 = np.zeros([2, 3])
+
+check|T, Shape: {A: [Nat; _] | all(map((X -> X > 1), A))}|(
+    _: np.NDArray(T, Shape)
+) = None
+check a2
+
+check2|T, Shape: [Nat; _]|(
+    _: {_: np.NDArray(T, Shape) | all(map((X -> X > 1), Shape))}
+) = None
+check2 a2

@@ -118,6 +118,20 @@ impl<T, E> Triple<T, E> {
             Triple::Err(err) => Triple::Err(f(err)),
         }
     }
+
+    pub fn is_ok_and(self, f: impl FnOnce(T) -> bool) -> bool {
+        match self {
+            Triple::Ok(ok) => f(ok),
+            _ => false,
+        }
+    }
+
+    pub fn is_err_and(self, f: impl FnOnce(E) -> bool) -> bool {
+        match self {
+            Triple::Err(err) => f(err),
+            _ => false,
+        }
+    }
 }
 
 impl<T> Triple<T, T> {

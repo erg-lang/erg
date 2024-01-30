@@ -323,7 +323,39 @@ impl Generalizer {
                 *typ.typ_mut() = self.generalize_t(mem::take(typ.typ_mut()), uninit);
                 Predicate::Value(ValueObj::Type(typ))
             }
+            Predicate::Call {
+                receiver,
+                name,
+                args,
+            } => {
+                let receiver = self.generalize_tp(receiver, uninit);
+                let mut new_args = vec![];
+                for arg in args.into_iter() {
+                    new_args.push(self.generalize_tp(arg, uninit));
+                }
+                Predicate::call(receiver, name, new_args)
+            }
             Predicate::Value(_) => pred,
+            Predicate::GeneralEqual { lhs, rhs } => {
+                let lhs = self.generalize_pred(*lhs, uninit);
+                let rhs = self.generalize_pred(*rhs, uninit);
+                Predicate::general_eq(lhs, rhs)
+            }
+            Predicate::GeneralGreaterEqual { lhs, rhs } => {
+                let lhs = self.generalize_pred(*lhs, uninit);
+                let rhs = self.generalize_pred(*rhs, uninit);
+                Predicate::general_ge(lhs, rhs)
+            }
+            Predicate::GeneralLessEqual { lhs, rhs } => {
+                let lhs = self.generalize_pred(*lhs, uninit);
+                let rhs = self.generalize_pred(*rhs, uninit);
+                Predicate::general_le(lhs, rhs)
+            }
+            Predicate::GeneralNotEqual { lhs, rhs } => {
+                let lhs = self.generalize_pred(*lhs, uninit);
+                let rhs = self.generalize_pred(*rhs, uninit);
+                Predicate::general_ne(lhs, rhs)
+            }
             Predicate::Equal { lhs, rhs } => {
                 let rhs = self.generalize_tp(rhs, uninit);
                 Predicate::eq(lhs, rhs)
@@ -360,6 +392,8 @@ impl Generalizer {
 
 pub struct Dereferencer<'c, 'q, 'l, L: Locational> {
     ctx: &'c Context,
+    /// This is basically the same as `ctx.level`, but can be changed
+    level: usize,
     coerce: bool,
     variance_stack: Vec<Variance>,
     qnames: &'q Set<Str>,
@@ -376,6 +410,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
     ) -> Self {
         Self {
             ctx,
+            level: ctx.level,
             coerce,
             variance_stack: vec![Invariant, variance],
             qnames,
@@ -385,6 +420,10 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
 
     pub fn simple(ctx: &'c Context, qnames: &'q Set<Str>, loc: &'l L) -> Self {
         Self::new(ctx, Variance::Covariant, true, qnames, loc)
+    }
+
+    pub fn set_level(&mut self, level: usize) {
+        self.level = level;
     }
 
     fn push_variance(&mut self, variance: Variance) {
@@ -411,8 +450,14 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 Ok(TyParam::FreeVar(fv))
             }
             // REVIEW:
-            TyParam::FreeVar(_) if self.ctx.level == 0 => {
-                Ok(TyParam::erased(self.ctx.get_tp_t(&tp).unwrap_or(Type::Obj)))
+            TyParam::FreeVar(_) if self.level == 0 => {
+                let t = self.ctx.get_tp_t(&tp).unwrap_or(Type::Obj);
+                Ok(TyParam::erased(self.deref_tyvar(t)?))
+            }
+            TyParam::FreeVar(fv) if fv.get_type().is_some() => {
+                let t = self.deref_tyvar(fv.get_type().unwrap())?;
+                fv.update_type(t);
+                Ok(TyParam::FreeVar(fv))
             }
             TyParam::Type(t) => Ok(TyParam::t(self.deref_tyvar(*t)?)),
             TyParam::Erased(t) => Ok(TyParam::erased(self.deref_tyvar(*t)?)),
@@ -532,10 +577,127 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                     attr,
                 })
             }
-            TyParam::Failure if self.ctx.level == 0 => Err(TyCheckErrors::from(
+            TyParam::Failure if self.level == 0 => Err(TyCheckErrors::from(
                 TyCheckError::dummy_infer_error(self.ctx.cfg.input.clone(), fn_name!(), line!()),
             )),
             t => Ok(t),
+        }
+    }
+
+    fn deref_pred(&mut self, pred: Predicate) -> TyCheckResult<Predicate> {
+        match pred {
+            Predicate::Equal { lhs, rhs } => {
+                let rhs = self.deref_tp(rhs)?;
+                Ok(Predicate::eq(lhs, rhs))
+            }
+            Predicate::GreaterEqual { lhs, rhs } => {
+                let rhs = self.deref_tp(rhs)?;
+                Ok(Predicate::ge(lhs, rhs))
+            }
+            Predicate::LessEqual { lhs, rhs } => {
+                let rhs = self.deref_tp(rhs)?;
+                Ok(Predicate::le(lhs, rhs))
+            }
+            Predicate::NotEqual { lhs, rhs } => {
+                let rhs = self.deref_tp(rhs)?;
+                Ok(Predicate::ne(lhs, rhs))
+            }
+            Predicate::GeneralEqual { lhs, rhs } => {
+                let lhs = self.deref_pred(*lhs)?;
+                let rhs = self.deref_pred(*rhs)?;
+                match (lhs, rhs) {
+                    (Predicate::Value(lhs), Predicate::Value(rhs)) => {
+                        Ok(Predicate::Value(ValueObj::Bool(lhs == rhs)))
+                    }
+                    (lhs, rhs) => Ok(Predicate::general_eq(lhs, rhs)),
+                }
+            }
+            Predicate::GeneralNotEqual { lhs, rhs } => {
+                let lhs = self.deref_pred(*lhs)?;
+                let rhs = self.deref_pred(*rhs)?;
+                match (lhs, rhs) {
+                    (Predicate::Value(lhs), Predicate::Value(rhs)) => {
+                        Ok(Predicate::Value(ValueObj::Bool(lhs != rhs)))
+                    }
+                    (lhs, rhs) => Ok(Predicate::general_ne(lhs, rhs)),
+                }
+            }
+            Predicate::GeneralGreaterEqual { lhs, rhs } => {
+                let lhs = self.deref_pred(*lhs)?;
+                let rhs = self.deref_pred(*rhs)?;
+                match (lhs, rhs) {
+                    (Predicate::Value(lhs), Predicate::Value(rhs)) => {
+                        let Some(ValueObj::Bool(res)) = lhs.try_ge(rhs) else {
+                            // TODO:
+                            return Err(TyCheckErrors::from(TyCheckError::dummy_infer_error(
+                                self.ctx.cfg.input.clone(),
+                                fn_name!(),
+                                line!(),
+                            )));
+                        };
+                        Ok(Predicate::Value(ValueObj::Bool(res)))
+                    }
+                    (lhs, rhs) => Ok(Predicate::general_ge(lhs, rhs)),
+                }
+            }
+            Predicate::GeneralLessEqual { lhs, rhs } => {
+                let lhs = self.deref_pred(*lhs)?;
+                let rhs = self.deref_pred(*rhs)?;
+                match (lhs, rhs) {
+                    (Predicate::Value(lhs), Predicate::Value(rhs)) => {
+                        let Some(ValueObj::Bool(res)) = lhs.try_le(rhs) else {
+                            return Err(TyCheckErrors::from(TyCheckError::dummy_infer_error(
+                                self.ctx.cfg.input.clone(),
+                                fn_name!(),
+                                line!(),
+                            )));
+                        };
+                        Ok(Predicate::Value(ValueObj::Bool(res)))
+                    }
+                    (lhs, rhs) => Ok(Predicate::general_le(lhs, rhs)),
+                }
+            }
+            Predicate::Call {
+                receiver,
+                name,
+                args,
+            } => {
+                let Ok(receiver) = self.deref_tp(receiver.clone()) else {
+                    return Ok(Predicate::call(receiver, name, args));
+                };
+                let mut new_args = vec![];
+                for arg in args.into_iter() {
+                    let Ok(arg) = self.deref_tp(arg) else {
+                        return Ok(Predicate::call(receiver, name, new_args));
+                    };
+                    new_args.push(arg);
+                }
+                let evaled = if let Some(name) = &name {
+                    self.ctx
+                        .eval_proj_call(receiver.clone(), name.clone(), new_args.clone(), &())
+                } else {
+                    self.ctx.eval_call(receiver.clone(), new_args.clone(), &())
+                };
+                match evaled {
+                    Ok(TyParam::Value(value)) => Ok(Predicate::Value(value)),
+                    _ => Ok(Predicate::call(receiver, name, new_args)),
+                }
+            }
+            Predicate::And(lhs, rhs) => {
+                let lhs = self.deref_pred(*lhs)?;
+                let rhs = self.deref_pred(*rhs)?;
+                Ok(Predicate::and(lhs, rhs))
+            }
+            Predicate::Or(lhs, rhs) => {
+                let lhs = self.deref_pred(*lhs)?;
+                let rhs = self.deref_pred(*rhs)?;
+                Ok(Predicate::or(lhs, rhs))
+            }
+            Predicate::Not(pred) => {
+                let pred = self.deref_pred(*pred)?;
+                Ok(!pred)
+            }
+            _ => Ok(pred),
         }
     }
 
@@ -577,7 +739,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
             // ?T(:> {1, "a"}, <: Eq(?T(:> {1, "a"}, ...)) ==> Error!
             Type::FreeVar(fv) if fv.constraint_is_sandwiched() => {
                 let (sub_t, super_t) = fv.get_subsup().unwrap();
-                if self.ctx.level <= fv.level().unwrap() {
+                if self.level <= fv.level().unwrap() {
                     // we need to force linking to avoid infinite loop
                     // e.g. fv == ?T(<: Int, :> Add(?T))
                     //      fv == ?T(:> ?T.Output, <: Add(Int))
@@ -623,7 +785,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 }
             }
             Type::FreeVar(fv) if fv.is_unbound() => {
-                if self.ctx.level == 0 {
+                if self.level == 0 {
                     match &*fv.crack_constraint() {
                         Constraint::TypeOf(t) if !t.is_type() => {
                             return Err(TyCheckErrors::from(TyCheckError::dummy_infer_error(
@@ -742,8 +904,8 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
             }
             Type::Refinement(refine) => {
                 let t = self.deref_tyvar(*refine.t)?;
-                // TODO: deref_predicate
-                Ok(refinement(refine.var, t, *refine.pred))
+                let pred = self.deref_pred(*refine.pred)?;
+                Ok(refinement(refine.var, t, pred))
             }
             Type::And(l, r) => {
                 let l = self.deref_tyvar(*l)?;
@@ -762,10 +924,10 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
             Type::Proj { lhs, rhs } => {
                 let proj = self
                     .ctx
-                    .eval_proj(*lhs.clone(), rhs.clone(), self.ctx.level, self.loc)
+                    .eval_proj(*lhs.clone(), rhs.clone(), self.level, self.loc)
                     .or_else(|_| {
                         let lhs = self.deref_tyvar(*lhs)?;
-                        self.ctx.eval_proj(lhs, rhs, self.ctx.level, self.loc)
+                        self.ctx.eval_proj(lhs, rhs, self.level, self.loc)
                     })
                     .unwrap_or(Failure);
                 Ok(proj)
@@ -782,7 +944,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 }
                 let proj = self
                     .ctx
-                    .eval_proj_call_t(lhs, attr_name, new_args, self.ctx.level, self.loc)
+                    .eval_proj_call_t(lhs, attr_name, new_args, self.level, self.loc)
                     .unwrap_or(Failure);
                 Ok(proj)
             }
@@ -797,6 +959,12 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
     fn validate_subsup(&mut self, sub_t: Type, super_t: Type) -> TyCheckResult<Type> {
         // TODO: Subr, ...
         match (sub_t, super_t) {
+            /*(sub_t @ Type::Refinement(_), super_t @ Type::Refinement(_)) => {
+                self.validate_simple_subsup(sub_t, super_t)
+            }
+            (Type::Refinement(refine), super_t) => {
+                self.validate_simple_subsup(*refine.t, super_t)
+            }*/
             // See tests\should_err\subtyping.er:8~13
             (
                 Type::Poly {
@@ -972,6 +1140,7 @@ impl Context {
     pub fn readable_type(&self, t: Type) -> Type {
         let qnames = set! {};
         let mut dereferencer = Dereferencer::new(self, Covariant, false, &qnames, &());
+        dereferencer.set_level(0);
         dereferencer.deref_tyvar(t.clone()).unwrap_or(t)
     }
 

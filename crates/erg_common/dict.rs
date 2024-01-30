@@ -1,5 +1,7 @@
 use std::borrow::Borrow;
-use std::collections::hash_map::{Entry, IntoValues, Iter, IterMut, Keys, Values, ValuesMut};
+use std::collections::hash_map::{
+    Entry, IntoKeys, IntoValues, Iter, IterMut, Keys, Values, ValuesMut,
+};
 use std::fmt::{self, Write};
 use std::hash::{Hash, Hasher};
 use std::iter::FromIterator;
@@ -136,6 +138,11 @@ impl<K, V> Dict<K, V> {
     #[inline]
     pub fn into_values(self) -> IntoValues<K, V> {
         self.dict.into_values()
+    }
+
+    #[inline]
+    pub fn into_keys(self) -> IntoKeys<K, V> {
+        self.dict.into_keys()
     }
 
     #[inline]

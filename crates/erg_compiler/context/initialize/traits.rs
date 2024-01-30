@@ -356,10 +356,10 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNDAMENTAL_EXIT),
         );
-        /* Shape */
+        /* HasShape */
         let S = mono_q_tp(TY_S, instanceof(unknown_len_array_t(Nat)));
         let params = vec![PS::named_nd("S", unknown_len_array_t(Nat))];
-        let shape = Self::builtin_poly_trait(SHAPE, params.clone(), 2);
+        let has_shape = Self::builtin_poly_trait(HAS_SHAPE, params.clone(), 2);
         /* Num */
         let R = mono_q(TY_R, instanceof(Type));
         let params = vec![PS::t(TY_R, false, WithDefault)];
@@ -551,7 +551,13 @@ impl Context {
             Const,
             None,
         );
-        self.register_builtin_type(poly(SHAPE, vec![S]), shape, vis.clone(), Const, None);
+        self.register_builtin_type(
+            poly(HAS_SHAPE, vec![S]),
+            has_shape,
+            vis.clone(),
+            Const,
+            None,
+        );
         self.register_builtin_type(poly(ADD, ty_params.clone()), add, vis.clone(), Const, None);
         self.register_builtin_type(poly(SUB, ty_params.clone()), sub, vis.clone(), Const, None);
         self.register_builtin_type(poly(MUL, ty_params.clone()), mul, vis.clone(), Const, None);

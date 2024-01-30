@@ -107,6 +107,11 @@ fn exec_dependent() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_dependent_refinement() -> Result<(), ()> {
+    expect_compile_success("tests/should_ok/dependent_refinement.er", 0)
+}
+
+#[test]
 fn exec_dict() -> Result<(), ()> {
     expect_success("examples/dict.er", 0)
 }
@@ -506,6 +511,11 @@ fn exec_dependent_err() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_dependent_refinement_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/dependent_refinement.er", 0, 3)
+}
+
+#[test]
 fn exec_dict_err() -> Result<(), ()> {
     expect_failure("tests/should_err/dict.er", 0, 2)
 }
@@ -653,7 +663,7 @@ fn exec_recursive_fn_err() -> Result<(), ()> {
 
 #[test]
 fn exec_refinement_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/refinement.er", 0, 8)
+    expect_failure("tests/should_err/refinement.er", 0, 9)
 }
 
 #[test]

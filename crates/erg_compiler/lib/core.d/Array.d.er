@@ -35,3 +35,24 @@
     assert [-2, -1, 0, 1, 2].partition(x -> x >= 0) == ([0, 1, 2], [-2, -1])
     '''
     partition: |T: Type|(self: Array(T, _), predicate: T -> Bool) -> (Array(T, _), Array(T, _))
+    '''
+    Returns the summation of all elements in the array.
+    '''
+    '''erg
+    assert [1, 2, 3].sum() == 6
+    '''
+    sum: |T: Type|(self: Array(T, _), start := T) -> T
+    '''
+    Returns the product of all elements in the array.
+    '''
+    '''erg
+    assert [1, 2, 3].product() == 6
+    '''
+    prod: |T: Type|(self: Array(T, _), start := T) -> T
+    '''
+    Returns the reversed array.
+    '''
+    '''erg
+    assert [1, 2, 3].reversed() == [3, 2, 1]
+    '''
+    reversed: |T: Type, N: Nat|(self: Array(T, N)) -> Array(T, N)

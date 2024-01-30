@@ -11,7 +11,7 @@ use erg_parser::desugar::Desugarer;
 use crate::context::instantiate::TyVarCache;
 use crate::context::{ClassDefType, Context, MethodContext, MethodPair, TraitImpl};
 use crate::lower::GenericASTLowerer;
-use crate::ty::constructors::{array_t, mono, mono_q_tp, poly, v_enum};
+use crate::ty::constructors::{array_t, mono, mono_q, mono_q_tp, poly, v_enum};
 use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{HasType, TyParam, Type, Visibility};
@@ -617,25 +617,6 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         }
     }
 
-    fn get_tv_ctx(&self, ident: &ast::Identifier, args: &ast::Args) -> TyVarCache {
-        let mut tv_ctx = TyVarCache::new(self.module.context.level, &self.module.context);
-        if let Some(ctx) = self.module.context.get_type_ctx(ident.inspect()) {
-            let arg_ts = ctx.params.iter().map(|(_, vi)| &vi.t);
-            for ((tp, arg), arg_t) in ctx.typ.typarams().iter().zip(args.pos_args()).zip(arg_ts) {
-                if let ast::Expr::Accessor(ast::Accessor::Ident(ident)) = &arg.expr {
-                    if self.module.context.subtype_of(arg_t, &Type::Type) {
-                        if let Ok(tv) = self.module.context.convert_tp_into_type(tp.clone()) {
-                            tv_ctx.push_or_init_tyvar(&ident.name, &tv, &self.module.context);
-                            continue;
-                        }
-                    }
-                    tv_ctx.push_or_init_typaram(&ident.name, tp, &self.module.context);
-                }
-            }
-        }
-        tv_ctx
-    }
-
     fn declare_ident(&mut self, tasc: ast::TypeAscription) -> LowerResult<hir::TypeAscription> {
         log!(info "entered {}({})", fn_name!(), tasc);
         let kind = tasc.kind();
@@ -688,7 +669,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                             "complex polymorphic type declaration"
                         );
                     };
-                    self.get_tv_ctx(&ident, &call.args)
+                    self.module.context.get_tv_ctx(&ident, &call.args)
                 } else {
                     TyVarCache::new(self.module.context.level, &self.module.context)
                 };
@@ -805,13 +786,11 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     );
                 };
                 let py_name = Str::rc(ident.inspect().trim_end_matches('!'));
-                let mut tv_cache = self.get_tv_ctx(&ident, &call.args);
+                let mut tv_cache = self.module.context.get_tv_ctx(&ident, &call.args);
                 let t = self
                     .module
                     .context
                     .instantiate_typespec_with_tv_cache(&tasc.t_spec.t_spec, &mut tv_cache)?;
-                t.lift();
-                let t = self.module.context.generalize_t(t);
                 match kind {
                     AscriptionKind::TypeOf | AscriptionKind::AsCast => {
                         self.declare_instance(&ident, &t, py_name)?;
@@ -920,7 +899,11 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     .iter()
                     .map(|p| {
                         let c = Constraint::new_type_of(p.typ().clone());
-                        mono_q_tp(p.name().unwrap_or(&Str::ever("_")), c)
+                        if self.module.context.subtype_of(p.typ(), &Type::Type) {
+                            TyParam::t(mono_q(p.name().unwrap_or(&Str::ever("_")), c))
+                        } else {
+                            mono_q_tp(p.name().unwrap_or(&Str::ever("_")), c)
+                        }
                     })
                     .collect();
                 let t = poly(format!("{}{ident}", self.module.context.path()), params);

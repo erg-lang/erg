@@ -20,8 +20,8 @@ use erg_parser::desugar::Desugarer;
 use erg_parser::token::{Token, TokenKind};
 
 use crate::ty::constructors::{
-    array_t, bounded, closed_range, dict_t, mono, mono_q, named_free_var, poly, proj, proj_call,
-    ref_, ref_mut, refinement, set_t, subr_t, subtypeof, tp_enum, try_v_enum, tuple_t,
+    array_t, bounded, closed_range, dict_t, func, mono, mono_q, named_free_var, poly, proj,
+    proj_call, ref_, ref_mut, refinement, set_t, subr_t, subtypeof, tp_enum, try_v_enum, tuple_t,
     unknown_len_array_t, v_enum,
 };
 use crate::ty::free::HasLevel;
@@ -34,7 +34,7 @@ use crate::ty::{
 use crate::context::instantiate_spec::ParamKind;
 use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode};
 use crate::error::{EvalError, EvalErrors, EvalResult, SingleEvalResult};
-use crate::varinfo::VarInfo;
+use crate::varinfo::{AbsLocation, VarInfo};
 
 use super::instantiate::TyVarCache;
 use Type::{Failure, Never, Subr};
@@ -135,6 +135,7 @@ impl UndoableLinkedList {
     }
 }
 
+/// Substitute concrete type/type parameters to the type containing type variables and hold until dropped.
 #[derive(Debug)]
 pub struct Substituter<'c> {
     ctx: &'c Context,
@@ -485,10 +486,10 @@ impl Context {
     }
 
     fn eval_const_ident(&self, ident: &Identifier) -> EvalResult<ValueObj> {
-        if let Some(val) = self.rec_get_const_obj(ident.inspect()) {
-            Ok(val.clone())
-        } else if let Some(val) = self.get_value_from_tv_cache(ident) {
+        if let Some(val) = self.get_value_from_tv_cache(ident) {
             Ok(val)
+        } else if let Some(val) = self.rec_get_const_obj(ident.inspect()) {
+            Ok(val.clone())
         } else if self.kind.is_subr() {
             feature_error!(self, ident.loc(), "const parameters")
         } else if ident.is_const() {
@@ -646,7 +647,12 @@ impl Context {
         }
     }
 
-    fn call(&self, subr: ConstSubr, args: ValueArgs, loc: Location) -> EvalResult<TyParam> {
+    pub(crate) fn call(
+        &self,
+        subr: ConstSubr,
+        args: ValueArgs,
+        loc: Location,
+    ) -> EvalResult<TyParam> {
         match subr {
             ConstSubr::User(user) => {
                 // HACK: should avoid cloning
@@ -977,6 +983,35 @@ impl Context {
             self.shared.clone(),
             self.clone(),
         );
+        for non_default in non_default_params.iter() {
+            let name = non_default
+                .name()
+                .map(|name| VarName::from_str(name.clone()));
+            let vi = VarInfo::nd_parameter(
+                non_default.typ().clone(),
+                AbsLocation::unknown(),
+                lambda_ctx.name.clone(),
+            );
+            lambda_ctx.params.push((name, vi));
+        }
+        if let Some(var_param) = var_params.as_ref() {
+            let name = var_param.name().map(|name| VarName::from_str(name.clone()));
+            let vi = VarInfo::nd_parameter(
+                var_param.typ().clone(),
+                AbsLocation::unknown(),
+                lambda_ctx.name.clone(),
+            );
+            lambda_ctx.params.push((name, vi));
+        }
+        for default in default_params.iter() {
+            let name = default.name().map(|name| VarName::from_str(name.clone()));
+            let vi = VarInfo::d_parameter(
+                default.typ().clone(),
+                AbsLocation::unknown(),
+                lambda_ctx.name.clone(),
+            );
+            lambda_ctx.params.push((name, vi));
+        }
         let return_t = v_enum(set! {lambda_ctx.eval_const_block(&lambda.body)?});
         let sig_t = subr_t(
             SubrKind::from(lambda.op.kind),
@@ -1439,7 +1474,7 @@ impl Context {
                 Ok(TyParam::app(name, args))
             }
         } else {
-            log!(err "eval_app({name}({}))", fmt_vec(&args));
+            log!(err "failed: eval_app({name}({}))", fmt_vec(&args));
             Ok(TyParam::app(name, args))
         }
     }
@@ -1457,10 +1492,13 @@ impl Context {
                 .rec_get_const_obj(&name)
                 .map(|v| TyParam::value(v.clone()))
                 .ok_or_else(|| {
-                    EvalErrors::from(EvalError::unreachable(
+                    EvalErrors::from(EvalError::no_var_error(
                         self.cfg.input.clone(),
-                        fn_name!(),
-                        line!(),
+                        line!() as usize,
+                        Location::Unknown,
+                        self.caused_by(),
+                        &name,
+                        None,
                     ))
                 }),
             TyParam::App { name, args } => self.eval_app(name, args),
@@ -1526,13 +1564,15 @@ impl Context {
         }
     }
 
-    fn _eval_tp_into_value(&self, tp: TyParam) -> EvalResult<ValueObj> {
+    fn eval_tp_into_value(&self, tp: TyParam) -> EvalResult<ValueObj> {
         self.eval_tp(tp).and_then(|tp| {
-            self.convert_tp_into_value(tp).map_err(|_| {
-                EvalErrors::from(EvalError::unreachable(
+            self.convert_tp_into_value(tp).map_err(|err| {
+                EvalErrors::from(EvalError::feature_error(
                     self.cfg.input.clone(),
-                    fn_name!(),
-                    line!(),
+                    line!() as usize,
+                    Location::Unknown,
+                    &format!("convert {err} into a value"),
+                    self.caused_by(),
                 ))
             })
         })
@@ -1622,10 +1662,14 @@ impl Context {
                 }
             }
             Type::Refinement(refine) => {
-                let pred = self
-                    .eval_pred(*refine.pred)
-                    .map_err(|errs| (Failure, errs))?;
-                Ok(refinement(refine.var, *refine.t, pred))
+                if refine.pred.variables().is_empty() {
+                    let pred = self
+                        .eval_pred(*refine.pred)
+                        .map_err(|errs| (Failure, errs))?;
+                    Ok(refinement(refine.var, *refine.t, pred))
+                } else {
+                    Ok(Type::Refinement(refine))
+                }
             }
             // [?T; 0].MutType! == [?T; !0]
             // ?T(<: Add(?R(:> Int))).Output == ?T(<: Add(?R)).Output
@@ -1943,6 +1987,7 @@ impl Context {
                     self.subtype_of(&t, &Type::Type) || &t.qual_name() == "GenericDict"
                 }) =>
             {
+                // FIXME: This procedure is clearly erroneous because it breaks the type variable linkage.
                 Ok(named_free_var(
                     fv.unbound_name().unwrap(),
                     fv.level().unwrap(),
@@ -1951,6 +1996,7 @@ impl Context {
             }
             TyParam::Type(t) => Ok(t.as_ref().clone()),
             TyParam::Mono(name) => Ok(Type::Mono(name)),
+            // REVIEW: should be checked?
             TyParam::App { name, args } => Ok(Type::Poly { name, params: args }),
             TyParam::Proj { obj, attr } => {
                 let lhs = self.convert_tp_into_type(*obj)?;
@@ -2007,6 +2053,37 @@ impl Context {
                     new.insert(elem);
                 }
                 Ok(ValueObj::Set(new))
+            }
+            TyParam::App { name, args } => {
+                let mut new = vec![];
+                for elem in args.iter() {
+                    let elem = self.convert_tp_into_value(elem.clone())?;
+                    new.push(elem);
+                }
+                let Some(ValueObj::Subr(subr)) = self.rec_get_const_obj(&name) else {
+                    return Err(TyParam::App { name, args });
+                };
+                let new = ValueArgs::pos_only(new);
+                match self.call(subr.clone(), new, Location::Unknown) {
+                    Ok(TyParam::Value(val)) => Ok(val),
+                    _ => Err(TyParam::App { name, args }),
+                }
+            }
+            TyParam::Lambda(lambda) => {
+                let name = Str::from("<lambda>");
+                let params = lambda.const_.sig.params;
+                let block = lambda.const_.body;
+                let sig_t = func(
+                    lambda.nd_params,
+                    lambda.var_params,
+                    lambda.d_params,
+                    lambda.kw_var_params,
+                    // TODO:
+                    Type::Obj,
+                );
+                Ok(ValueObj::Subr(ConstSubr::User(UserConstSubr::new(
+                    name, params, block, sig_t,
+                ))))
             }
             other => self.convert_tp_into_type(other).map(ValueObj::builtin_type),
         }
@@ -2366,6 +2443,38 @@ impl Context {
         }
     }
 
+    fn convert_args(
+        &self,
+        lhs: Option<TyParam>,
+        subr: &ConstSubr,
+        args: Vec<TyParam>,
+        t_loc: &impl Locational,
+    ) -> EvalResult<ValueArgs> {
+        let mut pos_args = vec![];
+        if subr.sig_t().is_method() {
+            let Some(lhs) = lhs else {
+                return feature_error!(self, t_loc.loc(), "??");
+            };
+            if let Ok(value) = ValueObj::try_from(lhs.clone()) {
+                pos_args.push(value);
+            } else if let Ok(value) = self.eval_tp_into_value(lhs) {
+                pos_args.push(value);
+            } else {
+                return feature_error!(self, t_loc.loc(), "??");
+            }
+        }
+        for pos_arg in args.into_iter() {
+            if let Ok(value) = ValueObj::try_from(pos_arg.clone()) {
+                pos_args.push(value);
+            } else if let Ok(value) = self.eval_tp_into_value(pos_arg) {
+                pos_args.push(value);
+            } else {
+                return feature_error!(self, t_loc.loc(), "??");
+            }
+        }
+        Ok(ValueArgs::new(pos_args, dict! {}))
+    }
+
     fn do_proj_call(
         &self,
         obj: ValueObj,
@@ -2374,28 +2483,7 @@ impl Context {
         t_loc: &impl Locational,
     ) -> EvalResult<TyParam> {
         if let ValueObj::Subr(subr) = obj {
-            let mut pos_args = vec![];
-            if subr.sig_t().is_method() {
-                match ValueObj::try_from(lhs) {
-                    Ok(value) => {
-                        pos_args.push(value);
-                    }
-                    Err(_) => {
-                        return feature_error!(self, t_loc.loc(), "??");
-                    }
-                }
-            }
-            for pos_arg in args.into_iter() {
-                match ValueObj::try_from(pos_arg) {
-                    Ok(value) => {
-                        pos_args.push(value);
-                    }
-                    Err(_) => {
-                        return feature_error!(self, t_loc.loc(), "??");
-                    }
-                }
-            }
-            let args = ValueArgs::new(pos_args, dict! {});
+            let args = self.convert_args(Some(lhs), &subr, args, t_loc)?;
             let tp = self.call(subr, args, t_loc.loc())?;
             Ok(tp)
         } else {
@@ -2572,9 +2660,103 @@ impl Context {
         }
     }
 
+    pub(crate) fn eval_call(
+        &self,
+        lhs: TyParam,
+        args: Vec<TyParam>,
+        t_loc: &impl Locational,
+    ) -> EvalResult<TyParam> {
+        match lhs {
+            /*TyParam::Lambda(lambda) => {
+                todo!("{lambda}")
+            }*/
+            TyParam::Value(ValueObj::Subr(subr)) => {
+                let args = self.convert_args(None, &subr, args, t_loc)?;
+                self.call(subr, args, t_loc.loc())
+            }
+            other => Err(EvalErrors::from(EvalError::type_mismatch_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                t_loc.loc(),
+                self.caused_by(),
+                &other.qual_name().unwrap_or(Str::from("_")),
+                None,
+                &mono("Callable"),
+                &self.get_tp_t(&other).ok().unwrap_or(Type::Obj),
+                None,
+                None,
+            ))),
+        }
+    }
+
+    pub(crate) fn bool_eval_pred(&self, p: Predicate) -> EvalResult<bool> {
+        let evaled = self.eval_pred(p)?;
+        Ok(matches!(evaled, Predicate::Value(ValueObj::Bool(true))))
+    }
+
     pub(crate) fn eval_pred(&self, p: Predicate) -> EvalResult<Predicate> {
         match p {
             Predicate::Value(_) | Predicate::Const(_) => Ok(p),
+            Predicate::Call {
+                receiver,
+                name,
+                args,
+            } => {
+                let receiver = self.eval_tp(receiver)?;
+                let mut new_args = vec![];
+                for arg in args {
+                    new_args.push(self.eval_tp(arg)?);
+                }
+                let tp = if let Some(name) = name {
+                    self.eval_proj_call(receiver, name, new_args, &())?
+                } else {
+                    self.eval_call(receiver, new_args, &())?
+                };
+                if let Ok(v) = self.convert_tp_into_value(tp) {
+                    Ok(Predicate::Value(v))
+                } else {
+                    feature_error!(self, Location::Unknown, "eval_pred: Predicate::Call")
+                }
+            }
+            Predicate::GeneralEqual { lhs, rhs } => {
+                match (self.eval_pred(*lhs)?, self.eval_pred(*rhs)?) {
+                    (Predicate::Value(lhs), Predicate::Value(rhs)) => {
+                        Ok(Predicate::Value(ValueObj::Bool(lhs == rhs)))
+                    }
+                    (lhs, rhs) => Ok(Predicate::general_eq(lhs, rhs)),
+                }
+            }
+            Predicate::GeneralNotEqual { lhs, rhs } => {
+                match (self.eval_pred(*lhs)?, self.eval_pred(*rhs)?) {
+                    (Predicate::Value(lhs), Predicate::Value(rhs)) => {
+                        Ok(Predicate::Value(ValueObj::Bool(lhs != rhs)))
+                    }
+                    (lhs, rhs) => Ok(Predicate::general_ne(lhs, rhs)),
+                }
+            }
+            Predicate::GeneralGreaterEqual { lhs, rhs } => {
+                match (self.eval_pred(*lhs)?, self.eval_pred(*rhs)?) {
+                    (Predicate::Value(lhs), Predicate::Value(rhs)) => {
+                        let Some(ValueObj::Bool(res)) = lhs.try_ge(rhs) else {
+                            // TODO:
+                            return feature_error!(self, Location::Unknown, "evaluating >=");
+                        };
+                        Ok(Predicate::Value(ValueObj::Bool(res)))
+                    }
+                    (lhs, rhs) => Ok(Predicate::general_ge(lhs, rhs)),
+                }
+            }
+            Predicate::GeneralLessEqual { lhs, rhs } => {
+                match (self.eval_pred(*lhs)?, self.eval_pred(*rhs)?) {
+                    (Predicate::Value(lhs), Predicate::Value(rhs)) => {
+                        let Some(ValueObj::Bool(res)) = lhs.try_le(rhs) else {
+                            return feature_error!(self, Location::Unknown, "evaluating <=");
+                        };
+                        Ok(Predicate::Value(ValueObj::Bool(res)))
+                    }
+                    (lhs, rhs) => Ok(Predicate::general_le(lhs, rhs)),
+                }
+            }
             Predicate::Equal { lhs, rhs } => Ok(Predicate::eq(lhs, self.eval_tp(rhs)?)),
             Predicate::NotEqual { lhs, rhs } => Ok(Predicate::ne(lhs, self.eval_tp(rhs)?)),
             Predicate::LessEqual { lhs, rhs } => Ok(Predicate::le(lhs, self.eval_tp(rhs)?)),
@@ -2792,6 +2974,7 @@ impl Context {
             (TyParam::Tuple(l), TyParam::Tuple(r)) => l == r,
             (TyParam::Set(l), TyParam::Set(r)) => l == r, // FIXME:
             (TyParam::Dict(l), TyParam::Dict(r)) => l == r,
+            (TyParam::Lambda(l), TyParam::Lambda(r)) => l == r,
             (TyParam::FreeVar { .. }, TyParam::FreeVar { .. }) => true,
             (TyParam::Mono(l), TyParam::Mono(r)) => {
                 if l == r {

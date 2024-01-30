@@ -5,6 +5,7 @@ use std::path::Path;
 use erg_common::dict::Dict;
 #[allow(unused_imports)]
 use erg_common::log;
+use erg_common::traits::Stream;
 use erg_common::{dict, set};
 
 use crate::context::eval::UndoableLinkedList;
@@ -352,20 +353,23 @@ pub(crate) fn dict_keys(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<T
     let ValueObj::Dict(slf) = slf else {
         return Err(type_mismatch("Dict", slf, "Self"));
     };
-    let slf = slf
-        .into_iter()
+    let dict_type = slf
+        .iter()
         .map(|(k, v)| {
-            (
-                ctx.convert_value_into_type(k).unwrap(),
-                ctx.convert_value_into_type(v).unwrap(),
-            )
+            let k = ctx.convert_value_into_type(k.clone())?;
+            let v = ctx.convert_value_into_type(v.clone())?;
+            Ok((k, v))
         })
-        .collect::<Dict<_, _>>();
-    let union = slf
-        .keys()
-        .fold(Type::Never, |union, t| ctx.union(&union, t));
-    // let keys = poly(DICT_KEYS, vec![ty_tp(union)]);
-    Ok(ValueObj::builtin_type(union).into())
+        .collect::<Result<Dict<_, _>, ValueObj>>();
+    if let Ok(slf) = dict_type {
+        let union = slf
+            .keys()
+            .fold(Type::Never, |union, t| ctx.union(&union, t));
+        // let keys = poly(DICT_KEYS, vec![ty_tp(union)]);
+        Ok(ValueObj::builtin_type(union).into())
+    } else {
+        Ok(ValueObj::Array(slf.into_keys().collect::<Vec<_>>().into()).into())
+    }
 }
 
 /// `{Str: Int, Int: Float}.values() == Int or Float`
@@ -376,20 +380,23 @@ pub(crate) fn dict_values(mut args: ValueArgs, ctx: &Context) -> EvalValueResult
     let ValueObj::Dict(slf) = slf else {
         return Err(type_mismatch("Dict", slf, "Self"));
     };
-    let slf = slf
-        .into_iter()
+    let dict_type = slf
+        .iter()
         .map(|(k, v)| {
-            (
-                ctx.convert_value_into_type(k).unwrap(),
-                ctx.convert_value_into_type(v).unwrap(),
-            )
+            let k = ctx.convert_value_into_type(k.clone())?;
+            let v = ctx.convert_value_into_type(v.clone())?;
+            Ok((k, v))
         })
-        .collect::<Dict<_, _>>();
-    let union = slf
-        .values()
-        .fold(Type::Never, |union, t| ctx.union(&union, t));
-    // let values = poly(DICT_VALUES, vec![ty_tp(union)]);
-    Ok(ValueObj::builtin_type(union).into())
+        .collect::<Result<Dict<_, _>, ValueObj>>();
+    if let Ok(slf) = dict_type {
+        let union = slf
+            .values()
+            .fold(Type::Never, |union, t| ctx.union(&union, t));
+        // let values = poly(DICT_VALUES, vec![ty_tp(union)]);
+        Ok(ValueObj::builtin_type(union).into())
+    } else {
+        Ok(ValueObj::Array(slf.into_values().collect::<Vec<_>>().into()).into())
+    }
 }
 
 /// `{Str: Int, Int: Float}.items() == (Str, Int) or (Int, Float)`
@@ -400,20 +407,29 @@ pub(crate) fn dict_items(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
     let ValueObj::Dict(slf) = slf else {
         return Err(type_mismatch("Dict", slf, "Self"));
     };
-    let slf = slf
-        .into_iter()
+    let dict_type = slf
+        .iter()
         .map(|(k, v)| {
-            (
-                ctx.convert_value_into_type(k).unwrap(),
-                ctx.convert_value_into_type(v).unwrap(),
-            )
+            let k = ctx.convert_value_into_type(k.clone())?;
+            let v = ctx.convert_value_into_type(v.clone())?;
+            Ok((k, v))
         })
-        .collect::<Dict<_, _>>();
-    let union = slf.iter().fold(Type::Never, |union, (k, v)| {
-        ctx.union(&union, &tuple_t(vec![k.clone(), v.clone()]))
-    });
-    // let items = poly(DICT_ITEMS, vec![ty_tp(union)]);
-    Ok(ValueObj::builtin_type(union).into())
+        .collect::<Result<Dict<_, _>, ValueObj>>();
+    if let Ok(slf) = dict_type {
+        let union = slf.iter().fold(Type::Never, |union, (k, v)| {
+            ctx.union(&union, &tuple_t(vec![k.clone(), v.clone()]))
+        });
+        // let items = poly(DICT_ITEMS, vec![ty_tp(union)]);
+        Ok(ValueObj::builtin_type(union).into())
+    } else {
+        Ok(ValueObj::Array(
+            slf.into_iter()
+                .map(|(k, v)| ValueObj::Tuple(vec![k, v].into()))
+                .collect::<Vec<_>>()
+                .into(),
+        )
+        .into())
+    }
 }
 
 /// If the key is duplicated, the value of the right dict is used.
@@ -516,6 +532,126 @@ pub(crate) fn array_shape(mut args: ValueArgs, ctx: &Context) -> EvalValueResult
         .ok_or_else(|| not_passed("Self"))?;
     let res = _arr_shape(arr, ctx).unwrap();
     let arr = TyParam::Array(res);
+    Ok(arr)
+}
+
+fn _array_sum(arr: ValueObj, _ctx: &Context) -> Result<ValueObj, String> {
+    match arr {
+        ValueObj::Array(a) => {
+            let mut sum = 0f64;
+            for v in a.iter() {
+                match v {
+                    ValueObj::Nat(n) => {
+                        sum += *n as f64;
+                    }
+                    ValueObj::Int(n) => {
+                        sum += *n as f64;
+                    }
+                    ValueObj::Float(n) => {
+                        sum += *n;
+                    }
+                    ValueObj::Inf => {
+                        return Ok(ValueObj::Inf);
+                    }
+                    ValueObj::NegInf => {
+                        return Ok(ValueObj::NegInf);
+                    }
+                    _ => {
+                        return Err(format!("Cannot sum {v}"));
+                    }
+                }
+            }
+            if sum.round() == sum && sum >= 0.0 {
+                Ok(ValueObj::Nat(sum as u64))
+            } else if sum.round() == sum {
+                Ok(ValueObj::Int(sum as i32))
+            } else {
+                Ok(ValueObj::Float(sum))
+            }
+        }
+        _ => Err(format!("Cannot sum {arr}")),
+    }
+}
+
+/// ```erg
+/// [1, 2].sum() == [3,]
+/// ```
+pub(crate) fn array_sum(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let arr = args
+        .remove_left_or_key("Self")
+        .ok_or_else(|| not_passed("Self"))?;
+    let res = _array_sum(arr, ctx).unwrap();
+    let arr = TyParam::Value(res);
+    Ok(arr)
+}
+
+fn _array_prod(arr: ValueObj, _ctx: &Context) -> Result<ValueObj, String> {
+    match arr {
+        ValueObj::Array(a) => {
+            let mut prod = 1f64;
+            for v in a.iter() {
+                match v {
+                    ValueObj::Nat(n) => {
+                        prod *= *n as f64;
+                    }
+                    ValueObj::Int(n) => {
+                        prod *= *n as f64;
+                    }
+                    ValueObj::Float(n) => {
+                        prod *= *n;
+                    }
+                    ValueObj::Inf => {
+                        return Ok(ValueObj::Inf);
+                    }
+                    ValueObj::NegInf => {
+                        return Ok(ValueObj::NegInf);
+                    }
+                    _ => {
+                        return Err(format!("Cannot prod {v}"));
+                    }
+                }
+            }
+            if prod.round() == prod && prod >= 0.0 {
+                Ok(ValueObj::Nat(prod as u64))
+            } else if prod.round() == prod {
+                Ok(ValueObj::Int(prod as i32))
+            } else {
+                Ok(ValueObj::Float(prod))
+            }
+        }
+        _ => Err(format!("Cannot prod {arr}")),
+    }
+}
+
+/// ```erg
+/// [1, 2].prod() == [2,]
+/// ```
+pub(crate) fn array_prod(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let arr = args
+        .remove_left_or_key("Self")
+        .ok_or_else(|| not_passed("Self"))?;
+    let res = _array_prod(arr, ctx).unwrap();
+    let arr = TyParam::Value(res);
+    Ok(arr)
+}
+
+fn _array_reversed(arr: ValueObj, _ctx: &Context) -> Result<ValueObj, String> {
+    match arr {
+        ValueObj::Array(a) => {
+            let mut vec = a.to_vec();
+            vec.reverse();
+            Ok(ValueObj::Array(vec.into()))
+        }
+        _ => Err(format!("Cannot reverse {arr}")),
+    }
+}
+
+pub(crate) fn array_reversed(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let arr = args
+        .remove_left_or_key("Self")
+        .ok_or_else(|| not_passed("Self"))?;
+    let res = _array_reversed(arr, ctx).unwrap();
+    let arr = TyParam::Value(res);
     Ok(arr)
 }
 
@@ -679,6 +815,431 @@ pub(crate) fn as_record(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<T
     Ok(ValueObj::builtin_type(Type::Record(dict)).into())
 }
 
+pub(crate) fn str_endswith(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let slf = args
+        .remove_left_or_key("self")
+        .ok_or_else(|| not_passed("self"))?;
+    let suffix = args
+        .remove_left_or_key("suffix")
+        .ok_or_else(|| not_passed("suffix"))?;
+    let Some(slf) = slf.as_str() else {
+        return Err(type_mismatch("Str", slf, "self"));
+    };
+    let Some(suffix) = suffix.as_str() else {
+        return Err(type_mismatch("Str", suffix, "suffix"));
+    };
+    Ok(ValueObj::Bool(slf.ends_with(&suffix[..])).into())
+}
+
+pub(crate) fn str_find(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let slf = args
+        .remove_left_or_key("self")
+        .ok_or_else(|| not_passed("self"))?;
+    let sub = args
+        .remove_left_or_key("sub")
+        .ok_or_else(|| not_passed("sub"))?;
+    let Some(slf) = slf.as_str() else {
+        return Err(type_mismatch("Str", slf, "self"));
+    };
+    let Some(sub) = sub.as_str() else {
+        return Err(type_mismatch("Str", sub, "sub"));
+    };
+    Ok(ValueObj::Int(slf.find(&sub[..]).map_or(-1, |i| i as i32)).into())
+}
+
+pub(crate) fn str_isalpha(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let slf = args
+        .remove_left_or_key("self")
+        .ok_or_else(|| not_passed("self"))?;
+    let Some(slf) = slf.as_str() else {
+        return Err(type_mismatch("Str", slf, "self"));
+    };
+    Ok(ValueObj::Bool(slf.chars().all(|c| c.is_alphabetic())).into())
+}
+
+pub(crate) fn str_isascii(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let slf = args
+        .remove_left_or_key("self")
+        .ok_or_else(|| not_passed("self"))?;
+    let Some(slf) = slf.as_str() else {
+        return Err(type_mismatch("Str", slf, "self"));
+    };
+    Ok(ValueObj::Bool(slf.is_ascii()).into())
+}
+
+pub(crate) fn str_isdecimal(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let slf = args
+        .remove_left_or_key("self")
+        .ok_or_else(|| not_passed("self"))?;
+    let Some(slf) = slf.as_str() else {
+        return Err(type_mismatch("Str", slf, "self"));
+    };
+    Ok(ValueObj::Bool(slf.chars().all(|c| c.is_ascii_digit())).into())
+}
+
+pub(crate) fn str_join(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let slf = args
+        .remove_left_or_key("self")
+        .ok_or_else(|| not_passed("self"))?;
+    let iterable = args
+        .remove_left_or_key("iterable")
+        .ok_or_else(|| not_passed("iterable"))?;
+    let Some(slf) = slf.as_str() else {
+        return Err(type_mismatch("Str", slf, "self"));
+    };
+    let arr = match iterable {
+        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::Tuple(t) => t.to_vec(),
+        ValueObj::Set(s) => s.into_iter().collect(),
+        ValueObj::Dict(d) => d.into_keys().collect(),
+        _ => {
+            return Err(type_mismatch("Iterable(Str)", iterable, "iterable"));
+        }
+    };
+    let mut joined = String::new();
+    for v in arr.iter() {
+        let Some(v) = v.as_str() else {
+            return Err(type_mismatch("Str", v, "arr.next()"));
+        };
+        joined.push_str(&v[..]);
+        joined.push_str(&slf[..]);
+    }
+    joined.pop();
+    Ok(ValueObj::Str(joined.into()).into())
+}
+
+pub(crate) fn str_replace(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let slf = args
+        .remove_left_or_key("self")
+        .ok_or_else(|| not_passed("self"))?;
+    let old = args
+        .remove_left_or_key("old")
+        .ok_or_else(|| not_passed("old"))?;
+    let new = args
+        .remove_left_or_key("new")
+        .ok_or_else(|| not_passed("new"))?;
+    let Some(slf) = slf.as_str() else {
+        return Err(type_mismatch("Str", slf, "self"));
+    };
+    let Some(old) = old.as_str() else {
+        return Err(type_mismatch("Str", old, "old"));
+    };
+    let Some(new) = new.as_str() else {
+        return Err(type_mismatch("Str", new, "new"));
+    };
+    Ok(ValueObj::Str(slf.replace(&old[..], new).into()).into())
+}
+
+pub(crate) fn str_startswith(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let slf = args
+        .remove_left_or_key("self")
+        .ok_or_else(|| not_passed("self"))?;
+    let prefix = args
+        .remove_left_or_key("prefix")
+        .ok_or_else(|| not_passed("prefix"))?;
+    let Some(slf) = slf.as_str() else {
+        return Err(type_mismatch("Str", slf, "self"));
+    };
+    let Some(prefix) = prefix.as_str() else {
+        return Err(type_mismatch("Str", prefix, "prefix"));
+    };
+    Ok(ValueObj::Bool(slf.starts_with(&prefix[..])).into())
+}
+
+pub(crate) fn abs_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let num = args
+        .remove_left_or_key("num")
+        .ok_or_else(|| not_passed("num"))?;
+    match num {
+        ValueObj::Nat(n) => Ok(ValueObj::Nat(n).into()),
+        ValueObj::Int(n) => Ok(ValueObj::Nat(n.unsigned_abs() as u64).into()),
+        ValueObj::Bool(b) => Ok(ValueObj::Nat(b as u64).into()),
+        ValueObj::Float(n) => Ok(ValueObj::Float(n.abs()).into()),
+        ValueObj::Inf => Ok(ValueObj::Inf.into()),
+        ValueObj::NegInf => Ok(ValueObj::Inf.into()),
+        _ => Err(type_mismatch("Num", num, "num")),
+    }
+}
+
+pub(crate) fn all_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let iterable = args
+        .remove_left_or_key("iterable")
+        .ok_or_else(|| not_passed("iterable"))?;
+    let arr = match iterable {
+        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::Tuple(t) => t.to_vec(),
+        ValueObj::Set(s) => s.into_iter().collect(),
+        _ => {
+            return Err(type_mismatch("Iterable(Bool)", iterable, "iterable"));
+        }
+    };
+    let mut all = true;
+    for v in arr.iter() {
+        match v {
+            ValueObj::Bool(b) => {
+                all &= *b;
+            }
+            _ => {
+                return Err(type_mismatch("Bool", v, "iterable.next()"));
+            }
+        }
+    }
+    Ok(ValueObj::Bool(all).into())
+}
+
+pub(crate) fn any_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let iterable = args
+        .remove_left_or_key("iterable")
+        .ok_or_else(|| not_passed("iterable"))?;
+    let arr = match iterable {
+        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::Tuple(t) => t.to_vec(),
+        ValueObj::Set(s) => s.into_iter().collect(),
+        _ => {
+            return Err(type_mismatch("Iterable(Bool)", iterable, "iterable"));
+        }
+    };
+    let mut any = false;
+    for v in arr.iter() {
+        match v {
+            ValueObj::Bool(b) => {
+                any |= *b;
+            }
+            _ => {
+                return Err(type_mismatch("Bool", v, "iterable.next()"));
+            }
+        }
+    }
+    Ok(ValueObj::Bool(any).into())
+}
+
+pub(crate) fn filter_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let func = args
+        .remove_left_or_key("func")
+        .ok_or_else(|| not_passed("func"))?;
+    let iterable = args
+        .remove_left_or_key("iterable")
+        .ok_or_else(|| not_passed("iterable"))?;
+    let arr = match iterable {
+        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::Tuple(t) => t.to_vec(),
+        ValueObj::Set(s) => s.into_iter().collect(),
+        _ => {
+            return Err(type_mismatch("Iterable(T)", iterable, "iterable"));
+        }
+    };
+    let subr = match func {
+        ValueObj::Subr(f) => f,
+        _ => {
+            return Err(type_mismatch("Subr", func, "func"));
+        }
+    };
+    let mut filtered = vec![];
+    for v in arr.into_iter() {
+        let args = ValueArgs::pos_only(vec![v.clone()]);
+        match ctx.call(subr.clone(), args, Location::Unknown) {
+            Ok(res) => match ctx.convert_tp_into_value(res) {
+                Ok(res) => {
+                    if res.is_true() {
+                        filtered.push(v);
+                    }
+                }
+                Err(tp) => {
+                    return Err(type_mismatch("Bool", tp, "func"));
+                }
+            },
+            Err(mut err) => {
+                return Err(EvalValueError::from(*err.remove(0).core));
+            }
+        }
+    }
+    Ok(TyParam::Value(ValueObj::Array(filtered.into())))
+}
+
+pub(crate) fn len_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let container = args
+        .remove_left_or_key("iterable")
+        .ok_or_else(|| not_passed("iterable"))?;
+    let len = match container {
+        ValueObj::Array(a) => a.len(),
+        ValueObj::Tuple(t) => t.len(),
+        ValueObj::Set(s) => s.len(),
+        ValueObj::Dict(d) => d.len(),
+        ValueObj::Record(r) => r.len(),
+        ValueObj::Str(s) => s.len(),
+        _ => {
+            return Err(type_mismatch("Container", container, "container"));
+        }
+    };
+    Ok(ValueObj::Nat(len as u64).into())
+}
+
+pub(crate) fn map_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let func = args
+        .remove_left_or_key("func")
+        .ok_or_else(|| not_passed("func"))?;
+    let iterable = args
+        .remove_left_or_key("iterable")
+        .ok_or_else(|| not_passed("iterable"))?;
+    let arr = match iterable {
+        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::Tuple(t) => t.to_vec(),
+        ValueObj::Set(s) => s.into_iter().collect(),
+        _ => {
+            return Err(type_mismatch("Iterable(Bool)", iterable, "iterable"));
+        }
+    };
+    let subr = match func {
+        ValueObj::Subr(f) => f,
+        _ => {
+            return Err(type_mismatch("Subr", func, "func"));
+        }
+    };
+    let mut mapped = vec![];
+    for v in arr.into_iter() {
+        let args = ValueArgs::pos_only(vec![v]);
+        match ctx.call(subr.clone(), args, Location::Unknown) {
+            Ok(res) => {
+                mapped.push(res);
+            }
+            Err(mut err) => {
+                return Err(EvalValueError::from(*err.remove(0).core));
+            }
+        }
+    }
+    Ok(TyParam::Array(mapped))
+}
+
+pub(crate) fn max_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let iterable = args
+        .remove_left_or_key("iterable")
+        .ok_or_else(|| not_passed("iterable"))?;
+    let arr = match iterable {
+        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::Tuple(t) => t.to_vec(),
+        ValueObj::Set(s) => s.into_iter().collect(),
+        _ => {
+            return Err(type_mismatch("Iterable(Ord)", iterable, "iterable"));
+        }
+    };
+    let mut max = ValueObj::NegInf;
+    if arr.is_empty() {
+        return Err(ErrorCore::new(
+            vec![SubMessage::only_loc(Location::Unknown)],
+            "max() arg is an empty sequence",
+            line!() as usize,
+            ErrorKind::ValueError,
+            Location::Unknown,
+        )
+        .into());
+    }
+    for v in arr.into_iter() {
+        if v.is_num() {
+            if max.clone().try_lt(v.clone()).is_some_and(|b| b.is_true()) {
+                max = v;
+            }
+        } else {
+            return Err(type_mismatch("Ord", v, "iterable.next()"));
+        }
+    }
+    Ok(max.into())
+}
+
+pub(crate) fn min_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let iterable = args
+        .remove_left_or_key("iterable")
+        .ok_or_else(|| not_passed("iterable"))?;
+    let arr = match iterable {
+        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::Tuple(t) => t.to_vec(),
+        ValueObj::Set(s) => s.into_iter().collect(),
+        _ => {
+            return Err(type_mismatch("Iterable(Ord)", iterable, "iterable"));
+        }
+    };
+    let mut min = ValueObj::Inf;
+    if arr.is_empty() {
+        return Err(ErrorCore::new(
+            vec![SubMessage::only_loc(Location::Unknown)],
+            "min() arg is an empty sequence",
+            line!() as usize,
+            ErrorKind::ValueError,
+            Location::Unknown,
+        )
+        .into());
+    }
+    for v in arr.into_iter() {
+        if v.is_num() {
+            if min.clone().try_gt(v.clone()).is_some_and(|b| b.is_true()) {
+                min = v;
+            }
+        } else {
+            return Err(type_mismatch("Ord", v, "iterable.next()"));
+        }
+    }
+    Ok(min.into())
+}
+
+pub(crate) fn not_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let val = args
+        .remove_left_or_key("val")
+        .ok_or_else(|| not_passed("val"))?;
+    match val {
+        ValueObj::Bool(b) => Ok(ValueObj::Bool(!b).into()),
+        _ => Err(type_mismatch("Bool", val, "val")),
+    }
+}
+
+pub(crate) fn reversed_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let reversible = args
+        .remove_left_or_key("reversible")
+        .ok_or_else(|| not_passed("reversible"))?;
+    let arr = match reversible {
+        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::Tuple(t) => t.to_vec(),
+        _ => {
+            return Err(type_mismatch("Reversible", reversible, "reversible"));
+        }
+    };
+    let mut reversed = vec![];
+    for v in arr.into_iter().rev() {
+        reversed.push(v);
+    }
+    Ok(TyParam::Value(ValueObj::Array(reversed.into())))
+}
+
+pub(crate) fn str_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let val = args
+        .remove_left_or_key("val")
+        .ok_or_else(|| not_passed("val"))?;
+    Ok(ValueObj::Str(val.to_string().into()).into())
+}
+
+pub(crate) fn sum_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let iterable = args
+        .remove_left_or_key("iterable")
+        .ok_or_else(|| not_passed("iterable"))?;
+    let arr = match iterable {
+        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::Tuple(t) => t.to_vec(),
+        ValueObj::Set(s) => s.into_iter().collect(),
+        ValueObj::Dict(d) => d.into_keys().collect(),
+        ValueObj::Record(r) => r.into_values().collect(),
+        _ => {
+            return Err(type_mismatch("Iterable(Add)", iterable, "iterable"));
+        }
+    };
+    let mut sum = ValueObj::Nat(0);
+    for v in arr.into_iter() {
+        if v.is_num() {
+            sum = sum.try_add(v).unwrap();
+        } else {
+            return Err(type_mismatch("Add", v, "iterable.next()"));
+        }
+    }
+    Ok(sum.into())
+}
+
 pub(crate) fn resolve_path_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let path = args
         .remove_left_or_key("Path")
@@ -760,4 +1321,35 @@ pub(crate) fn pred_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<
         }
     };
     Ok(val.into())
+}
+
+// TODO: varargs
+pub(crate) fn zip_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let iterable1 = args
+        .remove_left_or_key("iterable1")
+        .ok_or_else(|| not_passed("iterable1"))?;
+    let iterable2 = args
+        .remove_left_or_key("iterable2")
+        .ok_or_else(|| not_passed("iterable2"))?;
+    let iterable1 = match iterable1 {
+        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::Tuple(t) => t.to_vec(),
+        ValueObj::Set(s) => s.into_iter().collect(),
+        _ => {
+            return Err(type_mismatch("Iterable(T)", iterable1, "iterable1"));
+        }
+    };
+    let iterable2 = match iterable2 {
+        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::Tuple(t) => t.to_vec(),
+        ValueObj::Set(s) => s.into_iter().collect(),
+        _ => {
+            return Err(type_mismatch("Iterable(T)", iterable2, "iterable2"));
+        }
+    };
+    let mut zipped = vec![];
+    for (v1, v2) in iterable1.into_iter().zip(iterable2.into_iter()) {
+        zipped.push(ValueObj::Tuple(vec![v1, v2].into()));
+    }
+    Ok(TyParam::Value(ValueObj::Array(zipped.into())))
 }
