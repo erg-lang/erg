@@ -1043,26 +1043,50 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_ISALNUM),
         );
-        str_.register_builtin_py_impl(
+        let t_s_isalpha = fn0_met(Str, Bool);
+        let s_isalpha = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_ISALPHA,
-            fn0_met(Str, Bool),
-            Immutable,
+            str_isalpha,
+            t_s_isalpha.clone(),
+            None,
+        )));
+        str_.register_py_builtin_const(
+            FUNC_ISALPHA,
             Visibility::BUILTIN_PUBLIC,
+            Some(t_s_isalpha),
+            s_isalpha,
             Some(FUNC_ISALPHA),
+            None,
         );
-        str_.register_builtin_py_impl(
+        let t_s_isascii = fn0_met(Str, Bool);
+        let s_isascii = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_ISASCII,
-            fn0_met(Str, Bool),
-            Immutable,
+            str_isascii,
+            t_s_isascii.clone(),
+            None,
+        )));
+        str_.register_py_builtin_const(
+            FUNC_ISASCII,
             Visibility::BUILTIN_PUBLIC,
+            Some(t_s_isascii),
+            s_isascii,
             Some(FUNC_ISASCII),
+            None,
         );
-        str_.register_builtin_py_impl(
+        let s_t_isdecimal = fn0_met(Str, Bool);
+        let s_isdecimal = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_ISDECIMAL,
-            fn0_met(Str, Bool),
-            Immutable,
+            str_isdecimal,
+            s_t_isdecimal.clone(),
+            None,
+        )));
+        str_.register_py_builtin_const(
+            FUNC_ISDECIMAL,
             Visibility::BUILTIN_PUBLIC,
+            Some(s_t_isdecimal),
+            s_isdecimal,
             Some(FUNC_ISDECIMAL),
+            None,
         );
         str_.register_builtin_py_impl(
             FUNC_ISDIGIT,

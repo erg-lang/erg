@@ -847,6 +847,36 @@ pub(crate) fn str_find(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<T
     Ok(ValueObj::Int(slf.find(&sub[..]).map_or(-1, |i| i as i32)).into())
 }
 
+pub(crate) fn str_isalpha(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let slf = args
+        .remove_left_or_key("self")
+        .ok_or_else(|| not_passed("self"))?;
+    let Some(slf) = slf.as_str() else {
+        return Err(type_mismatch("Str", slf, "self"));
+    };
+    Ok(ValueObj::Bool(slf.chars().all(|c| c.is_alphabetic())).into())
+}
+
+pub(crate) fn str_isascii(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let slf = args
+        .remove_left_or_key("self")
+        .ok_or_else(|| not_passed("self"))?;
+    let Some(slf) = slf.as_str() else {
+        return Err(type_mismatch("Str", slf, "self"));
+    };
+    Ok(ValueObj::Bool(slf.is_ascii()).into())
+}
+
+pub(crate) fn str_isdecimal(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let slf = args
+        .remove_left_or_key("self")
+        .ok_or_else(|| not_passed("self"))?;
+    let Some(slf) = slf.as_str() else {
+        return Err(type_mismatch("Str", slf, "self"));
+    };
+    Ok(ValueObj::Bool(slf.chars().all(|c| c.is_ascii_digit())).into())
+}
+
 pub(crate) fn str_join(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
     let slf = args
         .remove_left_or_key("self")
