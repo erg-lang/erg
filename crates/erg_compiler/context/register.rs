@@ -1986,7 +1986,8 @@ impl Context {
         let inited = self
             .rec_get_const_obj(ident.inspect())
             .is_some_and(|v| v.is_inited());
-        if inited && vis.is_private() {
+        let vi = self.rec_get_var_info(ident, crate::AccessKind::Name, &self.cfg.input, self);
+        if inited && vi.is_ok_and(|vi| vi.def_loc != self.absolutize(ident.loc())) {
             Err(CompileErrors::from(CompileError::reassign_error(
                 self.cfg.input.clone(),
                 line!() as usize,
