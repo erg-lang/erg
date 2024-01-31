@@ -205,7 +205,7 @@ impl Context {
             .or_else(|| self.get_param_kv(name))
             .or_else(|| self.decls.get_key_value(name))
             .or_else(|| self.future_defined_locals.get_key_value(name))
-            .or_else(|| self.get_outer().and_then(|ctx| ctx.get_var_kv(name)))
+            .or_else(|| self.get_outer_scope().and_then(|ctx| ctx.get_var_kv(name)))
     }
 
     fn get_param_kv(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
@@ -234,7 +234,10 @@ impl Context {
                 }
                 None
             })
-            .or_else(|| self.get_outer().and_then(|ctx| ctx.get_method_kv(name)))
+            .or_else(|| {
+                self.get_outer_scope()
+                    .and_then(|ctx| ctx.get_method_kv(name))
+            })
     }
 
     pub fn get_singular_ctxs_by_hir_expr(
@@ -622,7 +625,7 @@ impl Context {
             }
         }
         if acc_kind.is_local() {
-            if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
+            if let Some(parent) = self.get_outer_scope().or_else(|| self.get_builtins()) {
                 return parent.rec_get_var_info(ident, acc_kind, input, namespace);
             }
         }
@@ -681,7 +684,7 @@ impl Context {
             }
         }
         if acc_kind.is_local() {
-            if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
+            if let Some(parent) = self.get_outer_scope().or_else(|| self.get_builtins()) {
                 return parent.rec_get_decl_info(ident, acc_kind, input, namespace);
             }
         }
@@ -1133,7 +1136,8 @@ impl Context {
         if &self.name[..] == name {
             Some(self)
         } else {
-            self.get_outer().and_then(|p| p.get_same_name_context(name))
+            self.get_outer_scope()
+                .and_then(|p| p.get_same_name_context(name))
         }
     }
 
@@ -2395,7 +2399,7 @@ impl Context {
             }
         }
         // TODO: dependent type widening
-        if let Some(parent) = self.get_outer().or_else(|| self.get_builtins()) {
+        if let Some(parent) = self.get_outer_scope_or_builtins() {
             parent._get_const_attr(obj, name, namespace)
         } else {
             Err(TyCheckError::no_attr_error(
@@ -2998,7 +3002,7 @@ impl Context {
         } else {
             set! {}
         };
-        if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
+        if let Some(outer) = self.get_outer_scope_or_builtins() {
             current.union(&outer.get_simple_trait_impls(trait_))
         } else {
             current
@@ -3006,7 +3010,7 @@ impl Context {
     }
 
     pub(crate) fn all_patches(&self) -> Vec<&Context> {
-        if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
+        if let Some(outer) = self.get_outer_scope_or_builtins() {
             [outer.all_patches(), self.patches.values().collect()].concat()
         } else {
             self.patches.values().collect()
@@ -3052,7 +3056,7 @@ impl Context {
                 return Some(val);
             }
         }
-        if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
+        if let Some(outer) = self.get_outer_scope_or_builtins() {
             outer.rec_get_const_obj(name)
         } else {
             None
@@ -3062,7 +3066,7 @@ impl Context {
     pub(crate) fn _rec_get_const_param_defaults(&self, name: &str) -> Option<&Vec<ConstTemplate>> {
         if let Some(impls) = self.const_param_defaults.get(name) {
             Some(impls)
-        } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
+        } else if let Some(outer) = self.get_outer_scope_or_builtins() {
             outer._rec_get_const_param_defaults(name)
         } else {
             None
@@ -3075,7 +3079,7 @@ impl Context {
             Some(mono(self.name.clone()))
         } else if let ContextKind::PatchMethodDefs(t) = &self.kind {
             Some(t.clone())
-        } else if let Some(outer) = self.get_outer() {
+        } else if let Some(outer) = self.get_outer_scope() {
             outer.rec_get_self_t()
         } else {
             None
@@ -3149,7 +3153,7 @@ impl Context {
         let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
         if let Some(ctx) = self.mono_types.get(name) {
             Some(ctx)
-        } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
+        } else if let Some(outer) = self.get_outer_scope_or_builtins() {
             outer.rec_local_get_mono_type(name)
         } else {
             None
@@ -3161,7 +3165,7 @@ impl Context {
         let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
         if let Some(ctx) = self.poly_types.get(name) {
             Some(ctx)
-        } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
+        } else if let Some(outer) = self.get_outer_scope_or_builtins() {
             outer.rec_local_get_poly_type(name)
         } else {
             None
@@ -3260,7 +3264,7 @@ impl Context {
             value
                 .as_type(self)
                 .and_then(|typ_obj| self.get_nominal_type_ctx(typ_obj.typ()))
-        } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
+        } else if let Some(outer) = self.get_outer_scope_or_builtins() {
             outer.rec_local_get_type(name)
         } else {
             None
@@ -3270,7 +3274,7 @@ impl Context {
     pub(crate) fn rec_get_patch(&self, name: &str) -> Option<&Context> {
         if let Some(ctx) = self.patches.get(name) {
             Some(ctx)
-        } else if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
+        } else if let Some(outer) = self.get_outer_scope_or_builtins() {
             outer.rec_get_patch(name)
         } else {
             None
@@ -3278,7 +3282,7 @@ impl Context {
     }
 
     pub(crate) fn rec_get_guards(&self) -> Vec<&GuardType> {
-        if let Some(outer) = self.get_outer() {
+        if let Some(outer) = self.get_outer_scope() {
             [self.guards.iter().collect(), outer.rec_get_guards()].concat()
         } else {
             self.guards.iter().collect()
@@ -3393,7 +3397,7 @@ impl Context {
         if let Some(candidates) = self.method_to_classes.get(attr.inspect()) {
             return self.get_attr_type(receiver, attr, candidates, namespace);
         }
-        if let Some(outer) = self.get_outer().or_else(|| self.get_builtins()) {
+        if let Some(outer) = self.get_outer_scope_or_builtins() {
             outer.get_attr_type_by_name(receiver, attr, namespace)
         } else {
             Triple::None

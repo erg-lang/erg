@@ -70,7 +70,7 @@ impl Context {
             return Some((name, vi));
         }
         if is_const {
-            let outer = self.get_outer().or_else(|| self.get_builtins())?;
+            let outer = self.get_outer_scope_or_builtins()?;
             outer.registered_info(name, is_const)
         } else {
             None

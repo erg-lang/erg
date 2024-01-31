@@ -1,6 +1,7 @@
 use std::mem;
 
 use erg_common::consts::PYTHON_MODE;
+use erg_common::error::Location;
 use erg_common::traits::{Locational, Runnable, Stream};
 use erg_common::{enum_unwrap, fn_name, log, set, Str, Triple};
 
@@ -129,8 +130,15 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             .module
             .context
             .registered_info(&name, def.sig.is_const())
-            .is_some()
-            && def.sig.vis().is_private()
+            .is_some_and(|(_, vi)| {
+                !vi.kind.is_builtin()
+                    && vi.def_loc
+                        != self.module.context.absolutize(
+                            def.sig
+                                .ident()
+                                .map_or(Location::Unknown, |ident| ident.loc()),
+                        )
+            })
         {
             return Err(LowerErrors::from(LowerError::reassign_error(
                 self.cfg().input.clone(),

@@ -2514,7 +2514,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             let (unverified_names, mut errors) = if let Some(typ_ctx) = self
                 .module
                 .context
-                .get_outer()
+                .get_outer_scope()
                 .unwrap()
                 .get_nominal_type_ctx(&impl_trait)
             {
