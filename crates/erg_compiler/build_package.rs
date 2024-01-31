@@ -149,7 +149,7 @@ pub enum ResolveError {
     },
 }
 
-pub type ResolveResult<T> = Result<T, ResolveError>;
+pub type ResolveResult<T> = Result<T, Vec<ResolveError>>;
 
 /// Resolve dependencies and build a package.
 /// This object should be a singleton.
@@ -387,7 +387,8 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
     ) -> Result<CompleteArtifact, IncompleteArtifact> {
         let cfg = self.cfg.copy();
         log!(info "Start dependency resolution process");
-        let _ = self.resolve(&mut ast, &cfg);
+        let res = self.resolve(&mut ast, &cfg);
+        debug_assert!(res.is_ok(), "{:?}", res.unwrap_err());
         log!(info "Dependency resolution process completed");
         log!("graph:\n{}", self.shared.graph.display());
         if self.parse_errors.errors.is_empty() {
@@ -411,47 +412,55 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
     /// Analyze ASTs and make the dependencies graph.
     /// If circular dependencies are found, inline submodules to eliminate the circularity.
     fn resolve(&mut self, ast: &mut AST, cfg: &ErgConfig) -> ResolveResult<()> {
-        let mut result = Ok(());
+        let mut errs = vec![];
         for chunk in ast.module.iter_mut() {
             if let Err(err) = self.check_import(chunk, cfg) {
-                result = Err(err);
+                errs.extend(err);
             }
         }
-        result
+        if errs.is_empty() {
+            Ok(())
+        } else {
+            Err(errs)
+        }
     }
 
     fn check_import(&mut self, expr: &mut Expr, cfg: &ErgConfig) -> ResolveResult<()> {
-        let mut result = Ok(());
+        let mut errs = vec![];
         match expr {
             Expr::Call(call) if call.additional_operation().is_some_and(|op| op.is_import()) => {
                 if let Err(err) = self.register(expr, cfg) {
-                    result = Err(err);
+                    errs.extend(err);
                 }
             }
             Expr::Def(def) => {
                 for expr in def.body.block.iter_mut() {
                     if let Err(err) = self.check_import(expr, cfg) {
-                        result = Err(err);
+                        errs.extend(err);
                     }
                 }
             }
             Expr::Dummy(chunks) => {
                 for chunk in chunks.iter_mut() {
                     if let Err(err) = self.check_import(chunk, cfg) {
-                        result = Err(err);
+                        errs.extend(err);
                     }
                 }
             }
             Expr::Compound(chunks) => {
                 for chunk in chunks.iter_mut() {
                     if let Err(err) = self.check_import(chunk, cfg) {
-                        result = Err(err);
+                        errs.extend(err);
                     }
                 }
             }
             _ => {}
         }
-        result
+        if errs.is_empty() {
+            Ok(())
+        } else {
+            Err(errs)
+        }
     }
 
     fn analysis_in_progress(path: &Path) -> bool {
@@ -588,10 +597,10 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
             .is_err()
         {
             self.submodules.push(from_path.clone());
-            return Err(ResolveError::CycleDetected {
+            return Err(vec![ResolveError::CycleDetected {
                 path: import_path,
                 submod_input: cfg.input.clone(),
-            });
+            }]);
         }
         if import_path == from_path
             || self.submodules.contains(&import_path)
@@ -627,19 +636,20 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
                 }
             }
         };
-        if let Err(ResolveError::CycleDetected { path, submod_input }) =
-            self.resolve(&mut ast, &import_cfg)
-        {
+        if let Err(mut errs) = self.resolve(&mut ast, &import_cfg) {
             *expr = Expr::InlineModule(InlineModule::new(
                 Input::file(import_path.to_path_buf()),
                 ast,
                 call.clone(),
             ));
-            if path != from_path {
-                return Err(ResolveError::CycleDetected { path, submod_input });
-            } else {
-                self.cyclic.push(path);
+            errs.retain(|err| match err {
+                ResolveError::CycleDetected { path, .. } => path != &from_path,
+            });
+            if errs.is_empty() {
+                self.cyclic.push(from_path);
                 return Ok(());
+            } else {
+                return Err(errs);
             }
         }
         let prev = self.asts.insert(import_path, (__name__.clone(), ast));

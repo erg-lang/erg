@@ -51,10 +51,12 @@ pub enum SubstituteResult {
 }
 
 impl Context {
+    /// Returns `true` if the module is being inspected, or has been inspected
     pub(crate) fn mod_registered(&self, path: &NormalizedPathBuf) -> bool {
         (self.shared.is_some() && self.promises().is_registered(path)) || self.mod_cached(path)
     }
 
+    /// Returns `true` if the module has been inspected
     pub(crate) fn mod_cached(&self, path: &Path) -> bool {
         self.mod_cache().get(path).is_some() || self.py_mod_cache().get(path).is_some()
     }

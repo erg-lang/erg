@@ -415,7 +415,9 @@ impl From<&Def> for ContextKind {
             DefKind::Class | DefKind::Inherit => Self::Class,
             DefKind::Trait | DefKind::Subsume => Self::Trait,
             DefKind::StructuralTrait => Self::StructuralTrait,
-            DefKind::ErgImport | DefKind::PyImport | DefKind::RsImport => Self::Module,
+            DefKind::ErgImport | DefKind::PyImport | DefKind::RsImport | DefKind::InlineModule => {
+                Self::Module
+            }
             DefKind::Other => {
                 if def.is_subr() {
                     if def.sig.ident().unwrap().is_procedural() {

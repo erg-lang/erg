@@ -277,6 +277,10 @@ impl SharedModuleGraph {
         self.0.borrow_mut().sort()
     }
 
+    pub fn entries(&self) -> Set<NormalizedPathBuf> {
+        self.0.borrow().iter().map(|n| n.id.clone()).collect()
+    }
+
     pub fn initialize(&self) {
         self.0.borrow_mut().initialize();
     }
