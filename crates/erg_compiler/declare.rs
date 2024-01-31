@@ -1029,6 +1029,9 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             ast::Expr::TypeAscription(tasc) => {
                 let _ = self.declare_ident(tasc.clone());
             }
+            ast::Expr::Def(def) => {
+                let _ = self.declare_def(def.clone());
+            }
             ast::Expr::Compound(compound) => {
                 for chunk in compound.iter() {
                     self.pre_declare_chunk(chunk);
