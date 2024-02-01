@@ -71,6 +71,12 @@ impl std::str::FromStr for CheckStatus {
     }
 }
 
+impl CheckStatus {
+    pub const fn is_succeed(&self) -> bool {
+        matches!(self, CheckStatus::Succeed)
+    }
+}
+
 /// format:
 /// ```python
 /// #[pylyzer] succeed foo.py 1234567890
@@ -724,6 +730,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
                         raw_ast,
                         Some(artifact.object),
                         builder.pop_context().unwrap(),
+                        CheckStatus::Succeed,
                     );
                     shared.warns.extend(artifact.warns);
                 }
@@ -733,6 +740,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
                         raw_ast,
                         artifact.object,
                         builder.pop_context().unwrap(),
+                        CheckStatus::Failed,
                     );
                     shared.warns.extend(artifact.warns);
                     shared.errors.extend(artifact.errors);
@@ -759,12 +767,18 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         match builder.build_from_ast(ast, "declare") {
             Ok(artifact) => {
                 let ctx = builder.pop_context().unwrap();
-                py_mod_cache.register(path.clone(), raw_ast, Some(artifact.object), ctx);
+                py_mod_cache.register(
+                    path.clone(),
+                    raw_ast,
+                    Some(artifact.object),
+                    ctx,
+                    CheckStatus::Succeed,
+                );
                 self.shared.warns.extend(artifact.warns);
             }
             Err(artifact) => {
                 let ctx = builder.pop_context().unwrap();
-                py_mod_cache.register(path, raw_ast, artifact.object, ctx);
+                py_mod_cache.register(path, raw_ast, artifact.object, ctx, CheckStatus::Failed);
                 self.shared.warns.extend(artifact.warns);
                 self.shared.errors.extend(artifact.errors);
             }

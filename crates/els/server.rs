@@ -881,7 +881,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let path = uri.to_file_path().ok()?;
         let module = self.shared.remove_module(&path)?;
         let lowerer = ASTLowerer::new_with_ctx(module.module);
-        Some((lowerer, IRs::new(module.id, module.ast, module.hir)))
+        Some((
+            lowerer,
+            IRs::new(module.id, module.ast, module.hir, module.status),
+        ))
     }
 
     pub(crate) fn restore_lowerer(
@@ -891,7 +894,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         irs: IRs,
     ) {
         let module = lowerer.pop_mod_ctx().unwrap();
-        let entry = ModuleEntry::new(irs.id, irs.ast, irs.hir, module);
+        let entry = ModuleEntry::new(irs.id, irs.ast, irs.hir, module, irs.status);
         self.restore_entry(uri, entry);
     }
 

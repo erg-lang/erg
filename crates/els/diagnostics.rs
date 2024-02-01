@@ -13,6 +13,7 @@ use erg_common::style::*;
 use erg_common::traits::Stream;
 use erg_common::{fn_name, lsp_log};
 use erg_compiler::artifact::BuildRunnable;
+use erg_compiler::build_package::CheckStatus;
 use erg_compiler::erg_parser::ast::Module;
 use erg_compiler::erg_parser::error::IncompleteArtifact;
 use erg_compiler::erg_parser::parse::Parsable;
@@ -114,7 +115,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             "exec"
         };
         let mut checker = self.get_checker(path.clone());
-        let artifact = match checker.build(code.into(), mode) {
+        let (artifact, status) = match checker.build(code.into(), mode) {
             Ok(artifact) => {
                 _log!(
                     self,
@@ -132,7 +133,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     _log!(self, "{uri}, warns: {}", diags.len());
                     self.send_diagnostics(uri, diags)?;
                 }
-                artifact.into()
+                (artifact.into(), CheckStatus::Succeed)
             }
             Err(artifact) => {
                 _log!(self, "found errors: {}", artifact.errors.len());
@@ -154,7 +155,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     _log!(self, "{uri}, errs & warns: {}", diags.len());
                     self.send_diagnostics(uri, diags)?;
                 }
-                artifact
+                (artifact, CheckStatus::Failed)
             }
         };
         let ast = self.build_ast(&uri).ok();
@@ -162,11 +163,11 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         if mode == "declare" {
             self.shared
                 .py_mod_cache
-                .register(path, ast, artifact.object, ctx);
+                .register(path, ast, artifact.object, ctx, status);
         } else {
             self.shared
                 .mod_cache
-                .register(path, ast, artifact.object, ctx);
+                .register(path, ast, artifact.object, ctx, status);
         }
         let dependents = self.dependents_of(&uri);
         for dep in dependents {

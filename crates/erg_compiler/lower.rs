@@ -26,6 +26,7 @@ use erg_parser::token::{Token, TokenKind};
 use erg_parser::Parser;
 
 use crate::artifact::{BuildRunnable, Buildable, CompleteArtifact, IncompleteArtifact};
+use crate::build_package::CheckStatus;
 use crate::module::SharedCompilerResource;
 use crate::ty::constructors::{
     array_t, free_var, func, guard, mono, poly, proc, refinement, set_t, singleton, ty_tp,
@@ -2982,7 +2983,13 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
     ) -> hir::Call {
         log!(info "entered {}", fn_name!());
         let path = NormalizedPathBuf::from(inline.input.path().to_path_buf());
-        if self.module.context.mod_cached(&path) {
+        if self
+            .module
+            .context
+            .shared()
+            .get_module(&path)
+            .is_some_and(|ent| ent.is_complete())
+        {
             return self.lower_call(inline.import, expect);
         }
         let parent = self.get_mod_ctx().context.get_module().unwrap().clone();
@@ -2996,15 +3003,15 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         } else {
             "exec"
         };
-        let hir = match builder.check(inline.ast, mode) {
+        let (hir, status) = match builder.check(inline.ast, mode) {
             Ok(art) => {
                 self.warns.extend(art.warns);
-                Some(art.object)
+                (Some(art.object), CheckStatus::Succeed)
             }
             Err(art) => {
                 self.warns.extend(art.warns);
                 self.errs.extend(art.errors);
-                art.object
+                (art.object, CheckStatus::Failed)
             }
         };
         let ctx = builder.pop_mod_ctx().unwrap();
@@ -3013,7 +3020,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         } else {
             &self.module.context.shared().mod_cache
         };
-        cache.register(path.to_path_buf(), None, hir, ctx);
+        cache.register(path.to_path_buf(), None, hir, ctx, status);
         self.lower_call(inline.import, expect)
     }
 
