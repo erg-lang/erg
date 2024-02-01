@@ -12,6 +12,7 @@ use erg_common::shared::{
 use erg_common::Str;
 use erg_parser::ast::Module;
 
+use crate::build_package::CheckStatus;
 use crate::context::ModuleContext;
 use crate::hir::HIR;
 
@@ -37,6 +38,7 @@ pub struct ModuleEntry {
     pub ast: Option<Module>,
     pub hir: Option<HIR>,
     pub module: ModuleContext,
+    pub status: CheckStatus,
 }
 
 impl fmt::Display for ModuleEntry {
@@ -50,12 +52,19 @@ impl fmt::Display for ModuleEntry {
 }
 
 impl ModuleEntry {
-    pub const fn new(id: ModId, ast: Option<Module>, hir: Option<HIR>, ctx: ModuleContext) -> Self {
+    pub const fn new(
+        id: ModId,
+        ast: Option<Module>,
+        hir: Option<HIR>,
+        ctx: ModuleContext,
+        status: CheckStatus,
+    ) -> Self {
         Self {
             id,
             ast,
             hir,
             module: ctx,
+            status,
         }
     }
 
@@ -65,6 +74,7 @@ impl ModuleEntry {
             ast: None,
             hir: None,
             module: ctx,
+            status: CheckStatus::Succeed,
         }
     }
 
@@ -73,7 +83,7 @@ impl ModuleEntry {
     }
 
     pub const fn is_complete(&self) -> bool {
-        self.ast.is_some() && self.hir.is_some()
+        self.status.is_succeed() && self.ast.is_some() && self.hir.is_some()
     }
 }
 
@@ -82,11 +92,22 @@ pub struct IRs {
     pub id: ModId,
     pub ast: Option<Module>,
     pub hir: Option<HIR>,
+    pub status: CheckStatus,
 }
 
 impl IRs {
-    pub const fn new(id: ModId, ast: Option<Module>, hir: Option<HIR>) -> Self {
-        Self { id, ast, hir }
+    pub const fn new(
+        id: ModId,
+        ast: Option<Module>,
+        hir: Option<HIR>,
+        status: CheckStatus,
+    ) -> Self {
+        Self {
+            id,
+            ast,
+            hir,
+            status,
+        }
     }
 }
 
@@ -137,10 +158,11 @@ impl ModuleCache {
         ast: Option<Module>,
         hir: Option<HIR>,
         ctx: ModuleContext,
+        status: CheckStatus,
     ) {
         self.last_id += 1;
         let id = ModId::new(self.last_id);
-        let entry = ModuleEntry::new(id, ast, hir, ctx);
+        let entry = ModuleEntry::new(id, ast, hir, ctx, status);
         self.cache.insert(path, entry);
     }
 
@@ -281,8 +303,11 @@ impl SharedModuleCache {
         ast: Option<Module>,
         hir: Option<HIR>,
         ctx: ModuleContext,
+        status: CheckStatus,
     ) {
-        self.0.borrow_mut().register(path.into(), ast, hir, ctx);
+        self.0
+            .borrow_mut()
+            .register(path.into(), ast, hir, ctx, status);
     }
 
     pub fn insert(&self, path: NormalizedPathBuf, entry: ModuleEntry) {
@@ -322,7 +347,13 @@ impl SharedModuleCache {
             return;
         };
         self.0.borrow_mut().clear();
-        self.register(builtin_path, None, None, builtin.module);
+        self.register(
+            builtin_path,
+            None,
+            None,
+            builtin.module,
+            CheckStatus::Succeed,
+        );
     }
 
     pub fn rename_path<P: Into<NormalizedPathBuf>>(&self, path: &NormalizedPathBuf, new: P) {

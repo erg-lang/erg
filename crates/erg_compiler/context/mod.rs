@@ -415,7 +415,9 @@ impl From<&Def> for ContextKind {
             DefKind::Class | DefKind::Inherit => Self::Class,
             DefKind::Trait | DefKind::Subsume => Self::Trait,
             DefKind::StructuralTrait => Self::StructuralTrait,
-            DefKind::ErgImport | DefKind::PyImport | DefKind::RsImport => Self::Module,
+            DefKind::ErgImport | DefKind::PyImport | DefKind::RsImport | DefKind::InlineModule => {
+                Self::Module
+            }
             DefKind::Other => {
                 if def.is_subr() {
                     if def.sig.ident().unwrap().is_procedural() {
@@ -637,7 +639,7 @@ impl fmt::Display for Context {
 impl ContextProvider for Context {
     fn dir(&self) -> Dict<&VarName, &VarInfo> {
         let mut vars = self.type_dir(self);
-        if let Some(outer) = self.get_outer() {
+        if let Some(outer) = self.get_outer_scope() {
             vars.guaranteed_extend(outer.dir());
         } else if let Some(builtins) = self.get_builtins() {
             vars.guaranteed_extend(builtins.locals.iter());
@@ -1125,8 +1127,23 @@ impl Context {
         String::from(&self.name[..])
     }
 
+    /// use `get_outer_scope` for getting the outer scope
     pub(crate) fn get_outer(&self) -> Option<&Context> {
         self.outer.as_ref().map(|x| x.as_ref())
+    }
+
+    /// If both `self` and `outer` are modules, returns `None` because the outer namespace is different from the current context
+    pub(crate) fn get_outer_scope(&self) -> Option<&Context> {
+        let outer = self.get_outer()?;
+        if outer.name != "<builtins>" && outer.kind.is_module() && self.kind.is_module() {
+            None
+        } else {
+            Some(outer)
+        }
+    }
+
+    pub(crate) fn get_outer_scope_or_builtins(&self) -> Option<&Context> {
+        self.get_outer_scope().or_else(|| self.get_builtins())
     }
 
     pub(crate) fn get_mut_outer(&mut self) -> Option<&mut Context> {
@@ -1423,7 +1440,7 @@ impl Context {
     pub fn current_true_function_ctx(&self) -> Option<&Context> {
         if self.kind.is_subr() && self.current_control_flow().is_none() {
             Some(self)
-        } else if let Some(outer) = self.get_outer() {
+        } else if let Some(outer) = self.get_outer_scope() {
             outer.current_true_function_ctx()
         } else {
             None

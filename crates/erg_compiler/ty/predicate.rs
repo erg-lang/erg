@@ -540,10 +540,10 @@ impl Predicate {
 
     pub fn substitute(self, var: &str, tp: &TyParam) -> Self {
         match self {
-            Self::Equal { lhs, .. } if &lhs == var => Self::eq(lhs, tp.clone()),
-            Self::GreaterEqual { lhs, .. } if &lhs == var => Self::ge(lhs, tp.clone()),
-            Self::LessEqual { lhs, .. } if &lhs == var => Self::le(lhs, tp.clone()),
-            Self::NotEqual { lhs, .. } if &lhs == var => Self::ne(lhs, tp.clone()),
+            Self::Equal { lhs, .. } if lhs == var => Self::eq(lhs, tp.clone()),
+            Self::GreaterEqual { lhs, .. } if lhs == var => Self::ge(lhs, tp.clone()),
+            Self::LessEqual { lhs, .. } if lhs == var => Self::le(lhs, tp.clone()),
+            Self::NotEqual { lhs, .. } if lhs == var => Self::ne(lhs, tp.clone()),
             Self::Equal { lhs, rhs } => Self::eq(lhs, rhs.substitute(var, tp)),
             Self::GreaterEqual { lhs, rhs } => Self::ge(lhs, rhs.substitute(var, tp)),
             Self::LessEqual { lhs, rhs } => Self::le(lhs, rhs.substitute(var, tp)),

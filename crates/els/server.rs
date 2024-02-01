@@ -11,7 +11,7 @@ use erg_common::config::ErgConfig;
 use erg_common::consts::PYTHON_MODE;
 use erg_common::dict::Dict;
 use erg_common::env::erg_path;
-use erg_common::pathutil::NormalizedPathBuf;
+use erg_common::pathutil::{project_root_dir_of, NormalizedPathBuf};
 use erg_common::shared::{MappedRwLockReadGuard, Shared};
 use erg_common::spawn::{safe_yield, spawn_new_thread};
 use erg_common::traits::Stream;
@@ -61,7 +61,7 @@ use crate::file_cache::FileCache;
 use crate::hir_visitor::{ExprKind, HIRVisitor};
 use crate::message::{ErrorMessage, LSPResult};
 use crate::scheduler::Scheduler;
-use crate::util::{self, loc_to_pos, project_root_of, NormalizedUrl};
+use crate::util::{self, loc_to_pos, NormalizedUrl};
 
 pub const HEALTH_CHECKER_ID: i64 = 10000;
 pub const ASK_AUTO_SAVE_ID: i64 = 10001;
@@ -881,7 +881,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let path = uri.to_file_path().ok()?;
         let module = self.shared.remove_module(&path)?;
         let lowerer = ASTLowerer::new_with_ctx(module.module);
-        Some((lowerer, IRs::new(module.id, module.ast, module.hir)))
+        Some((
+            lowerer,
+            IRs::new(module.id, module.ast, module.hir, module.status),
+        ))
     }
 
     pub(crate) fn restore_lowerer(
@@ -891,7 +894,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         irs: IRs,
     ) {
         let module = lowerer.pop_mod_ctx().unwrap();
-        let entry = ModuleEntry::new(irs.id, irs.ast, irs.hir, module);
+        let entry = ModuleEntry::new(irs.id, irs.ast, irs.hir, module, irs.status);
         self.restore_entry(uri, entry);
     }
 
@@ -949,7 +952,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     }
 
     pub(crate) fn get_workspace_ctxs(&self) -> Vec<&Context> {
-        let project_root = project_root_of(&self.home).unwrap_or(self.home.clone());
+        let project_root = project_root_dir_of(&self.home).unwrap_or(self.home.clone());
         let mut ctxs = vec![];
         for (path, ent) in self.shared.raw_path_and_modules() {
             if path.starts_with(&project_root) {

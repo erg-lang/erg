@@ -8,11 +8,13 @@ use std::time::Duration;
 
 use erg_common::consts::PYTHON_MODE;
 use erg_common::dict::Dict;
+use erg_common::pathutil::{project_entry_file_of, project_root_dir_of};
 use erg_common::spawn::{safe_yield, spawn_new_thread};
 use erg_common::style::*;
 use erg_common::traits::Stream;
 use erg_common::{fn_name, lsp_log};
 use erg_compiler::artifact::BuildRunnable;
+use erg_compiler::build_package::CheckStatus;
 use erg_compiler::erg_parser::ast::Module;
 use erg_compiler::erg_parser::error::IncompleteArtifact;
 use erg_compiler::erg_parser::parse::Parsable;
@@ -30,7 +32,7 @@ use crate::channels::WorkerMessage;
 use crate::diff::{ASTDiff, HIRDiff};
 use crate::server::{DefaultFeatures, ELSResult, RedirectableStdout, Server};
 use crate::server::{ASK_AUTO_SAVE_ID, HEALTH_CHECKER_ID};
-use crate::util::{self, project_root_of, NormalizedUrl};
+use crate::util::{self, NormalizedUrl};
 
 #[derive(Debug)]
 pub enum BuildASTError {
@@ -114,7 +116,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             "exec"
         };
         let mut checker = self.get_checker(path.clone());
-        let artifact = match checker.build(code.into(), mode) {
+        let (artifact, status) = match checker.build(code.into(), mode) {
             Ok(artifact) => {
                 _log!(
                     self,
@@ -132,7 +134,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     _log!(self, "{uri}, warns: {}", diags.len());
                     self.send_diagnostics(uri, diags)?;
                 }
-                artifact.into()
+                (artifact.into(), CheckStatus::Succeed)
             }
             Err(artifact) => {
                 _log!(self, "found errors: {}", artifact.errors.len());
@@ -154,7 +156,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     _log!(self, "{uri}, errs & warns: {}", diags.len());
                     self.send_diagnostics(uri, diags)?;
                 }
-                artifact
+                (artifact, CheckStatus::Failed)
             }
         };
         let ast = self.build_ast(&uri).ok();
@@ -162,11 +164,11 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         if mode == "declare" {
             self.shared
                 .py_mod_cache
-                .register(path, ast, artifact.object, ctx);
+                .register(path, ast, artifact.object, ctx, status);
         } else {
             self.shared
                 .mod_cache
-                .register(path, ast, artifact.object, ctx);
+                .register(path, ast, artifact.object, ctx, status);
         }
         let dependents = self.dependents_of(&uri);
         for dep in dependents {
@@ -407,7 +409,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     "method": "window/workDoneProgress/create",
                     "params": progress_token,
                 }));
-                let Some(project_root) = project_root_of(&current_dir().unwrap()) else {
+                let Some(project_root) = project_root_dir_of(&current_dir().unwrap()) else {
                     work_done!(token);
                 };
                 let src_dir = if project_root.join("src").is_dir() {
@@ -415,11 +417,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 } else {
                     project_root
                 };
-                let main_path = if src_dir.join("main.er").exists() {
-                    src_dir.join("main.er")
-                } else if src_dir.join("lib.er").exists() {
-                    src_dir.join("lib.er")
-                } else {
+                let Some(main_path) = project_entry_file_of(&current_dir().unwrap()) else {
                     work_done!(token);
                 };
                 let Ok(main_uri) = NormalizedUrl::from_file_path(main_path) else {

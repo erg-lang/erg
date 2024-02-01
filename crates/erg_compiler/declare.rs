@@ -1,6 +1,7 @@
 use std::mem;
 
 use erg_common::consts::PYTHON_MODE;
+use erg_common::error::Location;
 use erg_common::traits::{Locational, Runnable, Stream};
 use erg_common::{enum_unwrap, fn_name, log, set, Str, Triple};
 
@@ -129,8 +130,15 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             .module
             .context
             .registered_info(&name, def.sig.is_const())
-            .is_some()
-            && def.sig.vis().is_private()
+            .is_some_and(|(_, vi)| {
+                !vi.kind.is_builtin()
+                    && vi.def_loc
+                        != self.module.context.absolutize(
+                            def.sig
+                                .ident()
+                                .map_or(Location::Unknown, |ident| ident.loc()),
+                        )
+            })
         {
             return Err(LowerErrors::from(LowerError::reassign_error(
                 self.cfg().input.clone(),
@@ -1021,6 +1029,9 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             ast::Expr::TypeAscription(tasc) => {
                 let _ = self.declare_ident(tasc.clone());
             }
+            ast::Expr::Def(def) => {
+                let _ = self.declare_def(def.clone());
+            }
             ast::Expr::Compound(compound) => {
                 for chunk in compound.iter() {
                     self.pre_declare_chunk(chunk);
@@ -1031,21 +1042,18 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     self.pre_declare_chunk(elem);
                 }
             }
-            ast::Expr::InlineModule(inline) => {
-                for chunk in inline.ast.module.iter() {
-                    self.pre_declare_chunk(chunk);
-                }
-            }
             _ => {}
         }
     }
 
     pub(crate) fn declare_module(&mut self, ast: AST) -> HIR {
         let mut module = hir::Module::with_capacity(ast.module.len());
+        // Register const items speculatively
         for chunk in ast.module.iter() {
             self.pre_declare_chunk(chunk);
         }
-        let _ = self.module.context.register_const(ast.module.block());
+        self.warns.clear();
+        self.errs.clear();
         for chunk in ast.module.into_iter() {
             match self.declare_chunk(chunk, false) {
                 Ok(chunk) => {

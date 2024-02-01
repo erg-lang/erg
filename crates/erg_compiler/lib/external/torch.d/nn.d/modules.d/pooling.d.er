@@ -1,0 +1,43 @@
+{Module;} = pyimport "torch/nn"
+
+_MaxPoolNd: ClassType
+_MaxPoolNd <: Module
+
+.MaxPool1d: ClassType
+.MaxPool1d <: _MaxPoolNd
+.MaxPool1d <: GenericCallable
+.MaxPool1d.
+    __call__: (
+        kernel_size: Nat or [Nat; 1] or (Nat,),
+        stride := Nat or [Nat; 1] or (Nat,),
+        padding := Str or Nat or [Nat; 1] or (Nat,),
+        dilation := Nat or [Nat; 1] or (Nat,),
+        return_indices := Bool,
+        ceil_mode := Bool,
+    ) -> .MaxPool1d
+
+.MaxPool2d: ClassType
+.MaxPool2d <: _MaxPoolNd
+.MaxPool2d <: GenericCallable
+.MaxPool2d.
+    __call__: (
+        kernel_size: Nat or [Nat; 2] or (Nat, Nat),
+        stride := Nat or [Nat; 2] or (Nat, Nat),
+        padding := Str or Nat or [Nat; 2] or (Nat, Nat),
+        dilation := Nat or [Nat; 2] or (Nat, Nat),
+        return_indices := Bool,
+        ceil_mode := Bool,
+    ) -> .MaxPool2d
+
+.MaxPool3d: ClassType
+.MaxPool3d <: _MaxPoolNd
+.MaxPool3d <: GenericCallable
+.MaxPool3d.
+    __call__: (
+        kernel_size: Nat or [Nat; 3] or (Nat, Nat, Nat),
+        stride := Nat or [Nat; 3] or (Nat, Nat, Nat),
+        padding := Str or Nat or [Nat; 3] or (Nat, Nat, Nat),
+        dilation := Nat or [Nat; 3] or (Nat, Nat, Nat),
+        return_indices := Bool,
+        ceil_mode := Bool,
+    ) -> .MaxPool3d

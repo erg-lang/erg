@@ -2,7 +2,7 @@ time = pyimport "time"
 tqdm = pyimport "tqdm"
 j2 = pyimport "jinja2"
 
-for! tqdm.Tqdm!(0..<10), _ =>
+for! tqdm.tqdm(0..<10), _ =>
     time.sleep! 0.00001
 
 plt = pyimport "matplotlib/pyplot"

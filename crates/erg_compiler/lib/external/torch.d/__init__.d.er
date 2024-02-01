@@ -6,6 +6,13 @@
 .utils = pyimport "./utils"
 
 {.load!; .save!;} = pyimport "./serialization"
+{.manual_seed!;} = import "./random"
+
+.Device = 'device': ClassType
+.device: (type: Str) => .Device
+
+.DType = 'dtype': ClassType
+.dtype: (type: Str) => .DType
 
 .UInt8 = 'uint8': ClassType
 .Int8  = 'int8': ClassType
@@ -19,7 +26,6 @@
 .Complex64 = 'complex64': ClassType
 .Complex128 = 'complex128': ClassType
 
-.DType = 'dtype': ClassType
 .Size: ClassType
 .Tensor[T: Type, Shape: [Nat; _]]: ClassType
 .Tensor[T, _] <: Output T

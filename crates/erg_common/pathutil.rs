@@ -11,7 +11,7 @@ use crate::{normalize_path, Str};
 /// `PathBuf` may give false equivalence decisions in non-case-sensitive file systems.
 /// Use this for dictionary keys, etc.
 /// See also: `els::util::NormalizedUrl`
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, PartialOrd, Ord)]
 pub struct NormalizedPathBuf(PathBuf);
 
 impl fmt::Display for NormalizedPathBuf {
@@ -253,4 +253,31 @@ pub fn mod_name(path: &Path) -> Str {
         }
     }
     Str::from(name)
+}
+
+pub fn project_root_dir_of(path: &Path) -> Option<PathBuf> {
+    if path.is_dir() && path.join("package.er").exists() {
+        return Some(path.to_path_buf());
+    }
+    let mut path = path.to_path_buf();
+    while let Some(parent) = path.parent() {
+        if parent.join("package.er").exists() {
+            return Some(parent.to_path_buf());
+        }
+        path = parent.to_path_buf();
+    }
+    None
+}
+
+pub fn project_entry_file_of(path: &Path) -> Option<PathBuf> {
+    let project_root = project_root_dir_of(path)?;
+    if project_root.join("src/lib.er").exists() {
+        Some(project_root.join("src/lib.er"))
+    } else if project_root.join("src/main.er").exists() {
+        Some(project_root.join("src/main.er"))
+    } else if project_root.join("src/lib.d.er").exists() {
+        Some(project_root.join("src/lib.d.er"))
+    } else {
+        None
+    }
 }

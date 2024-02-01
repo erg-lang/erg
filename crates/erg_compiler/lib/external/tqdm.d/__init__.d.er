@@ -1,9 +1,9 @@
-<<<<<<< Updated upstream
-.Tqdm! = 'tqdm': (T: Type) -> ClassType
-.Tqdm!(T) <: Iterable T
-.Tqdm!(T).
-    __call__: (
-        iterable: Iterable(T),
+.Tqdm![T] = 'tqdm': ClassType
+.Tqdm![T] <: Iterable[T]
+.Tqdm![T].
+    __new__: (
+        cls: ClassType,
+        iterable: Iterable[T],
         desc := Str,
         total := Int or Float,
         leave := Bool,
@@ -29,39 +29,6 @@
         colour := Str,
         delay := Float,
         gui := Bool,
-    ) -> .Tqdm!(T)
+    ) -> .Tqdm![T]
 
-.tqdm = .Tqdm!.__call__
-=======
-.Tqdm![T: Type] = 'tqdm': ClassType
-.Tqdm![T] <: Iterable T
-
-.tqdm: |T|(
-    iterable: Iterable[T],
-    desc := Str,
-    total := Int or Float,
-    leave := Bool,
-    file := File!,
-    ncols := Int,
-    mininterval := Float,
-    maxinterval := Float,
-    miniters := Int or Float,
-    ascii := Bool or Str,
-    disable := Bool,
-    unit := Str,
-    unit_scale := Bool or Int or Float,
-    dynamic_ncols := Bool,
-    smoothing := Float,
-    bar_format := Str,
-    initial := Int or Float,
-    position := Int,
-    postfix := {Str: Obj},
-    unit_divisor := Float,
-    write_bytes := Bool,
-    lock_args := [Obj; _],
-    nrows := Int,
-    colour := Str,
-    delay := Float,
-    gui := Bool,
-) -> .Tqdm![T]
->>>>>>> Stashed changes
+.tqdm = .Tqdm!
