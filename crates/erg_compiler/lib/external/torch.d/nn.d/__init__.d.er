@@ -2,9 +2,15 @@
 .parameter = pyimport "./parameter"
 
 {
+    .Conv1d;
+    .Conv2d;
+    .Conv3d;
     .CrossEntropyLoss;
     .Flatten;
     .Linear;
+    .MaxPool1d;
+    .MaxPool2d;
+    .MaxPool3d;
     .Module;
     .ReLU;
 } = .modules
