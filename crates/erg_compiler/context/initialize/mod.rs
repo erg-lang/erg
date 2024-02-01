@@ -24,6 +24,7 @@ use erg_common::{set, unique_in_place};
 
 use erg_parser::ast::{DefId, VarName};
 
+use crate::build_package::CheckStatus;
 use crate::context::initialize::const_func::*;
 use crate::context::instantiate_spec::ConstTemplate;
 use crate::context::{
@@ -1167,9 +1168,13 @@ impl Context {
         ctx.init_builtin_classes();
         ctx.init_builtin_patches();
         let module = ModuleContext::new(ctx, dict! {});
-        shared
-            .mod_cache
-            .register(PathBuf::from("<builtins>"), None, None, module);
+        shared.mod_cache.register(
+            PathBuf::from("<builtins>"),
+            None,
+            None,
+            module,
+            CheckStatus::Succeed,
+        );
     }
 
     pub(crate) fn build_module_unsound(&self) {
@@ -1247,7 +1252,8 @@ impl Context {
         let module = Module::new(vec![Expr::Def(eval), Expr::Def(exec), Expr::Def(perform)]);
         let hir = HIR::new("unsound".into(), module);
         let ctx = ModuleContext::new(ctx, dict! {});
-        self.mod_cache().register(path, None, Some(hir), ctx);
+        self.mod_cache()
+            .register(path, None, Some(hir), ctx, CheckStatus::Succeed);
     }
 
     pub fn new_module<S: Into<Str>>(

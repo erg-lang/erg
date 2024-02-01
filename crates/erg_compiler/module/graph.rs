@@ -108,13 +108,13 @@ impl ModuleGraph {
         depends_on: NormalizedPathBuf,
     ) -> Result<(), IncRefError> {
         self.add_node_if_none(referrer);
-        if self.ancestors(&depends_on).contains(referrer) && referrer != &depends_on {
+        if referrer == &depends_on {
+            return Ok(());
+        }
+        if self.ancestors(&depends_on).contains(referrer) {
             return Err(IncRefError::CycleDetected);
         }
         if let Some(node) = self.0.iter_mut().find(|n| &n.id == referrer) {
-            if referrer == &depends_on {
-                return Ok(());
-            }
             node.push_dep(depends_on);
         } else {
             unreachable!("node not found: {}", referrer.display());
@@ -275,6 +275,10 @@ impl SharedModuleGraph {
     #[allow(clippy::result_unit_err)]
     pub fn sort(&self) -> Result<(), TopoSortError> {
         self.0.borrow_mut().sort()
+    }
+
+    pub fn entries(&self) -> Set<NormalizedPathBuf> {
+        self.0.borrow().iter().map(|n| n.id.clone()).collect()
     }
 
     pub fn initialize(&self) {

@@ -67,6 +67,10 @@ impl<T: Eq + Hash, U> Node<T, U> {
         self.depends_on.insert(dep);
     }
 
+    pub fn pop_dep(&mut self, dep: &T) -> bool {
+        self.depends_on.remove(dep)
+    }
+
     pub fn depends_on(&self, dep: &T) -> bool {
         self.depends_on.contains(dep)
     }

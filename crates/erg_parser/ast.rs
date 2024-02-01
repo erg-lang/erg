@@ -5522,6 +5522,7 @@ pub enum DefKind {
     PyImport,
     RsImport,
     Patch,
+    InlineModule,
     /// type alias included
     Other,
 }
@@ -5554,6 +5555,10 @@ impl DefKind {
 
     pub const fn is_import(&self) -> bool {
         self.is_erg_import() || self.is_py_import() || self.is_rs_import()
+    }
+
+    pub fn is_inline_module(&self) -> bool {
+        matches!(self, Self::InlineModule)
     }
 
     pub const fn is_other(&self) -> bool {
@@ -5607,6 +5612,7 @@ impl DefBody {
                 Some("rsimport") => DefKind::RsImport,
                 _ => DefKind::Other,
             },
+            Expr::InlineModule(_) => DefKind::InlineModule,
             _ => DefKind::Other,
         }
     }

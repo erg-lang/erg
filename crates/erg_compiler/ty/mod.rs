@@ -1236,7 +1236,7 @@ impl LimitedDisplay for Type {
             }
             Self::Poly { name, params } => {
                 write!(f, "{name}(")?;
-                if self.is_module() {
+                if !DEBUG_MODE && self.is_module() {
                     // Module("path/to/module.er") -> Module("module.er")
                     let name = params.first().unwrap().to_string_unabbreviated();
                     let name = name.replace("__init__.d.er", "").replace("__init__.er", "");
