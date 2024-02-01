@@ -1042,21 +1042,18 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     self.pre_declare_chunk(elem);
                 }
             }
-            ast::Expr::InlineModule(inline) => {
-                for chunk in inline.ast.module.iter() {
-                    self.pre_declare_chunk(chunk);
-                }
-            }
             _ => {}
         }
     }
 
     pub(crate) fn declare_module(&mut self, ast: AST) -> HIR {
         let mut module = hir::Module::with_capacity(ast.module.len());
+        // Register const items speculatively
         for chunk in ast.module.iter() {
             self.pre_declare_chunk(chunk);
         }
-        let _ = self.module.context.register_const(ast.module.block());
+        self.warns.clear();
+        self.errs.clear();
         for chunk in ast.module.into_iter() {
             match self.declare_chunk(chunk, false) {
                 Ok(chunk) => {
