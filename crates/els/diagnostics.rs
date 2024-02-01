@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use erg_common::consts::PYTHON_MODE;
 use erg_common::dict::Dict;
+use erg_common::pathutil::{project_entry_file_of, project_root_dir_of};
 use erg_common::spawn::{safe_yield, spawn_new_thread};
 use erg_common::style::*;
 use erg_common::traits::Stream;
@@ -31,7 +32,7 @@ use crate::channels::WorkerMessage;
 use crate::diff::{ASTDiff, HIRDiff};
 use crate::server::{DefaultFeatures, ELSResult, RedirectableStdout, Server};
 use crate::server::{ASK_AUTO_SAVE_ID, HEALTH_CHECKER_ID};
-use crate::util::{self, project_root_of, NormalizedUrl};
+use crate::util::{self, NormalizedUrl};
 
 #[derive(Debug)]
 pub enum BuildASTError {
@@ -408,7 +409,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     "method": "window/workDoneProgress/create",
                     "params": progress_token,
                 }));
-                let Some(project_root) = project_root_of(&current_dir().unwrap()) else {
+                let Some(project_root) = project_root_dir_of(&current_dir().unwrap()) else {
                     work_done!(token);
                 };
                 let src_dir = if project_root.join("src").is_dir() {
@@ -416,11 +417,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 } else {
                     project_root
                 };
-                let main_path = if src_dir.join("main.er").exists() {
-                    src_dir.join("main.er")
-                } else if src_dir.join("lib.er").exists() {
-                    src_dir.join("lib.er")
-                } else {
+                let Some(main_path) = project_entry_file_of(&current_dir().unwrap()) else {
                     work_done!(token);
                 };
                 let Ok(main_uri) = NormalizedUrl::from_file_path(main_path) else {
