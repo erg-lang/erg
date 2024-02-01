@@ -41,7 +41,7 @@ use RegistrationMode::*;
 
 use super::eval::UndoableLinkedList;
 use super::instantiate_spec::ParamKind;
-use super::{ContextKind, MethodPair, TypeContext};
+use super::{ContextKind, MethodContext, MethodPair, TypeContext};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SubstituteResult {
@@ -126,7 +126,7 @@ impl Context {
             .or_else(|| {
                 self.tv_cache
                     .as_ref()
-                    .and_then(|tv_cache| tv_cache.var_infos.get(name))
+                    .and_then(|tv_cache| tv_cache.var_infos.get(search_name))
             })
     }
 
@@ -163,8 +163,18 @@ impl Context {
             .or_else(|| {
                 self.tv_cache
                     .as_ref()
-                    .and_then(|tv_cache| tv_cache.var_infos.get(name))
+                    .and_then(|tv_cache| tv_cache.var_infos.get(search_name))
             })
+    }
+
+    pub(crate) fn get_method_context_of(&self, trait_: &Type) -> Option<&MethodContext> {
+        #[allow(clippy::manual_find)]
+        for methods in self.methods_list.iter() {
+            if methods.impl_of().is_some_and(|t| &t == trait_) {
+                return Some(methods);
+            }
+        }
+        None
     }
 
     pub(crate) fn get_mut_current_scope_var(&mut self, name: &VarName) -> Option<&mut VarInfo> {
@@ -1957,9 +1967,24 @@ impl Context {
                     .map_or(vec![], |ctx| vec![ctx])
             })
             .unwrap_or_default();
-        let fallbacks = one.into_iter().chain(two);
+        let three = self.get_nominal_type_ctx(instance).map(|ty| &ty.ctx);
+        let fallbacks = one.into_iter().chain(two).chain(three);
         for typ_ctx in fallbacks {
-            if let Some(call_vi) = typ_ctx.get_current_scope_var(&VarName::from_static("__call__"))
+            // staticmethod __call__
+            if instance.is_type() {
+                if let Some(call_vi) =
+                    typ_ctx.get_current_scope_var(&VarName::from_static("__call__"))
+                {
+                    let instance = self.instantiate_def_type(&call_vi.t)?;
+                    self.substitute_call(obj, attr_name, &instance, pos_args, kw_args)?;
+                    return Ok(SubstituteResult::__Call__(instance));
+                }
+            // instance method __call__
+            } else if let Some(call_vi) = typ_ctx
+                .get_method_context_of(&mono("GenericCallable"))
+                .and_then(|method_ctx| {
+                    method_ctx.get_current_scope_var(&VarName::from_static("__call__"))
+                })
             {
                 let instance = self.instantiate_def_type(&call_vi.t)?;
                 self.substitute_call(obj, attr_name, &instance, pos_args, kw_args)?;

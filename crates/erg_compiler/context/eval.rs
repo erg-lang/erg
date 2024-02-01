@@ -2102,6 +2102,8 @@ impl Context {
                     Err(typ)
                 }
             }
+            Type::Quantified(quant) => self.convert_singular_type_into_value(*quant),
+            Type::Subr(subr) => self.convert_singular_type_into_value(*subr.return_t),
             _ => Err(typ),
         }
     }

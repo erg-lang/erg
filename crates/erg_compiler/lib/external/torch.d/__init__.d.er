@@ -32,3 +32,5 @@
 .Tensor(_, _).
     dtype: .DType
     shape: .Size
+
+.relu: |T, S: [Nat; _]|(x: .Tensor(T, S)) -> .Tensor(T, S)

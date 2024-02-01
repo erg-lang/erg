@@ -664,7 +664,7 @@ impl Context {
         &self,
         name: &Identifier,
         args: &ConstArgs,
-        _opt_decl_t: Option<&ParamTy>,
+        opt_decl_t: Option<&ParamTy>,
         tmp_tv_cache: &mut TyVarCache,
         not_found_is_qvar: bool,
     ) -> TyCheckResult<Type> {
@@ -804,7 +804,26 @@ impl Context {
                 Ok(Type::NamedTuple(ts))
             }
             other => {
-                let Some(ctx) = self.get_type_ctx(&Str::rc(other)) else {
+                if let Some(outer) = &self.outer {
+                    if let Ok(t) = outer.instantiate_local_poly_t(
+                        name,
+                        args,
+                        opt_decl_t,
+                        tmp_tv_cache,
+                        not_found_is_qvar,
+                    ) {
+                        return Ok(t);
+                    }
+                }
+                let Some(ctx) = self.get_type_ctx(other).or_else(|| {
+                    self.consts
+                        .get(other)
+                        .and_then(|v| self.convert_value_into_type(v.clone()).ok())
+                        .and_then(|typ| self.get_nominal_type_ctx(&typ))
+                }) else {
+                    if let Some(decl_t) = opt_decl_t {
+                        return Ok(decl_t.typ().clone());
+                    }
                     return Err(TyCheckErrors::from(TyCheckError::no_type_error(
                         self.cfg.input.clone(),
                         line!() as usize,

@@ -1,4 +1,4 @@
-{Device; DType;} = pyimport "torch"
+{Device; DType; Tensor;} = pyimport "torch"
 {Module;} = pyimport "torch/nn"
 
 _ConvNd: ClassType
@@ -39,6 +39,11 @@ _ConvNd <: Module
         device := Device or Str or Nat,
         dtype := DType or Str,
     ) -> .Conv2d
+.Conv2d|<: GenericCallable|.
+    __call__: |T, S: [Nat; _]|(
+        self: .Conv2d,
+        input: Tensor(T, S),
+    ) -> Tensor(T, S)
 
 .Conv3d: ClassType
 .Conv3d <: _ConvNd
