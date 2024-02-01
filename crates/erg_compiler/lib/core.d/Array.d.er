@@ -6,7 +6,7 @@
     '''erg
     assert [1, 2].concat([3, 4]) == [1, 2, 3, 4]
     '''
-    concat: |T: Type, M: Nat, N: Nat|(self: Array(T, M), other: Array(T, N)) -> Array(T, M + N)
+    concat: |T: Type, M: Nat, N: Nat|(self: Array[T, M], other: Array[T, N]) -> Array[T, M + N]
     '''
     Returns the number of elements in the array.
     '''
@@ -14,7 +14,7 @@
     assert [1, 2, 3, 1, 2].count(1) == 2
     assert ["a", "b", "c"].count("a") == 1
     '''
-    count: |T: Type, N: Nat|(self: Array(T, N), x: T) -> Nat
+    count: |T: Type, N: Nat|(self: Array[T, N], x: T) -> Nat
     '''
     Remove array duplicates.
 
@@ -25,7 +25,7 @@
     assert [1, 1, 2].dedup() == [1, 2]
     assert [0.0, 0.1, 10.0, 20.0, 20.1].dedup((lhs, rhs) -> abs(lhs - rhs) < 1.0) == [0.1, 10.0, 20.1]
     '''
-    dedup: |T: Type|(self: Array(T, _), same_bucket := (T, T) -> Bool) -> Array(T, _)
+    dedup: |T: Type|(self: Array[T, _], same_bucket := (T, T) -> Bool) -> Array[T, _]
     '''
     Create two arrays according to the `predicate` function.
 
@@ -34,25 +34,25 @@
     '''erg
     assert [-2, -1, 0, 1, 2].partition(x -> x >= 0) == ([0, 1, 2], [-2, -1])
     '''
-    partition: |T: Type|(self: Array(T, _), predicate: T -> Bool) -> (Array(T, _), Array(T, _))
+    partition: |T: Type|(self: Array[T, _], predicate: T -> Bool) -> (Array[T, _], Array[T, _])
     '''
     Returns the summation of all elements in the array.
     '''
     '''erg
     assert [1, 2, 3].sum() == 6
     '''
-    sum: |T: Type|(self: Array(T, _), start := T) -> T
+    sum: |T: Type|(self: Array[T, _], start := T) -> T
     '''
     Returns the product of all elements in the array.
     '''
     '''erg
     assert [1, 2, 3].product() == 6
     '''
-    prod: |T: Type|(self: Array(T, _), start := T) -> T
+    prod: |T: Type|(self: Array[T, _], start := T) -> T
     '''
     Returns the reversed array.
     '''
     '''erg
     assert [1, 2, 3].reversed() == [3, 2, 1]
     '''
-    reversed: |T: Type, N: Nat|(self: Array(T, N)) -> Array(T, N)
+    reversed: |T: Type, N: Nat|(self: Array[T, N]) -> Array[T, N]

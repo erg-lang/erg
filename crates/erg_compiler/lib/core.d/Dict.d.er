@@ -6,17 +6,17 @@
 .Dict.
     copy: |D <: .Dict|(self: D) -> D
     fromkeys: |K, V| (iterable: Iterable K, value: V := NoneType) -> .Dict K, V
-    get: |K, V, Default|(self: .Dict(K, V), key: K, default: Default := NoneType) -> V or Default
-    items: |K, V|(self: .Dict(K, V)) -> .DictItems(K, V)
-    keys: |K, V|(self: .Dict(K, V)) -> .DictKeys(K, V)
-    values: |K, V|(self: .Dict(K, V)) -> .DictValues(K, V)
+    get: |K, V, Default|(self: .Dict[K, V], key: K, default: Default := NoneType) -> V or Default
+    items: |K, V|(self: .Dict[K, V]) -> .DictItems(K, V)
+    keys: |K, V|(self: .Dict[K, V]) -> .DictKeys(K, V)
+    values: |K, V|(self: .Dict[K, V]) -> .DictValues(K, V)
     '''erg
     dic = {"a": 1, "b": 2}
     assert dic.concat({"c": 3}) == {"a": 1, "b": 2, "c": 3}
     '''
-    concat: (self: .Dict(K, V), other: .Dict(K, V)) -> .Dict(K, V)
+    concat: (self: .Dict[K, V], other: .Dict[K, V]) -> .Dict[K, V]
     '''erg
     dic = {"a": 1, "b": 2}
     assert dic.diff({"a": 2, "d": 4}) == {"b": 2}
     '''
-    diff: (self: .Dict(K, V), other: .Dict(K, V)) -> .Dict(K, V)
+    diff: (self: .Dict[K, V], other: .Dict[K, V]) -> .Dict[K, V]

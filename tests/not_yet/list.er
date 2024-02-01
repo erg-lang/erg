@@ -1,18 +1,18 @@
-Nil T = Class Impl := Phantom(T) and Eq
-Cons T, N = Inherit {head = T; rest = List(T, N-1)}
-List: (Type, Nat) -> Type
-List T, 0 = Class Nil T
-List T, N = Class Cons(T, N), Impl := Eq
+Nil[T] = Class Impl := Phantom[T] and Eq
+Cons[T, N] = Inherit {head = T; rest = List[T, N-1]}
+List[T: Type, N: Nat]: ClassType
+List[T, 0] = Class Nil[T]
+List[T, N] = Class Cons[T, N], Impl := Eq
 List.
-    nil T = List(T, 0).new Nil(T).new()
-    cons|T, N| rest: List(T, N-1), head: T = List(T, N).new Cons(T, N)::{head; rest}
+    nil[T] = List[T, 0].new Nil[T].new()
+    cons|T, N| rest: List[T, N-1], head: T = List[T, N].new Cons[T, N]::{head; rest}
 {nil, cons} = List
 
-a = cons(nil(Int), 1) |> cons 2 |> cons 3
+a = cons(nil[Int], 1) |> cons 2 |> cons 3
 match a:
-    Cons(_, _)::{head=h1; rest=Cons(_, _)::{head=h2; rest}} ->
+    Cons(_, _)::{head=h1; rest=Cons::{head=h2; rest}} ->
         assert h1 == 3
         assert h2 == 2
-        assert rest == Cons::{head = 1; rest = nil(Int)}
+        assert rest == Cons::{head = 1; rest = nil[Int]}
     _ ->
         pass

@@ -18,9 +18,9 @@
 .Template: ClassType
 .Template.
     __call__: (source: Str, autoescape := Bool, enable_async := Bool) -> .Template
-    render: (self: Ref(.Template), **kwargs: Obj) -> Str
+    render: (self: Ref[.Template], **kwargs: Obj) -> Str
 
 .Enviroment: ClassType
 .Enviroment.
     __call__: (loader := .BaseLoader, trim_blocks := Bool) -> .Enviroment
-    get_template: (self: Ref(.Enviroment), name := Str) -> .Template
+    get_template: (self: Ref[.Enviroment], name := Str) -> .Template

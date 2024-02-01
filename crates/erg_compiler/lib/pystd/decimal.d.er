@@ -10,72 +10,72 @@
         capitals := {0, 1},
         clamp := {0, 1},
     ) -> .Context!
-    clear_flags: (self: RefMut(.Context!)) => NoneType
-    clear_traps: (self: RefMut(.Context!)) => NoneType
-    copy: (self: Ref(.Context!)) -> .Context!
-    copy_decimal: (self: Ref(.Context!), num: .Decimal) -> .Decimal
-    create_decimal: (self: Ref(.Context!), num: Str or Float) -> .Decimal
-    create_decimal_from_float: (self: Ref(.Context!), num: Float) -> .Decimal
-    Etiny: (self: Ref(.Context!)) -> Int
-    Etop: (self: Ref(.Context!)) -> Int
-    abs: (self: Ref(.Context!), num: .Decimal) -> .Decimal
-    add: (self: Ref(.Context!), lhs: .Decimal, rhs: .Decimal) -> .Decimal
-    canonical: (self: Ref(.Context!), num: .Decimal) -> .Decimal
-    compare: (self: Ref(.Context!), lhs: .Decimal, rhs: .Decimal) -> .Decimal
-    compare_signal: (self: Ref(.Context!), lhs: .Decimal, rhs: .Decimal) -> .Decimal
-    compare_total: (self: Ref(.Context!), lhs: .Decimal, rhs: .Decimal) -> .Decimal
-    compare_total_mag: (self: Ref(.Context!), lhs: .Decimal, rhs: .Decimal) -> .Decimal
-    copy_abs: (self: Ref(.Context!), num: .Decimal) -> .Decimal
-    copy_negate: (self: Ref(.Context!), num: .Decimal) -> .Decimal
-    copy_sign: (self: Ref(.Context!), lhs: .Decimal, rhs: .Decimal) -> .Decimal
-    divide: (self: Ref(.Context!), lhs: .Decimal, rhs: .Decimal) -> .Decimal
-    divide_int: (self: Ref(.Context!), lhs: .Decimal, rhs: .Decimal) -> .Decimal
-    divmod: (self: Ref(.Context!), lhs: .Decimal, rhs: .Decimal) -> (.Decimal, .Decimal)
-    exp: (self: Ref(.Context!), num: .Decimal) -> .Decimal
-    fma: (self: Ref(.Context!), lhs: .Decimal, rhs: .Decimal, third: .Decimal) -> .Decimal
-    is_canonical: (self: Ref(.Context!), num: .Decimal) -> Bool
-    is_finite: (self: Ref(.Context!), num: .Decimal) -> Bool
-    is_infinite: (self: Ref(.Context!), num: .Decimal) -> Bool
-    is_nan: (self: Ref(.Context!), num: .Decimal) -> Bool
-    is_normal: (self: Ref(.Context!), num: .Decimal) -> Bool
-    is_qnan: (self: Ref(.Context!), num: .Decimal) -> Bool
-    is_signed: (self: Ref(.Context!), num: .Decimal) -> Bool
-    is_snan: (self: Ref(.Context!), num: .Decimal) -> Bool
-    is_subnormal: (self: Ref(.Context!), num: .Decimal) -> Bool
-    is_zero: (self: Ref(.Context!), num: .Decimal) -> Bool
-    ln: (self: Ref(.Context!), num: .Decimal) -> .Decimal
-    log10: (self: Ref(.Context!), num: .Decimal) -> .Decimal
-    logb: (self: Ref(.Context!), num: .Decimal) -> .Decimal
-    logical_and: (self: Ref(.Context!), lhs: .Decimal, rhs: .Decimal) -> .Decimal
-    logical_invert: (self: Ref(.Context!), num: .Decimal) -> .Decimal
-    logical_or: (self: Ref(.Context!), lhs: .Decimal, rhs: .Decimal) -> .Decimal
-    logical_xor: (self: Ref(.Context!), lhs: .Decimal, rhs: .Decimal) -> .Decimal
-    max: (self: Ref(.Context!), lhs: .Decimal, rhs: .Decimal) -> .Decimal
-    max_mag: (self: Ref(.Context!), lhs: .Decimal, rhs: .Decimal) -> .Decimal
-    min: (self: Ref(.Context!), lhs: .Decimal, rhs: .Decimal) -> .Decimal
-    min_mag: (self: Ref(.Context!), lhs: .Decimal, rhs: .Decimal) -> .Decimal
-    minus: (self: Ref(.Context!), num: .Decimal) -> .Decimal
-    multiply: (self: Ref(.Context!), x: .Decimal, y: .Decimal) -> .Decimal
-    next_minus: (self: Ref(.Context!), x: .Decimal) -> .Decimal
-    next_plus: (self: Ref(.Context!), x: .Decimal) -> .Decimal
-    next_toward: (self: Ref(.Context!), x: .Decimal, y: .Decimal) -> .Decimal
-    normalize: (self: Ref(.Context!), x: .Decimal) -> .Decimal
-    number_class: (self: Ref(.Context!), x: .Decimal) -> Str
-    plus: (self: Ref(.Context!), x: .Decimal) -> .Decimal
-    power: (self: Ref(.Context!), x: .Decimal, y: .Decimal, modulo := .Decimal) -> .Decimal
-    quantize: (self: Ref(.Context!), x: .Decimal, y: .Decimal) -> .Decimal
-    radix: (self: Ref(.Context!)) -> .Decimal
-    remainder: (self: Ref(.Context!), x: .Decimal, y: .Decimal) -> .Decimal
-    remainder_near: (self: Ref(.Context!), x: .Decimal, y: .Decimal) -> .Decimal
-    rotate: (self: Ref(.Context!), x: .Decimal, y: .Decimal) -> .Decimal
-    same_quantum: (self: Ref(.Context!), lhs: .Decimal, rhs: .Decimal) -> Bool
-    scaleb: (self: Ref(.Context!), x: .Decimal, y: .Decimal) -> .Decimal
-    shift: (self: Ref(.Context!), x: .Decimal, y: .Decimal) -> .Decimal
-    sqrt: (self: Ref(.Context!), x: .Decimal) -> .Decimal
-    subtract: (self: Ref(.Context!), lhs: .Decimal, rhs: .Decimal) -> .Decimal
-    to_eng_string: (self: Ref(.Context!), num: .Decimal) -> Str
-    to_integral_exact: (self: Ref(.Context!), x: .Decimal) -> .Decimal
-    to_sci_string: (self: Ref(.Context!), num: .Decimal) -> Str
+    clear_flags: (self: RefMut[.Context!]) => NoneType
+    clear_traps: (self: RefMut[.Context!]) => NoneType
+    copy: (self: Ref[.Context!]) -> .Context!
+    copy_decimal: (self: Ref[.Context!], num: .Decimal) -> .Decimal
+    create_decimal: (self: Ref[.Context!], num: Str or Float) -> .Decimal
+    create_decimal_from_float: (self: Ref[.Context!], num: Float) -> .Decimal
+    Etiny: (self: Ref[.Context!]) -> Int
+    Etop: (self: Ref[.Context!]) -> Int
+    abs: (self: Ref[.Context!], num: .Decimal) -> .Decimal
+    add: (self: Ref[.Context!], lhs: .Decimal, rhs: .Decimal) -> .Decimal
+    canonical: (self: Ref[.Context!], num: .Decimal) -> .Decimal
+    compare: (self: Ref[.Context!], lhs: .Decimal, rhs: .Decimal) -> .Decimal
+    compare_signal: (self: Ref[.Context!], lhs: .Decimal, rhs: .Decimal) -> .Decimal
+    compare_total: (self: Ref[.Context!], lhs: .Decimal, rhs: .Decimal) -> .Decimal
+    compare_total_mag: (self: Ref[.Context!], lhs: .Decimal, rhs: .Decimal) -> .Decimal
+    copy_abs: (self: Ref[.Context!], num: .Decimal) -> .Decimal
+    copy_negate: (self: Ref[.Context!], num: .Decimal) -> .Decimal
+    copy_sign: (self: Ref[.Context!], lhs: .Decimal, rhs: .Decimal) -> .Decimal
+    divide: (self: Ref[.Context!], lhs: .Decimal, rhs: .Decimal) -> .Decimal
+    divide_int: (self: Ref[.Context!], lhs: .Decimal, rhs: .Decimal) -> .Decimal
+    divmod: (self: Ref[.Context!], lhs: .Decimal, rhs: .Decimal) -> (.Decimal, .Decimal)
+    exp: (self: Ref[.Context!], num: .Decimal) -> .Decimal
+    fma: (self: Ref[.Context!], lhs: .Decimal, rhs: .Decimal, third: .Decimal) -> .Decimal
+    is_canonical: (self: Ref[.Context!], num: .Decimal) -> Bool
+    is_finite: (self: Ref[.Context!], num: .Decimal) -> Bool
+    is_infinite: (self: Ref[.Context!], num: .Decimal) -> Bool
+    is_nan: (self: Ref[.Context!], num: .Decimal) -> Bool
+    is_normal: (self: Ref[.Context!], num: .Decimal) -> Bool
+    is_qnan: (self: Ref[.Context!], num: .Decimal) -> Bool
+    is_signed: (self: Ref[.Context!], num: .Decimal) -> Bool
+    is_snan: (self: Ref[.Context!], num: .Decimal) -> Bool
+    is_subnormal: (self: Ref[.Context!], num: .Decimal) -> Bool
+    is_zero: (self: Ref[.Context!], num: .Decimal) -> Bool
+    ln: (self: Ref[.Context!], num: .Decimal) -> .Decimal
+    log10: (self: Ref[.Context!], num: .Decimal) -> .Decimal
+    logb: (self: Ref[.Context!], num: .Decimal) -> .Decimal
+    logical_and: (self: Ref[.Context!], lhs: .Decimal, rhs: .Decimal) -> .Decimal
+    logical_invert: (self: Ref[.Context!], num: .Decimal) -> .Decimal
+    logical_or: (self: Ref[.Context!], lhs: .Decimal, rhs: .Decimal) -> .Decimal
+    logical_xor: (self: Ref[.Context!], lhs: .Decimal, rhs: .Decimal) -> .Decimal
+    max: (self: Ref[.Context!], lhs: .Decimal, rhs: .Decimal) -> .Decimal
+    max_mag: (self: Ref[.Context!], lhs: .Decimal, rhs: .Decimal) -> .Decimal
+    min: (self: Ref[.Context!], lhs: .Decimal, rhs: .Decimal) -> .Decimal
+    min_mag: (self: Ref[.Context!], lhs: .Decimal, rhs: .Decimal) -> .Decimal
+    minus: (self: Ref[.Context!], num: .Decimal) -> .Decimal
+    multiply: (self: Ref[.Context!], x: .Decimal, y: .Decimal) -> .Decimal
+    next_minus: (self: Ref[.Context!], x: .Decimal) -> .Decimal
+    next_plus: (self: Ref[.Context!], x: .Decimal) -> .Decimal
+    next_toward: (self: Ref[.Context!], x: .Decimal, y: .Decimal) -> .Decimal
+    normalize: (self: Ref[.Context!], x: .Decimal) -> .Decimal
+    number_class: (self: Ref[.Context!], x: .Decimal) -> Str
+    plus: (self: Ref[.Context!], x: .Decimal) -> .Decimal
+    power: (self: Ref[.Context!], x: .Decimal, y: .Decimal, modulo := .Decimal) -> .Decimal
+    quantize: (self: Ref[.Context!], x: .Decimal, y: .Decimal) -> .Decimal
+    radix: (self: Ref[.Context!]) -> .Decimal
+    remainder: (self: Ref[.Context!], x: .Decimal, y: .Decimal) -> .Decimal
+    remainder_near: (self: Ref[.Context!], x: .Decimal, y: .Decimal) -> .Decimal
+    rotate: (self: Ref[.Context!], x: .Decimal, y: .Decimal) -> .Decimal
+    same_quantum: (self: Ref[.Context!], lhs: .Decimal, rhs: .Decimal) -> Bool
+    scaleb: (self: Ref[.Context!], x: .Decimal, y: .Decimal) -> .Decimal
+    shift: (self: Ref[.Context!], x: .Decimal, y: .Decimal) -> .Decimal
+    sqrt: (self: Ref[.Context!], x: .Decimal) -> .Decimal
+    subtract: (self: Ref[.Context!], lhs: .Decimal, rhs: .Decimal) -> .Decimal
+    to_eng_string: (self: Ref[.Context!], num: .Decimal) -> Str
+    to_integral_exact: (self: Ref[.Context!], x: .Decimal) -> .Decimal
+    to_sci_string: (self: Ref[.Context!], num: .Decimal) -> Str
 
 .BasicContext: .Context!
 .ExtendedContext: .Context!

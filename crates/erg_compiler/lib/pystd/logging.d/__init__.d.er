@@ -50,17 +50,17 @@
 .Logger!.
     propagate: Bool
     level: Nat
-    setLevel!: (self: RefMut(.Logger!), level: Nat) => NoneType
-    isEnabledFor: (self: Ref(.Logger!), level: Nat) -> Bool
-    getEffectiveLevel: (self: Ref(.Logger!)) -> Nat
-    getChild: (self: Ref(.Logger!), suffix: Str) -> .Logger!
-    debug!: (self: RefMut(.Logger!), msg: Str, *args: Obj) => NoneType
-    info!: (self: RefMut(.Logger!), msg: Str, *args: Obj) => NoneType
-    warning!: (self: RefMut(.Logger!), msg: Str, *args: Obj) => NoneType
-    error!: (self: RefMut(.Logger!), msg: Str, *args: Obj) => NoneType
-    critical!: (self: RefMut(.Logger!), msg: Str, *args: Obj) => NoneType
-    log!: (self: RefMut(.Logger!), level: Nat, msg: Str, *args: Obj) => NoneType
-    exception!: (self: RefMut(.Logger!), msg: Str, *args: Obj) => NoneType
+    setLevel!: (self: RefMut[.Logger!], level: Nat) => NoneType
+    isEnabledFor: (self: Ref[.Logger!], level: Nat) -> Bool
+    getEffectiveLevel: (self: Ref[.Logger!]) -> Nat
+    getChild: (self: Ref[.Logger!], suffix: Str) -> .Logger!
+    debug!: (self: RefMut[.Logger!], msg: Str, *args: Obj) => NoneType
+    info!: (self: RefMut[.Logger!], msg: Str, *args: Obj) => NoneType
+    warning!: (self: RefMut[.Logger!], msg: Str, *args: Obj) => NoneType
+    error!: (self: RefMut[.Logger!], msg: Str, *args: Obj) => NoneType
+    critical!: (self: RefMut[.Logger!], msg: Str, *args: Obj) => NoneType
+    log!: (self: RefMut[.Logger!], level: Nat, msg: Str, *args: Obj) => NoneType
+    exception!: (self: RefMut[.Logger!], msg: Str, *args: Obj) => NoneType
 
 .RootLogger!: ClassType
 .RootLogger! <: .Logger!

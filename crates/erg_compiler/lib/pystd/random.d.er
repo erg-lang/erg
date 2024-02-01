@@ -3,12 +3,12 @@
 .randrange!: (start: Int, stop := Int, step := Int) => Int
 .randint!: (a: Int, b: Int) => Int
 .getrandbits!: (k: Nat) => Nat
-.choice!: |T: Type|(seq: Sequence(T)) => T
+.choice!: |T: Type|(seq: Sequence[T]) => T
 # TODO: dependent length array type
-.choices!: |T: Type|(population: Sequence(T), weights := [Nat; _] or NoneType, k := Nat) => [T; _]
+.choices!: |T: Type|(population: Sequence[T], weights := [Nat; _] or NoneType, k := Nat) => [T; _]
 # TODO: Sequence!
-.shuffle!: |T: Type|(seq: Sequence(T)) => NoneType
-.sample!: |T: Type|(population: Sequence(T), k := Nat) => [T; _]
+.shuffle!: |T: Type|(seq: Sequence[T]) => NoneType
+.sample!: |T: Type|(population: Sequence[T], k := Nat) => [T; _]
 .random!: () => 0.0..1.0 # TODO: <1.0
 .dep_uniform! = 'uniform': |A: Int, B: Int|(a: {A}, b: {B}) => A..B
 .uniform!: (a: Int, b: Int) => Int

@@ -9,6 +9,6 @@ dic.merge!({ "a": 1 })
 x = dic.remove!("a")
 assert x == 1
 
-dics as Dict!({Str: [Int; _]}) = !{:}
+dics as Dict![{Str: [Int; _]}] = !{:}
 dics.insert! "a", []
 dics.insert! "b", [1, 2, 3]

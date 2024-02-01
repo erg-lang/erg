@@ -6,7 +6,7 @@ a.sort! # WARN
 print! a # ERR
 
 v1 = ![]
-v2 = v1 as Array!(Int or Str, _)
+v2 = v1 as Array![Int or Str, _]
 v2.push! "a"
 
 print! v1 # ERR

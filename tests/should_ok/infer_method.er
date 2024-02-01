@@ -1,5 +1,5 @@
 {SemVer;} = import "semver"
 
-.func vers: Array(SemVer), version: SemVer =
+.func vers: Array[SemVer], version: SemVer =
     if all(map((v) -> v.compatible_with(version), vers)):
         do: todo()

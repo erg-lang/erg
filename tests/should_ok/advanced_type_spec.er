@@ -1,13 +1,13 @@
 x: {1, 2, 3} = 1
 id|T: Type|(x: T): T = x
-add|R: Type, A <: Add(R)|(x: A, y: R): A.Output = x + y
+add|R: Type, A <: Add[R]|(x: A, y: R): A.Output = x + y
 
-f _: Tuple([{B: Bool | B == False} or Str, Int]) = None
-g _: Tuple([]) = None
+f _: Tuple[[{B: Bool | B == False} or Str, Int]] = None
+g _: Tuple[[]] = None
 
-_: Iterable(Array(Int, _)) = [[1]]
-_: Array(Int, _) = [1]
-_: Iterable(Dict({Str: Int})) = [{"a": 1}]
+_: Iterable[Array[Int, _]] = [[1]]
+_: Array[Int, _] = [1]
+_: Iterable[Dict[{Str: Int}]] = [{"a": 1}]
 
 f2|T|(_: Structural { .a = (self: T) -> Obj }): NoneType = None
 g2: (|T|(_: Structural { .a = (self: T) -> Obj }) -> NoneType) = f2

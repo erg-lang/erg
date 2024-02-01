@@ -21,12 +21,12 @@
 .UnixDialect <: .Dialect
 
 .Reader = 'reader': ClassType
-.Reader <: Iterator(Str)
+.Reader <: Iterator[Str]
 .Reader.
     dialect: .Dialect
     line_num: Nat
     __call__: (
-        csvfile: FileLike or Iterable(Str),
+        csvfile: FileLike or Iterable[Str],
         dialect := Str,
         **Str
     ) -> .Reader
@@ -38,17 +38,17 @@
         dialect := Str,
         **Str
     ) -> .Writer!
-    writerow!: (self: RefMut(.Writer!), row: Obj) => Obj
-    writerows!: (self: RefMut(.Writer!), rows: Iterable(Obj)) => Obj
-    writeheader!: (self: RefMut(.Writer!)) => Obj
+    writerow!: (self: RefMut[.Writer!], row: Obj) => Obj
+    writerows!: (self: RefMut[.Writer!], rows: Iterable[Obj]) => Obj
+    writeheader!: (self: RefMut[.Writer!]) => Obj
 
 .DictReader: ClassType
 .DictReader <: .Reader
 .DictReader.
     reader: .Reader
     __call__: (
-        csvfile: FileLike or Iterable(Str),
-        fieldnames := Iterable(Str),
+        csvfile: FileLike or Iterable[Str],
+        fieldnames := Iterable[Str],
         restkey := Str,
         restval := Str,
         dialect := Str,
@@ -59,12 +59,12 @@
 .DictWriter! <: .Writer!
 .DictWriter!.
     extrasaction: Str
-    fieldnames: Iterable(Str)
+    fieldnames: Iterable[Str]
     restval: Str
     writer: .Writer!
     __call__: (
         csvfile: FileLike,
-        fieldnames := Iterable(Str),
+        fieldnames := Iterable[Str],
         restval := Str,
         extrasaction := Str,
         dialect := Str,
@@ -72,7 +72,7 @@
     ) -> .DictWriter!
 
 .reader: (
-    csvfile: FileLike or Iterable(Str),
+    csvfile: FileLike or Iterable[Str],
     dialect := Str,
     **Str
 ) -> .Reader

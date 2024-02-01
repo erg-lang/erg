@@ -78,7 +78,7 @@ Parameters:
 * `flush`:
   ストリームを強制的にフラッシュするかどうか。
 '''
-.print!: (*args: Ref(Obj), sep := Str, end := Str, file := Writable!, flush := Bool) => NoneType
+.print!: (*args: Ref[Obj], sep := Str, end := Str, file := Writable!, flush := Bool) => NoneType
 
 '''
 Open file and return a stream.
@@ -212,7 +212,7 @@ Convert `iterable` into an array.
 assert array() == []
 assert array((1, 2)) == [1, 2]
 '''
-.array: |T| (iterable := Iterable(T)) -> [T; _]
+.array: |T| (iterable := Iterable[T]) -> [T; _]
 
 '''
 Convert `iterable` into a dict.
@@ -221,7 +221,7 @@ Convert `iterable` into a dict.
 assert dict() == {:}
 assert dict([("a", 1), ("b": 2)]) == {"a": 1, "b": 2}
 '''
-.dict: |K, V| (iterable := Iterable((K, V))) -> {K: V}
+.dict: |K, V| (iterable := Iterable[(K, V])) -> {K: V}
 
 '''
 Convert `iterable` into a set.
@@ -230,4 +230,4 @@ Convert `iterable` into a set.
 assert set() == {}
 assert set([1, 2]) == {1, 2}
 '''
-.set: |T| (iterable := Iterable(T)) -> {T; _}
+.set: |T| (iterable := Iterable[T]) -> {T; _}

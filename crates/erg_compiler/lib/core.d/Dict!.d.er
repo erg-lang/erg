@@ -9,14 +9,14 @@ dict = pyimport "Dict"
     dic.insert!("b", 2)
     assert dic == {"a": 1, "b": 2}
     '''
-    insert!: |K, V|(self: RefMut(.Dict!(K, V)), key: K, value: V) => NoneType
+    insert!: |K, V|(self: RefMut[.Dict![K, V]], key: K, value: V) => NoneType
     '''erg
     dic = !{"a": 1}
     x = dic.remove!("a")
     assert dic == {}
     assert x == 1
     '''
-    remove!: |K, V|(self: RefMut(.Dict!(K, V)), key: K) => V or NoneType
+    remove!: |K, V|(self: RefMut[.Dict![K, V]], key: K) => V or NoneType
     '''
     Update the dictionary with the key-value pairs in `other`.
     If `conflict_resolver` is specified, it will be called with the two values and store as a value when there is a conflict.
@@ -30,7 +30,7 @@ dict = pyimport "Dict"
     dic.update!({"b": 3}, confilct_resolver := (x, y) -> x + y)
     assert dic == {"a": 1, "b": 5, "c": 3}
     '''
-    update!: |K, V|(self: RefMut(.Dict!(K, V)), other: Iterable([K, V]), confilct_resolver := (V, V) -> V) => NoneType
+    update!: |K, V|(self: RefMut[.Dict![K, V]], other: Iterable[[K, V]], confilct_resolver := (V, V) -> V) => NoneType
     '''
     Merge two dictionaries.
     If `conflict_resolver` is specified, it will be called with the two values and store as a value when there is a conflict.
@@ -43,4 +43,4 @@ dict = pyimport "Dict"
     dic.merge!({"b": 3}, confilct_resolver := (x, y) -> x + y)
     assert dic == {"a": 1, "b": 5}
     '''
-    merge!: |K, V|(self: RefMut(.Dict!(K, V)), other: .Dict!(K, V), confilct_resolver := (V, V) -> V) => NoneType
+    merge!: |K, V|(self: RefMut[.Dict![K, V]], other: .Dict![K, V], confilct_resolver := (V, V) -> V) => NoneType

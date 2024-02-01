@@ -1,4 +1,4 @@
-func vers: Array(Int), version: Int =
+func vers: Array[Int], version: Int =
     all map(v -> v == version, vers)
 
 assert func([1, 1], 1)
@@ -23,7 +23,7 @@ for! [1], _ =>
 
 {SemVer;} = import "semver"
 
-Versions! = Class Dict! { Str: Array!(SemVer) }
+Versions! = Class Dict! { Str: Array![SemVer] }
 Versions!.
     new() = Versions!::__new__ !{:}
     insert!(ref! self, name: Str, version: SemVer) =

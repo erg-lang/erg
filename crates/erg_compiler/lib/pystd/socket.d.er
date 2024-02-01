@@ -92,34 +92,34 @@
 .Socket!.
     new!: (family := Int, type := Int, proto := Int, fileno: Int or NoneType := NoneType) => .Socket!
     __call__!: (family := Int, type := Int, proto := Int, fileno: Int or NoneType := NoneType) => .Socket!
-    accept!: (self: RefMut(.Socket!)) => (.Socket!, (Str, Int))
-    bind!: (self: RefMut(.Socket!), address: (Str, Int)) => NoneType
-    close!: (self: RefMut(.Socket!)) => NoneType
-    connect!: (self: RefMut(.Socket!), address: (Str, Int)) => NoneType
-    connect_ex!: (self: RefMut(.Socket!), address: (Str, Int)) => Int
-    detach!: (self: RefMut(.Socket!)) => Int
-    dup!: (self: RefMut(.Socket!)) => .Socket!
-    fileno!: (self: RefMut(.Socket!)) => Int
-    get_inheritable!: (self: RefMut(.Socket!)) => Bool
-    getpeername!: (self: RefMut(.Socket!)) => (Str, Int)
-    getsockname!: (self: RefMut(.Socket!)) => (Str, Int)
-    getsockopt!: (self: RefMut(.Socket!), level: Int, option: Int, buffersize: Int) => Str or Int
-    getblocking!: (self: RefMut(.Socket!)) => Bool
-    gettimeout!: (self: RefMut(.Socket!)) => Float or NoneType
-    listen!: (self: RefMut(.Socket!), backlog: Int) => NoneType
-    recv!: (self: RefMut(.Socket!), bufsize: Int, flags := Int) => Str
-    recvfrom!: (self: RefMut(.Socket!), bufsize: Int, flags := Int) => (Str, (Str, Int))
-    recvmsg!: (self: RefMut(.Socket!), bufsize: Int, ancbufsize := Int, flags := Int) => (Str, (Str, Int), Int)
-    recvmsg_into!: (self: RefMut(.Socket!), buffers: Iterable(Writable!), ancbufsize := Int, flags := Int) => (Str, (Str, Int), Int)
-    recvfrom_into!: (self: RefMut(.Socket!), buffer: Writable!, flags := Int) => (Str, (Str, Int))
-    recv_into!: (self: RefMut(.Socket!), buffer: Writable!, nbytes := Int, flags := Int) => Nat
-    send!: (self: RefMut(.Socket!), data: Bytes, flags := Int) => Int
-    sendall!: (self: RefMut(.Socket!), data: Bytes, flags := Int) => NoneType
-    sendto!: (self: RefMut(.Socket!), data: Bytes, address: (Str, Int), flags := Int) => Int
+    accept!: (self: RefMut[.Socket!]) => (.Socket!, (Str, Int))
+    bind!: (self: RefMut[.Socket!], address: (Str, Int)) => NoneType
+    close!: (self: RefMut[.Socket!]) => NoneType
+    connect!: (self: RefMut[.Socket!], address: (Str, Int)) => NoneType
+    connect_ex!: (self: RefMut[.Socket!], address: (Str, Int)) => Int
+    detach!: (self: RefMut[.Socket!]) => Int
+    dup!: (self: RefMut[.Socket!]) => .Socket!
+    fileno!: (self: RefMut[.Socket!]) => Int
+    get_inheritable!: (self: RefMut[.Socket!]) => Bool
+    getpeername!: (self: RefMut[.Socket!]) => (Str, Int)
+    getsockname!: (self: RefMut[.Socket!]) => (Str, Int)
+    getsockopt!: (self: RefMut[.Socket!], level: Int, option: Int, buffersize: Int) => Str or Int
+    getblocking!: (self: RefMut[.Socket!]) => Bool
+    gettimeout!: (self: RefMut[.Socket!]) => Float or NoneType
+    listen!: (self: RefMut[.Socket!], backlog: Int) => NoneType
+    recv!: (self: RefMut[.Socket!], bufsize: Int, flags := Int) => Str
+    recvfrom!: (self: RefMut[.Socket!], bufsize: Int, flags := Int) => (Str, (Str, Int))
+    recvmsg!: (self: RefMut[.Socket!], bufsize: Int, ancbufsize := Int, flags := Int) => (Str, (Str, Int), Int)
+    recvmsg_into!: (self: RefMut[.Socket!], buffers: Iterable[Writable!], ancbufsize := Int, flags := Int) => (Str, (Str, Int), Int)
+    recvfrom_into!: (self: RefMut[.Socket!], buffer: Writable!, flags := Int) => (Str, (Str, Int))
+    recv_into!: (self: RefMut[.Socket!], buffer: Writable!, nbytes := Int, flags := Int) => Nat
+    send!: (self: RefMut[.Socket!], data: Bytes, flags := Int) => Int
+    sendall!: (self: RefMut[.Socket!], data: Bytes, flags := Int) => NoneType
+    sendto!: (self: RefMut[.Socket!], data: Bytes, address: (Str, Int), flags := Int) => Int
     sendmsg!: (
-        self: RefMut(.Socket!),
-        buffers: Iterable(Bytes),
-        ancdata: Iterable(Bytes),
+        self: RefMut[.Socket!],
+        buffers: Iterable[Bytes],
+        ancdata: Iterable[Bytes],
         flags := Int,
         address: (Str, Int) or NoneType := NoneType
     ) => Int

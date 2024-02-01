@@ -1,129 +1,129 @@
 .Count = 'count': ClassType
-.Count <: Iterable Int
+.Count <: Iterable[Int]
 .Count.
     __call__: (start: Int, step: Int) -> .Count
 .count: (start: Int, step: Int) -> .Count
 
-.Cycle = 'cycle': (T: Type) -> ClassType
-.Cycle(T) <: Output T
-.Cycle(T) <: Iterable T
-.Cycle(T).
-    __call__: (iterable: Iterable T) -> .Cycle(T)
-.cycle: |T|(iterable: Iterable T) -> .Cycle(T)
+.Cycle[T] = 'cycle': ClassType
+.Cycle[T] <: Output T
+.Cycle[T] <: Iterable T
+.Cycle[T].
+    __call__: (iterable: Iterable[T]) -> .Cycle[T]
+.cycle: |T|(iterable: Iterable[T]) -> .Cycle[T]
 
-.Repeat = 'repeat': (T: Type) -> ClassType
-.Repeat(T) <: Output T
-.Repeat(T) <: Iterable T
-.Repeat(T).
-    __call__: (value: T, times := Nat) -> .Repeat(T)
-.repeat: |T|(value: T, times := Nat) -> .Repeat(T)
+.Repeat[T] = 'repeat': ClassType
+.Repeat[T] <: Output T
+.Repeat[T] <: Iterable T
+.Repeat[T].
+    __call__: (value: T, times := Nat) -> .Repeat[T]
+.repeat: |T|(value: T, times := Nat) -> .Repeat[T]
 
-.Accumulate = 'accumulate': (T: Type) -> ClassType
-.Accumulate(T) <: Output T
-.Accumulate(T) <: Iterable T
-.Accumulate(T).
-    __call__: (iterable: Iterable(T), func := (T, T) -> T) -> .Accumulate(T)
-.accumulate: |T|(iterable: Iterable(T), func := (T, T) -> T) -> .Accumulate(T)
+.Accumulate[T] = 'accumulate': ClassType
+.Accumulate[T] <: Output T
+.Accumulate[T] <: Iterable T
+.Accumulate[T].
+    __call__: (iterable: Iterable[T], func := (T, T) -> T) -> .Accumulate[T]
+.accumulate: |T|(iterable: Iterable[T], func := (T, T) -> T) -> .Accumulate[T]
 
-.Chain = 'chain': (T: Type) -> ClassType
-.Chain(T) <: Output T
-.Chain(T) <: Iterable T
-.Chain(T).
-    __call__: (*iterables: Iterable T) -> .Chain(T)
-.chain: |T|(*iterables: Iterable T) -> .Chain(T)
+.Chain[T] = 'chain': ClassType
+.Chain[T] <: Output T
+.Chain[T] <: Iterable T
+.Chain[T].
+    __call__: (*iterables: Iterable T) -> .Chain[T]
+.chain: |T|(*iterables: Iterable T) -> .Chain[T]
 
-.Compress = 'compress': (T: Type) -> ClassType
-.Compress(T) <: Output T
-.Compress(T) <: Iterable T
-.Compress(T).
-    __call__: (data: Iterable(T), selectors: Iterable Bool) -> .Compress(T)
-.compress: |T|(data: Iterable(T), selectors: Iterable Bool) -> .Compress(T)
+.Compress[T] = 'compress': ClassType
+.Compress[T] <: Output T
+.Compress[T] <: Iterable T
+.Compress[T].
+    __call__: (data: Iterable[T], selectors: Iterable Bool) -> .Compress[T]
+.compress: |T|(data: Iterable[T], selectors: Iterable Bool) -> .Compress[T]
 
-.DropWhile = 'dropwhile': (T: Type) -> ClassType
-.DropWhile(T) <: Output T
-.DropWhile(T) <: Iterable T
-.DropWhile(T).
-    __call__: (predicate: (T) -> Bool, iterable: Iterable T) -> .DropWhile(T)
-.dropwhile: |T|(predicate: (T) -> Bool, iterable: Iterable T) -> .DropWhile(T)
+.DropWhile[T] = 'dropwhile': ClassType
+.DropWhile[T] <: Output T
+.DropWhile[T] <: Iterable T
+.DropWhile[T].
+    __call__: (predicate: [T] -> Bool, iterable: Iterable T) -> .DropWhile[T]
+.dropwhile: |T|(predicate: [T] -> Bool, iterable: Iterable T) -> .DropWhile[T]
 
-.FilterFalse = 'filterfalse': (T: Type) -> ClassType
-.FilterFalse(T) <: Output T
-.FilterFalse(T) <: Iterable T
-.FilterFalse(T).
-    __call__: (predicate: (T) -> Bool, iterable: Iterable T) -> .FilterFalse(T)
-.filterfalse: |T|(predicate: (T) -> Bool, iterable: Iterable T) -> .FilterFalse(T)
+.FilterFalse[T] = 'filterfalse': ClassType
+.FilterFalse[T] <: Output T
+.FilterFalse[T] <: Iterable T
+.FilterFalse[T].
+    __call__: (predicate: [T] -> Bool, iterable: Iterable T) -> .FilterFalse[T]
+.filterfalse: |T|(predicate: [T] -> Bool, iterable: Iterable T) -> .FilterFalse[T]
 
-.GroupBy = 'groupby': (T: Type, K: Type) -> ClassType
-.GroupBy(T, _) <: Output T
-.GroupBy(_, K) <: Output K
-.GroupBy(T, K) <: Iterable((K, Iterable(T)),)
-.GroupBy(T, K).
-    __call__: (iterable: Iterable(T), key := (T) -> K) -> .GroupBy(T, K)
-.groupby: |T, K|(iterable: Iterable(T), key := (T) -> K) -> .GroupBy(T, K)
+.GroupBy[T, K] = 'groupby': ClassType
+.GroupBy[T, _] <: Output[T]
+.GroupBy[_, K] <: Output[K]
+.GroupBy[T, K] <: Iterable[(K, Iterable[T])]
+.GroupBy[T, K].
+    __call__: (iterable: Iterable[T], key := [T] -> K) -> .GroupBy[T, K]
+.groupby: |T, K|(iterable: Iterable[T], key := [T] -> K) -> .GroupBy[T, K]
 
-.Islice = 'islice': (T: Type) -> ClassType
-.Islice(T) <: Output T
-.Islice(T) <: Iterable T
-.Islice(T).
-    __call__: (iterable: Iterable(T), start := Int, stop := Int, step := Int) -> .Islice(T)
-.islice: |T|(iterable: Iterable(T), start := Int, stop := Int, step := Int) -> .Islice(T)
+.Islice[T] = 'islice': ClassType
+.Islice[T] <: Output[T]
+.Islice[T] <: Iterable[T]
+.Islice[T].
+    __call__: (iterable: Iterable[T], start := Int, stop := Int, step := Int) -> .Islice[T]
+.islice: |T|(iterable: Iterable[T], start := Int, stop := Int, step := Int) -> .Islice[T]
 
-.Pairwise = 'pairwise': (T: Type) -> ClassType
-.Pairwise(T) <: Output T
-.Pairwise(T) <: Iterable((T, T),)
-.Pairwise(T).
-    __call__: (iterable: Iterable(T)) -> .Pairwise(T)
-.pairwise: |T|(iterable: Iterable(T)) -> .Pairwise(T)
+.Pairwise[T] = 'pairwise': ClassType
+.Pairwise[T] <: Output T
+.Pairwise[T] <: Iterable[(T, T)]
+.Pairwise[T].
+    __call__: (iterable: Iterable[T]) -> .Pairwise[T]
+.pairwise: |T|(iterable: Iterable[T]) -> .Pairwise[T]
 
 # .Startmap = 'startmap': ClassType
 # .Startmap.
-#     __call__: |T|(function: (T) -> T, iterable: Iterable T) -> Iterable T
+#     __call__: |T|(function: [T] -> T, iterable: Iterable T) -> Iterable T
 
-.Takewhile = 'takewhile': (T: Type) -> ClassType
-.Takewhile(T) <: Output T
-.Takewhile(T) <: Iterable T
-.Takewhile(T).
-    __call__: (predicate: (T) -> Bool, iterable: Iterable T) -> .Takewhile(T)
-.takewhile: |T|(predicate: (T) -> Bool, iterable: Iterable T) -> .Takewhile(T)
+.Takewhile[T] = 'takewhile': ClassType
+.Takewhile[T] <: Output[T]
+.Takewhile[T] <: Iterable[T]
+.Takewhile[T].
+    __call__: (predicate: [T] -> Bool, iterable: Iterable T) -> .Takewhile[T]
+.takewhile: |T|(predicate: [T] -> Bool, iterable: Iterable T) -> .Takewhile[T]
 
-.Tee = 'tee': (T: Type) -> ClassType
-.Tee(T) <: Output T
-.Tee(T) <: Iterable T
-.Tee(T).
-    __call__: (iterable: Iterable(T), n := Nat) -> [.Tee(T); _]
-.tee: |T|(iterable: Iterable(T), n := Nat) -> [.Tee(T); _]
+.Tee[T] = 'tee': ClassType
+.Tee[T] <: Output[T]
+.Tee[T] <: Iterable[T]
+.Tee[T].
+    __call__: (iterable: Iterable[T], n := Nat) -> [.Tee[T]; _]
+.tee: |T|(iterable: Iterable[T], n := Nat) -> [.Tee[T]; _]
 
-.ZipLongest = 'zip_longest': (T: Type) -> ClassType
-.ZipLongest(T) <: Output T
-.ZipLongest(T) <: Iterable [T; _]
-.ZipLongest(T).
-    __call__: (*iterables: Iterable(T), fillvalue := T) -> .ZipLongest(T)
-.zip_longest: |T|(*iterables: Iterable(T), fillvalue := T) -> .ZipLongest(T)
+.ZipLongest[T] = 'zip_longest': ClassType
+.ZipLongest[T] <: Output[T]
+.ZipLongest[T] <: Iterable[[T; _]]
+.ZipLongest[T].
+    __call__: (*iterables: Iterable[T], fillvalue := T) -> .ZipLongest[T]
+.zip_longest: |T|(*iterables: Iterable[T], fillvalue := T) -> .ZipLongest[T]
 
-.Product = 'product': (T: Type) -> ClassType
-.Product(T) <: Output T
-.Product(T) <: Iterable [T; _]
-.Product(T).
-    __call__: (*iterables: Iterable(T), repeat := Nat) -> .Product(T)
-.product: |T|(*iterables: Iterable(T), repeat := Nat) -> .Product(T)
+.Product[T] = 'product': ClassType
+.Product[T] <: Output[T]
+.Product[T] <: Iterable[[T; _]]
+.Product[T].
+    __call__: (*iterables: Iterable[T], repeat := Nat) -> .Product[T]
+.product: |T|(*iterables: Iterable[T], repeat := Nat) -> .Product[T]
 
-.Permutations = 'permutations': (T: Type) -> ClassType
-.Permutations(T) <: Output T
-.Permutations(T) <: Iterable [T; _]
-.Permutations(T).
-    __call__: (iterable: Iterable(T), r := Nat) -> .Permutations(T)
-.permutations: |T|(iterable: Iterable(T), r := Nat) -> .Permutations(T)
+.Permutations[T] = 'permutations': ClassType
+.Permutations[T] <: Output[T]
+.Permutations[T] <: Iterable[[T; _]]
+.Permutations[T].
+    __call__: (iterable: Iterable[T], r := Nat) -> .Permutations[T]
+.permutations: |T|(iterable: Iterable[T], r := Nat) -> .Permutations[T]
 
-.Combinations = 'combinations': (T: Type) -> ClassType
-.Combinations(T) <: Output T
-.Combinations(T) <: Iterable [T; _]
-.Combinations(T).
-    __call__: (iterable: Iterable(T), r := Nat) -> .Combinations(T)
-.combinations: |T|(iterable: Iterable(T), r := Nat) -> .Combinations(T)
+.Combinations[T] = 'combinations': ClassType
+.Combinations[T] <: Output[T]
+.Combinations[T] <: Iterable[[T; _]]
+.Combinations[T].
+    __call__: (iterable: Iterable[T], r := Nat) -> .Combinations[T]
+.combinations: |T|(iterable: Iterable[T], r := Nat) -> .Combinations[T]
 
-.CombinationsWithReplacement = 'combinations_with_replacement': (T: Type) -> ClassType
-.CombinationsWithReplacement(T) <: Output T
-.CombinationsWithReplacement(T) <: Iterable [T; _]
-.CombinationsWithReplacement(T).
-    __call__: (iterable: Iterable(T), r := Nat) -> .CombinationsWithReplacement(T)
-.combinations_with_replacement: |T|(iterable: Iterable(T), r := Nat) -> .CombinationsWithReplacement(T)
+.CombinationsWithReplacement[T] = 'combinations_with_replacement': ClassType
+.CombinationsWithReplacement[T] <: Output[T]
+.CombinationsWithReplacement[T] <: Iterable[[T; _]]
+.CombinationsWithReplacement[T].
+    __call__: (iterable: Iterable[T], r := Nat) -> .CombinationsWithReplacement[T]
+.combinations_with_replacement: |T|(iterable: Iterable[T], r := Nat) -> .CombinationsWithReplacement[T]

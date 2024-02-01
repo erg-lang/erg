@@ -2,12 +2,12 @@ Point = Class {x = Int; y = Int}
 Point.
     new x, y = Point::__new__ {x; y}
     norm self = self::x**2 + self::y**2
-Point|<: Add(Point)|.
+Point|<: Add[Point]|.
     Output = Point
     # This is same as `__add__ self, other: Point = ...`
     `_+_` self, other: Point =
         Point.new(self::x + other::x, self::y + other::y)
-Point|<: Mul(Point)|.
+Point|<: Mul[Point]|.
     Output = Int
     `*` self, other: Point =
         self::x * other::x + self::y * other::y

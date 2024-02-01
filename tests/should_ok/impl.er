@@ -4,12 +4,12 @@
         _ = self
         _ = other
         True
-.C|.C <: Add(Nat)|.
+.C|.C <: Add[Nat]|.
     Output = Nat
     __add__ self, other: Nat =
         _ = self
         other
-.C|.C <: Add(Int)|.
+.C|.C <: Add[Int]|.
     Output = .C
     __add__ self, other: Int =
         _ = other

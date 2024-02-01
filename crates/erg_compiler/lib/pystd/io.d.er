@@ -3,39 +3,39 @@
 .IOBase!: ClassType
 .IOBase! <: FileLike!
 .IOBase!.
-    close!: (self: RefMut(.IOBase!),) => NoneType
+    close!: (self: RefMut[.IOBase!],) => NoneType
     closed: Bool
-    fileno: (self: Ref(.IOBase!),) -> Nat
-    flush!: (self: RefMut(.IOBase!),) => NoneType
-    isatty: (self: Ref(.IOBase!),) -> Bool
-    readable: (self: Ref(.IOBase!),) -> Bool
-    readline!: (self: RefMut(.IOBase!), size := Nat) => Str
-    readlines!: (self: RefMut(.IOBase!), hint := Nat) => [Str; _]
-    seek!: (self: RefMut(.IOBase!), offset: Nat, whence := Nat) => Nat
-    seekable: (self: Ref(.IOBase!),) -> Bool
-    tell!: (self: RefMut(.IOBase!),) => Nat
-    truncate!: (self: RefMut(.IOBase!), size := Nat) => Nat
-    writable: (self: Ref(.IOBase!),) -> Bool
-    writelines!: (self: RefMut(.IOBase!), lines: [Str; _]) => NoneType
+    fileno: (self: Ref[.IOBase!],) -> Nat
+    flush!: (self: RefMut[.IOBase!],) => NoneType
+    isatty: (self: Ref[.IOBase!],) -> Bool
+    readable: (self: Ref[.IOBase!],) -> Bool
+    readline!: (self: RefMut[.IOBase!], size := Nat) => Str
+    readlines!: (self: RefMut[.IOBase!], hint := Nat) => [Str; _]
+    seek!: (self: RefMut[.IOBase!], offset: Nat, whence := Nat) => Nat
+    seekable: (self: Ref[.IOBase!],) -> Bool
+    tell!: (self: RefMut[.IOBase!],) => Nat
+    truncate!: (self: RefMut[.IOBase!], size := Nat) => Nat
+    writable: (self: Ref[.IOBase!],) -> Bool
+    writelines!: (self: RefMut[.IOBase!], lines: [Str; _]) => NoneType
 
 .RawIOBase!: ClassType
 .RawIOBase! <: .IOBase!
 .RawIOBase!.
-    read!: (self: RefMut(.RawIOBase!), size := Nat) => Bytes
-    readall!: (self: RefMut(.RawIOBase!),) => Bytes
-    readinto!: (self: RefMut(.RawIOBase!), b: Bytes) => Nat
-    write!: (self: RefMut(.RawIOBase!), b: Bytes) => Nat
+    read!: (self: RefMut[.RawIOBase!], size := Nat) => Bytes
+    readall!: (self: RefMut[.RawIOBase!],) => Bytes
+    readinto!: (self: RefMut[.RawIOBase!], b: Bytes) => Nat
+    write!: (self: RefMut[.RawIOBase!], b: Bytes) => Nat
 
 .BufferedIOBase!: ClassType
 .BufferedIOBase! <: .IOBase!
 .BufferedIOBase!.
     raw: .RawIOBase!
-    detach!: (self: RefMut(.BufferedIOBase!),) => .RawIOBase!
-    read!: (self: RefMut(.BufferedIOBase!), size := Nat) => Bytes
-    read1!: (self: RefMut(.BufferedIOBase!), size := Nat) => Bytes
-    readinto!: (self: RefMut(.BufferedIOBase!), b: Bytes) => Nat
-    readinto1!: (self: RefMut(.BufferedIOBase!), b: Bytes) => Nat
-    write!: (self: RefMut(.BufferedIOBase!), b: Bytes) => Nat
+    detach!: (self: RefMut[.BufferedIOBase!],) => .RawIOBase!
+    read!: (self: RefMut[.BufferedIOBase!], size := Nat) => Bytes
+    read1!: (self: RefMut[.BufferedIOBase!], size := Nat) => Bytes
+    readinto!: (self: RefMut[.BufferedIOBase!], b: Bytes) => Nat
+    readinto1!: (self: RefMut[.BufferedIOBase!], b: Bytes) => Nat
+    write!: (self: RefMut[.BufferedIOBase!], b: Bytes) => Nat
 
 .FileIO!: ClassType
 .FileIO! <: .RawIOBase!
@@ -48,22 +48,22 @@
 .BytesIO! <: .BufferedIOBase!
 .BytesIO!.
     __call__: (initial_bytes := Bytes) -> .BytesIO!
-    getvalue: (self: Ref(.BytesIO!),) -> Bytes
+    getvalue: (self: Ref[.BytesIO!],) -> Bytes
 
 .BufferedReader!: ClassType
 .BufferedReader! <: .BufferedIOBase!
 .BufferedReader!.
     __call__: (raw: .RawIOBase!, buffer_size := Nat) -> .BufferedReader!
-    peek!: (self: RefMut(.BufferedReader!), size := Nat) => Bytes
-    read!: (self: RefMut(.BufferedReader!), size := Nat) => Bytes
-    read1!: (self: RefMut(.BufferedReader!), size := Nat) => Bytes
+    peek!: (self: RefMut[.BufferedReader!], size := Nat) => Bytes
+    read!: (self: RefMut[.BufferedReader!], size := Nat) => Bytes
+    read1!: (self: RefMut[.BufferedReader!], size := Nat) => Bytes
 
 .BufferedWriter!: ClassType
 .BufferedWriter! <: .BufferedIOBase!
 .BufferedWriter!.
     __call__: (raw: .RawIOBase!, buffer_size := Nat) -> .BufferedWriter!
-    flush!: (self: RefMut(.BufferedWriter!),) => NoneType
-    write!: (self: RefMut(.BufferedWriter!), b: Bytes) => Nat
+    flush!: (self: RefMut[.BufferedWriter!],) => NoneType
+    write!: (self: RefMut[.BufferedWriter!], b: Bytes) => Nat
 
 .BufferedRandom!: ClassType
 .BufferedRandom! <: .BufferedReader!
@@ -78,12 +78,12 @@
     errors: Str
     newlines: Str or [Str; _] or NoneType
     buffer: .BufferedIOBase!
-    detach!: (self: RefMut(.TextIOBase!),) => .BufferedIOBase!
-    read!: (self: RefMut(.TextIOBase!), size := Nat) => Str
-    readline!: (self: RefMut(.TextIOBase!), size := Nat) => Str
-    seek!: (self: RefMut(.TextIOBase!), offset: Nat, whence := Nat) => Nat
-    tell!: (self: RefMut(.TextIOBase!),) => Nat
-    write!: (self: RefMut(.TextIOBase!), s: Str) => Nat
+    detach!: (self: RefMut[.TextIOBase!],) => .BufferedIOBase!
+    read!: (self: RefMut[.TextIOBase!], size := Nat) => Str
+    readline!: (self: RefMut[.TextIOBase!], size := Nat) => Str
+    seek!: (self: RefMut[.TextIOBase!], offset: Nat, whence := Nat) => Nat
+    tell!: (self: RefMut[.TextIOBase!],) => Nat
+    write!: (self: RefMut[.TextIOBase!], s: Str) => Nat
 
 .TextIOWrapper!: ClassType
 .TextIOWrapper! <: .TextIOBase!
@@ -91,13 +91,13 @@
     __call__: (buffer: .BufferedIOBase!, encoding := Str, errors := Str, newline := Str, line_buffering := Bool) -> .TextIOWrapper!
     line_buffering: Bool
     write_through: Bool
-    reconfigure!: (self: RefMut(.TextIOWrapper!), encoding := Str, errors := Str, newline := Str) => NoneType
+    reconfigure!: (self: RefMut[.TextIOWrapper!], encoding := Str, errors := Str, newline := Str) => NoneType
 
 .StringIO!: ClassType
 .StringIO! <: .TextIOBase!
 .StringIO!.
     __call__: (initial_value := Str, newline := Str) -> .StringIO!
-    getvalue: (self: Ref(.StringIO!),) -> Str
+    getvalue: (self: Ref[.StringIO!],) -> Str
 
 .open!: (file: PathLike, mode := Str, buffering := Nat, encoding := Str or NoneType) -> File!
 .open_code!: (path: PathLike) -> File!

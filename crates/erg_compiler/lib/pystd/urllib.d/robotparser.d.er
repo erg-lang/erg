@@ -5,7 +5,7 @@
 .RobotFileParser!: ClassType
 .RobotFileParser!.
     __call__: (url := Str) -> .RobotFileParser!
-    set_url!: (self: RefMut(.RobotFileParser!), url: Str) => NoneType
-    read!: (self: RefMut(.RobotFileParser!)) => NoneType
-    parse!: (self: RefMut(.RobotFileParser!), lines: [Str; _]) => NoneType
-    request_rate: (self: Ref(.RobotFileParser!), useragent: Str) -> { .requests = Int; .seconds = Int } or NoneType
+    set_url!: (self: RefMut[.RobotFileParser!], url: Str) => NoneType
+    read!: (self: RefMut[.RobotFileParser!]) => NoneType
+    parse!: (self: RefMut[.RobotFileParser!], lines: [Str; _]) => NoneType
+    request_rate: (self: Ref[.RobotFileParser!], useragent: Str) -> { .requests = Int; .seconds = Int } or NoneType

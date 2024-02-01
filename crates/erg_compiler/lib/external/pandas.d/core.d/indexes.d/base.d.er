@@ -1,2 +1,2 @@
-.Index: (T: Type) -> ClassType
-.Index(T) <: Output(T)
+.Index[T: Type]: ClassType
+.Index[T] <: Output[T]

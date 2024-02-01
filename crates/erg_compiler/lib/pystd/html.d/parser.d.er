@@ -1,5 +1,5 @@
 .HTMLParser: ClassType
 .HTMLParser.
-    feed!: (self: RefMut(.HTMLParser), data: Str) => NoneType
+    feed!: (self: RefMut[.HTMLParser], data: Str) => NoneType
     close!: (self: .HTMLParser,) => NoneType
-    reset!: (self: RefMut(.HTMLParser),) => NoneType
+    reset!: (self: RefMut[.HTMLParser],) => NoneType

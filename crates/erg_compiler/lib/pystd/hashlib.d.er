@@ -6,19 +6,19 @@
     block_size: Nat
     digest_size: Nat
     name: Str
-    digest: (self: Ref(.HASHXOF!)) -> Bytes
-    hexdigest: (self: Ref(.HASHXOF!)) -> Str
-    update!: (self: RefMut(.HASHXOF!), b: Bytes) => NoneType
-    copy: (self: Ref(.HASHXOF!)) -> .HASHXOF!
+    digest: (self: Ref[.HASHXOF!]) -> Bytes
+    hexdigest: (self: Ref[.HASHXOF!]) -> Str
+    update!: (self: RefMut[.HASHXOF!], b: Bytes) => NoneType
+    copy: (self: Ref[.HASHXOF!]) -> .HASHXOF!
 
 .HASH!: ClassType
 .HASH!.
     block_size: Nat
     digest_size: Nat
     name: Str
-    digest: (self: Ref(.HASH!)) -> Bytes
-    hexdigest: (self: Ref(.HASH!)) -> Str
-    update!: (self: RefMut(.HASH!), b: Bytes) => NoneType
+    digest: (self: Ref[.HASH!]) -> Bytes
+    hexdigest: (self: Ref[.HASH!]) -> Str
+    update!: (self: RefMut[.HASH!], b: Bytes) => NoneType
 
 .Blake2b! = 'blake2b': ClassType
 .Blake2b!.
@@ -40,10 +40,10 @@
         last_node := Bool,
         usedforsecurity := Bool,
     ) -> .Blake2b!
-    digest: (self: Ref(.Blake2b!)) -> Bytes
-    hexdigest: (self: Ref(.Blake2b!)) -> Str
-    update!: (self: RefMut(.Blake2b!), b: Bytes) => NoneType
-    copy: (self: Ref(.Blake2b!)) -> .Blake2b!
+    digest: (self: Ref[.Blake2b!]) -> Bytes
+    hexdigest: (self: Ref[.Blake2b!]) -> Str
+    update!: (self: RefMut[.Blake2b!], b: Bytes) => NoneType
+    copy: (self: Ref[.Blake2b!]) -> .Blake2b!
 
 .new: (name: Str, b := Bytes) -> .HASH!
 .md5: (b: Bytes) -> .HASH!

@@ -21,8 +21,8 @@
 
 .DType = 'dtype': ClassType
 .Size: ClassType
-.Tensor: (T: Type, Shape: [Nat; _]) -> ClassType
-.Tensor(T, _) <: Output T
-.Tensor(_, _).
+.Tensor[T: Type, Shape: [Nat; _]]: ClassType
+.Tensor[T, _] <: Output T
+.Tensor[_, _].
     dtype: .DType
     shape: .Size

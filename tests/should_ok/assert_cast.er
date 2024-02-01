@@ -1,29 +1,29 @@
 json = pyimport "json"
 
 arr = ["a"]
-assert arr in Array(Str)
-assert arr in Array(Str, 1)
-assert arr notin Array(Int)
-assert arr notin Array(Str, 2)
+assert arr in Array[Str]
+assert arr in Array[Str, 1]
+assert arr notin Array[Int]
+assert arr notin Array[Str, 2]
 
 j = json.loads "{ \"a\": [1] }"
 assert j in {Str: Obj}
-assert j["a"] in Array(Int)
-assert j["a"] notin Array(Str)
-_: Array(Int) = j["a"]
+assert j["a"] in Array[Int]
+assert j["a"] notin Array[Str]
+_: Array[Int] = j["a"]
 
 k = json.loads "{ \"a\": [1] }"
 assert k in {Str: Obj}
-assert k["a"] notin Array(Str)
+assert k["a"] notin Array[Str]
 
 dic = {"a": "b", "c": "d"}
 assert dic in {Str: {"b", "d"}}
 assert dic in {Str: Str}
 
-.f dic: {Str: Str or Array(Str)} =
+.f dic: {Str: Str or Array[Str]} =
     assert dic["key"] in Str # Required to pass the check on the next line
     assert dic["key"] in {"a", "b", "c"}
-    assert dic["key2"] in Array(Str)
+    assert dic["key2"] in Array[Str]
 
 b as Bytes or NoneType = bytes "aaa", "utf-8"
 _ = if b != None:

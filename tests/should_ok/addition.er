@@ -5,7 +5,7 @@ print! add(1, 1)
 print! add(1.0, 1)
 print! add("a", "b")
 
-close_add|A <: Add(A)| x: A, y: A =
+close_add|A <: Add[A]| x: A, y: A =
     x + y
 
 print! close_add 1, 1

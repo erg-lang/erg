@@ -6,10 +6,10 @@ rec = {
 arr = ![1]
 
 # OK
-f arr: Array!(Int, _) =
+f arr: Array![Int, _] =
     arr
 # NG
-f2 arr: Array!(Int, _) =
+f2 arr: Array![Int, _] =
     arr.push! 1
 # NG
 g x: Int =

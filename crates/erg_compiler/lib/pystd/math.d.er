@@ -34,4 +34,4 @@
 .isnan: (x: Float) -> Bool
 .isqrt: (n: Nat) -> Nat
 .perm: (n: Nat, k := Nat) -> Nat
-.prod: |T <: Mul(T)|(iterable: Iterable(T), start := T) -> T.Output
+.prod: |T <: Mul[T]|(iterable: Iterable[T], start := T) -> T.Output
