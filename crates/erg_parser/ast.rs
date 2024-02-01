@@ -3067,7 +3067,7 @@ pub struct PolyTypeSpec {
 
 impl fmt::Display for PolyTypeSpec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}({})", self.acc, self.args)
+        write!(f, "{}[{}]", self.acc, self.args)
     }
 }
 

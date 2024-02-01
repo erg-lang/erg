@@ -1142,30 +1142,30 @@ impl LimitedDisplay for Type {
             Self::FreeVar(fv) => fv.limited_fmt(f, limit),
             Self::Mono(name) => write!(f, "{name}"),
             Self::Ref(t) => {
-                write!(f, "{}(", self.qual_name())?;
+                write!(f, "{}[", self.qual_name())?;
                 t.limited_fmt(f, limit - 1)?;
-                write!(f, ")")
+                write!(f, "]")
             }
             Self::RefMut { before, after } => {
-                write!(f, "{}(", self.qual_name())?;
+                write!(f, "{}[", self.qual_name())?;
                 before.limited_fmt(f, limit - 1)?;
                 if let Some(after) = after {
                     write!(f, " ~> ")?;
                     after.limited_fmt(f, limit - 1)?;
                 }
-                write!(f, ")")
+                write!(f, "]")
             }
             Self::Callable { param_ts, return_t } => {
-                write!(f, "Callable((")?;
+                write!(f, "Callable[[")?;
                 for (i, t) in param_ts.iter().enumerate() {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
                     t.limited_fmt(f, limit - 1)?;
                 }
-                write!(f, "), ")?;
+                write!(f, "], ")?;
                 return_t.limited_fmt(f, limit - 1)?;
-                write!(f, ")")
+                write!(f, "]")
             }
             Self::Record(attrs) => {
                 write!(f, "{{")?;
@@ -1186,7 +1186,7 @@ impl LimitedDisplay for Type {
                 write!(f, "}}")
             }
             Self::NamedTuple(attrs) => {
-                write!(f, "NamedTuple({{")?;
+                write!(f, "NamedTuple[{{")?;
                 for (i, (field, t)) in attrs.iter().enumerate() {
                     if i > 0 {
                         write!(f, "; ")?;
@@ -1201,7 +1201,7 @@ impl LimitedDisplay for Type {
                 if attrs.is_empty() {
                     write!(f, "=")?;
                 }
-                write!(f, "}})")
+                write!(f, "}}]")
             }
             Self::Subr(sub) => sub.limited_fmt(f, limit),
             Self::Refinement(refinement) => refinement.limited_fmt(f, limit),
@@ -1235,14 +1235,14 @@ impl LimitedDisplay for Type {
                 rhs.limited_fmt(f, limit - 1)
             }
             Self::Poly { name, params } => {
-                write!(f, "{name}(")?;
+                write!(f, "{name}[")?;
                 if !DEBUG_MODE && self.is_module() {
                     // Module("path/to/module.er") -> Module("module.er")
                     let name = params.first().unwrap().to_string_unabbreviated();
                     let name = name.replace("__init__.d.er", "").replace("__init__.er", "");
                     write!(
                         f,
-                        "\"{}\")",
+                        "\"{}\"]",
                         name.trim_matches('\"')
                             .trim_end_matches('/')
                             .split('/')
@@ -1257,7 +1257,7 @@ impl LimitedDisplay for Type {
                     }
                     tp.limited_fmt(f, limit - 1)?;
                 }
-                write!(f, ")")
+                write!(f, "]")
             }
             Self::Proj { lhs, rhs } => {
                 if lhs.is_union_type() || lhs.is_intersection_type() {
@@ -1275,22 +1275,22 @@ impl LimitedDisplay for Type {
                 args,
             } => {
                 lhs.limited_fmt(f, limit - 1)?;
-                write!(f, ".{attr_name}(")?;
+                write!(f, ".{attr_name}[")?;
                 for (i, arg) in args.iter().enumerate() {
                     if i != 0 {
                         write!(f, ", ")?;
                     }
                     arg.limited_fmt(f, limit - 1)?;
                 }
-                write!(f, ")")
+                write!(f, "]")
             }
             Self::Structural(ty) => {
-                write!(f, "Structural(")?;
+                write!(f, "Structural[")?;
                 ty.limited_fmt(f, limit - 1)?;
-                write!(f, ")")
+                write!(f, "]")
             }
             Self::Guard(guard) if cfg!(feature = "debug") => {
-                write!(f, "Guard({guard})")
+                write!(f, "Guard[{guard}]")
             }
             Self::Bounded { sub, sup } => {
                 if sub.is_union_type() || sub.is_intersection_type() {
