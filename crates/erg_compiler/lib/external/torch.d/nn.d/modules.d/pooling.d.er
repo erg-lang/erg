@@ -7,7 +7,8 @@ _MaxPoolNd <: Module
 .MaxPool1d <: _MaxPoolNd
 .MaxPool1d <: GenericCallable
 .MaxPool1d.
-    __call__: (
+    __new__: (
+        cls: ClassType,
         kernel_size: Nat or [Nat; 1] or (Nat,),
         stride := Nat or [Nat; 1] or (Nat,),
         padding := Str or Nat or [Nat; 1] or (Nat,),
@@ -20,7 +21,8 @@ _MaxPoolNd <: Module
 .MaxPool2d <: _MaxPoolNd
 .MaxPool2d <: GenericCallable
 .MaxPool2d.
-    __call__: (
+    __new__: (
+        cls: ClassType,
         kernel_size: Nat or [Nat; 2] or (Nat, Nat),
         stride := Nat or [Nat; 2] or (Nat, Nat),
         padding := Str or Nat or [Nat; 2] or (Nat, Nat),
@@ -33,7 +35,8 @@ _MaxPoolNd <: Module
 .MaxPool3d <: _MaxPoolNd
 .MaxPool3d <: GenericCallable
 .MaxPool3d.
-    __call__: (
+    __new__: (
+        cls: ClassType,
         kernel_size: Nat or [Nat; 3] or (Nat, Nat, Nat),
         stride := Nat or [Nat; 3] or (Nat, Nat, Nat),
         padding := Str or Nat or [Nat; 3] or (Nat, Nat, Nat),

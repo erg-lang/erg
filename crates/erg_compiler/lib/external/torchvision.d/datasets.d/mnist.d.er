@@ -3,7 +3,8 @@ vision = pyimport "./vision"
 .MNIST: ClassType
 .MNIST <: vision.VisionDataset
 .MNIST.
-    __call__: (
+    __new__: (
+        cls: ClassType,
         root: Str,
         train := Bool,
         download := Bool,
@@ -14,7 +15,8 @@ vision = pyimport "./vision"
 .FashionMNIST: ClassType
 .FashionMNIST <: .MNIST
 .FashionMNIST.
-    __call__: (
+    __new__: (
+        cls: ClassType,
         root: Str,
         train := Bool,
         download := Bool,

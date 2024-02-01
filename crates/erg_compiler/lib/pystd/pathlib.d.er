@@ -10,7 +10,7 @@
     suffix: Str
     suffixes: [Str; _]
     stem: Str
-    __call__: (*segments: Str) -> .PurePath
+    __new__: (cls: ClassType, *segments: Str) -> .PurePath
     absolute: (self: .PurePath) -> .PurePath
     as_posix: (self: .PurePath) -> Str
     as_uri: (self: .PurePath) -> Str
@@ -35,7 +35,7 @@
 .Path: ClassType
 .Path <: .PurePath
 .Path.
-    __call__: (*segments: Str) -> .Path
+    __new__: (cls: ClassType, *segments: Str) -> .Path
     absolute: (self: .Path) -> .Path
     as_uri: (self: .Path) -> Str
     cwd!: () => .Path

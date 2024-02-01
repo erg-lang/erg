@@ -1,3 +1,3 @@
 .ReLU: ClassType
 .ReLU.
-    __call__: () -> .ReLU
+    __new__: (cls: ClassType, ) -> .ReLU

@@ -1,6 +1,6 @@
 .Struct: ClassType
 .Struct.
-    __call__: (format: Str) -> .Struct
+    __new__: (cls: ClassType, format: Str) -> .Struct
     format: Str
     size: Nat
     pack: (self: .Struct, *values: Obj) -> Bytes

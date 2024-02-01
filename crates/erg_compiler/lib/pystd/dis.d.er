@@ -3,7 +3,7 @@
 .show_code!: (x: Code or ClassType or TraitType or GenericCallable or Str or Bytes) => NoneType
 
 .ByteCode: ClassType
-.ByteCode.__call__: (x: GenericCallable or ClassType or TraitType or Str or Code) => .ByteCode
+.ByteCode.__new__: (cls: ClassType, x: GenericCallable or ClassType or TraitType or Str or Code) => .ByteCode
 
 .Instruction: ClassType
 .Positions: ClassType

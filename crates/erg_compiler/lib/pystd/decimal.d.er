@@ -2,7 +2,8 @@
 
 .Context!: ClassType
 .Context!.
-    __call__: (
+    __new__: (
+        cls: ClassType,
         prec := Int,
         rounding := Int,
         Emin := Int,
@@ -86,7 +87,7 @@
 .localcontext: (ctx := .Context!) -> .Context!
 
 .Decimal.
-    __call__: (value := Str or Float) -> .Decimal
+    __new__: (cls: ClassType, value := Str or Float) -> .Decimal
     adjusted: (self: .Decimal) -> Int
     as_integer_ratio: (self: .Decimal) -> (Int, Int)
     # as_tuple: (self: .Decimal) -> (Int, Int, Int)

@@ -4,7 +4,7 @@
 
 .DirCmp = 'dircmp': ClassType
 .DirCmp.
-    __call__: (a: PathLike, b: PathLike, ignore := PathLike or NoneType, hide := PathLike or NoneType) -> .DirCmp
+    __new__: (cls: ClassType, a: PathLike, b: PathLike, ignore := PathLike or NoneType, hide := PathLike or NoneType) -> .DirCmp
     left: Str
     right: Str
     left_list: [Str; _]

@@ -1,6 +1,6 @@
 .PrettyPrinter!: ClassType
 .PrettyPrinter!.
-    __call__: (indent := Nat, width := Nat, depth := Nat, stream := FileLike!) -> .PrettyPrinter!
+    __new__: (cls: ClassType, indent := Nat, width := Nat, depth := Nat, stream := FileLike!) -> .PrettyPrinter!
     pformat: (self: Ref(.PrettyPrinter!), object: Obj) -> Str
     pprint!: (self: Ref(.PrettyPrinter!), object: Obj) => NoneType
     isreadable: (self: Ref(.PrettyPrinter!), object: Obj) -> Bool

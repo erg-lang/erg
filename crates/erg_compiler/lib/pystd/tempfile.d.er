@@ -32,7 +32,8 @@ io = pyimport "io"
 .TemporaryDirectory!: ClassType
 .TemporaryDirectory!.
     name: Str
-    __call__: (
+    __new__: (
+        cls: ClassType,
         suffix := Str,
         prefix := Str,
         dir := Str,

@@ -5,4 +5,4 @@
 .Series!(K, V) <: Input(K)
 .Series!(K, V) <: Output(V)
 .Series!.
-    __call__: |K, V|(iterable: Iterable(V), index: [K; _] or .Index(K) := [Nat; _]) -> .Series! K, V
+    __new__: |K, V|(cls: ClassType, iterable: Iterable(V), index: [K; _] or .Index(K) := [Nat; _]) -> .Series! K, V

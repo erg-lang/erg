@@ -1,7 +1,7 @@
 .BZ2File: ClassType
 .BZ2File.
     # TODO: should be a procedure
-    __call__: (filename: Str, mode := Str) -> .BZ2File
+    __new__: (cls: ClassType, filename: Str, mode := Str) -> .BZ2File
     peek: (self: Ref(.BZ2File), n := Nat) -> Str
     read!: (self: RefMut(.BZ2File), size := Nat or {-1}) => Str
     readline!: (self: RefMut(.BZ2File), size := Nat or {-1}) => Str

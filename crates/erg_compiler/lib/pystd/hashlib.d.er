@@ -25,7 +25,8 @@
     block_size: Nat
     digest_size: Nat
     name: Str
-    __call__: (
+    __new__: (
+        cls: ClassType,
         data := Bytes,
         digest_size := Nat,
         key := Bytes,

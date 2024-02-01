@@ -4,7 +4,7 @@
 
 .RobotFileParser!: ClassType
 .RobotFileParser!.
-    __call__: (url := Str) -> .RobotFileParser!
+    __new__: (cls: ClassType, url := Str) -> .RobotFileParser!
     set_url!: (self: RefMut(.RobotFileParser!), url: Str) => NoneType
     read!: (self: RefMut(.RobotFileParser!)) => NoneType
     parse!: (self: RefMut(.RobotFileParser!), lines: [Str; _]) => NoneType

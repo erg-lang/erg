@@ -2,7 +2,7 @@
 .ZipFile! <: FileLike!
 
 .ZipFile!.
-    __call__: (path: PathLike or FileLike!, mode := Str) => .ZipFile!
+    __new__: (cls: ClassType, path: PathLike or FileLike!, mode := Str) => .ZipFile!
     open!: (name: PathLike, mode := Str) => .ZipFile!
     add!: (self: RefMut(.ZipFile!), name: PathLike, arcname: PathLike or NoneType := NoneType, recursive := Bool) => NoneType
     close!: (self: .ZipFile!,) => NoneType

@@ -49,7 +49,7 @@
 .__xor__: |T <: Int|(T, T) -> T
 
 .call: (obj: Obj, *args: Obj, **kwargs: Obj) -> Obj
-.__call__: (obj: Obj, *args: Obj, **kwargs: Obj) -> Obj
+.__new__: (cls: ClassType, obj: Obj, *args: Obj, **kwargs: Obj) -> Obj
 
 # TODO: attrs
 .attrgetter: (|T, S: Str|(attr: {S}) -> (Structural({{S}: T}.as_record()) -> T))

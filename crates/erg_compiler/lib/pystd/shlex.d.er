@@ -8,7 +8,7 @@
     escapedquotes: Str
     whitespace_split: Bool
     infile: Str
-    __call__: (instream := Str, posix := Bool, punctuation_chars := Bool) -> .Shlex!
+    __new__: (cls: ClassType, instream := Str, posix := Bool, punctuation_chars := Bool) -> .Shlex!
     get_token!: (self: RefMut(.Shlex!)) => Str
     push_token!: (self: RefMut(.Shlex!), token: Str) => NoneType
     read_token!: (self: RefMut(.Shlex!)) => Str

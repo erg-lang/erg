@@ -16,7 +16,7 @@
     major: Nat
     minor: Nat
     micro: Nat
-    __call__: (ver: Str) -> .Version
+    __new__: (cls: ClassType, ver: Str) -> .Version
 
 .InvalidVersion: ClassType
 

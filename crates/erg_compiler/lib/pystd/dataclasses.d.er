@@ -1,6 +1,6 @@
 .DataClass = 'dataclass': ClassType
 .DataClass.
-    __call__: (init := Bool, repr := Bool, eq := Bool, order := Bool, unsafe_hash := Bool, frozen := Bool, match_args := Bool, kw_only := Bool, slots := Bool, weakref_slots := Bool) -> (ClassType -> ClassType)
+    __new__: (cls: ClassType, init := Bool, repr := Bool, eq := Bool, order := Bool, unsafe_hash := Bool, frozen := Bool, match_args := Bool, kw_only := Bool, slots := Bool, weakref_slots := Bool) -> (ClassType -> ClassType)
 
 .is_dataclass: (obj: Obj) -> Bool
 

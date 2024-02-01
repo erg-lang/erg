@@ -40,20 +40,20 @@
 .FileIO!: ClassType
 .FileIO! <: .RawIOBase!
 .FileIO!.
-    __call__: (path: PathLike, mode := Str, closefd := Bool, opener := NoneType) -> .FileIO!
+    __new__: (cls: ClassType, path: PathLike, mode := Str, closefd := Bool, opener := NoneType) -> .FileIO!
     mode: Str
     name: Str
 
 .BytesIO!: ClassType
 .BytesIO! <: .BufferedIOBase!
 .BytesIO!.
-    __call__: (initial_bytes := Bytes) -> .BytesIO!
+    __new__: (cls: ClassType, initial_bytes := Bytes) -> .BytesIO!
     getvalue: (self: Ref(.BytesIO!),) -> Bytes
 
 .BufferedReader!: ClassType
 .BufferedReader! <: .BufferedIOBase!
 .BufferedReader!.
-    __call__: (raw: .RawIOBase!, buffer_size := Nat) -> .BufferedReader!
+    __new__: (cls: ClassType, raw: .RawIOBase!, buffer_size := Nat) -> .BufferedReader!
     peek!: (self: RefMut(.BufferedReader!), size := Nat) => Bytes
     read!: (self: RefMut(.BufferedReader!), size := Nat) => Bytes
     read1!: (self: RefMut(.BufferedReader!), size := Nat) => Bytes
@@ -61,7 +61,7 @@
 .BufferedWriter!: ClassType
 .BufferedWriter! <: .BufferedIOBase!
 .BufferedWriter!.
-    __call__: (raw: .RawIOBase!, buffer_size := Nat) -> .BufferedWriter!
+    __new__: (cls: ClassType, raw: .RawIOBase!, buffer_size := Nat) -> .BufferedWriter!
     flush!: (self: RefMut(.BufferedWriter!),) => NoneType
     write!: (self: RefMut(.BufferedWriter!), b: Bytes) => Nat
 
@@ -88,7 +88,7 @@
 .TextIOWrapper!: ClassType
 .TextIOWrapper! <: .TextIOBase!
 .TextIOWrapper!.
-    __call__: (buffer: .BufferedIOBase!, encoding := Str, errors := Str, newline := Str, line_buffering := Bool) -> .TextIOWrapper!
+    __new__: (cls: ClassType, buffer: .BufferedIOBase!, encoding := Str, errors := Str, newline := Str, line_buffering := Bool) -> .TextIOWrapper!
     line_buffering: Bool
     write_through: Bool
     reconfigure!: (self: RefMut(.TextIOWrapper!), encoding := Str, errors := Str, newline := Str) => NoneType
@@ -96,7 +96,7 @@
 .StringIO!: ClassType
 .StringIO! <: .TextIOBase!
 .StringIO!.
-    __call__: (initial_value := Str, newline := Str) -> .StringIO!
+    __new__: (cls: ClassType, initial_value := Str, newline := Str) -> .StringIO!
     getvalue: (self: Ref(.StringIO!),) -> Str
 
 .open!: (file: PathLike, mode := Str, buffering := Nat, encoding := Str or NoneType) -> File!

@@ -1,7 +1,8 @@
 
 .EnvBuilder!: ClassType
 .EnvBuilder!.
-    __call__: (
+    __new__: (
+        cls: ClassType,
         system_site_packages := Bool,
         clear := Bool,
         symlinks := Bool,

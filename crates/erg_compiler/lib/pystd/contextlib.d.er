@@ -4,7 +4,7 @@
 .ExitStack!: ClassType
 .ExitStack! <: ContextManager
 .ExitStack!.
-    __call__: () -> .ExitStack!
+    __new__: (cls: ClassType, ) -> .ExitStack!
     enter_context!: (self: .ExitStack!, cm: ContextManager) => NoneType
     push!: (self: .ExitStack!, exit: GenericCallable) => NoneType
     callback!: (self: .ExitStack!, callback: GenericCallable) => NoneType

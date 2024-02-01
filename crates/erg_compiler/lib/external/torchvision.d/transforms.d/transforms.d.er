@@ -3,25 +3,26 @@ Transform: ClassType
 .Compose: ClassType
 .Compose <: GenericCallable
 .Compose.
-    __call__: (transforms: [Transform; _]) -> .Compose
+    __new__: (cls: ClassType, transforms: [Transform; _]) -> .Compose
 
 .CenterCrop: ClassType
 .CenterCrop <: Transform
 .CenterCrop <: GenericCallable
 .CenterCrop.
-    __call__: (size: Nat or (Nat, Nat) or [Nat; 2]) -> .CenterCrop
+    __new__: (cls: ClassType, size: Nat or (Nat, Nat) or [Nat; 2]) -> .CenterCrop
 
 .GrayScale: ClassType
 .GrayScale <: Transform
 .GrayScale <: GenericCallable
 .GrayScale.
-    __call__: () -> .GrayScale
+    __new__: (cls: ClassType, ) -> .GrayScale
 
 .Normalize: ClassType
 .Normalize <: Transform
 .Normalize <: GenericCallable
 .Normalize.
-    __call__: (
+    __new__: (
+        cls: ClassType,
         mean: [Float; _],
         std: [Float; _],
         inplace := Bool,
@@ -31,7 +32,8 @@ Transform: ClassType
 .RandomCrop <: Transform
 .RandomCrop <: GenericCallable
 .RandomCrop.
-    __call__: (
+    __new__: (
+        cls: ClassType,
         size: Nat or (Nat, Nat) or [Nat; 2],
         padding := Nat or (Nat, Nat) or (Nat, Nat, Nat, Nat),
         pad_if_needed:=Bool,
@@ -43,19 +45,20 @@ Transform: ClassType
 .RandomHorizontalFlip <: Transform
 .RandomHorizontalFlip <: GenericCallable
 .RandomHorizontalFlip.
-    __call__: () -> .RandomHorizontalFlip
+    __new__: (cls: ClassType, ) -> .RandomHorizontalFlip
 
 .RandomResizedCrop: ClassType
 .RandomResizedCrop <: Transform
 .RandomResizedCrop <: GenericCallable
 .RandomResizedCrop.
-    __call__: (size: Nat or (Nat, Nat) or [Nat; 2]) -> .RandomResizedCrop
+    __new__: (cls: ClassType, size: Nat or (Nat, Nat) or [Nat; 2]) -> .RandomResizedCrop
 
 .Resize: ClassType
 .Resize <: Transform
 .Resize <: GenericCallable
 .Resize.
-    __call__: (
+    __new__: (
+        cls: ClassType,
         size: Nat or (Nat, Nat) or [Nat; 2],
         interpolation := Str,
         max_size := Nat,
@@ -66,4 +69,4 @@ Transform: ClassType
 .ToTensor <: Transform
 .ToTensor <: GenericCallable
 .ToTensor.
-    __call__: () -> .ToTensor
+    __new__: (cls: ClassType, ) -> .ToTensor

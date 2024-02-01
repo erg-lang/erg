@@ -5,7 +5,8 @@
 .Linear <: Module
 .Linear <: GenericCallable
 .Linear.
-    __call__: (
+    __new__: (
+        cls: ClassType,
         in_features: Nat,
         out_features: Nat,
         bias := Bool,

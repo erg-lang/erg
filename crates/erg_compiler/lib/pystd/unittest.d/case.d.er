@@ -5,14 +5,14 @@
 
 .SkipTest: ClassType
 .SkipTest.
-    __call__: (reason: Str or GenericCallable) -> .SkipTest
+    __new__: (cls: ClassType, reason: Str or GenericCallable) -> .SkipTest
 
 .doModuleCleanups!: () => NoneType
 
 .TestCase!: ClassType
 .TestCase! <: InheritableType
 .TestCase!.
-    __call__: (methodName := Str) -> .TestCase!
+    __new__: (cls: ClassType, methodName := Str) -> .TestCase!
     setUp!: (self: Ref(.TestCase!)) => NoneType
     tearDown!: (self: Ref(.TestCase!)) => NoneType
     assertFalse: (self: Ref(.TestCase!), expr: Bool, msg := Str) -> NoneType

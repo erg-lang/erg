@@ -3,7 +3,8 @@ vision = pyimport "./vision"
 .CIFAR10: ClassType
 .CIFAR10 <: vision.VisionDataset
 .CIFAR10.
-    __call__: (
+    __new__: (
+        cls: ClassType,
         root: Str,
         train := Bool,
         download := Bool,
@@ -14,7 +15,8 @@ vision = pyimport "./vision"
 .CIFAR100: ClassType
 .CIFAR100 <: .CIFAR10
 .CIFAR100.
-    __call__: (
+    __new__: (
+        cls: ClassType,
         root: Str,
         train := Bool,
         download := Bool,

@@ -7,7 +7,7 @@ re = pyimport "re"
 
 .TestLoader!: ClassType
 .TestLoader!.
-    __call__: () -> .TestLoader!
+    __new__: (cls: ClassType, ) -> .TestLoader!
 
 .defaultTestLoader: .TestLoader!
 

@@ -3,7 +3,8 @@ dataset = pyimport "torch/utils/data/dataset"
 .VisionDataset: ClassType
 .VisionDataset <: dataset.Dataset
 .VisionDataset.
-    __call__: (
+    __new__: (
+        cls: ClassType,
         root: Str,
         train := Bool,
         download := Bool,

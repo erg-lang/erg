@@ -25,7 +25,8 @@
 .Reader.
     dialect: .Dialect
     line_num: Nat
-    __call__: (
+    __new__: (
+        cls: ClassType,
         csvfile: FileLike or Iterable(Str),
         dialect := Str,
         **Str
@@ -33,7 +34,8 @@
 .Writer! = 'writer': ClassType
 .Writer!.
     dialect: .Dialect
-    __call__: (
+    __new__: (
+        cls: ClassType,
         csvfile: Writable!,
         dialect := Str,
         **Str
@@ -46,7 +48,8 @@
 .DictReader <: .Reader
 .DictReader.
     reader: .Reader
-    __call__: (
+    __new__: (
+        cls: ClassType,
         csvfile: FileLike or Iterable(Str),
         fieldnames := Iterable(Str),
         restkey := Str,
@@ -62,7 +65,8 @@
     fieldnames: Iterable(Str)
     restval: Str
     writer: .Writer!
-    __call__: (
+    __new__: (
+        cls: ClassType,
         csvfile: FileLike,
         fieldnames := Iterable(Str),
         restval := Str,
