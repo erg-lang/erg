@@ -77,7 +77,7 @@
 
 # .Startmap = 'startmap': ClassType
 # .Startmap.
-#     __call__: |T|(function: (T) -> T, iterable: Iterable T) -> Iterable T
+#     __new__: |T|(cls: ClassType, function: (T) -> T, iterable: Iterable T) -> Iterable T
 
 .Takewhile = 'takewhile': (T: Type) -> ClassType
 .Takewhile(T) <: Output T

@@ -91,7 +91,7 @@
 .Socket! = 'socket': ClassType
 .Socket!.
     new!: (family := Int, type := Int, proto := Int, fileno: Int or NoneType := NoneType) => .Socket!
-    __call__!: (family := Int, type := Int, proto := Int, fileno: Int or NoneType := NoneType) => .Socket!
+    __new__: (cls: ClassType, family := Int, type := Int, proto := Int, fileno: Int or NoneType := NoneType) => .Socket!
     accept!: (self: RefMut(.Socket!)) => (.Socket!, (Str, Int))
     bind!: (self: RefMut(.Socket!), address: (Str, Int)) => NoneType
     close!: (self: RefMut(.Socket!)) => NoneType
