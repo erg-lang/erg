@@ -1,9 +1,8 @@
 {Module;} = pyimport "torch/nn"
-{Device; DType;} = pyimport "torch"
+{Device; DType; Tensor;} = pyimport "torch"
 
 .Linear: ClassType
 .Linear <: Module
-.Linear <: GenericCallable
 .Linear.
     __call__: (
         in_features: Nat,
@@ -12,3 +11,8 @@
         device := Device or Str or Nat,
         dtype := DType or Str,
     ) -> .Linear
+.Linear|<: GenericCallable|.
+    __call__: |T, S: [Nat; _]|(
+        self: .Linear,
+        input: Tensor(T, S),
+    ) -> Tensor(T, S)

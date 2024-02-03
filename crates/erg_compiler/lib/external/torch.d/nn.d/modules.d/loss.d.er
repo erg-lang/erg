@@ -1,3 +1,10 @@
+{Tensor;} = pyimport "torch"
+
 .CrossEntropyLoss: ClassType
 .CrossEntropyLoss.
     __call__: () -> .CrossEntropyLoss
+.CrossEntropyLoss|<: GenericCallable|.
+    __call__: |T|(
+        self: .CrossEntropyLoss,
+        input: Tensor(T, _),
+    ) -> Tensor(T, [])

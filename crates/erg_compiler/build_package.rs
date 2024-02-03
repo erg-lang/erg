@@ -21,7 +21,7 @@ use erg_common::error::MultiErrorDisplay;
 use erg_common::io::Input;
 #[allow(unused)]
 use erg_common::log;
-use erg_common::pathutil::{mod_name, NormalizedPathBuf};
+use erg_common::pathutil::{mod_name, project_root_dir_of, NormalizedPathBuf};
 use erg_common::spawn::spawn_new_thread;
 use erg_common::str::Str;
 use erg_common::traits::{ExitStatus, New, Runnable, Stream};
@@ -36,7 +36,7 @@ use crate::artifact::{
 use crate::context::{Context, ContextProvider, ModuleContext};
 use crate::error::{CompileError, CompileErrors};
 use crate::lower::GenericASTLowerer;
-use crate::module::SharedCompilerResource;
+use crate::module::{ModuleGraph, SharedCompilerResource};
 use crate::ty::ValueObj;
 use crate::varinfo::VarInfo;
 use crate::GenericHIRBuilder;
@@ -148,11 +148,9 @@ enum Availability {
 use Availability::*;
 
 #[derive(Debug)]
-pub enum ResolveError {
-    CycleDetected {
-        path: NormalizedPathBuf,
-        submod_input: Input,
-    },
+pub struct ResolveError {
+    path: NormalizedPathBuf,
+    _submod_input: Input,
 }
 
 pub type ResolveResult<T> = Result<T, Vec<ResolveError>>;
@@ -171,7 +169,8 @@ pub struct GenericPackageBuilder<
     shared: SharedCompilerResource,
     pub(crate) main_builder: HIRBuilder,
     cyclic: Vec<NormalizedPathBuf>,
-    submodules: Vec<NormalizedPathBuf>,
+    // key: inlined module, value: inliner module (child)
+    inlines: Dict<NormalizedPathBuf, NormalizedPathBuf>,
     asts: Dict<NormalizedPathBuf, (Str, AST)>,
     parse_errors: ErrorArtifact,
     _parser: PhantomData<fn() -> ASTBuilder>,
@@ -307,7 +306,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
             shared: shared.clone(),
             main_builder: HIRBuilder::inherit_with_name(cfg, mod_name, shared),
             cyclic: vec![],
-            submodules: vec![],
+            inlines: Dict::new(),
             asts: Dict::new(),
             parse_errors: ErrorArtifact::new(CompileErrors::empty(), CompileErrors::empty()),
             _parser: PhantomData,
@@ -316,7 +315,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
 
     pub fn finalize(&mut self) {
         self.cyclic.clear();
-        self.submodules.clear();
+        self.inlines.clear();
         self.asts.clear();
         self.parse_errors.clear();
     }
@@ -589,68 +588,62 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         };
         let from_path = NormalizedPathBuf::from(cfg.input.path());
         let mut import_cfg = cfg.inherit(import_path.clone());
-        let Ok(src) = import_cfg.input.try_read() else {
-            return Ok(());
-        };
         let import_path = NormalizedPathBuf::from(import_path.clone());
         self.shared.graph.add_node_if_none(&import_path);
+        // If we import `foo/bar`, we also need to import `foo`
+        let first = __name__.split('/').next().unwrap();
+        let root_path = if !first.is_empty() && first != "." && first != &__name__[..] {
+            Some(Path::new(first))
+        } else {
+            None
+        };
+        let root_import_path = root_path.and_then(|path| cfg.input.resolve_path(path, cfg));
+        if let Some(root_import_path) = root_import_path.map(NormalizedPathBuf::from) {
+            if project_root_dir_of(&root_import_path) != project_root_dir_of(&from_path) {
+                let mut root_import_cfg = cfg.inherit(root_import_path.to_path_buf());
+                self.shared.graph.add_node_if_none(&root_import_path);
+                let _ = self
+                    .shared
+                    .graph
+                    .inc_ref(&from_path, root_import_path.clone());
+                if root_import_path == from_path
+                    || self.inlines.contains_key(&root_import_path)
+                    || self.asts.contains_key(&root_import_path)
+                {
+                    // pass
+                } else if let Ok(mut ast) = self.parse(cfg, &mut root_import_cfg, &root_import_path)
+                {
+                    let _ = self.resolve(&mut ast, &root_import_cfg);
+                    let prev = self.asts.insert(root_import_path, (__name__.clone(), ast));
+                    debug_assert!(prev.is_none());
+                }
+            }
+        }
         // root -> a -> b -> a
         // b: submodule
-        if self
-            .shared
-            .graph
-            .inc_ref(&from_path, import_path.clone())
-            .is_err()
-        {
-            self.submodules.push(from_path.clone());
-            return Err(vec![ResolveError::CycleDetected {
+        if let Err(_err) = self.shared.graph.inc_ref(&from_path, import_path.clone()) {
+            return Err(vec![ResolveError {
                 path: import_path,
-                submod_input: cfg.input.clone(),
+                _submod_input: cfg.input.clone(),
             }]);
         }
         if import_path == from_path
-            || self.submodules.contains(&import_path)
+            || self.inlines.contains_key(&import_path)
             || self.asts.contains_key(&import_path)
         {
             return Ok(());
         }
-        let result = if import_path.extension() == Some(OsStr::new("er")) {
-            let mut ast_builder = DefaultASTBuilder::new(cfg.copy());
-            ast_builder.build_ast(src)
-        } else {
-            let mut ast_builder = ASTBuilder::new(cfg.copy());
-            ast_builder.build_ast(src)
-        };
-        let mut ast = match result {
-            Ok(art) => {
-                self.parse_errors
-                    .warns
-                    .extend(CompileErrors::from(art.warns));
-                art.ast
-            }
-            Err(iart) => {
-                self.parse_errors
-                    .errors
-                    .extend(CompileErrors::from(iart.errors));
-                self.parse_errors
-                    .warns
-                    .extend(CompileErrors::from(iart.warns));
-                if let Some(ast) = iart.ast {
-                    ast
-                } else {
-                    return Ok(());
-                }
-            }
+        let Ok(mut ast) = self.parse(cfg, &mut import_cfg, &import_path) else {
+            return Ok(());
         };
         if let Err(mut errs) = self.resolve(&mut ast, &import_cfg) {
+            self.inlines.insert(import_path.clone(), from_path.clone());
             *expr = Expr::InlineModule(InlineModule::new(
                 Input::file(import_path.to_path_buf()),
                 ast,
                 call.clone(),
             ));
-            errs.retain(|err| match err {
-                ResolveError::CycleDetected { path, .. } => path != &from_path,
-            });
+            errs.retain(|ResolveError { path, .. }| path != &from_path);
             if errs.is_empty() {
                 self.cyclic.push(from_path);
                 return Ok(());
@@ -663,26 +656,81 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         Ok(())
     }
 
+    fn parse(
+        &mut self,
+        cfg: &ErgConfig,
+        import_cfg: &mut ErgConfig,
+        import_path: &NormalizedPathBuf,
+    ) -> Result<AST, ()> {
+        let Ok(src) = import_cfg.input.try_read() else {
+            return Err(());
+        };
+        let result = if import_path.extension() == Some(OsStr::new("er")) {
+            let mut ast_builder = DefaultASTBuilder::new(cfg.copy());
+            ast_builder.build_ast(src)
+        } else {
+            let mut ast_builder = ASTBuilder::new(cfg.copy());
+            ast_builder.build_ast(src)
+        };
+        match result {
+            Ok(art) => {
+                self.parse_errors
+                    .warns
+                    .extend(CompileErrors::from(art.warns));
+                Ok(art.ast)
+            }
+            Err(iart) => {
+                self.parse_errors
+                    .errors
+                    .extend(CompileErrors::from(iart.errors));
+                self.parse_errors
+                    .warns
+                    .extend(CompileErrors::from(iart.warns));
+                if let Some(ast) = iart.ast {
+                    Ok(ast)
+                } else {
+                    Err(())
+                }
+            }
+        }
+    }
+
     /// Launch the analysis processes in order according to the dependency graph.
     fn execute(&mut self, ast: AST, mode: &str) -> Result<CompleteArtifact, IncompleteArtifact> {
         log!(info "Start to spawn dependencies processes");
         let path = NormalizedPathBuf::from(self.cfg.input.path());
         let mut graph = self.shared.graph.clone_inner();
-        let mut ancestors = graph.ancestors(&path).into_vec();
+        self.build_deps_and_module(&path, &mut graph);
+        log!(info "All dependencies have started to analyze");
+        debug_power_assert!(self.asts.len(), ==, 0);
+        self.finalize();
+        self.main_builder.build_from_ast(ast, mode)
+    }
+
+    fn build_deps_and_module(&mut self, path: &NormalizedPathBuf, graph: &mut ModuleGraph) {
+        let mut ancestors = graph.ancestors(path).into_vec();
         while let Some(ancestor) = ancestors.pop() {
             if graph.ancestors(&ancestor).is_empty() {
                 graph.remove(&ancestor);
                 if let Some((__name__, ancestor_ast)) = self.asts.remove(&ancestor) {
                     self.start_analysis_process(ancestor_ast, __name__, ancestor);
+                } else {
+                    self.build_inlined_module(&ancestor, graph);
                 }
             } else {
                 ancestors.insert(0, ancestor);
             }
         }
-        log!(info "All dependencies have started to analyze");
-        debug_power_assert!(self.asts.len(), ==, 0);
-        self.finalize();
-        self.main_builder.build_from_ast(ast, mode)
+    }
+
+    fn build_inlined_module(&mut self, path: &NormalizedPathBuf, graph: &mut ModuleGraph) {
+        if self.shared.get_module(path).is_some() {
+            // return;
+        } else if let Some(inliner) = self.inlines.get(path).cloned() {
+            self.build_deps_and_module(&inliner, graph);
+        } else {
+            todo!("{path} is not found in self.inlines and self.asts");
+        }
     }
 
     fn start_analysis_process(&self, ast: AST, __name__: Str, path: NormalizedPathBuf) {
