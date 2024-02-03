@@ -1,4 +1,4 @@
-{Device; DType; Tensor;} = pyimport "torch"
+{Device; DType; Tensor!;} = pyimport "torch"
 {Module;} = pyimport "torch/nn"
 
 _ConvNd: ClassType
@@ -23,8 +23,8 @@ _ConvNd <: Module
 .Conv1d|<: GenericCallable|.
     __call__: |T, S: [Nat; _]|(
         self: .Conv1d,
-        input: Tensor(T, S),
-    ) -> Tensor(T, S)
+        input: Tensor!(T, S),
+    ) -> Tensor!(T, S)
 
 .Conv2d: ClassType
 .Conv2d <: _ConvNd
@@ -45,8 +45,8 @@ _ConvNd <: Module
 .Conv2d|<: GenericCallable|.
     __call__: |T, S: [Nat; _]|(
         self: .Conv2d,
-        input: Tensor(T, S),
-    ) -> Tensor(T, S)
+        input: Tensor!(T, S),
+    ) -> Tensor!(T, S)
 
 .Conv3d: ClassType
 .Conv3d <: _ConvNd
@@ -67,5 +67,5 @@ _ConvNd <: Module
 .Conv3d|<: GenericCallable|.
     __call__: |T, S: [Nat; _]|(
         self: .Conv3d,
-        input: Tensor(T, S),
-    ) -> Tensor(T, S)
+        input: Tensor!(T, S),
+    ) -> Tensor!(T, S)

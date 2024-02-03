@@ -1,6 +1,11 @@
 datasets = pyimport "torchvision/datasets"
 transforms = pyimport "torchvision/transforms"
 data = pyimport "torch/utils/data"
+nn = pyimport "torch/nn"
+torch = pyimport "torch"
+
+_ = torch.manual_seed! 1
+device = torch.device if torch.cuda.is_available!(), do "cuda", do "mps"
 
 training_data = datasets.FashionMNIST(
     root:="target/data",
@@ -12,3 +17,32 @@ train_dataloader = data.DataLoader(training_data, batch_size:=64)
 
 for! train_dataloader, ((x, y),) =>
     print! x.shape, y.shape
+
+Net = Inherit nn.Module, Additional := {
+    .conv1 = nn.Conv2d;
+    .conv2 = nn.Conv2d;
+    .pool = nn.MaxPool2d;
+    .fc1 = nn.Linear;
+    .fc2 = nn.Linear;
+}
+
+Net.
+    @Override
+    new() = Net::__new__ {
+        conv1 = nn.Conv2d(1, 16, kernel_size:=3, stride:=1, padding:=1);
+        conv2 = nn.Conv2d(16, 32, kernel_size:=3, stride:=1, padding:=1);
+        pool = nn.MaxPool2d(kernel_size:=2, stride:=2);
+        fc1 = nn.Linear(32 * 7 * 7, 128);
+        fc2 = nn.Linear(128, 10)
+    }
+    forward! self, x =
+        x1 = self.pool torch.relu self.conv1 x
+        x2 = self.pool torch.relu self.conv2 x1
+        x3 = x2.view([-1, 32 * 7 * 7])
+        x4 = torch.relu self.fc1 x3
+        x5 = self.fc2 x4
+        x5
+
+net = Net.new().to device
+_ = nn.CrossEntropyLoss()
+_ = torch.optim.Adam! net.parameters(), lr:=0.001

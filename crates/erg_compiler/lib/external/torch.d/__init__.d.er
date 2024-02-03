@@ -27,15 +27,23 @@
 .Complex128 = 'complex128': ClassType
 
 .Size: ClassType
-.Tensor: (T: Type, Shape: [Nat; _]) -> ClassType
-.Tensor(T, _) <: Output T
-.Tensor(_, _).
+.Tensor!: (T: Type, Shape: [Nat; _]) -> ClassType
+.Tensor!(T, _) <: Output T
+.Tensor!(_, _).
     dtype: .DType
     shape: .Size
     view: (|T, Old: [Nat; _], S: {A: [Nat; _] | A.prod() == Old.prod()}|(
-        self: .Tensor(T, Old),
+        self: .Tensor!(T, Old),
         shape: {S},
-    ) -> .Tensor(T, S)) \
-        and (|T|(self: .Tensor(T, _), shape: [Int; _]) -> .Tensor(T, _))
+    ) -> .Tensor!(T, S)) \
+        and (|T|(self: .Tensor!(T, _), shape: [Int; _]) -> .Tensor!(T, _))
+    backward!: |T, S: [Nat; _]|(
+        self: RefMut(.Tensor!(T, S)),
+        gradient := .Tensor!(T, S),
+        retain_graph := Bool,
+        create_graph := Bool,
+    ) => NoneType
+    # TODO: S bound
+    item: |T|(self: Ref .Tensor!(T, _)) -> T
 
-.relu: |T, S: [Nat; _]|(x: .Tensor(T, S)) -> .Tensor(T, S)
+.relu: |T, S: [Nat; _]|(x: .Tensor!(T, S)) -> .Tensor!(T, S)

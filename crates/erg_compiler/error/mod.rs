@@ -479,10 +479,10 @@ impl EffectError {
             ErrorCore::new(
                 sub,
                 switch_lang!(
-                    "japanese" => "関数中で可変オブジェクトにアクセスすることは出来ません",
-                    "simplified_chinese" => "函数中不能访问可变对象",
-                    "traditional_chinese" => "函數中不能訪問可變對象",
-                    "english" => "cannot access a mutable object in a function",
+                    "japanese" => format!("関数中で可変オブジェクト(: {})にアクセスすることは出来ません", expr.ref_t()),
+                    "simplified_chinese" => format!("函数中不能访问可变对象(: {})", expr.ref_t()),
+                    "traditional_chinese" => format!("函數中不能訪問可變對象(: {})", expr.ref_t()),
+                    "english" => format!("cannot access a mutable object (: {}) in a function", expr.ref_t()),
                 ),
                 errno,
                 HasEffect,

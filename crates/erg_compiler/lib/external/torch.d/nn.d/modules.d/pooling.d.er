@@ -1,4 +1,4 @@
-{Tensor;} = pyimport "torch"
+{Tensor!;} = pyimport "torch"
 {Module;} = pyimport "torch/nn"
 
 _MaxPoolNd: ClassType
@@ -19,8 +19,8 @@ _MaxPoolNd <: Module
 .MaxPool1d|<: GenericCallable|.
     __call__: |T, S: [Nat; _]|(
         self: .MaxPool1d,
-        input: Tensor(T, S),
-    ) -> Tensor(T, S)
+        input: Tensor!(T, S),
+    ) -> Tensor!(T, S)
 
 .MaxPool2d: ClassType
 .MaxPool2d <: _MaxPoolNd
@@ -36,8 +36,8 @@ _MaxPoolNd <: Module
 .MaxPool2d|<: GenericCallable|.
     __call__: |T, S: [Nat; _]|(
         self: .MaxPool2d,
-        input: Tensor(T, S),
-    ) -> Tensor(T, S)
+        input: Tensor!(T, S),
+    ) -> Tensor!(T, S)
 
 .MaxPool3d: ClassType
 .MaxPool3d <: _MaxPoolNd
@@ -53,5 +53,5 @@ _MaxPoolNd <: Module
 .MaxPool3d|<: GenericCallable|.
     __call__: |T, S: [Nat; _]|(
         self: .MaxPool3d,
-        input: Tensor(T, S),
-    ) -> Tensor(T, S)
+        input: Tensor!(T, S),
+    ) -> Tensor!(T, S)

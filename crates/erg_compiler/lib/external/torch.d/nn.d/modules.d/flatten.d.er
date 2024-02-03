@@ -1,4 +1,4 @@
-{Tensor;} = pyimport "torch"
+{Tensor!;} = pyimport "torch"
 
 .Flatten: ClassType
 .Flatten.
@@ -6,5 +6,5 @@
 .Flatten|<: GenericCallable|.
     __call__: |T, S: [Nat; _]|(
         self: .Flatten,
-        input: Tensor(T, S),
-    ) -> Tensor(T, S)
+        input: Tensor!(T, S),
+    ) -> Tensor!(T, S)

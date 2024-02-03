@@ -1,5 +1,5 @@
 {Module;} = pyimport "torch/nn"
-{Device; DType; Tensor;} = pyimport "torch"
+{Device; DType; Tensor!;} = pyimport "torch"
 
 .Linear: ClassType
 .Linear <: Module
@@ -14,5 +14,5 @@
 .Linear|<: GenericCallable|.
     __call__: |T, S: [Nat; _]|(
         self: .Linear,
-        input: Tensor(T, S),
-    ) -> Tensor(T, S)
+        input: Tensor!(T, S),
+    ) -> Tensor!(T, S)

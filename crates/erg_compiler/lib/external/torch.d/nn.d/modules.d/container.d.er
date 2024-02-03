@@ -1,4 +1,4 @@
-{Tensor;} = pyimport "torch"
+{Tensor!;} = pyimport "torch"
 {Module;} = pyimport "torch/nn"
 
 .Sequential: ClassType
@@ -7,5 +7,5 @@
 .Sequential|<: GenericCallable|.
     __call__: |T, S: [Nat; _]|(
         self: .Sequential,
-        input: Tensor(T, S),
-    ) -> Tensor(T, S)
+        input: Tensor!(T, S),
+    ) -> Tensor!(T, S)

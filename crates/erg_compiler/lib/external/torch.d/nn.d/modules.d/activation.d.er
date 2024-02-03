@@ -1,4 +1,4 @@
-{Tensor;} = pyimport "torch"
+{Tensor!;} = pyimport "torch"
 
 .ReLU: ClassType
 .ReLU.
@@ -6,5 +6,5 @@
 .ReLU|<: GenericCallable|.
     __call__: |T, S: [Nat; _]|(
         self: .ReLU,
-        input: Tensor(T, S),
-    ) -> Tensor(T, S)
+        input: Tensor!(T, S),
+    ) -> Tensor!(T, S)
