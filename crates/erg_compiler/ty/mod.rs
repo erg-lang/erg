@@ -619,6 +619,35 @@ impl SubrType {
     pub fn is_no_var(&self) -> bool {
         self.var_params.is_none() && self.kw_var_params.is_none()
     }
+
+    pub fn derefine(&self) -> Self {
+        let non_default_params = self
+            .non_default_params
+            .iter()
+            .map(|pt| pt.clone().map_type(|t| t.derefine()))
+            .collect();
+        let var_params = self
+            .var_params
+            .as_ref()
+            .map(|pt| pt.clone().map_type(|t| t.derefine()));
+        let default_params = self
+            .default_params
+            .iter()
+            .map(|pt| pt.clone().map_type(|t| t.derefine()))
+            .collect();
+        let kw_var_params = self
+            .kw_var_params
+            .as_ref()
+            .map(|pt| pt.clone().map_type(|t| t.derefine()));
+        Self::new(
+            self.kind,
+            non_default_params,
+            var_params,
+            default_params,
+            kw_var_params,
+            self.return_t.derefine(),
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -3399,6 +3428,16 @@ impl Type {
                 sub: Box::new(sub.derefine()),
                 sup: Box::new(sup.derefine()),
             },
+            Self::Callable { param_ts, return_t } => {
+                let param_ts = param_ts.iter().map(|t| t.derefine()).collect();
+                let return_t = return_t.derefine();
+                Self::Callable {
+                    param_ts,
+                    return_t: Box::new(return_t),
+                }
+            }
+            Self::Subr(subr) => Self::Subr(subr.derefine()),
+            Self::Quantified(quant) => quant.derefine().quantify(),
             other => other.clone(),
         }
     }

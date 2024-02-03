@@ -423,7 +423,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                         else if self
                             .module
                             .context
-                            .coerce(union_.clone(), &())
+                            .coerce(union_.derefine(), &())
                             .map_or(true, |coerced| coerced.union_pair().is_some())
                         {
                             return Err(self.elem_err(&l, &r, elem));
@@ -1373,10 +1373,12 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         } else {
             if let hir::Expr::Call(call) = &obj {
                 if call.return_t().is_some() {
-                    *obj.ref_mut_t().unwrap() = vi.t;
+                    if let Some(ref_mut_t) = obj.ref_mut_t() {
+                        *ref_mut_t = vi.t;
+                    }
                 }
-            } else {
-                *obj.ref_mut_t().unwrap() = vi.t;
+            } else if let Some(ref_mut_t) = obj.ref_mut_t() {
+                *ref_mut_t = vi.t;
             }
             None
         };

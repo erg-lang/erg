@@ -329,7 +329,11 @@ impl Context {
         if !self.is_trait(lhs) {
             return (Maybe, false);
         }
-        self._nominal_subtype_of(lhs, rhs, |ty_ctx| &ty_ctx.super_traits)
+        let (cred, judge) = self._nominal_subtype_of(lhs, rhs, |ty_ctx| &ty_ctx.super_traits[..]);
+        if judge {
+            return (cred, judge);
+        }
+        self._nominal_subtype_of(lhs, rhs, |ty_ctx| &ty_ctx.super_classes[..])
     }
 
     /// lhs :> rhs?

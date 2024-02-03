@@ -2,6 +2,7 @@
 # {.Tensor;} = pyimport "torch"
 
 .Module: ClassType
+.Module <: InheritableType
 .Module.
     parameters: (self: Ref(.Module), recurse := Bool) -> Iterator .Parameter
     named_parameters: (self: Ref(.Module), prefix := Str, recurse := Bool, remove_duplicate := Bool) -> Iterator((Str, .Parameter))

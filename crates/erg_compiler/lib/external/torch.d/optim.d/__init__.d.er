@@ -1,4 +1,9 @@
+{Parameter;} = pyimport "torch/nn/parameter"
+
 .Optimizer: ClassType
+.Optimizer <: InheritableType
+.Optimizer.
+    __call__: (params: Iterable(Parameter)) -> .Optimizer
 
 .ASGD: ClassType
 .ASGD <: .Optimizer
@@ -8,6 +13,18 @@
 .Adagrad <: .Optimizer
 .Adam: ClassType
 .Adam <: .Optimizer
+.Adam.
+    __call__: (
+        params: Iterable(Parameter),
+        lr := Float,
+        betas := (Float, Float),
+        eps := Float,
+        weight_decay := Float,
+        amsgrad := Bool,
+        foreach := Bool,
+        maximize := Bool,
+    ) -> .Adam
+
 .AdamW: ClassType
 .AdamW <: .Optimizer
 .Adamax: ClassType
