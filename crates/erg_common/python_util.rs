@@ -693,7 +693,7 @@ impl std::str::FromStr for PythonVersion {
     }
 }
 
-pub fn get_python_version(py_command: &str) -> PythonVersion {
+pub fn get_python_version(py_command: &str) -> Option<PythonVersion> {
     let out = if cfg!(windows) {
         Command::new("cmd")
             .arg("/C")
@@ -710,19 +710,19 @@ pub fn get_python_version(py_command: &str) -> PythonVersion {
             .expect("cannot get the python version")
     };
     let s_version = String::from_utf8(out.stdout).unwrap();
-    let mut iter = s_version.split(' ');
-    let mut iter = iter.nth(1).unwrap().split('.');
+    let iter = s_version.split(' ').nth(1)?;
+    let mut iter = iter.split('.');
     let major = iter.next().and_then(|i| i.parse().ok()).unwrap_or(3);
     let minor = iter.next().and_then(|i| i.parse().ok());
     let micro = iter.next().and_then(|i| i.trim_end().parse().ok());
-    PythonVersion {
+    Some(PythonVersion {
         major,
         minor,
         micro,
-    }
+    })
 }
 
-pub fn env_python_version() -> PythonVersion {
+pub fn env_python_version() -> Option<PythonVersion> {
     get_python_version(&which_python())
 }
 

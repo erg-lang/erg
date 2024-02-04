@@ -1,7 +1,9 @@
 use erg_common::python_util::{env_magic_number, env_python_version};
 
 fn main() -> std::io::Result<()> {
-    let version = env_python_version();
+    let Some(version) = env_python_version() else {
+        panic!("Failed to get python version");
+    };
     if version.major != 3 {
         panic!("Python 3 is required");
     }

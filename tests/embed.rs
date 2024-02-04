@@ -69,7 +69,7 @@ while! do! c < 7, do!:
 
 #[test]
 fn test_transpiler_embedding3() -> Result<(), ()> {
-    if env_python_version().minor < Some(10) {
+    if env_python_version().unwrap().minor < Some(10) {
         println!("skipped: {}", fn_name!());
         return Ok(());
     }
@@ -96,7 +96,7 @@ print!(i, end:=\"\")
 
 #[test]
 fn test_transpiler_embedding4() -> Result<(), ()> {
-    if env_python_version().minor < Some(10) {
+    if env_python_version().unwrap().minor < Some(10) {
         println!("skipped: {}", fn_name!());
         return Ok(());
     }
