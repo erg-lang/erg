@@ -569,6 +569,27 @@ impl Context {
             ValueObj::builtin_class(Int),
         );
         int.register_trait(Int, int_floordiv);
+        // needed for implementing `%` operator
+        let mut int_div = Self::builtin_methods(Some(poly(DIV, vec![ty_tp(Int)])), 2);
+        int_div.register_builtin_erg_impl(
+            OP_DIV,
+            fn1_met(Int, Int, Float),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        int_div.register_builtin_const(
+            OUTPUT,
+            Visibility::BUILTIN_PUBLIC,
+            None,
+            ValueObj::builtin_class(Float),
+        );
+        int_div.register_builtin_const(
+            MOD_OUTPUT,
+            Visibility::BUILTIN_PUBLIC,
+            None,
+            ValueObj::builtin_class(Int),
+        );
+        int.register_trait(Int, int_div);
         let mut int_pos = Self::builtin_methods(Some(mono(POS)), 2);
         int_pos.register_builtin_const(
             OUTPUT,
@@ -708,6 +729,27 @@ impl Context {
             ValueObj::builtin_class(Nat),
         );
         nat.register_trait(Nat, nat_floordiv);
+        // needed for implementing `%` operator
+        let mut nat_div = Self::builtin_methods(Some(poly(DIV, vec![ty_tp(Nat)])), 2);
+        nat_div.register_builtin_erg_impl(
+            OP_DIV,
+            fn1_met(Nat, Nat, Float),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        nat_div.register_builtin_const(
+            OUTPUT,
+            Visibility::BUILTIN_PUBLIC,
+            None,
+            ValueObj::builtin_class(Float),
+        );
+        nat_div.register_builtin_const(
+            MOD_OUTPUT,
+            Visibility::BUILTIN_PUBLIC,
+            None,
+            ValueObj::builtin_class(Nat),
+        );
+        nat.register_trait(Nat, nat_div);
         let mut nat_mutizable = Self::builtin_methods(Some(mono(MUTIZABLE)), 2);
         nat_mutizable.register_builtin_const(
             MUTABLE_MUT_TYPE,
