@@ -215,6 +215,7 @@ impl Constraint {
         }
     }
 
+    /// :> Sub, <: Sup
     pub fn get_sub_sup(&self) -> Option<(&Type, &Type)> {
         match self {
             Self::Sandwiched { sub, sup, .. } => Some((sub, sup)),
@@ -1075,6 +1076,7 @@ impl<T: CanbeFree + Send + Clone> Free<T> {
         self.constraint().and_then(|c| c.get_sub().cloned())
     }
 
+    /// :> Sub, <: Super
     pub fn get_subsup(&self) -> Option<(Type, Type)> {
         self.constraint()
             .and_then(|c| c.get_sub_sup().map(|(sub, sup)| (sub.clone(), sup.clone())))
