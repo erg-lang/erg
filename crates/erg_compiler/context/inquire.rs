@@ -1967,7 +1967,11 @@ impl Context {
                     .map_or(vec![], |ctx| vec![ctx])
             })
             .unwrap_or_default();
-        let three = self.get_nominal_type_ctx(instance).map(|ty| &ty.ctx);
+        let three = self
+            .get_nominal_super_type_ctxs(instance)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|ctx| &ctx.ctx);
         let fallbacks = one.into_iter().chain(two).chain(three);
         for typ_ctx in fallbacks {
             // staticmethod __call__

@@ -899,19 +899,20 @@ impl Context {
                 self.supertype_of_tp(sup_p, fv.unsafe_crack(), variance)
             }
             (TyParam::Erased(t), _) => match variance {
-                Variance::Contravariant => self.subtype_of(t, &self.get_tp_t(sub_p).unwrap_or(Obj)),
-                Variance::Covariant => self.supertype_of(t, &self.get_tp_t(sub_p).unwrap_or(Obj)),
-                Variance::Invariant => {
+                Variance::Contravariant => {
                     let rhs = self.get_tp_t(sub_p).unwrap_or(Obj);
-                    self.same_type_of(t, &rhs) || self.same_type_of(t, &rhs.derefine())
+                    self.subtype_of(t, &rhs)
+                }
+                // REVIEW: invariant type parameters check
+                Variance::Covariant | Variance::Invariant => {
+                    let rhs = self.get_tp_t(sub_p).unwrap_or(Obj);
+                    self.supertype_of(t, &rhs)
                 }
             },
             (_, TyParam::Erased(t)) => match variance {
                 Variance::Contravariant => self.subtype_of(&self.get_tp_t(sup_p).unwrap_or(Obj), t),
-                Variance::Covariant => self.supertype_of(&self.get_tp_t(sup_p).unwrap_or(Obj), t),
-                Variance::Invariant => {
-                    let lhs = self.get_tp_t(sup_p).unwrap_or(Obj);
-                    self.same_type_of(&lhs, t) || self.same_type_of(&lhs.derefine(), t)
+                Variance::Covariant | Variance::Invariant => {
+                    self.supertype_of(&self.get_tp_t(sup_p).unwrap_or(Obj), t)
                 }
             },
             (TyParam::Array(sup), TyParam::Array(sub))

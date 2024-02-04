@@ -45,5 +45,11 @@
     ) => NoneType
     # TODO: S bound
     item: |T|(self: Ref .Tensor!(T, _)) -> T
+    to: (|T, S: [Nat; _]|(
+        self: .Tensor!(T, S),
+        other: .DType or .Device,
+        non_blocking := Bool,
+        copy := Bool,
+    ) -> .Tensor!(T, S))
 
 .relu: |T, S: [Nat; _]|(x: .Tensor!(T, S)) -> .Tensor!(T, S)
