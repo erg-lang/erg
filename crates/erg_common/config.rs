@@ -376,7 +376,7 @@ impl ErgConfig {
                         .parse::<String>()
                         .expect("the value of `-py-command` is not a valid Python command");
                     cfg.py_magic_num = Some(detect_magic_number(&py_command));
-                    cfg.target_version = Some(get_python_version(&py_command));
+                    cfg.target_version = get_python_version(&py_command);
                     cfg.py_command = Some(Box::leak(py_command.into_boxed_str()));
                 }
                 "--hex-py-magic-num" | "--hex-python-magic-number" => {
