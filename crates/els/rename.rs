@@ -29,6 +29,7 @@ use crate::util::{self, NormalizedUrl};
 impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub(crate) fn rename(&mut self, msg: &Value) -> ELSResult<()> {
         let params = RenameParams::deserialize(&msg["params"])?;
+        let id = msg["id"].as_i64().unwrap();
         self.send_log(format!("rename request: {params:?}"))?;
         let uri = NormalizedUrl::new(params.text_document_position.text_document.uri);
         let pos = params.text_document_position.position;
@@ -66,9 +67,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                         _ => format!("this {kind} cannot be renamed"),
                     };
                     let edit = WorkspaceEdit::new(changes);
-                    self.send_stdout(
-                        &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": edit }),
-                    )?;
+                    self.send_stdout(&json!({ "jsonrpc": "2.0", "id": id, "result": edit }))?;
                     return self.send_error_info(error_reason);
                 }
                 Self::commit_change(&mut changes, &vi.def_loc, params.new_name.clone());
@@ -88,9 +87,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 }
                 let timestamps = self.get_timestamps(changes.keys());
                 let edit = WorkspaceEdit::new(changes);
-                self.send_stdout(
-                    &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": edit }),
-                )?;
+                self.send_stdout(&json!({ "jsonrpc": "2.0", "id": id, "result": edit }))?;
                 for _ in 0..20 {
                     self.send_log("waiting for file to be modified...")?;
                     if self.all_changed(&timestamps) {
@@ -108,9 +105,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 return Ok(());
             }
         }
-        self.send_stdout(
-            &json!({ "jsonrpc": "2.0", "id": msg["id"].as_i64().unwrap(), "result": Value::Null }),
-        )
+        self.send_stdout(&json!({ "jsonrpc": "2.0", "id": id, "result": Value::Null }))
     }
 
     fn commit_change(
@@ -169,7 +164,11 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             .ref_inner()
             .iter()
             .filter(|node| node.id == path || self_node.depends_on(&node.id))
-            .map(|node| NormalizedUrl::new(Url::from_file_path(node.id.to_path_buf()).unwrap()))
+            .filter_map(|node| {
+                Some(NormalizedUrl::new(
+                    Url::from_file_path(node.id.to_path_buf()).ok()?,
+                ))
+            })
             .collect()
     }
 
@@ -181,7 +180,11 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             .ref_inner()
             .iter()
             .filter(|node| node.depends_on(&path))
-            .map(|node| NormalizedUrl::new(Url::from_file_path(node.id.to_path_buf()).unwrap()))
+            .filter_map(|node| {
+                Some(NormalizedUrl::new(
+                    Url::from_file_path(node.id.to_path_buf()).ok()?,
+                ))
+            })
             .collect()
     }
 }
@@ -192,26 +195,29 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         old_uri: &NormalizedUrl,
         new_uri: &NormalizedUrl,
     ) -> HashMap<Url, Vec<TextEdit>> {
+        let mut changes = HashMap::new();
         let old_path = util::uri_to_path(old_uri)
             .file_stem()
-            .unwrap()
+            .unwrap_or_default()
             .to_string_lossy()
             .to_string();
         let old_path = old_path.trim_end_matches(".d");
         let new_path = util::uri_to_path(new_uri)
             .file_stem()
-            .unwrap()
+            .unwrap_or_default()
             .to_string_lossy()
             .to_string();
+        if old_path.is_empty() || new_path.is_empty() {
+            return changes;
+        }
         let new_path = new_path.trim_end_matches(".d");
-        let mut changes = HashMap::new();
         for dep in self.dependents_of(old_uri) {
             let imports = self.search_imports(&dep, old_path);
-            let edits = imports.iter().map(|lit| {
-                TextEdit::new(
-                    util::loc_to_range(lit.loc()).unwrap(),
+            let edits = imports.iter().filter_map(|lit| {
+                Some(TextEdit::new(
+                    util::loc_to_range(lit.loc())?,
                     lit.token.content.replace(old_path, new_path),
-                )
+                ))
             });
             changes.insert(dep.raw(), edits.collect());
         }

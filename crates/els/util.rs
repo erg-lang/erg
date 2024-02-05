@@ -163,7 +163,9 @@ pub(crate) fn get_token_from_stream(
 }
 
 pub(crate) fn get_metadata_from_uri(uri: &Url) -> ELSResult<Metadata> {
-    let path = uri.to_file_path().unwrap();
+    let path = uri
+        .to_file_path()
+        .map_err(|_| "failed to convert uri to path")?;
     Ok(metadata(path)?)
 }
 

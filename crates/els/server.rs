@@ -43,12 +43,12 @@ use lsp_types::request::{
 use lsp_types::{
     CallHierarchyServerCapability, CodeActionKind, CodeActionOptions, CodeActionProviderCapability,
     CodeLensOptions, CompletionOptions, ConfigurationItem, ConfigurationParams,
-    DidChangeTextDocumentParams, DidOpenTextDocumentParams, ExecuteCommandOptions,
-    FoldingRangeProviderCapability, HoverProviderCapability, ImplementationProviderCapability,
-    InitializeParams, InitializeResult, InlayHintOptions, InlayHintServerCapabilities, OneOf,
-    Position, SemanticTokenType, SemanticTokensFullOptions, SemanticTokensLegend,
-    SemanticTokensOptions, SemanticTokensServerCapabilities, ServerCapabilities,
-    SignatureHelpOptions, WorkDoneProgressOptions,
+    DidChangeTextDocumentParams, DidOpenTextDocumentParams, DidSaveTextDocumentParams,
+    ExecuteCommandOptions, FoldingRangeProviderCapability, HoverProviderCapability,
+    ImplementationProviderCapability, InitializeParams, InitializeResult, InlayHintOptions,
+    InlayHintServerCapabilities, OneOf, Position, SemanticTokenType, SemanticTokensFullOptions,
+    SemanticTokensLegend, SemanticTokensOptions, SemanticTokensServerCapabilities,
+    ServerCapabilities, SignatureHelpOptions, WorkDoneProgressOptions,
 };
 
 use serde::{Deserialize, Serialize};
@@ -325,6 +325,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 let msg = _self.read_message().unwrap();
                 if let Err(err) = _self.dispatch(msg) {
                     lsp_log!("error: {err}");
+                    if err.to_string().contains("sending on a closed channel") {
+                        _self.restart();
+                    };
                 }
             },
             fn_name!(),
@@ -333,7 +336,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             // recover from crash
             if handle.is_finished() {
                 self.send_error_info("The compiler has crashed. Restarting...")
-                    .unwrap();
+                    .expect("failed to send error info to client");
                 self.restart();
                 let mut _self = self.clone();
                 handle = spawn_new_thread(
@@ -341,6 +344,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                         let msg = _self.read_message().unwrap();
                         if let Err(err) = _self.dispatch(msg) {
                             lsp_log!("error: {err}");
+                            if err.to_string().contains("sending on a closed channel") {
+                                _self.restart();
+                            };
                         }
                     },
                     fn_name!(),
@@ -600,8 +606,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         }))
     }
 
+    /// Restart the server. Clear caches and close & reopen channels.
     #[allow(unused)]
     pub(crate) fn restart(&mut self) {
+        lsp_log!("restarting ELS");
         self.file_cache.clear();
         self.comp_cache.clear();
         self.channels.as_ref().unwrap().close();
@@ -696,7 +704,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         Server<Checker, Parser>: Sendable<R>,
     {
         let params = R::Params::deserialize(&msg["params"])?;
-        self.send(id, params);
+        self.send(id, params)?;
         Ok(())
     }
 
@@ -801,8 +809,8 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 self.check_file(uri, code)
             }
             "textDocument/didSave" => {
-                let uri =
-                    NormalizedUrl::parse(msg["params"]["textDocument"]["uri"].as_str().unwrap())?;
+                let params = DidSaveTextDocumentParams::deserialize(msg["params"].clone())?;
+                let uri = NormalizedUrl::new(params.text_document.uri);
                 self.send_log(format!("{method}: {uri}"))?;
                 let code = self.file_cache.get_entire_code(&uri)?;
                 self.recheck_file(uri, code)
