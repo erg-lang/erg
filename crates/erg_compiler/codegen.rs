@@ -228,7 +228,12 @@ pub struct PyCodeGenerator {
 impl PyCodeGenerator {
     pub fn new(cfg: ErgConfig) -> Self {
         Self {
-            py_version: cfg.target_version.unwrap_or_else(env_python_version),
+            py_version: cfg.target_version.unwrap_or_else(|| {
+                let Some(version) = env_python_version() else {
+                    panic!("Failed to get python version");
+                };
+                version
+            }),
             cfg,
             str_cache: CacheSet::new(),
             prelude_loaded: false,

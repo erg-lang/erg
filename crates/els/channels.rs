@@ -136,33 +136,27 @@ impl SendChannels {
     }
 
     pub(crate) fn close(&self) {
-        self.completion.send(WorkerMessage::Kill).unwrap();
-        self.resolve_completion.send(WorkerMessage::Kill).unwrap();
-        self.goto_definition.send(WorkerMessage::Kill).unwrap();
-        self.semantic_tokens_full.send(WorkerMessage::Kill).unwrap();
-        self.inlay_hint.send(WorkerMessage::Kill).unwrap();
-        self.inlay_hint_resolve.send(WorkerMessage::Kill).unwrap();
-        self.hover.send(WorkerMessage::Kill).unwrap();
-        self.references.send(WorkerMessage::Kill).unwrap();
-        self.code_lens.send(WorkerMessage::Kill).unwrap();
-        self.code_action.send(WorkerMessage::Kill).unwrap();
-        self.code_action_resolve.send(WorkerMessage::Kill).unwrap();
-        self.signature_help.send(WorkerMessage::Kill).unwrap();
-        self.will_rename_files.send(WorkerMessage::Kill).unwrap();
-        self.execute_command.send(WorkerMessage::Kill).unwrap();
-        self.workspace_symbol.send(WorkerMessage::Kill).unwrap();
-        self.document_symbol.send(WorkerMessage::Kill).unwrap();
-        self.call_hierarchy_prepare
-            .send(WorkerMessage::Kill)
-            .unwrap();
-        self.call_hierarchy_incoming
-            .send(WorkerMessage::Kill)
-            .unwrap();
-        self.call_hierarchy_outgoing
-            .send(WorkerMessage::Kill)
-            .unwrap();
-        self.folding_range.send(WorkerMessage::Kill).unwrap();
-        self.health_check.send(WorkerMessage::Kill).unwrap();
+        let _ = self.completion.send(WorkerMessage::Kill);
+        let _ = self.resolve_completion.send(WorkerMessage::Kill);
+        let _ = self.goto_definition.send(WorkerMessage::Kill);
+        let _ = self.semantic_tokens_full.send(WorkerMessage::Kill);
+        let _ = self.inlay_hint.send(WorkerMessage::Kill);
+        let _ = self.inlay_hint_resolve.send(WorkerMessage::Kill);
+        let _ = self.hover.send(WorkerMessage::Kill);
+        let _ = self.references.send(WorkerMessage::Kill);
+        let _ = self.code_lens.send(WorkerMessage::Kill);
+        let _ = self.code_action.send(WorkerMessage::Kill);
+        let _ = self.code_action_resolve.send(WorkerMessage::Kill);
+        let _ = self.signature_help.send(WorkerMessage::Kill);
+        let _ = self.will_rename_files.send(WorkerMessage::Kill);
+        let _ = self.execute_command.send(WorkerMessage::Kill);
+        let _ = self.workspace_symbol.send(WorkerMessage::Kill);
+        let _ = self.document_symbol.send(WorkerMessage::Kill);
+        let _ = self.call_hierarchy_prepare.send(WorkerMessage::Kill);
+        let _ = self.call_hierarchy_incoming.send(WorkerMessage::Kill);
+        let _ = self.call_hierarchy_outgoing.send(WorkerMessage::Kill);
+        let _ = self.folding_range.send(WorkerMessage::Kill);
+        let _ = self.health_check.send(WorkerMessage::Kill);
     }
 }
 
@@ -195,7 +189,11 @@ pub struct ReceiveChannels {
 }
 
 pub trait Sendable<R: lsp_types::request::Request + 'static> {
-    fn send(&self, id: i64, params: R::Params);
+    fn send(
+        &self,
+        id: i64,
+        params: R::Params,
+    ) -> Result<(), mpsc::SendError<WorkerMessage<R::Params>>>;
 }
 
 macro_rules! impl_sendable {
@@ -203,13 +201,16 @@ macro_rules! impl_sendable {
         impl<Checker: BuildRunnable, Parser: Parsable> Sendable<$Request>
             for Server<Checker, Parser>
         {
-            fn send(&self, id: i64, params: $Params) {
+            fn send(
+                &self,
+                id: i64,
+                params: $Params,
+            ) -> Result<(), mpsc::SendError<WorkerMessage<$Params>>> {
                 self.channels
                     .as_ref()
                     .unwrap()
                     .$receiver
                     .send($crate::channels::WorkerMessage::Request(id, params))
-                    .unwrap();
             }
         }
     };
