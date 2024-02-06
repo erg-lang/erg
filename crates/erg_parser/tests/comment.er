@@ -5,3 +5,20 @@ aa
 ]#
 
 a = 1
+
+func() =
+    if True, do:
+        # aaa
+        log "hello"
+    # aaa
+    1
+
+C = Class()
+C.
+    # new
+    new() =
+        C::__new__()
+    norm self = None
+
+# create a new instance of C
+_ = C.new()

@@ -526,16 +526,6 @@ impl Lexer /*<'a>*/ {
                 ),
             )));
         }
-        // ignore indents if the current line is a comment
-        if let Some('#') = self.peek_cur_ch() {
-            if let Some('[') = self.peek_next_ch() {
-                if let Err(e) = self.lex_multi_line_comment() {
-                    return Some(Err(e));
-                }
-            } else if let Err(e) = self.lex_comment() {
-                return Some(Err(e));
-            }
-        }
         let mut is_valid_dedent = false;
         let calc_indent_and_validate = |sum: usize, x: &usize| {
             if sum + *x == spaces_len || spaces_len == 0 {
