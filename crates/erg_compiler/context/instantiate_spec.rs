@@ -621,13 +621,6 @@ impl Context {
                     self.inc_ref(ident.inspect(), vi, ident, self);
                     return Ok(*t);
                 }
-                if let Some(outer) = &self.outer {
-                    if let Ok(t) =
-                        outer.instantiate_mono_t(ident, opt_decl_t, tmp_tv_cache, not_found_is_qvar)
-                    {
-                        return Ok(t);
-                    }
-                }
                 if let Some(typ) = self
                     .consts
                     .get(ident.inspect())
@@ -636,8 +629,16 @@ impl Context {
                     if let Some((_, vi)) = self.get_var_info(ident.inspect()) {
                         self.inc_ref(ident.inspect(), vi, ident, self);
                     }
-                    Ok(typ)
-                } else if let Some(ctx) = self.get_type_ctx(ident.inspect()) {
+                    return Ok(typ);
+                }
+                if let Some(outer) = &self.outer {
+                    if let Ok(t) =
+                        outer.instantiate_mono_t(ident, opt_decl_t, tmp_tv_cache, not_found_is_qvar)
+                    {
+                        return Ok(t);
+                    }
+                }
+                if let Some(ctx) = self.get_type_ctx(ident.inspect()) {
                     if let Some((_, vi)) = self.get_var_info(ident.inspect()) {
                         self.inc_ref(ident.inspect(), vi, ident, self);
                     }
@@ -836,23 +837,23 @@ impl Context {
                 Ok(Type::NamedTuple(ts))
             }
             other => {
-                if let Some(outer) = &self.outer {
-                    if let Ok(t) = outer.instantiate_local_poly_t(
-                        name,
-                        args,
-                        opt_decl_t,
-                        tmp_tv_cache,
-                        not_found_is_qvar,
-                    ) {
-                        return Ok(t);
-                    }
-                }
                 let Some(ctx) = self.get_type_ctx(other).or_else(|| {
                     self.consts
                         .get(other)
                         .and_then(|v| self.convert_value_into_type(v.clone()).ok())
                         .and_then(|typ| self.get_nominal_type_ctx(&typ))
                 }) else {
+                    if let Some(outer) = &self.outer {
+                        if let Ok(t) = outer.instantiate_local_poly_t(
+                            name,
+                            args,
+                            opt_decl_t,
+                            tmp_tv_cache,
+                            not_found_is_qvar,
+                        ) {
+                            return Ok(t);
+                        }
+                    }
                     if let Some(decl_t) = opt_decl_t {
                         return Ok(decl_t.typ().clone());
                     }

@@ -1,13 +1,13 @@
-# {Tensor!;} = pyimport "torch"
+{Tensor!;} = pyimport "torch"
 {Parameter;} = pyimport "torch/nn/parameter"
 
 .Module: ClassType
 .Module <: InheritableType
 .Module|<: GenericCallable|.
-    __call__: |M <: .Module|(
-        self: M,
-        input: Obj #Tensor!(T, _),
-    ) -> Obj #Tensor!(T, _)
+    __call__: |T|(
+        self: .Module,
+        input: Tensor!(T, _),
+    ) -> Tensor!(T, _)
 .Module.
     parameters: (self: Ref(.Module), recurse := Bool) -> Iterator Parameter
     named_parameters: (self: Ref(.Module), prefix := Str, recurse := Bool, remove_duplicate := Bool) -> Iterator((Str, Parameter))
