@@ -140,6 +140,7 @@ const IMAG: &str = "imag";
 const FUNC_AS_INTEGER_RATIO: &str = "as_integer_ratio";
 const FUNC_CONJUGATE: &str = "conjugate";
 const FUNC_IS_INTEGER: &str = "is_integer";
+const FUNC_CALLABLE: &str = "callable";
 const FUNC_HEX: &str = "hex";
 const FUNC_FROMHEX: &str = "fromhex";
 const COMPLEX: &str = "Complex";

@@ -1,5 +1,3 @@
-from typing import Callable
-
 try:
     from typing import Union
 except ImportError:

@@ -78,6 +78,7 @@ impl Context {
             vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(Int)]))],
             mono(BYTEARRAY),
         );
+        let t_callable = func1(Obj, Bool);
         let t_chr = nd_func(
             vec![kw(KW_I, Type::from(value(0usize)..=value(1_114_111usize)))],
             None,
@@ -407,6 +408,13 @@ impl Context {
             Immutable,
             vis.clone(),
             Some(FUNC_BYTEARRAY),
+        );
+        self.register_builtin_py_impl(
+            FUNC_CALLABLE,
+            t_callable,
+            Immutable,
+            vis.clone(),
+            Some(FUNC_CALLABLE),
         );
         self.register_builtin_py_impl(FUNC_CHR, t_chr, Immutable, vis.clone(), Some(FUNC_CHR));
         self.register_builtin_py_impl(
