@@ -97,7 +97,7 @@ dependencies = [
 
 [[package]]
 name = "els"
-version = "0.1.42-nightly.0"
+version = "0.1.42"
 dependencies = [
  "erg_common",
  "erg_compiler",
@@ -110,7 +110,7 @@ dependencies = [
 
 [[package]]
 name = "erg"
-version = "0.6.30-nightly.0"
+version = "0.6.30"
 dependencies = [
  "els",
  "erg_common",
@@ -120,7 +120,7 @@ dependencies = [
 
 [[package]]
 name = "erg_common"
-version = "0.6.30-nightly.0"
+version = "0.6.30"
 dependencies = [
  "backtrace-on-stack-overflow",
  "crossterm",
@@ -131,7 +131,7 @@ dependencies = [
 
 [[package]]
 name = "erg_compiler"
-version = "0.6.30-nightly.0"
+version = "0.6.30"
 dependencies = [
  "erg_common",
  "erg_parser",
@@ -140,7 +140,7 @@ dependencies = [
 
 [[package]]
 name = "erg_parser"
-version = "0.6.30-nightly.0"
+version = "0.6.30"
 dependencies = [
  "erg_common",
  "erg_proc_macros",
@@ -150,7 +150,7 @@ dependencies = [
 
 [[package]]
 name = "erg_proc_macros"
-version = "0.6.30-nightly.0"
+version = "0.6.30"
 dependencies = [
  "erg_common",
  "quote",
@@ -202,9 +202,9 @@ checksum = "b1a46d1a171d865aa5f83f92695765caa047a9b4cbae2cbf37dbd613a793fd4c"
 
 [[package]]
 name = "libc"
-version = "0.2.152"
+version = "0.2.153"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13e3bf6590cbc649f4d1a3eefc9d5d6eb746f5200ffb04e5e142700b8faa56e7"
+checksum = "9c198f91728a82281a64e1f4f9eeb25d82cb32a5de251c6bd1b5154d63a8e7bd"
 
 [[package]]
 name = "lock_api"
@@ -261,9 +261,9 @@ dependencies = [
 
 [[package]]
 name = "miniz_oxide"
-version = "0.7.1"
+version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e7810e0be55b428ada41041c41f32c9f1a42817901b4ccf45fa3d4b6561e74c7"
+checksum = "9d811f3e15f28568be3407c8e7fdb6514c1cda3cb30683f15b6a1a1dc4ea14a7"
 dependencies = [
  "adler",
 ]
@@ -476,9 +476,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.112"
+version = "1.0.113"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d1bd37ce2324cf3bf85e5a25f96eb4baf0d5aa6eba43e7ae8958870c4ec48ed"
+checksum = "69801b70b1c3dac963ecb03a364ba0ceda9cf60c71cfe475e99864759c8b8a79"
 dependencies = [
  "itoa",
  "ryu",
