@@ -900,7 +900,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         {
             (
                 VarInfo {
-                    t: mono("GenericCallable"),
+                    t: mono("Subroutine"),
                     ..VarInfo::default()
                 },
                 None,
@@ -1424,7 +1424,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 }
             },
             Some(OperationKind::Return | OperationKind::Yield) => {
-                // (f: ?T -> ?U).return: (self: GenericCallable, arg: Obj) -> Never
+                // (f: ?T -> ?U).return: (self: Subroutine, arg: Obj) -> Never
                 let callable_t = call.obj.ref_t();
                 let ret_t = match callable_t {
                     Type::Subr(subr) => *subr.return_t.clone(),
@@ -2017,7 +2017,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             if self.module.context.eval_const_expr(&deco.0).is_ok() {
                 continue;
             }
-            let deco = match self.lower_expr(deco.0.clone(), Some(&mono("GenericCallable"))) {
+            let deco = match self.lower_expr(deco.0.clone(), Some(&mono("Subroutine"))) {
                 Ok(deco) => deco,
                 Err(es) => {
                     self.errs.extend(es);

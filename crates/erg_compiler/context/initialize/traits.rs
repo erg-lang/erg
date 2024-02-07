@@ -356,6 +356,18 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNDAMENTAL_EXIT),
         );
+        let mut g_callable = Self::builtin_mono_trait(GENERIC_CALLABLE, 1);
+        g_callable.register_builtin_erg_decl(
+            FUNDAMENTAL_CALL,
+            func(
+                vec![pos(mono(GENERIC_CALLABLE))],
+                Some(pos(Obj)),
+                vec![],
+                Some(pos(Obj)),
+                Obj,
+            ),
+            Visibility::BUILTIN_PUBLIC,
+        );
         /* HasShape */
         let S = mono_q_tp(TY_S, instanceof(unknown_len_array_t(Nat)));
         let params = vec![PS::named_nd("S", unknown_len_array_t(Nat))];
@@ -550,6 +562,13 @@ impl Context {
             Visibility::BUILTIN_PRIVATE,
             Const,
             None,
+        );
+        self.register_builtin_type(
+            mono(GENERIC_CALLABLE),
+            g_callable,
+            vis.clone(),
+            Const,
+            Some(CALLABLE),
         );
         self.register_builtin_type(
             poly(HAS_SHAPE, vec![S]),

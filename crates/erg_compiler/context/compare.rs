@@ -191,7 +191,7 @@ impl Context {
                 (Absolutely, true)
             }
             (Mono(l), Mono(r))
-                if &l[..] == "GenericCallable"
+                if &l[..] == "Subroutine"
                     && (&r[..] == "GenericFunc"
                         || &r[..] == "GenericProc"
                         || &r[..] == "GenericFuncMethod"
@@ -210,7 +210,7 @@ impl Context {
                 Some((Type::Never, Type::Obj)) => (Absolutely, true),
                 _ => (Maybe, false),
             },
-            (Mono(n), Subr(_) | Quantified(_)) if &n[..] == "GenericCallable" => (Absolutely, true),
+            (Mono(n), Subr(_) | Quantified(_)) if &n[..] == "Subroutine" => (Absolutely, true),
             (lhs, rhs) if lhs.is_mono_value_class() && rhs.is_mono_value_class() => {
                 (Absolutely, false)
             }

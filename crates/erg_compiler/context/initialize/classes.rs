@@ -3183,17 +3183,17 @@ impl Context {
             None,
             get_item,
         );
-        let mut g_callable = Self::builtin_mono_class(GENERIC_CALLABLE, 2);
-        g_callable.register_superclass(Obj, &obj);
-        let t_return = fn1_met(mono(GENERIC_CALLABLE), Obj, Never).quantify();
-        g_callable.register_builtin_erg_impl(
+        let mut subr = Self::builtin_mono_class(SUBROUTINE, 2);
+        subr.register_superclass(Obj, &obj);
+        let t_return = fn1_met(mono(SUBROUTINE), Obj, Never).quantify();
+        subr.register_builtin_erg_impl(
             FUNC_RETURN,
             t_return,
             Immutable,
             Visibility::BUILTIN_PRIVATE,
         );
         let mut g_generator = Self::builtin_mono_class(GENERIC_GENERATOR, 2);
-        g_generator.register_superclass(mono(GENERIC_CALLABLE), &g_callable);
+        g_generator.register_superclass(mono(SUBROUTINE), &subr);
         let t_yield = fn1_met(mono(GENERIC_GENERATOR), Obj, Never).quantify();
         g_generator.register_builtin_erg_impl(
             FUNC_YIELD,
@@ -3203,7 +3203,7 @@ impl Context {
         );
         /* Proc */
         let mut proc = Self::builtin_mono_class(PROC, 2);
-        proc.register_superclass(mono(GENERIC_CALLABLE), &g_callable);
+        proc.register_superclass(mono(SUBROUTINE), &subr);
         let mut named_proc = Self::builtin_mono_class(NAMED_PROC, 2);
         named_proc.register_superclass(mono(PROC), &proc);
         named_proc.register_marker_trait(self, mono(NAMED)).unwrap();
@@ -3433,13 +3433,7 @@ impl Context {
         );
         self.register_builtin_type(dict_mut_t, dict_mut, vis.clone(), Const, Some(DICT));
         self.register_builtin_type(set_mut_t, set_mut_, vis.clone(), Const, Some(SET));
-        self.register_builtin_type(
-            mono(GENERIC_CALLABLE),
-            g_callable,
-            vis.clone(),
-            Const,
-            Some(CALLABLE),
-        );
+        self.register_builtin_type(mono(SUBROUTINE), subr, vis.clone(), Const, Some(SUBROUTINE));
         self.register_builtin_type(
             mono(GENERIC_GENERATOR),
             g_generator,

@@ -694,6 +694,20 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                                 .module
                                 .context
                                 .instantiate_typespec_with_tv_cache(&typ.t_spec, &mut tv_cache)?;
+                            if !self.module.context.is_trait(&trait_) {
+                                return Err(LowerErrors::from(LowerError::type_mismatch_error(
+                                    self.cfg().input.clone(),
+                                    line!() as usize,
+                                    typ.loc(),
+                                    self.module.context.caused_by(),
+                                    "SuperTrait",
+                                    None,
+                                    &Type::TraitType,
+                                    &Type::ClassType,
+                                    None,
+                                    None,
+                                )));
+                            }
                             Some(trait_)
                         }
                         TypeAppArgsKind::Args(args) => {
