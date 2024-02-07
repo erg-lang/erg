@@ -612,7 +612,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         lsp_log!("restarting ELS");
         self.file_cache.clear();
         self.comp_cache.clear();
-        self.channels.as_ref().unwrap().close();
+        if let Some(chan) = self.channels.as_ref() {
+            chan.close();
+        }
         self.shared.clear_all();
         self.start_language_services();
         self.start_workspace_diagnostics();
