@@ -49,13 +49,17 @@ impl SideEffectChecker {
     }
 
     fn full_path(&self) -> String {
-        self.path_stack.iter().fold(String::new(), |acc, vis| {
-            if vis.is_public() {
-                acc + "." + &vis.def_namespace[..]
-            } else {
-                acc + "::" + &vis.def_namespace[..]
-            }
-        })
+        self.path_stack
+            .iter()
+            .fold(String::new(), |acc, vis| {
+                if vis.is_public() {
+                    acc + "." + &vis.def_namespace[..]
+                } else {
+                    acc + "::" + &vis.def_namespace[..]
+                }
+            })
+            .trim_start_matches(['.', ':'].as_ref())
+            .to_string()
     }
 
     /// It is permitted to define a procedure in a function,
@@ -79,8 +83,8 @@ impl SideEffectChecker {
         }
     }
 
-    pub fn check(mut self, hir: HIR) -> Result<HIR, (HIR, EffectErrors)> {
-        self.path_stack.push(Visibility::private(hir.name.clone()));
+    pub fn check(mut self, hir: HIR, namespace: Str) -> Result<HIR, (HIR, EffectErrors)> {
+        self.path_stack.push(Visibility::private(namespace));
         self.block_stack.push(Module);
         log!(info "the side-effects checking process has started.{RESET}");
         // At the top level, there is no problem with side effects, only check for purity violations.
@@ -94,10 +98,15 @@ impl SideEffectChecker {
                     if let Some(req_sup) = &class_def.require_or_sup {
                         self.check_expr(req_sup);
                     }
-                    // TODO: grow
+                    let name_and_vis = Visibility::new(
+                        class_def.sig.vis().clone(),
+                        class_def.sig.inspect().clone(),
+                    );
+                    self.path_stack.push(name_and_vis);
                     for def in class_def.all_methods() {
                         self.check_expr(def);
                     }
+                    self.path_stack.pop();
                 }
                 Expr::PatchDef(patch_def) => {
                     self.check_expr(patch_def.base.as_ref());
@@ -244,11 +253,13 @@ impl SideEffectChecker {
     }
 
     fn check_def(&mut self, def: &Def) {
-        let name_and_vis = Visibility::new(def.sig.vis().clone(), def.sig.inspect().clone());
-        self.path_stack.push(name_and_vis);
         let is_procedural = def.sig.is_procedural();
         let is_subr = def.sig.is_subr();
         let is_const = def.sig.is_const();
+        if is_subr {
+            let name_and_vis = Visibility::new(def.sig.vis().clone(), def.sig.inspect().clone());
+            self.path_stack.push(name_and_vis);
+        }
         match (is_procedural, is_subr, is_const) {
             (true, true, true) => {
                 panic!("user-defined constant procedures are not allowed");
@@ -289,7 +300,9 @@ impl SideEffectChecker {
                 ));
             }
         }
-        self.path_stack.pop();
+        if is_subr {
+            self.path_stack.pop();
+        }
         self.block_stack.pop();
     }
 
@@ -455,6 +468,7 @@ impl SideEffectChecker {
                     && !acc.var_info().is_parameter()
                     && acc.ref_t().is_mut_type()
                     && acc.root_obj().map_or(true, |obj| !obj.ref_t().is_ref())
+                    && acc.var_info().def_namespace() != &self.full_path()
                 {
                     self.errs.push(EffectError::touch_mut_error(
                         self.cfg.input.clone(),

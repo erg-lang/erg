@@ -2212,6 +2212,13 @@ impl Signature {
             Self::Subr(s) => Some(&mut s.params),
         }
     }
+
+    pub fn captured_names(&self) -> &[Identifier] {
+        match self {
+            Self::Var(_) => &[],
+            Self::Subr(s) => &s.captured_names,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

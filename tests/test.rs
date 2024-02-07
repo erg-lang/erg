@@ -281,6 +281,11 @@ fn exec_method() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_move() -> Result<(), ()> {
+    expect_success("tests/should_ok/move.er", 0)
+}
+
+#[test]
 fn exec_mut() -> Result<(), ()> {
     expect_success("examples/mut.er", 0)
 }
@@ -627,7 +632,7 @@ fn exec_method_err() -> Result<(), ()> {
 }
 
 #[test]
-fn exec_move() -> Result<(), ()> {
+fn exec_move_err() -> Result<(), ()> {
     expect_failure("tests/should_err/move.er", 1, 2)
 }
 
