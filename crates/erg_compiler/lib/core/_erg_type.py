@@ -50,3 +50,6 @@ def _isinstance(obj, classinfo) -> bool:
             return isinstance(obj, classinfo)
         except:
             return False
+
+class MutType:
+    value: object

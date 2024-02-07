@@ -1,6 +1,6 @@
 from _erg_result import Error
 from _erg_control import then__
-
+from _erg_type import MutType
 
 class Float(float):
     EPSILON = 2.220446049250313e-16
@@ -32,6 +32,9 @@ class Float(float):
     def __floordiv__(self, other):
         return then__(float.__floordiv__(self, other), Float)
 
+    def __truediv__(self, other):
+        return then__(float.__truediv__(self, other), Float)
+
     def __pow__(self, other):
         return then__(float.__pow__(self, other), Float)
 
@@ -47,7 +50,7 @@ class Float(float):
     def nearly_eq(self, other, epsilon=EPSILON):
         return abs(self - other) < epsilon
 
-class FloatMut:  # inherits Float
+class FloatMut(MutType):  # inherits Float
     value: Float
 
     EPSILON = 2.220446049250313e-16
@@ -64,71 +67,80 @@ class FloatMut:  # inherits Float
     def __deref__(self):
         return self.value
 
+    def __float__(self):
+        return self.value.__float__()
+
     def __eq__(self, other):
-        if isinstance(other, Float):
-            return self.value == other
-        else:
+        if isinstance(other, MutType):
             return self.value == other.value
+        else:
+            return self.value == other
 
     def __ne__(self, other):
-        if isinstance(other, Float):
-            return self.value != other
-        else:
+        if isinstance(other, MutType):
             return self.value != other.value
+        else:
+            return self.value != other
 
     def __le__(self, other):
-        if isinstance(other, Float):
-            return self.value <= other
-        else:
+        if isinstance(other, MutType):
             return self.value <= other.value
+        else:
+            return self.value <= other
 
     def __ge__(self, other):
-        if isinstance(other, Float):
-            return self.value >= other
-        else:
+        if isinstance(other, MutType):
             return self.value >= other.value
+        else:
+            return self.value >= other
 
     def __lt__(self, other):
-        if isinstance(other, Float):
-            return self.value < other
-        else:
+        if isinstance(other, MutType):
             return self.value < other.value
+        else:
+            return self.value < other
 
     def __gt__(self, other):
-        if isinstance(other, Float):
-            return self.value > other
-        else:
+        if isinstance(other, MutType):
             return self.value > other.value
+        else:
+            return self.value > other
 
     def __add__(self, other):
-        if isinstance(other, Float):
-            return FloatMut(self.value + other)
-        else:
+        if isinstance(other, MutType):
             return FloatMut(self.value + other.value)
+        else:
+            return FloatMut(self.value + other)
 
     def __sub__(self, other):
-        if isinstance(other, Float):
-            return FloatMut(self.value - other)
-        else:
+        if isinstance(other, MutType):
             return FloatMut(self.value - other.value)
+        else:
+            return FloatMut(self.value - other)
 
     def __mul__(self, other):
-        if isinstance(other, Float):
-            return FloatMut(self.value * other)
-        else:
+        if isinstance(other, MutType):
             return FloatMut(self.value * other.value)
+        else:
+            return FloatMut(self.value * other)
 
     def __floordiv__(self, other):
-        if isinstance(other, Float):
-            return FloatMut(self.value // other)
-        else:
+        if isinstance(other, MutType):
             return FloatMut(self.value // other.value)
+        else:
+            return FloatMut(self.value // other)
+
+    def __truediv__(self, other):
+        if isinstance(other, MutType):
+            return FloatMut(self.value / other.value)
+        else:
+            return FloatMut(self.value / other)
 
     def __pow__(self, other):
-        if isinstance(other, Float):
-            return FloatMut(self.value**other)
-        else:
+        if isinstance(other, MutType):
             return FloatMut(self.value**other.value)
+        else:
+            return FloatMut(self.value**other)
 
     def __pos__(self):
         return self
