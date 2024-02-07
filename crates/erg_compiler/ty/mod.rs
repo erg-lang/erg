@@ -205,9 +205,23 @@ impl ParamTy {
         }
     }
 
+    pub const fn default_typ(&self) -> Option<&Type> {
+        match self {
+            Self::Pos(_) | Self::Kw { .. } => None,
+            Self::KwWithDefault { default, .. } => Some(default),
+        }
+    }
+
     pub fn typ_mut(&mut self) -> &mut Type {
         match self {
             Self::Pos(ty) | Self::Kw { ty, .. } | Self::KwWithDefault { ty, .. } => ty,
+        }
+    }
+
+    pub fn default_typ_mut(&mut self) -> Option<&mut Type> {
+        match self {
+            Self::Pos(_) | Self::Kw { .. } => None,
+            Self::KwWithDefault { default, .. } => Some(default),
         }
     }
 
@@ -326,8 +340,12 @@ impl LimitedDisplay for SubrType {
             if i > 0 || !self.non_default_params.is_empty() || self.var_params.is_some() {
                 write!(f, ", ")?;
             }
-            write!(f, "{} := ", pt.name().unwrap())?;
+            write!(f, "{}: ", pt.name().unwrap_or(&Str::ever("_")))?;
             pt.typ().limited_fmt(f, limit - 1)?;
+            if let Some(default) = pt.default_typ() {
+                write!(f, " := ")?;
+                default.limited_fmt(f, limit - 1)?;
+            }
         }
         if let Some(kw_var_params) = &self.kw_var_params {
             if !self.non_default_params.is_empty()
@@ -337,10 +355,12 @@ impl LimitedDisplay for SubrType {
                 write!(f, ", ")?;
             }
             write!(f, "**")?;
-            if let Some(name) = kw_var_params.name() {
-                write!(f, "{}: ", name)?;
-            }
+            write!(f, "{}: ", kw_var_params.name().unwrap_or(&Str::ever("_")))?;
             kw_var_params.typ().limited_fmt(f, limit - 1)?;
+            if let Some(default) = kw_var_params.default_typ() {
+                write!(f, " := ")?;
+                default.limited_fmt(f, limit - 1)?;
+            }
         }
         write!(f, ") {} ", self.kind.arrow())?;
         self.return_t.limited_fmt(f, limit - 1)

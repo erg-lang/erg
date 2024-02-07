@@ -792,13 +792,25 @@ impl Context {
                     *pt.typ_mut() =
                         self.instantiate_t_inner(mem::take(pt.typ_mut()), tmp_tv_cache, loc)?;
                 }
-                if let Some(var_args) = subr.var_params.as_mut() {
-                    *var_args.typ_mut() =
-                        self.instantiate_t_inner(mem::take(var_args.typ_mut()), tmp_tv_cache, loc)?;
+                if let Some(var) = subr.var_params.as_mut() {
+                    *var.typ_mut() =
+                        self.instantiate_t_inner(mem::take(var.typ_mut()), tmp_tv_cache, loc)?;
                 }
                 for pt in subr.default_params.iter_mut() {
                     *pt.typ_mut() =
                         self.instantiate_t_inner(mem::take(pt.typ_mut()), tmp_tv_cache, loc)?;
+                    if let Some(default) = pt.default_typ_mut() {
+                        *default =
+                            self.instantiate_t_inner(mem::take(default), tmp_tv_cache, loc)?;
+                    }
+                }
+                if let Some(kw_var) = subr.kw_var_params.as_mut() {
+                    *kw_var.typ_mut() =
+                        self.instantiate_t_inner(mem::take(kw_var.typ_mut()), tmp_tv_cache, loc)?;
+                    if let Some(default) = kw_var.default_typ_mut() {
+                        *default =
+                            self.instantiate_t_inner(mem::take(default), tmp_tv_cache, loc)?;
+                    }
                 }
                 let return_t = self.instantiate_t_inner(*subr.return_t, tmp_tv_cache, loc)?;
                 let res = subr_t(

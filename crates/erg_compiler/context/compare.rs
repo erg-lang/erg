@@ -343,7 +343,7 @@ impl Context {
     /// ```
     /// This function does not consider the nominal subtype relation.
     /// Use `supertype_of` for complete judgement.
-    /// 単一化、評価等はここでは行わない、スーパータイプになる可能性があるかだけ判定する
+    /// 単一化、評価等はここでは行わない、スーパータイプになる **可能性があるか** だけ判定する
     /// ので、lhsが(未連携)型変数の場合は単一化せずにtrueを返す
     pub(crate) fn structural_supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
         match (lhs, rhs) {
@@ -681,9 +681,14 @@ impl Context {
             // {N: Nat | ...} :> Int) == false
             // ({I: Int | I >= 0} :> Int) == false
             // {U(: Type)} :> { .x = {Int} }(== {{ .x = Int }}) == true
+            // {[1]} == Array({1}, 1) :> Array({1}, _) == true
             (Refinement(l), r) => {
                 if let Some(r) = r.to_singleton() {
                     return self.structural_supertype_of(lhs, &Type::Refinement(r));
+                } else if let Some(l) = self.refinement_to_poly(l) {
+                    if &l != lhs {
+                        return self.supertype_of(&l, r);
+                    }
                 }
                 if l.pred.mentions(&l.var) {
                     match l.pred.can_be_false() {
@@ -1032,10 +1037,27 @@ impl Context {
                 };
                 if variance == Variance::Contravariant {
                     self.subtype_of(&fv_t, &sub_t)
-                } else if variance == Variance::Covariant {
-                    self.supertype_of(&fv_t, &sub_t)
                 } else {
-                    self.same_type_of(&fv_t, &sub_t) || self.same_type_of(&fv_t, &sub_t.derefine())
+                    // REVIEW: covariant, invariant
+                    self.supertype_of(&fv_t, &sub_t)
+                }
+            }
+            (_, TyParam::FreeVar(fv)) if fv.is_unbound() => {
+                let Some(fv_t) = fv.get_type() else {
+                    return false;
+                };
+                let sup_t = match self.get_tp_t(sup_p) {
+                    Ok(t) => t,
+                    Err(err) => {
+                        log!("supertype_of_tp: {err}");
+                        Type::Obj
+                    }
+                };
+                if variance == Variance::Contravariant {
+                    self.subtype_of(&sup_t, &fv_t)
+                } else {
+                    // REVIEW: covariant, invariant
+                    self.supertype_of(&sup_t, &fv_t)
                 }
             }
             (TyParam::Value(sup), _) => {
@@ -1991,6 +2013,23 @@ impl Context {
             Triple::Ok(_) => TyParamOrdering::Less,
             Triple::Err(_) => TyParamOrdering::Greater,
             Triple::None => TyParamOrdering::NoRelation,
+        }
+    }
+
+    /// {[]} == {A: Array(Never, _) | A == []} => Array(Never, 0)
+    pub(crate) fn refinement_to_poly(&self, refine: &RefinementType) -> Option<Type> {
+        if refine.t.is_monomorphic() {
+            return None;
+        }
+        let Predicate::Equal { lhs, rhs } = refine.pred.as_ref() else {
+            return None;
+        };
+        if &refine.var != lhs {
+            return None;
+        }
+        match &refine.t.qual_name()[..] {
+            "Array" => self.get_tp_t(rhs).ok().map(|t| t.derefine()),
+            _ => None,
         }
     }
 }
