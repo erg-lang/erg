@@ -11,7 +11,7 @@ C.
     foo self, x = self.x.foo(x)
 D = Class { .y = Int }
 D.
-    new y = Self::__new__ { .y; }
+    new y = Self { .y; }
     @staticmethod
     foo x = x + 1
     one = Self.new 1

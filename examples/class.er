@@ -20,7 +20,7 @@ Point3D.
     # Overloading is prohibited by default. Remove this decorator and check for errors.
     @Override
     new x, y, z =
-        Point3D::__new__ {x; y; z}
+        Point3D {x; y; z}
     @Override
     norm self = self::x**2 + self::y**2 + self::z**2
 

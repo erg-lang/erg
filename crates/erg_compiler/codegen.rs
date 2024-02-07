@@ -116,9 +116,14 @@ fn escape_name(
 fn escape_ident(ident: Identifier) -> Str {
     let vis = ident.vis();
     if &ident.inspect()[..] == "Self" {
-        let Ok(ty) = <&Type>::try_from(ident.vi.t.singleton_value().unwrap()) else {
-            unreachable!()
-        };
+        // reference the self type or the self type constructor
+        let ty = ident
+            .vi
+            .t
+            .singleton_value()
+            .and_then(|tp| <&Type>::try_from(tp).ok())
+            .or_else(|| ident.vi.t.return_t())
+            .unwrap();
         escape_name(
             &ty.local_name(),
             &ident.vi.vis.modifier,
@@ -925,9 +930,6 @@ impl PyCodeGenerator {
 
     fn emit_load_method_instr(&mut self, ident: Identifier) {
         log!(info "entered {} ({ident})", fn_name!());
-        if &ident.inspect()[..] == "__new__" {
-            log!("{:?}", ident.vi);
-        }
         let escaped = escape_ident(ident);
         let name = self
             .local_search(&escaped, BoundAttr)
@@ -3450,11 +3452,12 @@ impl PyCodeGenerator {
         self.emit_store_instr(Identifier::public("__module__"), Name);
         self.emit_load_const(name);
         self.emit_store_instr(Identifier::public("__qualname__"), Name);
-        self.emit_init_method(&class.sig, class.__new__.clone());
+        let mut methods = ClassDef::take_all_methods(class.methods_list);
+        let __init__ = methods.remove_def("__init__");
+        self.emit_init_method(&class.sig, __init__, class.__new__.clone());
         if class.need_to_gen_new {
             self.emit_new_func(&class.sig, class.__new__);
         }
-        let methods = ClassDef::take_all_methods(class.methods_list);
         if !methods.is_empty() {
             self.emit_simple_block(methods);
         }
@@ -3494,7 +3497,7 @@ impl PyCodeGenerator {
         unit.codeobj
     }
 
-    fn emit_init_method(&mut self, sig: &Signature, __new__: Type) {
+    fn emit_init_method(&mut self, sig: &Signature, __init__: Option<Def>, __new__: Type) {
         log!(info "entered {}", fn_name!());
         let new_first_param = __new__.non_default_params().unwrap().first();
         let line = sig.ln_begin().unwrap_or(0);
@@ -3539,6 +3542,9 @@ impl PyCodeGenerator {
             vec![],
         );
         let mut attrs = vec![];
+        if let Some(__init__) = __init__ {
+            attrs.extend(__init__.body.block.clone());
+        }
         match new_first_param.map(|pt| pt.typ()) {
             // namedtupleは仕様上::xなどの名前を使えない
             // {x = Int; y = Int}
@@ -3587,8 +3593,8 @@ impl PyCodeGenerator {
 
     /// ```python
     /// class C:
-    ///     # __new__ => __call__
-    ///     def new(x): return C.__call__(x)
+    ///     # __new__ => C
+    ///     def new(x): return C(x)
     /// ```
     fn emit_new_func(&mut self, sig: &Signature, __new__: Type) {
         log!(info "entered {}", fn_name!());
@@ -3596,9 +3602,6 @@ impl PyCodeGenerator {
         let line = sig.ln_begin().unwrap_or(0);
         let mut ident = Identifier::public_with_line(DOT, Str::ever("new"), line);
         let class = Expr::Accessor(Accessor::Ident(class_ident.clone()));
-        let mut new_ident = Identifier::private_with_line(Str::ever("__new__"), line);
-        new_ident.vi.py_name = Some(Str::ever("__call__"));
-        let class_new = class.attr_expr(new_ident);
         ident.vi.t = __new__;
         if let Some(new_first_param) = ident.vi.t.non_default_params().unwrap().first() {
             let param_name = new_first_param
@@ -3627,7 +3630,7 @@ impl PyCodeGenerator {
             let arg = PosArg::new(Expr::Accessor(Accessor::private_with_line(
                 param_name, line,
             )));
-            let call = class_new.call_expr(Args::single(arg));
+            let call = class.call_expr(Args::single(arg));
             let block = Block::new(vec![call]);
             let body = DefBody::new(EQUAL, block, DefId(0));
             self.emit_subr_def(Some(class_ident.inspect()), sig, body);
@@ -3642,7 +3645,7 @@ impl PyCodeGenerator {
                 sig.t_spec_with_op().cloned(),
                 vec![],
             );
-            let call = class_new.call_expr(Args::empty());
+            let call = class.call_expr(Args::empty());
             let block = Block::new(vec![call]);
             let body = DefBody::new(EQUAL, block, DefId(0));
             self.emit_subr_def(Some(class_ident.inspect()), sig, body);

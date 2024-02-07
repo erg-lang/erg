@@ -2,10 +2,10 @@ name n: Structural { .name = Str } = n.name
 
 C = Class { .name = Str }
 C.
-    new name = C::__new__ { .name = name }
+    new name = C { .name = name }
 D = Class { .name = Str; .id = Nat }
 D.
-    new name, id = D::__new__ { .name = name; .id = id }
+    new name, id = D { .name = name; .id = id }
 
 c = C.new "foo"
 d = D.new "bar", 1
@@ -17,8 +17,8 @@ inner|T| x: Structural { .inner = T } = x.inner
 
 E = Class { .inner = Int }
 E.
-    new inner = E::__new__ { .inner = inner }
-    __add__ self, other: E = E::__new__ { .inner = self.inner + other.inner }
+    new inner = E { .inner = inner }
+    __add__ self, other: E = E { .inner = self.inner + other.inner }
 
 e = E.new 1
 

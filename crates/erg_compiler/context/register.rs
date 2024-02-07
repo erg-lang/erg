@@ -1331,7 +1331,7 @@ impl Context {
         }
     }
 
-    /// e.g. ::__new__
+    /// e.g. `::__call__`
     fn register_fixed_auto_impl(
         &mut self,
         name: &'static str,
@@ -1678,18 +1678,18 @@ impl Context {
                             func0(gen.typ().clone())
                         };
                         methods.register_fixed_auto_impl(
-                            "__new__",
+                            "__call__",
                             new_t.clone(),
                             Immutable,
-                            Visibility::BUILTIN_PRIVATE,
-                            Some("__call__".into()),
+                            Visibility::private(ctx.name.clone()),
+                            None,
                         )?;
                         // 必要なら、ユーザーが独自に上書きする
                         methods.register_auto_impl(
                             "new",
                             new_t,
                             Immutable,
-                            Visibility::BUILTIN_PUBLIC,
+                            Visibility::public(ctx.name.clone()),
                             None,
                         )?;
                         ctx.methods_list.push(MethodContext::new(
@@ -1903,10 +1903,10 @@ impl Context {
         };
         if ERG_MODE {
             methods.register_fixed_auto_impl(
-                "__new__",
+                "__call__",
                 new_t.clone(),
                 Immutable,
-                Visibility::BUILTIN_PRIVATE,
+                Visibility::private(ctx.name.clone()),
                 Some("__call__".into()),
             )?;
             // users can override this if necessary
@@ -1914,7 +1914,7 @@ impl Context {
                 "new",
                 new_t,
                 Immutable,
-                Visibility::BUILTIN_PUBLIC,
+                Visibility::public(ctx.name.clone()),
                 None,
             )?;
         } else {
@@ -1922,7 +1922,7 @@ impl Context {
                 "__call__",
                 new_t,
                 Immutable,
-                Visibility::BUILTIN_PUBLIC,
+                Visibility::public(ctx.name.clone()),
                 Some("__call__".into()),
             )?;
         }

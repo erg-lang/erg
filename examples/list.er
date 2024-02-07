@@ -1,7 +1,7 @@
 IntList = Class NoneType or { .node = Int; .next = IntList }
 IntList.
-    null = IntList::__new__ None
-    insert self, node = IntList::__new__ { .node; .next = self }
+    null = IntList None
+    insert self, node = IntList { .node; .next = self }
     fst self =
         match self::base:
             { node; next = _ } => node

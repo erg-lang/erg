@@ -4,16 +4,16 @@ C::
 C.
     method self =
         _ = self
-        x = C::__new__()
-        y: C::X = Self::__new__()
+        x = C()
+        y: C::X = Self()
         log x, y
 
 .C2 = Class { .x = Int }
 .C2.
     method self =
         _ = self
-        x = .C2::__new__ { .x = 1 }
-        y = Self::__new__ { .x = 1 }
+        x = .C2 { .x = 1 }
+        y = Self { .x = 1 }
         log x, y
 
 x = C.new()

@@ -1,6 +1,6 @@
 Point = Class {x = Int; y = Int}
 Point.
-    new x, y = Point::__new__ {x; y}
+    new x, y = Point {x; y}
     norm self = self::x**2 + self::y**2
 Point|<: Add(Point)|.
     Output = Point

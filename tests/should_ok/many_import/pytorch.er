@@ -28,7 +28,7 @@ Net = Inherit nn.Module, Additional := {
 
 Net.
     @Override
-    new() = Net::__new__ {
+    new() = Net {
         conv1 = nn.Conv2d(1, 16, kernel_size:=3, stride:=1, padding:=1);
         conv2 = nn.Conv2d(16, 32, kernel_size:=3, stride:=1, padding:=1);
         pool = nn.MaxPool2d(kernel_size:=2, stride:=2);
