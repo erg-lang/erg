@@ -138,3 +138,9 @@ class FloatMut:  # inherits Float
 
     def update(self, f):
         self.value = Float(f(self.value))
+
+    def inc(self, value=1.0):
+        self.value = Float(self.value + value)
+
+    def dec(self, value=1.0):
+        self.value = Float(self.value - value)

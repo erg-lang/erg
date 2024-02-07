@@ -2526,6 +2526,34 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_UPDATE),
         );
+        let t = pr_met(
+            ref_mut(mono(MUT_FLOAT), None),
+            vec![kw(KW_VALUE, Float)],
+            None,
+            vec![],
+            NoneType,
+        );
+        float_mut_mutable.register_builtin_py_impl(
+            PROC_INC,
+            t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_INC),
+        );
+        let t = pr_met(
+            ref_mut(mono(MUT_FLOAT), None),
+            vec![kw(KW_VALUE, Float)],
+            None,
+            vec![],
+            NoneType,
+        );
+        float_mut_mutable.register_builtin_py_impl(
+            PROC_DEC,
+            t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_DEC),
+        );
         float_mut.register_trait(mono(MUT_FLOAT), float_mut_mutable);
         /* Ratio! */
         let mut ratio_mut = Self::builtin_mono_class(MUT_RATIO, 2);
