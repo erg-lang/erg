@@ -964,7 +964,9 @@ impl Context {
             Some("is_not"),
         );
         let E = mono_q(TY_E, subtypeof(mono(EQ)));
-        let op_t = bin_op(E.clone(), E, Bool).quantify();
+        let E2 = mono_q(TY_E, subtypeof(mono(IRREGULAR_EQ)));
+        let op_t = bin_op(E.clone(), E, Bool).quantify()
+            & bin_op(E2.clone(), E2.clone(), E2.proj(OUTPUT)).quantify();
         self.register_builtin_py_impl(
             OP_EQ,
             op_t.clone(),

@@ -743,6 +743,11 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                                 ctx.trait_impls().get_mut(&impl_trait.qual_name())
                             {
                                 impls.insert(TraitImpl::new(class.clone(), impl_trait.clone()));
+                            } else {
+                                ctx.trait_impls().register(
+                                    impl_trait.qual_name(),
+                                    set! { TraitImpl::new(class.clone(), impl_trait.clone()) },
+                                );
                             }
                             ctx.methods_list.push(MethodContext::new(
                                 DefId(0),

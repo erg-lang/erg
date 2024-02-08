@@ -191,6 +191,13 @@ impl Context {
         // __eq__: |Self <: Eq| (self: Self, other: Self) -> Bool
         let op_t = fn1_met(Slf.clone(), Slf, Bool).quantify();
         eq.register_builtin_erg_decl(OP_EQ, op_t, Visibility::BUILTIN_PUBLIC);
+        /* IrregularEq */
+        let mut irregular_eq = Self::builtin_mono_trait(IRREGULAR_EQ, 2);
+        let Slf = mono_q(SELF, subtypeof(mono(IRREGULAR_EQ)));
+        // __eq__: |Self <: Eq| (self: Self, other: Self) -> Self.Output
+        let op_t = fn1_met(Slf.clone(), Slf.clone(), Slf.proj(OUTPUT)).quantify();
+        irregular_eq.register_builtin_erg_decl(OP_EQ, op_t, Visibility::BUILTIN_PUBLIC);
+        irregular_eq.register_builtin_erg_decl(OUTPUT, Type, Visibility::BUILTIN_PUBLIC);
         /* Hash */
         let mut hash = Self::builtin_mono_trait(HASH, 2);
         let Slf = mono_q(SELF, subtypeof(mono(HASH)));
@@ -488,6 +495,7 @@ impl Context {
             None,
         );
         self.register_builtin_type(mono(EQ), eq, vis.clone(), Const, None);
+        self.register_builtin_type(mono(IRREGULAR_EQ), irregular_eq, vis.clone(), Const, None);
         self.register_builtin_type(mono(HASH), hash, vis.clone(), Const, None);
         self.register_builtin_type(mono(EQ_HASH), eq_hash, vis.clone(), Const, None);
         self.register_builtin_type(mono(PARTIAL_ORD), partial_ord, vis.clone(), Const, None);

@@ -49,6 +49,9 @@ class NatMut(IntMut):  # and Nat
     def __int__(self):
         return self.value.__int__()
 
+    def __float__(self):
+        return self.value.__float__()
+
     def __repr__(self):
         return self.value.__repr__()
 
@@ -114,6 +117,12 @@ class NatMut(IntMut):  # and Nat
             return Nat(other.value * self.value)
         else:
             return Nat(other * self.value)
+
+    def __truediv__(self, other):
+        if isinstance(other, MutType):
+            return NatMut(self.value / other.value)
+        else:
+            return NatMut(self.value / other)
 
     def __pow__(self, other):
         if isinstance(other, MutType):

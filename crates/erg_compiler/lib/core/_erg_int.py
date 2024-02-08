@@ -57,8 +57,12 @@ class IntMut(MutType):  # inherits Int
 
     def __init__(self, i):
         self.value = Int(i)
+
     def __int__(self):
         return self.value.__int__()
+
+    def __float__(self):
+        return self.value.__float__()
 
     def __repr__(self):
         return self.value.__repr__()
@@ -125,6 +129,12 @@ class IntMut(MutType):  # inherits Int
             return IntMut(self.value // other.value)
         else:
             return IntMut(self.value // other)
+
+    def __truediv__(self, other):
+        if isinstance(other, MutType):
+            return IntMut(self.value / other.value)
+        else:
+            return IntMut(self.value / other)
 
     def __pow__(self, other):
         if isinstance(other, MutType):

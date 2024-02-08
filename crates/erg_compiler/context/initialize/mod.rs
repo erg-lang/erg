@@ -101,6 +101,7 @@ const MAPPING: &str = "Mapping";
 const MUTABLE_MAPPING: &str = "Mapping!";
 const HAS_SHAPE: &str = "HasShape";
 const EQ: &str = "Eq";
+const IRREGULAR_EQ: &str = "IrregularEq";
 const HASH: &str = "Hash";
 const EQ_HASH: &str = "EqHash";
 const PARTIAL_ORD: &str = "PartialOrd";

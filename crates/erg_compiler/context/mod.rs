@@ -1066,6 +1066,25 @@ impl Context {
     }
 
     #[inline]
+    pub fn builtin_patch<S: Into<Str>>(
+        name: S,
+        impls: Type,
+        params: Vec<ParamSpec>,
+        capacity: usize,
+    ) -> Self {
+        Self::poly(
+            name.into(),
+            ErgConfig::default(),
+            ContextKind::Patch(impls),
+            params,
+            None,
+            None,
+            capacity,
+            Self::TOP_LEVEL,
+        )
+    }
+
+    #[inline]
     pub fn module(
         name: Str,
         cfg: ErgConfig,

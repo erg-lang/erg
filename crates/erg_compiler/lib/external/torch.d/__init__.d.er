@@ -6,7 +6,8 @@
 .utils = pyimport "./utils"
 
 {.load!; .save!;} = pyimport "./serialization"
-{.manual_seed!;} = import "./random"
+{.manual_seed!;} = pyimport "./random"
+{.no_grad;} = pyimport "./autograd"
 
 .Device = 'device': ClassType
 .device: (type: Str) => .Device
@@ -29,6 +30,9 @@
 .Size: ClassType
 .Tensor!: (T: Type, Shape: [Nat; _]) -> ClassType
 .Tensor!(T, _) <: Output T
+.Tensor!(T, S)|<: IrregularEq|.
+    Output: {Tensor!(Bool, S)}
+    __eq__: (self: .Tensor!(T, S), other: .Tensor!(T, S)) -> .Tensor!(Bool, S)
 .Tensor!(_, _).
     dtype: .DType
     shape: .Size
@@ -51,5 +55,12 @@
         non_blocking := Bool,
         copy := Bool,
     ) -> .Tensor!(T, S))
+    size: (|T, S: [Nat; _]|(self: .Tensor!(T, S), dim: Nat) -> Nat) \
+        and (|T, S: [Nat; _]|(self: .Tensor!(T, S)) -> .Size)
+    sum: |T, S: [Nat; _]|(self: .Tensor!(T, S)) -> .Tensor!(T, [])
 
 .relu: |T, S: [Nat; _]|(x: .Tensor!(T, S)) -> .Tensor!(T, S)
+.max: (|T|(input: .Tensor!(T, _), dim: Nat, keepdim := Bool) -> (.Tensor!(T, _)), .Tensor!(T, _)) \
+    and (|T|(input: .Tensor!(T, _)) -> .Tensor!(T, _))
+.min: (|T|(input: .Tensor!(T, _), dim: Nat, keepdim := Bool) -> (.Tensor!(T, _)), .Tensor!(T, _)) \
+    and (|T|(input: .Tensor!(T, _)) -> .Tensor!(T, _))

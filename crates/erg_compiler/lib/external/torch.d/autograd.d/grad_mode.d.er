@@ -1,0 +1,3 @@
+.NoGrad = 'no_grad': ClassType
+.NoGrad <: ContextManager
+.no_grad: () -> .NoGrad
