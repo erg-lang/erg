@@ -379,6 +379,11 @@ impl Context {
         let S = mono_q_tp(TY_S, instanceof(unknown_len_array_t(Nat)));
         let params = vec![PS::named_nd("S", unknown_len_array_t(Nat))];
         let has_shape = Self::builtin_poly_trait(HAS_SHAPE, params.clone(), 2);
+        /* HasScalarType */
+        let Ty = mono_q_tp(TY_T, instanceof(Type));
+        let params = vec![PS::t(TY_T, false, WithDefault)];
+        let mut has_scalar_type = Self::builtin_poly_trait(HAS_SCALAR_TYPE, params.clone(), 2);
+        has_scalar_type.register_superclass(poly(OUTPUT, vec![Ty.clone()]), &output);
         /* Num */
         let R = mono_q(TY_R, instanceof(Type));
         let params = vec![PS::t(TY_R, false, WithDefault)];
@@ -581,6 +586,13 @@ impl Context {
         self.register_builtin_type(
             poly(HAS_SHAPE, vec![S]),
             has_shape,
+            vis.clone(),
+            Const,
+            None,
+        );
+        self.register_builtin_type(
+            poly(HAS_SCALAR_TYPE, vec![Ty]),
+            has_scalar_type,
             vis.clone(),
             Const,
             None,

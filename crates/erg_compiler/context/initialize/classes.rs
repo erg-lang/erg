@@ -1730,6 +1730,15 @@ impl Context {
                 ),
             )
             .unwrap();
+        array_
+            .register_marker_trait(
+                self,
+                poly(
+                    HAS_SCALAR_TYPE,
+                    vec![ty_tp(arr_t.clone()).proj_call(FUNC_SCALAR_TYPE.into(), vec![])],
+                ),
+            )
+            .unwrap();
         let mut array_sized = Self::builtin_methods(Some(mono(SIZED)), 2);
         array_sized.register_builtin_erg_impl(
             FUNDAMENTAL_LEN,
@@ -1760,6 +1769,19 @@ impl Context {
             None,
         )));
         array_.register_builtin_const(FUNC_SHAPE, Visibility::BUILTIN_PUBLIC, None, shape);
+        let array_scalar_type_t = fn0_met(Type, Type).quantify();
+        let array_scalar_type = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_SCALAR_TYPE,
+            array_scalar_type,
+            array_scalar_type_t,
+            None,
+        )));
+        array_.register_builtin_const(
+            FUNC_SCALAR_TYPE,
+            Visibility::BUILTIN_PUBLIC,
+            None,
+            array_scalar_type,
+        );
         let mut array_eq = Self::builtin_methods(Some(mono(EQ)), 2);
         array_eq.register_builtin_erg_impl(
             OP_EQ,

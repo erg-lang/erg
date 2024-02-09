@@ -29,7 +29,11 @@ np = pyimport "numpy"
 .Complex64 = 'complex64': ClassType
 .Complex128 = 'complex128': ClassType
 
-.Size: ClassType
+.Size: (S: [Nat; _]) -> ClassType
+.Size(S).
+    __call__: (size: {S}) -> .Size(S)
+.Size(S)|<: Eq|.
+    __eq__: (self: .Size(S), other: .Size(S)) -> Bool
 .Tensor!: (T: Type, Shape: [Nat; _]) -> ClassType
 .Tensor!(T, _) <: Output T
 .Tensor!(T, S)|<: IrregularEq|.
@@ -39,9 +43,9 @@ np = pyimport "numpy"
     __getitem__: (self: .Tensor!(T, S), index: Nat or [Nat; _]) -> .Tensor!(T, _)
 .Tensor!(T, S).
     data: .Tensor!(T, S)
+    shape: .Size(S)
 .Tensor!(_, _).
     dtype: .DType
-    shape: .Size
     clone: |T, S: [Nat; _]|(self: .Tensor!(T, S)) -> .Tensor!(T, S)
     cpu: |T, S: [Nat; _]|(self: .Tensor!(T, S)) -> .Tensor!(T, S)
     detach: |T, S: [Nat; _]|(self: .Tensor!(T, S)) -> .Tensor!(T, S)
@@ -79,5 +83,5 @@ np = pyimport "numpy"
     and (|T|(input: .Tensor!(T, _)) -> .Tensor!(T, _))
 .min: (|T|(input: .Tensor!(T, _), dim: Nat, keepdim := Bool) -> (.Tensor!(T, _)), .Tensor!(T, _)) \
     and (|T|(input: .Tensor!(T, _)) -> .Tensor!(T, _))
-.tensor: (|T, S: [T; _]|(data: {S}, dtype := .DType, device := .Device) -> .Tensor!(T, S)) \
+.tensor: (|T, S: [Nat; _]|(data: HasScalarType(T) and HasShape(S), dtype := .DType, device := .Device) -> .Tensor!(T, S)) \
     and (|T|(data: [T; _], dtype := .DType, device := .Device) -> .Tensor!(T, _))
