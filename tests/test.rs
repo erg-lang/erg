@@ -336,6 +336,11 @@ fn exec_pyimport_test() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_pytorch() -> Result<(), ()> {
+    expect_compile_success("examples/pytorch.er", 0)
+}
+
+#[test]
 fn exec_quantified() -> Result<(), ()> {
     expect_success("examples/quantified.er", 1)
 }
