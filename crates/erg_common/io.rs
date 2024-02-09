@@ -299,6 +299,14 @@ impl Input {
         }
     }
 
+    pub fn source_exists(&self) -> bool {
+        match &self.kind {
+            InputKind::File(filename) => filename.exists(),
+            InputKind::Dummy => false,
+            _ => true,
+        }
+    }
+
     pub fn try_read(&mut self) -> std::io::Result<String> {
         match &mut self.kind {
             InputKind::File(filename) => VFS.read(filename),

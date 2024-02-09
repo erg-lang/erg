@@ -535,6 +535,86 @@ pub(crate) fn array_shape(mut args: ValueArgs, ctx: &Context) -> EvalValueResult
     Ok(arr)
 }
 
+fn _array_scalar_type(mut typ: Type, ctx: &Context) -> Result<Type, String> {
+    loop {
+        if matches!(&typ.qual_name()[..], "Array" | "Array!" | "UnsizedArray") {
+            let tp = typ.typarams().remove(0);
+            match ctx.convert_tp_into_type(tp) {
+                Ok(typ_) => {
+                    typ = typ_;
+                }
+                Err(err) => {
+                    return Err(format!("Cannot convert {err} into type"));
+                }
+            }
+        } else {
+            return Ok(typ);
+        }
+    }
+}
+
+pub(crate) fn array_scalar_type(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let slf = args
+        .remove_left_or_key("Self")
+        .ok_or_else(|| not_passed("Self"))?;
+    let Ok(slf) = ctx.convert_value_into_type(slf.clone()) else {
+        return Err(type_mismatch("Type", slf, "Self"));
+    };
+    let res = _array_scalar_type(slf, ctx).unwrap();
+    Ok(TyParam::t(res))
+}
+
+fn _scalar_type(mut value: ValueObj, _ctx: &Context) -> Result<Type, String> {
+    loop {
+        match value {
+            ValueObj::Array(a) => match a.first() {
+                Some(elem) => {
+                    value = elem.clone();
+                }
+                None => {
+                    return Ok(Type::Never);
+                }
+            },
+            ValueObj::Set(s) => match s.iter().next() {
+                Some(elem) => {
+                    value = elem.clone();
+                }
+                None => {
+                    return Ok(Type::Never);
+                }
+            },
+            ValueObj::Tuple(t) => match t.first() {
+                Some(elem) => {
+                    value = elem.clone();
+                }
+                None => {
+                    return Ok(Type::Never);
+                }
+            },
+            ValueObj::UnsizedArray(a) => {
+                value = *a.clone();
+            }
+            other => {
+                return Ok(other.class());
+            }
+        }
+    }
+}
+
+/// ```erg
+/// [1, 2].scalar_type() == Nat
+/// [[1, 2], [3, 4], [5, 6]].scalar_type() == Nat
+/// ```
+#[allow(unused)]
+pub(crate) fn scalar_type(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let arr = args
+        .remove_left_or_key("Self")
+        .ok_or_else(|| not_passed("Self"))?;
+    let res = _scalar_type(arr, ctx).unwrap();
+    let arr = TyParam::t(res);
+    Ok(arr)
+}
+
 fn _array_sum(arr: ValueObj, _ctx: &Context) -> Result<ValueObj, String> {
     match arr {
         ValueObj::Array(a) => {
@@ -651,6 +731,95 @@ pub(crate) fn array_reversed(mut args: ValueArgs, ctx: &Context) -> EvalValueRes
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
     let res = _array_reversed(arr, ctx).unwrap();
+    let arr = TyParam::Value(res);
+    Ok(arr)
+}
+
+fn _array_insert_at(
+    arr: ValueObj,
+    index: usize,
+    value: ValueObj,
+    _ctx: &Context,
+) -> Result<ValueObj, String> {
+    match arr {
+        ValueObj::Array(a) => {
+            let mut a = a.to_vec();
+            if index > a.len() {
+                return Err(format!("Index out of range: {index}"));
+            }
+            a.insert(index, value);
+            Ok(ValueObj::Array(a.into()))
+        }
+        _ => Err(format!("Cannot insert into {arr}")),
+    }
+}
+
+pub(crate) fn array_insert_at(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let arr = args
+        .remove_left_or_key("Self")
+        .ok_or_else(|| not_passed("Self"))?;
+    let index = args
+        .remove_left_or_key("Index")
+        .ok_or_else(|| not_passed("Index"))?;
+    let value = args
+        .remove_left_or_key("Value")
+        .ok_or_else(|| not_passed("Value"))?;
+    let Ok(index) = usize::try_from(&index) else {
+        return Err(type_mismatch("Nat", index, "Index"));
+    };
+    let res = _array_insert_at(arr, index, value, ctx).unwrap();
+    let arr = TyParam::Value(res);
+    Ok(arr)
+}
+
+fn _array_remove_at(arr: ValueObj, index: usize, _ctx: &Context) -> Result<ValueObj, String> {
+    match arr {
+        ValueObj::Array(a) => {
+            let mut a = a.to_vec();
+            if index >= a.len() {
+                return Err(format!("Index out of range: {index}"));
+            }
+            a.remove(index);
+            Ok(ValueObj::Array(a.into()))
+        }
+        _ => Err(format!("Cannot remove from {arr}")),
+    }
+}
+
+pub(crate) fn array_remove_at(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let arr = args
+        .remove_left_or_key("Self")
+        .ok_or_else(|| not_passed("Self"))?;
+    let index = args
+        .remove_left_or_key("Index")
+        .ok_or_else(|| not_passed("Index"))?;
+    let Ok(index) = usize::try_from(&index) else {
+        return Err(type_mismatch("Nat", index, "Index"));
+    };
+    let res = _array_remove_at(arr, index, ctx).unwrap();
+    let arr = TyParam::Value(res);
+    Ok(arr)
+}
+
+fn _array_remove_all(arr: ValueObj, value: ValueObj, _ctx: &Context) -> Result<ValueObj, String> {
+    match arr {
+        ValueObj::Array(a) => {
+            let mut a = a.to_vec();
+            a.retain(|v| v != &value);
+            Ok(ValueObj::Array(a.into()))
+        }
+        _ => Err(format!("Cannot remove from {arr}")),
+    }
+}
+
+pub(crate) fn array_remove_all(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let arr = args
+        .remove_left_or_key("Self")
+        .ok_or_else(|| not_passed("Self"))?;
+    let value = args
+        .remove_left_or_key("Value")
+        .ok_or_else(|| not_passed("Value"))?;
+    let res = _array_remove_all(arr, value, ctx).unwrap();
     let arr = TyParam::Value(res);
     Ok(arr)
 }

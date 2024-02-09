@@ -114,6 +114,19 @@ class Array(list):
     def reversed(self):
         return Array(list.__reversed__(self))
 
+    def insert_at(self, index, value):
+        self.insert(index, value)
+        return self
+
+    def remove_at(self, index):
+        del self[index]
+        return self
+
+    def remove_all(self, item):
+        while item in self:
+            self.remove(item)
+        return self
+
 class UnsizedArray:
     elem: object
     def __init__(self, elem):

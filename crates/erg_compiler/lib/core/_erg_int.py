@@ -1,6 +1,6 @@
 from _erg_result import Error
 from _erg_control import then__
-
+from _erg_type import MutType
 
 class Int(int):
     def try_new(i):  # -> Result[Nat]
@@ -52,13 +52,17 @@ class Int(int):
         return then__(int.__neg__(self), Int)
 
 
-class IntMut:  # inherits Int
+class IntMut(MutType):  # inherits Int
     value: Int
 
     def __init__(self, i):
         self.value = Int(i)
+
     def __int__(self):
         return self.value.__int__()
+
+    def __float__(self):
+        return self.value.__float__()
 
     def __repr__(self):
         return self.value.__repr__()
@@ -67,70 +71,76 @@ class IntMut:  # inherits Int
         return self.value.__hash__()
 
     def __eq__(self, other):
-        if isinstance(other, Int):
-            return self.value == other
-        else:
+        if isinstance(other, MutType):
             return self.value == other.value
+        else:
+            return self.value == other
 
     def __ne__(self, other):
-        if isinstance(other, Int):
-            return self.value != other
-        else:
+        if isinstance(other, MutType):
             return self.value != other.value
+        else:
+            return self.value != other
 
     def __le__(self, other):
-        if isinstance(other, Int):
-            return self.value <= other
-        else:
+        if isinstance(other, MutType):
             return self.value <= other.value
+        else:
+            return self.value <= other
 
     def __ge__(self, other):
-        if isinstance(other, Int):
-            return self.value >= other
-        else:
+        if isinstance(other, MutType):
             return self.value >= other.value
+        else:
+            return self.value >= other
 
     def __lt__(self, other):
-        if isinstance(other, Int):
-            return self.value < other
-        else:
+        if isinstance(other, MutType):
             return self.value < other.value
+        else:
+            return self.value < other
 
     def __gt__(self, other):
-        if isinstance(other, Int):
-            return self.value > other
-        else:
+        if isinstance(other, MutType):
             return self.value > other.value
+        else:
+            return self.value > other
 
     def __add__(self, other):
-        if isinstance(other, Int):
-            return IntMut(self.value + other)
-        else:
+        if isinstance(other, MutType):
             return IntMut(self.value + other.value)
+        else:
+            return IntMut(self.value + other)
 
     def __sub__(self, other):
-        if isinstance(other, Int):
-            return IntMut(self.value - other)
-        else:
+        if isinstance(other, MutType):
             return IntMut(self.value - other.value)
+        else:
+            return IntMut(self.value - other)
 
     def __mul__(self, other):
-        if isinstance(other, Int):
-            return IntMut(self.value * other)
-        else:
+        if isinstance(other, MutType):
             return IntMut(self.value * other.value)
+        else:
+            return IntMut(self.value * other)
 
     def __floordiv__(self, other):
-        if isinstance(other, Int):
-            return IntMut(self.value // other)
-        else:
+        if isinstance(other, MutType):
             return IntMut(self.value // other.value)
+        else:
+            return IntMut(self.value // other)
+
+    def __truediv__(self, other):
+        if isinstance(other, MutType):
+            return IntMut(self.value / other.value)
+        else:
+            return IntMut(self.value / other)
 
     def __pow__(self, other):
-        if isinstance(other, Int):
-            return IntMut(self.value**other)
-        else:
+        if isinstance(other, MutType):
             return IntMut(self.value**other.value)
+        else:
+            return IntMut(self.value**other)
 
     def __pos__(self):
         return self

@@ -1,7 +1,7 @@
 from _erg_nat import Nat
 from _erg_nat import NatMut
 from _erg_result import Error
-
+from _erg_type import MutType
 
 class Bool(Nat):
     def try_new(b: bool):  # -> Result[Nat]
@@ -42,16 +42,16 @@ class BoolMut(NatMut):
         return self.value.__hash__()
 
     def __eq__(self, other):
-        if isinstance(other, bool):
-            return self.value == other
-        else:
+        if isinstance(other, MutType):
             return self.value == other.value
+        else:
+            return self.value == other
 
     def __ne__(self, other):
-        if isinstance(other, bool):
-            return self.value != other
-        else:
+        if isinstance(other, MutType):
             return self.value != other.value
+        else:
+            return self.value != other
 
     def update(self, f):
         self.value = Bool(f(self.value))

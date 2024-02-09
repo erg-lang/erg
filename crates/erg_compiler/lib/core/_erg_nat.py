@@ -2,6 +2,7 @@ from _erg_result import Error
 from _erg_int import Int
 from _erg_int import IntMut  # don't unify with the above line
 from _erg_control import then__
+from _erg_type import MutType
 
 class Nat(Int):
     def __init__(self, i):
@@ -48,6 +49,9 @@ class NatMut(IntMut):  # and Nat
     def __int__(self):
         return self.value.__int__()
 
+    def __float__(self):
+        return self.value.__float__()
+
     def __repr__(self):
         return self.value.__repr__()
 
@@ -55,70 +59,76 @@ class NatMut(IntMut):  # and Nat
         return self.value.__hash__()
 
     def __eq__(self, other):
-        if isinstance(other, int):
-            return self.value == other
-        else:
+        if isinstance(other, MutType):
             return self.value == other.value
+        else:
+            return self.value == other
 
     def __ne__(self, other):
-        if isinstance(other, int):
-            return self.value != other
-        else:
+        if isinstance(other, MutType):
             return self.value != other.value
+        else:
+            return self.value != other
 
     def __le__(self, other):
-        if isinstance(other, int):
-            return self.value <= other
-        else:
+        if isinstance(other, MutType):
             return self.value <= other.value
+        else:
+            return self.value <= other
 
     def __ge__(self, other):
-        if isinstance(other, int):
-            return self.value >= other
-        else:
+        if isinstance(other, MutType):
             return self.value >= other.value
+        else:
+            return self.value >= other
 
     def __lt__(self, other):
-        if isinstance(other, int):
-            return self.value < other
-        else:
+        if isinstance(other, MutType):
             return self.value < other.value
+        else:
+            return self.value < other
 
     def __gt__(self, other):
-        if isinstance(other, int):
-            return self.value > other
-        else:
+        if isinstance(other, MutType):
             return self.value > other.value
+        else:
+            return self.value > other
 
     def __add__(self, other):
-        if isinstance(other, Nat):
-            return NatMut(self.value + other)
-        else:
+        if isinstance(other, MutType):
             return NatMut(self.value + other.value)
+        else:
+            return NatMut(self.value + other)
 
     def __radd__(self, other):
-        if isinstance(other, Nat):
-            return Nat(other + self.value)
-        else:
+        if isinstance(other, MutType):
             return Nat(other.value + self.value)
+        else:
+            return Nat(other + self.value)
 
     def __mul__(self, other):
-        if isinstance(other, Nat):
-            return NatMut(self.value * other)
-        else:
+        if isinstance(other, MutType):
             return NatMut(self.value * other.value)
+        else:
+            return NatMut(self.value * other)
 
     def __rmul__(self, other):
-        if isinstance(other, Nat):
-            return Nat(other * self.value)
-        else:
+        if isinstance(other, MutType):
             return Nat(other.value * self.value)
+        else:
+            return Nat(other * self.value)
+
+    def __truediv__(self, other):
+        if isinstance(other, MutType):
+            return NatMut(self.value / other.value)
+        else:
+            return NatMut(self.value / other)
 
     def __pow__(self, other):
-        if isinstance(other, Nat):
-            return NatMut(self.value**other)
-        else:
+        if isinstance(other, MutType):
             return NatMut(self.value**other.value)
+        else:
+            return NatMut(self.value**other)
 
     def __pos__(self):
         return self

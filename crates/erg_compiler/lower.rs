@@ -423,7 +423,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                         else if self
                             .module
                             .context
-                            .coerce(union_.clone(), &())
+                            .coerce(union_.derefine(), &())
                             .map_or(true, |coerced| coerced.union_pair().is_some())
                         {
                             return Err(self.elem_err(&l, &r, elem));
@@ -900,7 +900,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         {
             (
                 VarInfo {
-                    t: mono("GenericCallable"),
+                    t: mono("Subroutine"),
                     ..VarInfo::default()
                 },
                 None,
@@ -1373,10 +1373,12 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         } else {
             if let hir::Expr::Call(call) = &obj {
                 if call.return_t().is_some() {
-                    *obj.ref_mut_t().unwrap() = vi.t;
+                    if let Some(ref_mut_t) = obj.ref_mut_t() {
+                        *ref_mut_t = vi.t;
+                    }
                 }
-            } else {
-                *obj.ref_mut_t().unwrap() = vi.t;
+            } else if let Some(ref_mut_t) = obj.ref_mut_t() {
+                *ref_mut_t = vi.t;
             }
             None
         };
@@ -1422,7 +1424,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 }
             },
             Some(OperationKind::Return | OperationKind::Yield) => {
-                // (f: ?T -> ?U).return: (self: GenericCallable, arg: Obj) -> Never
+                // (f: ?T -> ?U).return: (self: Subroutine, arg: Obj) -> Never
                 let callable_t = call.obj.ref_t();
                 let ret_t = match callable_t {
                     Type::Subr(subr) => *subr.return_t.clone(),
@@ -2015,7 +2017,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             if self.module.context.eval_const_expr(&deco.0).is_ok() {
                 continue;
             }
-            let deco = match self.lower_expr(deco.0.clone(), Some(&mono("GenericCallable"))) {
+            let deco = match self.lower_expr(deco.0.clone(), Some(&mono("Subroutine"))) {
                 Ok(deco) => deco,
                 Err(es) => {
                     self.errs.extend(es);

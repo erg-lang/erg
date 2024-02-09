@@ -1,0 +1,5 @@
+.ok(): Int =
+    i = !1
+    i
+
+.ok2(x: Int!): Int = x

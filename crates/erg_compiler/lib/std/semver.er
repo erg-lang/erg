@@ -11,7 +11,7 @@
             [name, num] ->
                 num_ = nat(num)
                 assert num_ in Nat
-                .Identifier::__new__ { .name; .num = num_ }
+                .Identifier { .name; .num = num_ }
             _ -> panic "invalid identifier string: \{s}"
     @Override
     __repr__ ref self = "Identifier(\{self.__str__()})"
@@ -24,7 +24,7 @@
             do: "\{self.major}.\{self.minor}.\{self.patch}"
 .SemVer.
     new major, minor, patch, pre := None =
-        .SemVer::__new__ { .major; .minor; .patch; .pre }
+        .SemVer { .major; .minor; .patch; .pre }
     from_str s: Str =
         match s.split("."):
             [major, minor, patch] ->

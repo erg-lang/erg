@@ -1,6 +1,7 @@
 from _erg_result import Error
 from _erg_int import Int
 from _erg_control import then__
+from _erg_type import MutType
 
 class Str(str):
     def __instancecheck__(cls, obj):
@@ -46,7 +47,7 @@ class Str(str):
             return str.__getitem__(self, index_or_slice)
 
 
-class StrMut:  # Inherits Str
+class StrMut(MutType):  # Inherits Str
     value: Str
 
     def __init__(self, s: str):
@@ -62,16 +63,16 @@ class StrMut:  # Inherits Str
         return self.value.__hash__()
 
     def __eq__(self, other):
-        if isinstance(other, Str):
-            return self.value == other
-        else:
+        if isinstance(other, MutType):
             return self.value == other.value
+        else:
+            return self.value == other
 
     def __ne__(self, other):
-        if isinstance(other, Str):
-            return self.value != other
-        else:
+        if isinstance(other, MutType):
             return self.value != other.value
+        else:
+            return self.value != other
 
     def update(self, f):
         self.value = Str(f(self.value))

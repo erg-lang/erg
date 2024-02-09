@@ -1126,7 +1126,15 @@ impl Context {
                     _ => {}
                 }
                 if self.subtype_of(ty, &input_t) {
-                    return Ok(ty.clone());
+                    if let Ok(instance) = self.instantiate(ty.clone(), obj) {
+                        let subst = self
+                            .substitute_call(obj, &None, &instance, pos_args, kw_args, self)
+                            .is_ok();
+                        let eval = self.eval_t_params(instance, self.level, obj).is_ok();
+                        if subst && eval {
+                            return Ok(ty.clone());
+                        }
+                    }
                 }
             }
             let Type::Subr(subr_t) = input_t else {
@@ -1684,10 +1692,11 @@ impl Context {
         instance: &Type,
         pos_args: &[hir::PosArg],
         kw_args: &[hir::KwArg],
+        namespace: &Context,
     ) -> TyCheckResult<SubstituteResult> {
         match instance {
             Type::FreeVar(fv) if fv.is_linked() => {
-                self.substitute_call(obj, attr_name, &fv.crack(), pos_args, kw_args)
+                self.substitute_call(obj, attr_name, &fv.crack(), pos_args, kw_args, namespace)
             }
             Type::FreeVar(fv) => {
                 if let Some(sub) = fv.get_sub() {
@@ -1699,11 +1708,14 @@ impl Context {
                         instance.destructive_coerce();
                         if instance.is_quantified_subr() {
                             let instance = self.instantiate(instance.clone(), obj)?;
-                            self.substitute_call(obj, attr_name, &instance, pos_args, kw_args)?;
+                            self.substitute_call(
+                                obj, attr_name, &instance, pos_args, kw_args, namespace,
+                            )?;
                             return Ok(SubstituteResult::Coerced(instance));
                         } else if get_hash(instance) != hash {
-                            return self
-                                .substitute_call(obj, attr_name, instance, pos_args, kw_args);
+                            return self.substitute_call(
+                                obj, attr_name, instance, pos_args, kw_args, namespace,
+                            );
                         }
                     }
                 }
@@ -1734,7 +1746,7 @@ impl Context {
                 }
             }
             Type::Refinement(refine) => {
-                self.substitute_call(obj, attr_name, &refine.t, pos_args, kw_args)
+                self.substitute_call(obj, attr_name, &refine.t, pos_args, kw_args, namespace)
             }
             // instance must be instantiated
             Type::Quantified(_) => unreachable_error!(TyCheckErrors, TyCheckError, self),
@@ -1932,7 +1944,9 @@ impl Context {
                 }
             }
             Type::Failure => Ok(SubstituteResult::Ok),
-            _ => self.substitute_dunder_call(obj, attr_name, instance, pos_args, kw_args),
+            _ => {
+                self.substitute_dunder_call(obj, attr_name, instance, pos_args, kw_args, namespace)
+            }
         }
     }
 
@@ -1943,6 +1957,7 @@ impl Context {
         instance: &Type,
         pos_args: &[hir::PosArg],
         kw_args: &[hir::KwArg],
+        namespace: &Context,
     ) -> TyCheckResult<SubstituteResult> {
         let ctxs = self
             .get_singular_ctxs_by_hir_expr(obj, self)
@@ -1967,7 +1982,11 @@ impl Context {
                     .map_or(vec![], |ctx| vec![ctx])
             })
             .unwrap_or_default();
-        let three = self.get_nominal_type_ctx(instance).map(|ty| &ty.ctx);
+        let three = self
+            .get_nominal_super_type_ctxs(instance)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|ctx| &ctx.ctx);
         let fallbacks = one.into_iter().chain(two).chain(three);
         for typ_ctx in fallbacks {
             // staticmethod __call__
@@ -1975,8 +1994,16 @@ impl Context {
                 if let Some(call_vi) =
                     typ_ctx.get_current_scope_var(&VarName::from_static("__call__"))
                 {
+                    if call_vi.vis.is_private() {
+                        self.validate_visibility(
+                            &Identifier::private_with_loc("__call__".into(), obj.loc()),
+                            call_vi,
+                            &self.cfg.input,
+                            namespace,
+                        )?;
+                    }
                     let instance = self.instantiate_def_type(&call_vi.t)?;
-                    self.substitute_call(obj, attr_name, &instance, pos_args, kw_args)?;
+                    self.substitute_call(obj, attr_name, &instance, pos_args, kw_args, namespace)?;
                     return Ok(SubstituteResult::__Call__(instance));
                 }
             // instance method __call__
@@ -1987,7 +2014,7 @@ impl Context {
                 })
             {
                 let instance = self.instantiate_def_type(&call_vi.t)?;
-                self.substitute_call(obj, attr_name, &instance, pos_args, kw_args)?;
+                self.substitute_call(obj, attr_name, &instance, pos_args, kw_args, namespace)?;
                 return Ok(SubstituteResult::__Call__(instance));
             }
         }
@@ -2352,7 +2379,7 @@ impl Context {
             fmt_slice(kw_args)
         );
         let instance = match self
-            .substitute_call(obj, attr_name, &instance, pos_args, kw_args)
+            .substitute_call(obj, attr_name, &instance, pos_args, kw_args, namespace)
             .map_err(|errs| {
                 (
                     Some(VarInfo {

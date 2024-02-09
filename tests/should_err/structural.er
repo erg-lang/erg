@@ -4,7 +4,7 @@ C = Class()
 D = Class { .name = Int; .id = Nat }
 D.
     __add__ self, _ = 1
-    new name, id = D::__new__ { .name = name; .id = id }
+    new name, id = D { .name = name; .id = id }
 
 c = C.new()
 d = D.new 1, 2
@@ -17,8 +17,8 @@ inner|T: Type| x: Structural { .inner = T } = x.inner
 
 E = Class { .inner = Int }
 E.
-    new inner = E::__new__ { .inner = inner }
-    __add__ self, other: E = E::__new__ { .inner = self.inner + other.inner }
+    new inner = E { .inner = inner }
+    __add__ self, other: E = E { .inner = self.inner + other.inner }
 
 e = E.new 1
 

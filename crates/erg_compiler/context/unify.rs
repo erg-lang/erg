@@ -1529,7 +1529,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             ) => {
                 self.nominal_sub_unify(maybe_sub, maybe_sup, sup_params)?;
             }
-            (Subr(_), Mono(name)) if &name[..] == "GenericCallable" => {}
+            (Subr(_), Mono(name)) if &name[..] == "Subroutine" => {}
             _ => {
                 return type_feature_error!(
                     self.ctx,

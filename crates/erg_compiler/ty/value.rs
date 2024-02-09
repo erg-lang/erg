@@ -1023,6 +1023,18 @@ impl ValueObj {
         }
     }
 
+    pub const fn is_container(&self) -> bool {
+        matches!(
+            self,
+            Self::Array(_)
+                | Self::UnsizedArray(_)
+                | Self::Set(_)
+                | Self::Dict(_)
+                | Self::Tuple(_)
+                | Self::Record(_)
+        )
+    }
+
     pub fn from_str(t: Type, mut content: Str) -> Option<Self> {
         match t {
             Type::Int => content.replace('_', "").parse::<i32>().ok().map(Self::Int),

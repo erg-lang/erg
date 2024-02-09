@@ -69,7 +69,7 @@
 .all: |T <: Num|(object: .NDArray(T),) -> Bool
 .any: |T <: Num|(object: .NDArray(T),) -> Bool
 .arange: |T <: Num|(start: T, stop := T, step := T) -> .NDArray(T)
-.array: |T, S: [Nat; _]|(object: Iterable(T) and HasShape(S),) -> .NDArray(T, S)
+.array: |T, S: [Nat; _]|(object: HasScalarType(T) and HasShape(S),) -> .NDArray(T, S)
 .linspace: |T <: Num|(start: T, stop: T, num := Nat, endpoint := Bool, retstep := Bool, dtype := Type, axis := Nat) -> .NDArray(T)
 .max: |T <: Num|(object: .NDArray(T),) -> T
 .mean: |T <: Num|(object: .NDArray(T),) -> T

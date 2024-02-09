@@ -191,6 +191,13 @@ impl Context {
         // __eq__: |Self <: Eq| (self: Self, other: Self) -> Bool
         let op_t = fn1_met(Slf.clone(), Slf, Bool).quantify();
         eq.register_builtin_erg_decl(OP_EQ, op_t, Visibility::BUILTIN_PUBLIC);
+        /* IrregularEq */
+        let mut irregular_eq = Self::builtin_mono_trait(IRREGULAR_EQ, 2);
+        let Slf = mono_q(SELF, subtypeof(mono(IRREGULAR_EQ)));
+        // __eq__: |Self <: Eq| (self: Self, other: Self) -> Self.Output
+        let op_t = fn1_met(Slf.clone(), Slf.clone(), Slf.proj(OUTPUT)).quantify();
+        irregular_eq.register_builtin_erg_decl(OP_EQ, op_t, Visibility::BUILTIN_PUBLIC);
+        irregular_eq.register_builtin_erg_decl(OUTPUT, Type, Visibility::BUILTIN_PUBLIC);
         /* Hash */
         let mut hash = Self::builtin_mono_trait(HASH, 2);
         let Slf = mono_q(SELF, subtypeof(mono(HASH)));
@@ -356,10 +363,27 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNDAMENTAL_EXIT),
         );
+        let mut g_callable = Self::builtin_mono_trait(GENERIC_CALLABLE, 1);
+        g_callable.register_builtin_erg_decl(
+            FUNDAMENTAL_CALL,
+            func(
+                vec![pos(mono(GENERIC_CALLABLE))],
+                Some(pos(Obj)),
+                vec![],
+                Some(pos(Obj)),
+                Obj,
+            ),
+            Visibility::BUILTIN_PUBLIC,
+        );
         /* HasShape */
         let S = mono_q_tp(TY_S, instanceof(unknown_len_array_t(Nat)));
         let params = vec![PS::named_nd("S", unknown_len_array_t(Nat))];
         let has_shape = Self::builtin_poly_trait(HAS_SHAPE, params.clone(), 2);
+        /* HasScalarType */
+        let Ty = mono_q_tp(TY_T, instanceof(Type));
+        let params = vec![PS::t(TY_T, false, WithDefault)];
+        let mut has_scalar_type = Self::builtin_poly_trait(HAS_SCALAR_TYPE, params.clone(), 2);
+        has_scalar_type.register_superclass(poly(OUTPUT, vec![Ty.clone()]), &output);
         /* Num */
         let R = mono_q(TY_R, instanceof(Type));
         let params = vec![PS::t(TY_R, false, WithDefault)];
@@ -476,6 +500,7 @@ impl Context {
             None,
         );
         self.register_builtin_type(mono(EQ), eq, vis.clone(), Const, None);
+        self.register_builtin_type(mono(IRREGULAR_EQ), irregular_eq, vis.clone(), Const, None);
         self.register_builtin_type(mono(HASH), hash, vis.clone(), Const, None);
         self.register_builtin_type(mono(EQ_HASH), eq_hash, vis.clone(), Const, None);
         self.register_builtin_type(mono(PARTIAL_ORD), partial_ord, vis.clone(), Const, None);
@@ -552,8 +577,22 @@ impl Context {
             None,
         );
         self.register_builtin_type(
+            mono(GENERIC_CALLABLE),
+            g_callable,
+            vis.clone(),
+            Const,
+            Some(CALLABLE),
+        );
+        self.register_builtin_type(
             poly(HAS_SHAPE, vec![S]),
             has_shape,
+            vis.clone(),
+            Const,
+            None,
+        );
+        self.register_builtin_type(
+            poly(HAS_SCALAR_TYPE, vec![Ty]),
+            has_scalar_type,
             vis.clone(),
             Const,
             None,

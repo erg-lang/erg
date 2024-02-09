@@ -507,13 +507,15 @@ impl Context {
                 self.instantiate_mono_t(simple, opt_decl_t, tmp_tv_cache, not_found_is_qvar)
             }
             ast::PreDeclTypeSpec::Poly(poly) => match &poly.acc {
-                ast::ConstAccessor::Local(local) => self.instantiate_local_poly_t(
-                    local,
-                    &poly.args,
-                    opt_decl_t,
-                    tmp_tv_cache,
-                    not_found_is_qvar,
-                ),
+                ast::ConstAccessor::Local(local) => self
+                    .instantiate_local_poly_t(
+                        local,
+                        &poly.args,
+                        opt_decl_t,
+                        tmp_tv_cache,
+                        not_found_is_qvar,
+                    )
+                    .map_err(|(_, err)| err),
                 ast::ConstAccessor::Attr(attr) => {
                     let ctxs = self.get_singular_ctxs(&attr.obj.clone().downgrade(), self)?;
                     for ctx in ctxs {
@@ -619,13 +621,6 @@ impl Context {
                     self.inc_ref(ident.inspect(), vi, ident, self);
                     return Ok(*t);
                 }
-                if let Some(outer) = &self.outer {
-                    if let Ok(t) =
-                        outer.instantiate_mono_t(ident, opt_decl_t, tmp_tv_cache, not_found_is_qvar)
-                    {
-                        return Ok(t);
-                    }
-                }
                 if let Some(typ) = self
                     .consts
                     .get(ident.inspect())
@@ -634,8 +629,16 @@ impl Context {
                     if let Some((_, vi)) = self.get_var_info(ident.inspect()) {
                         self.inc_ref(ident.inspect(), vi, ident, self);
                     }
-                    Ok(typ)
-                } else if let Some(ctx) = self.get_type_ctx(ident.inspect()) {
+                    return Ok(typ);
+                }
+                if let Some(outer) = &self.outer {
+                    if let Ok(t) =
+                        outer.instantiate_mono_t(ident, opt_decl_t, tmp_tv_cache, not_found_is_qvar)
+                    {
+                        return Ok(t);
+                    }
+                }
+                if let Some(ctx) = self.get_type_ctx(ident.inspect()) {
                     if let Some((_, vi)) = self.get_var_info(ident.inspect()) {
                         self.inc_ref(ident.inspect(), vi, ident, self);
                     }
@@ -667,7 +670,7 @@ impl Context {
         opt_decl_t: Option<&ParamTy>,
         tmp_tv_cache: &mut TyVarCache,
         not_found_is_qvar: bool,
-    ) -> TyCheckResult<Type> {
+    ) -> Failable<Type> {
         match name.inspect().trim_start_matches([':', '.']) {
             "Array" => {
                 let ctx = &self
@@ -677,19 +680,22 @@ impl Context {
                 // TODO: kw
                 let mut pos_args = args.pos_args();
                 if let Some(first) = pos_args.next() {
-                    let t = self.instantiate_const_expr_as_type(
-                        &first.expr,
-                        Some((ctx, 0)),
-                        tmp_tv_cache,
-                        not_found_is_qvar,
-                    )?;
+                    let t = self
+                        .instantiate_const_expr_as_type(
+                            &first.expr,
+                            Some((ctx, 0)),
+                            tmp_tv_cache,
+                            not_found_is_qvar,
+                        )
+                        .map_err(|err| (Type::Failure, err))?;
                     let len = if let Some(len) = pos_args.next() {
                         self.instantiate_const_expr(
                             &len.expr,
                             Some((ctx, 1)),
                             tmp_tv_cache,
                             not_found_is_qvar,
-                        )?
+                        )
+                        .map_err(|err| (Type::Failure, err))?
                     } else {
                         TyParam::erased(Nat)
                     };
@@ -701,138 +707,169 @@ impl Context {
             "Ref" => {
                 let mut pos_args = args.pos_args();
                 let Some(first) = pos_args.next() else {
-                    return Err(TyCheckErrors::from(TyCheckError::args_missing_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        args.loc(),
-                        "Ref",
-                        self.caused_by(),
-                        vec![Str::from("T")],
-                    )));
+                    return Err((
+                        Failure,
+                        TyCheckErrors::from(TyCheckError::args_missing_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            args.loc(),
+                            "Ref",
+                            self.caused_by(),
+                            vec![Str::from("T")],
+                        )),
+                    ));
                 };
-                let t = self.instantiate_const_expr_as_type(
-                    &first.expr,
-                    None,
-                    tmp_tv_cache,
-                    not_found_is_qvar,
-                )?;
+                let t = self
+                    .instantiate_const_expr_as_type(
+                        &first.expr,
+                        None,
+                        tmp_tv_cache,
+                        not_found_is_qvar,
+                    )
+                    .map_err(|err| (Type::Failure, err))?;
                 Ok(ref_(t))
             }
             "RefMut" => {
                 // TODO after
                 let mut pos_args = args.pos_args();
                 let Some(first) = pos_args.next() else {
-                    return Err(TyCheckErrors::from(TyCheckError::args_missing_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        args.loc(),
-                        "RefMut",
-                        self.caused_by(),
-                        vec![Str::from("T")],
-                    )));
+                    return Err((
+                        Failure,
+                        TyCheckErrors::from(TyCheckError::args_missing_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            args.loc(),
+                            "RefMut",
+                            self.caused_by(),
+                            vec![Str::from("T")],
+                        )),
+                    ));
                 };
-                let t = self.instantiate_const_expr_as_type(
-                    &first.expr,
-                    None,
-                    tmp_tv_cache,
-                    not_found_is_qvar,
-                )?;
+                let t = self
+                    .instantiate_const_expr_as_type(
+                        &first.expr,
+                        None,
+                        tmp_tv_cache,
+                        not_found_is_qvar,
+                    )
+                    .map_err(|err| (Type::Failure, err))?;
                 Ok(ref_mut(t, None))
             }
             "Structural" => {
                 let mut pos_args = args.pos_args();
                 let Some(first) = pos_args.next() else {
-                    return Err(TyCheckErrors::from(TyCheckError::args_missing_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        args.loc(),
-                        "Structural",
-                        self.caused_by(),
-                        vec![Str::from("Type")],
-                    )));
+                    return Err((
+                        Failure,
+                        TyCheckErrors::from(TyCheckError::args_missing_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            args.loc(),
+                            "Structural",
+                            self.caused_by(),
+                            vec![Str::from("Type")],
+                        )),
+                    ));
                 };
-                let t = self.instantiate_const_expr_as_type(
-                    &first.expr,
-                    None,
-                    tmp_tv_cache,
-                    not_found_is_qvar,
-                )?;
+                let t = self
+                    .instantiate_const_expr_as_type(
+                        &first.expr,
+                        None,
+                        tmp_tv_cache,
+                        not_found_is_qvar,
+                    )
+                    .map_err(|err| (Type::Failure, err))?;
                 Ok(t.structuralize())
             }
             "NamedTuple" => {
                 let mut pose_args = args.pos_args();
                 let Some(first) = pose_args.next() else {
-                    return Err(TyCheckErrors::from(TyCheckError::args_missing_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        args.loc(),
-                        "NamedTuple",
-                        self.caused_by(),
-                        vec![Str::from("Fields")],
-                    )));
+                    return Err((
+                        Failure,
+                        TyCheckErrors::from(TyCheckError::args_missing_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            args.loc(),
+                            "NamedTuple",
+                            self.caused_by(),
+                            vec![Str::from("Fields")],
+                        )),
+                    ));
                 };
                 let ConstExpr::Record(fields) = &first.expr else {
-                    return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        first.expr.loc(),
-                        self.caused_by(),
-                        "NamedTuple",
-                        None,
-                        &mono("Record"),
-                        &self.instantiate_const_expr_as_type(
-                            &first.expr,
+                    return Err((
+                        Failure,
+                        TyCheckErrors::from(TyCheckError::type_mismatch_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            first.expr.loc(),
+                            self.caused_by(),
+                            "NamedTuple",
                             None,
-                            tmp_tv_cache,
-                            not_found_is_qvar,
-                        )?,
-                        None,
-                        None,
-                    )));
+                            &mono("Record"),
+                            &self
+                                .instantiate_const_expr_as_type(
+                                    &first.expr,
+                                    None,
+                                    tmp_tv_cache,
+                                    not_found_is_qvar,
+                                )
+                                .map_err(|err| (Type::Failure, err))?,
+                            None,
+                            None,
+                        )),
+                    ));
                 };
                 let mut ts = vec![];
                 for def in fields.attrs.iter() {
-                    let t = self.instantiate_const_expr_as_type(
-                        &def.body.block[0],
-                        None,
-                        tmp_tv_cache,
-                        not_found_is_qvar,
-                    )?;
-                    let vis = self.instantiate_vis_modifier(&def.ident.vis)?;
+                    let t = self
+                        .instantiate_const_expr_as_type(
+                            &def.body.block[0],
+                            None,
+                            tmp_tv_cache,
+                            not_found_is_qvar,
+                        )
+                        .map_err(|err| (Type::Failure, err))?;
+                    let vis = self
+                        .instantiate_vis_modifier(&def.ident.vis)
+                        .map_err(|err| (Type::Failure, err))?;
                     ts.push((Field::new(vis, def.ident.inspect().clone()), t));
                 }
                 Ok(Type::NamedTuple(ts))
             }
             other => {
-                if let Some(outer) = &self.outer {
-                    if let Ok(t) = outer.instantiate_local_poly_t(
-                        name,
-                        args,
-                        opt_decl_t,
-                        tmp_tv_cache,
-                        not_found_is_qvar,
-                    ) {
-                        return Ok(t);
-                    }
-                }
                 let Some(ctx) = self.get_type_ctx(other).or_else(|| {
                     self.consts
                         .get(other)
                         .and_then(|v| self.convert_value_into_type(v.clone()).ok())
                         .and_then(|typ| self.get_nominal_type_ctx(&typ))
                 }) else {
+                    if let Some(outer) = &self.outer {
+                        if let Ok(t) = outer.instantiate_local_poly_t(
+                            name,
+                            args,
+                            opt_decl_t,
+                            tmp_tv_cache,
+                            not_found_is_qvar,
+                        ) {
+                            return Ok(t);
+                        }
+                    }
                     if let Some(decl_t) = opt_decl_t {
                         return Ok(decl_t.typ().clone());
                     }
-                    return Err(TyCheckErrors::from(TyCheckError::no_type_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        name.loc(),
-                        self.caused_by(),
-                        other,
-                        self.get_similar_name(other),
-                    )));
+                    return Err((
+                        Failure,
+                        TyCheckErrors::from(TyCheckError::no_type_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            name.loc(),
+                            self.caused_by(),
+                            other,
+                            self.get_similar_name(other),
+                        )),
+                    ));
                 };
+                let mut errs = TyCheckErrors::empty();
                 // FIXME: kw args
                 let mut new_params = vec![];
                 for ((i, arg), (name, param_vi)) in
@@ -844,23 +881,25 @@ impl Context {
                         tmp_tv_cache,
                         not_found_is_qvar,
                     );
-                    let param = param.or_else(|e| {
-                        if not_found_is_qvar {
-                            let name = arg.expr.to_string();
-                            // FIXME: handle `::` as a right way
-                            let name = Str::rc(name.trim_start_matches("::"));
-                            let tp = TyParam::named_free_var(
-                                name.clone(),
-                                self.level,
-                                Constraint::Uninited,
-                            );
-                            let varname = VarName::from_str(name);
-                            tmp_tv_cache.push_or_init_typaram(&varname, &tp, self)?;
-                            Ok(tp)
-                        } else {
-                            Err(e)
-                        }
-                    })?;
+                    let param = param
+                        .or_else(|e| {
+                            if not_found_is_qvar {
+                                let name = arg.expr.to_string();
+                                // FIXME: handle `::` as a right way
+                                let name = Str::rc(name.trim_start_matches("::"));
+                                let tp = TyParam::named_free_var(
+                                    name.clone(),
+                                    self.level,
+                                    Constraint::Uninited,
+                                );
+                                let varname = VarName::from_str(name);
+                                tmp_tv_cache.push_or_init_typaram(&varname, &tp, self)?;
+                                Ok(tp)
+                            } else {
+                                Err(e)
+                            }
+                        })
+                        .map_err(|err| (Type::Failure, err))?;
                     let arg_t = self
                         .get_tp_t(&param)
                         .map_err(|err| {
@@ -871,7 +910,8 @@ impl Context {
                     if self.subtype_of(&arg_t, &param_vi.t) {
                         new_params.push(param);
                     } else {
-                        return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
+                        new_params.push(TyParam::erased(param_vi.t.clone()));
+                        errs.push(TyCheckError::type_mismatch_error(
                             self.cfg.input.clone(),
                             line!() as usize,
                             arg.expr.loc(),
@@ -882,11 +922,16 @@ impl Context {
                             &arg_t,
                             None,
                             None,
-                        )));
+                        ));
                     }
                 }
                 // FIXME: non-builtin
-                Ok(poly(ctx.typ.qual_name(), new_params))
+                let t = poly(ctx.typ.qual_name(), new_params);
+                if errs.is_empty() {
+                    Ok(t)
+                } else {
+                    Err((t, errs))
+                }
             }
         }
     }

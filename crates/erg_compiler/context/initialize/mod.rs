@@ -100,7 +100,9 @@ const INDEXABLE: &str = "Indexable";
 const MAPPING: &str = "Mapping";
 const MUTABLE_MAPPING: &str = "Mapping!";
 const HAS_SHAPE: &str = "HasShape";
+const HAS_SCALAR_TYPE: &str = "HasScalarType";
 const EQ: &str = "Eq";
+const IRREGULAR_EQ: &str = "IrregularEq";
 const HASH: &str = "Hash";
 const EQ_HASH: &str = "EqHash";
 const PARTIAL_ORD: &str = "PartialOrd";
@@ -277,6 +279,7 @@ const SYMMETRIC_DIFFERENCE: &str = "symmetric_difference";
 const MEMORYVIEW: &str = "MemoryView";
 const FUNC_UNION: &str = "union";
 const FUNC_SHAPE: &str = "shape";
+const FUNC_SCALAR_TYPE: &str = "scalar_type";
 const FUNC_AS_DICT: &str = "as_dict";
 const FUNC_AS_RECORD: &str = "as_record";
 const FUNC_INC: &str = "inc";
@@ -292,8 +295,11 @@ const FUNC_EXTEND: &str = "extend";
 const PROC_EXTEND: &str = "extend!";
 const FUNC_INSERT: &str = "insert";
 const PROC_INSERT: &str = "insert!";
+const FUNC_INSERT_AT: &str = "insert_at";
 const FUNC_REMOVE: &str = "remove";
 const PROC_REMOVE: &str = "remove!";
+const FUNC_REMOVE_AT: &str = "remove_at";
+const FUNC_REMOVE_ALL: &str = "remove_all";
 const FUNC_POP: &str = "pop";
 const PROC_POP: &str = "pop!";
 const FUNC_COPY: &str = "copy";
@@ -310,6 +316,7 @@ const FUNC_INVERT: &str = "invert";
 const PROC_INVERT: &str = "invert!";
 const RANGE: &str = "Range";
 const GENERIC_CALLABLE: &str = "GenericCallable";
+const SUBROUTINE: &str = "Subroutine";
 const GENERIC_GENERATOR: &str = "GenericGenerator";
 const FUNC_RETURN: &str = "return";
 const FUNC_YIELD: &str = "yield";
@@ -748,6 +755,17 @@ impl Context {
         t: Option<Type>,
         obj: ValueObj,
     ) {
+        self._register_builtin_const(name, vis, t, obj, None)
+    }
+
+    fn _register_builtin_const(
+        &mut self,
+        name: &str,
+        vis: Visibility,
+        t: Option<Type>,
+        obj: ValueObj,
+        py_name: Option<Str>,
+    ) {
         if self.rec_get_const_obj(name).is_some() {
             panic!("already registered: {} {name}", self.name);
         } else {
@@ -771,7 +789,7 @@ impl Context {
                 Builtin,
                 None,
                 self.kind.clone(),
-                None,
+                py_name,
                 AbsLocation::unknown(),
             );
             self.consts.insert(VarName::from_str(Str::rc(name)), obj);

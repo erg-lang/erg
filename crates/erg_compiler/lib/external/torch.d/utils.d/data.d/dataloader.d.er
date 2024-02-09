@@ -3,7 +3,7 @@ dataset = pyimport "./dataset"
 {Sampler;} = pyimport "./sampler"
 
 .DataLoader: ClassType
-.DataLoader <: Iterable((torch.Tensor(_, _), torch.Tensor(_, _)))
+.DataLoader <: Iterable((torch.Tensor!(_, _), torch.Tensor!(_, _)))
 .DataLoader.
     __call__: (
         dataset: dataset.Dataset,

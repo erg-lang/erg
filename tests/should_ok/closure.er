@@ -25,7 +25,7 @@ for! [1], _ =>
 
 Versions! = Class Dict! { Str: Array!(SemVer) }
 Versions!.
-    new() = Versions!::__new__ !{:}
+    new() = Versions! !{:}
     insert!(ref! self, name: Str, version: SemVer) =
         if! self::base.get(name) == None:
             do!:

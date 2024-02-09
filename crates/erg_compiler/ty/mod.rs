@@ -205,9 +205,23 @@ impl ParamTy {
         }
     }
 
+    pub const fn default_typ(&self) -> Option<&Type> {
+        match self {
+            Self::Pos(_) | Self::Kw { .. } => None,
+            Self::KwWithDefault { default, .. } => Some(default),
+        }
+    }
+
     pub fn typ_mut(&mut self) -> &mut Type {
         match self {
             Self::Pos(ty) | Self::Kw { ty, .. } | Self::KwWithDefault { ty, .. } => ty,
+        }
+    }
+
+    pub fn default_typ_mut(&mut self) -> Option<&mut Type> {
+        match self {
+            Self::Pos(_) | Self::Kw { .. } => None,
+            Self::KwWithDefault { default, .. } => Some(default),
         }
     }
 
@@ -326,8 +340,15 @@ impl LimitedDisplay for SubrType {
             if i > 0 || !self.non_default_params.is_empty() || self.var_params.is_some() {
                 write!(f, ", ")?;
             }
-            write!(f, "{} := ", pt.name().unwrap())?;
-            pt.typ().limited_fmt(f, limit - 1)?;
+            if let Some(default) = pt.default_typ() {
+                write!(f, "{}: ", pt.name().unwrap_or(&Str::ever("_")))?;
+                pt.typ().limited_fmt(f, limit - 1)?;
+                write!(f, " := ")?;
+                default.limited_fmt(f, limit - 1)?;
+            } else {
+                write!(f, "{} := ", pt.name().unwrap_or(&Str::ever("_")))?;
+                pt.typ().limited_fmt(f, limit - 1)?;
+            }
         }
         if let Some(kw_var_params) = &self.kw_var_params {
             if !self.non_default_params.is_empty()
@@ -337,10 +358,15 @@ impl LimitedDisplay for SubrType {
                 write!(f, ", ")?;
             }
             write!(f, "**")?;
-            if let Some(name) = kw_var_params.name() {
-                write!(f, "{}: ", name)?;
+            if let Some(default) = kw_var_params.default_typ() {
+                write!(f, "{}: ", kw_var_params.name().unwrap_or(&Str::ever("_")))?;
+                kw_var_params.typ().limited_fmt(f, limit - 1)?;
+                write!(f, " := ")?;
+                default.limited_fmt(f, limit - 1)?;
+            } else {
+                write!(f, "{} := ", kw_var_params.name().unwrap_or(&Str::ever("_")))?;
+                kw_var_params.typ().limited_fmt(f, limit - 1)?;
             }
-            kw_var_params.typ().limited_fmt(f, limit - 1)?;
         }
         write!(f, ") {} ", self.kind.arrow())?;
         self.return_t.limited_fmt(f, limit - 1)
@@ -618,6 +644,35 @@ impl SubrType {
 
     pub fn is_no_var(&self) -> bool {
         self.var_params.is_none() && self.kw_var_params.is_none()
+    }
+
+    pub fn derefine(&self) -> Self {
+        let non_default_params = self
+            .non_default_params
+            .iter()
+            .map(|pt| pt.clone().map_type(|t| t.derefine()))
+            .collect();
+        let var_params = self
+            .var_params
+            .as_ref()
+            .map(|pt| pt.clone().map_type(|t| t.derefine()));
+        let default_params = self
+            .default_params
+            .iter()
+            .map(|pt| pt.clone().map_type(|t| t.derefine()))
+            .collect();
+        let kw_var_params = self
+            .kw_var_params
+            .as_ref()
+            .map(|pt| pt.clone().map_type(|t| t.derefine()));
+        Self::new(
+            self.kind,
+            non_default_params,
+            var_params,
+            default_params,
+            kw_var_params,
+            self.return_t.derefine(),
+        )
     }
 }
 
@@ -3399,6 +3454,16 @@ impl Type {
                 sub: Box::new(sub.derefine()),
                 sup: Box::new(sup.derefine()),
             },
+            Self::Callable { param_ts, return_t } => {
+                let param_ts = param_ts.iter().map(|t| t.derefine()).collect();
+                let return_t = return_t.derefine();
+                Self::Callable {
+                    param_ts,
+                    return_t: Box::new(return_t),
+                }
+            }
+            Self::Subr(subr) => Self::Subr(subr.derefine()),
+            Self::Quantified(quant) => quant.derefine().quantify(),
             other => other.clone(),
         }
     }

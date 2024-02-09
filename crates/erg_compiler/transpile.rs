@@ -421,6 +421,7 @@ impl PyScriptGenerator {
             .replace("from _erg_type import is_type", "")
             .replace("from _erg_type import _isinstance", "")
             .replace("from _erg_type import UnionType", "")
+            .replace("from _erg_type import MutType", "")
     }
 
     fn load_namedtuple_if_not(&mut self) {

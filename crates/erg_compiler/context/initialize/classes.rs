@@ -1660,6 +1660,64 @@ impl Context {
             None,
             get_item,
         );
+        let array_insert_t = no_var_fn_met(
+            array_t(T.clone(), N.clone()),
+            vec![pos(Nat), kw(KW_ELEM, T.clone())],
+            vec![],
+            array_t(T.clone(), N.clone() + value(1usize)),
+        )
+        .quantify();
+        let array_insert = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_INSERT,
+            array_insert_at,
+            array_insert_t.clone(),
+            None,
+        )));
+        array_._register_builtin_const(
+            FUNC_INSERT,
+            Visibility::BUILTIN_PUBLIC,
+            Some(array_insert_t),
+            array_insert,
+            Some(FUNC_INSERT_AT.into()),
+        );
+        let array_remove_at_t = no_var_fn_met(
+            array_t(T.clone(), N.clone()),
+            vec![pos(Nat)],
+            vec![],
+            array_t(T.clone(), N.clone() - value(1usize)),
+        )
+        .quantify();
+        let array_remove_at = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_REMOVE_AT,
+            array_remove_at,
+            array_remove_at_t.clone(),
+            None,
+        )));
+        array_.register_builtin_const(
+            FUNC_REMOVE_AT,
+            Visibility::BUILTIN_PUBLIC,
+            Some(array_remove_at_t),
+            array_remove_at,
+        );
+        let array_remove_all_t = no_var_fn_met(
+            array_t(T.clone(), N.clone()),
+            vec![kw(KW_ELEM, T.clone())],
+            vec![],
+            array_t(T.clone(), TyParam::erased(Nat)),
+        )
+        .quantify();
+        let array_remove_all = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_REMOVE_ALL,
+            array_remove_all,
+            array_remove_all_t.clone(),
+            None,
+        )));
+        array_.register_builtin_const(
+            FUNC_REMOVE_ALL,
+            Visibility::BUILTIN_PUBLIC,
+            Some(array_remove_all_t),
+            array_remove_all,
+        );
         array_
             .register_marker_trait(self, poly(INDEXABLE, vec![ty_tp(input), ty_tp(T.clone())]))
             .unwrap();
@@ -1669,6 +1727,15 @@ impl Context {
                 poly(
                     HAS_SHAPE,
                     vec![ty_tp(arr_t.clone()).proj_call(FUNC_SHAPE.into(), vec![])],
+                ),
+            )
+            .unwrap();
+        array_
+            .register_marker_trait(
+                self,
+                poly(
+                    HAS_SCALAR_TYPE,
+                    vec![ty_tp(arr_t.clone()).proj_call(FUNC_SCALAR_TYPE.into(), vec![])],
                 ),
             )
             .unwrap();
@@ -1702,6 +1769,19 @@ impl Context {
             None,
         )));
         array_.register_builtin_const(FUNC_SHAPE, Visibility::BUILTIN_PUBLIC, None, shape);
+        let array_scalar_type_t = fn0_met(Type, Type).quantify();
+        let array_scalar_type = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_SCALAR_TYPE,
+            array_scalar_type,
+            array_scalar_type_t,
+            None,
+        )));
+        array_.register_builtin_const(
+            FUNC_SCALAR_TYPE,
+            Visibility::BUILTIN_PUBLIC,
+            None,
+            array_scalar_type,
+        );
         let mut array_eq = Self::builtin_methods(Some(mono(EQ)), 2);
         array_eq.register_builtin_erg_impl(
             OP_EQ,
@@ -2526,6 +2606,34 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_UPDATE),
         );
+        let t = pr_met(
+            ref_mut(mono(MUT_FLOAT), None),
+            vec![kw(KW_VALUE, Float)],
+            None,
+            vec![],
+            NoneType,
+        );
+        float_mut_mutable.register_builtin_py_impl(
+            PROC_INC,
+            t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_INC),
+        );
+        let t = pr_met(
+            ref_mut(mono(MUT_FLOAT), None),
+            vec![kw(KW_VALUE, Float)],
+            None,
+            vec![],
+            NoneType,
+        );
+        float_mut_mutable.register_builtin_py_impl(
+            PROC_DEC,
+            t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_DEC),
+        );
         float_mut.register_trait(mono(MUT_FLOAT), float_mut_mutable);
         /* Ratio! */
         let mut ratio_mut = Self::builtin_mono_class(MUT_RATIO, 2);
@@ -3183,17 +3291,17 @@ impl Context {
             None,
             get_item,
         );
-        let mut g_callable = Self::builtin_mono_class(GENERIC_CALLABLE, 2);
-        g_callable.register_superclass(Obj, &obj);
-        let t_return = fn1_met(mono(GENERIC_CALLABLE), Obj, Never).quantify();
-        g_callable.register_builtin_erg_impl(
+        let mut subr = Self::builtin_mono_class(SUBROUTINE, 2);
+        subr.register_superclass(Obj, &obj);
+        let t_return = fn1_met(mono(SUBROUTINE), Obj, Never).quantify();
+        subr.register_builtin_erg_impl(
             FUNC_RETURN,
             t_return,
             Immutable,
             Visibility::BUILTIN_PRIVATE,
         );
         let mut g_generator = Self::builtin_mono_class(GENERIC_GENERATOR, 2);
-        g_generator.register_superclass(mono(GENERIC_CALLABLE), &g_callable);
+        g_generator.register_superclass(mono(SUBROUTINE), &subr);
         let t_yield = fn1_met(mono(GENERIC_GENERATOR), Obj, Never).quantify();
         g_generator.register_builtin_erg_impl(
             FUNC_YIELD,
@@ -3203,7 +3311,7 @@ impl Context {
         );
         /* Proc */
         let mut proc = Self::builtin_mono_class(PROC, 2);
-        proc.register_superclass(mono(GENERIC_CALLABLE), &g_callable);
+        proc.register_superclass(mono(SUBROUTINE), &subr);
         let mut named_proc = Self::builtin_mono_class(NAMED_PROC, 2);
         named_proc.register_superclass(mono(PROC), &proc);
         named_proc.register_marker_trait(self, mono(NAMED)).unwrap();
@@ -3433,13 +3541,7 @@ impl Context {
         );
         self.register_builtin_type(dict_mut_t, dict_mut, vis.clone(), Const, Some(DICT));
         self.register_builtin_type(set_mut_t, set_mut_, vis.clone(), Const, Some(SET));
-        self.register_builtin_type(
-            mono(GENERIC_CALLABLE),
-            g_callable,
-            vis.clone(),
-            Const,
-            Some(CALLABLE),
-        );
+        self.register_builtin_type(mono(SUBROUTINE), subr, vis.clone(), Const, Some(SUBROUTINE));
         self.register_builtin_type(
             mono(GENERIC_GENERATOR),
             g_generator,

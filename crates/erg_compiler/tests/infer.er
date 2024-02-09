@@ -29,4 +29,4 @@ f! t =
 c_new x, y = C.new x, y
 C = Class Int
 C.
-    new x, y = Self::__new__ x + y
+    new x, y = Self x + y
