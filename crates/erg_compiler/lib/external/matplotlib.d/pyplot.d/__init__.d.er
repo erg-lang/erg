@@ -6,9 +6,12 @@ legend = pyimport "../legend"
 .style = pyimport "../style"
 figure = pyimport "../figure"
 axes = pyimport "../axes"
+image = pyimport "../image"
 
 .plot!: (*args: Obj, scaleX := Bool, scaleY := Bool) => [Obj; _]
+.imshow!: (X: Obj, cmap := Str, interpolation := Str) => image.AxesImage!
 .show!: () => NoneType
+.text!: (x: Float, y: Float, s: Str, fontdict := {Str: Obj}, fontsize := Nat) => text.Text
 .title!: (title: Str) => text.Text
 .xlabel!: (label: Str) => text.Text
 .ylabel!: (label: Str) => text.Text

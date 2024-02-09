@@ -1126,7 +1126,15 @@ impl Context {
                     _ => {}
                 }
                 if self.subtype_of(ty, &input_t) {
-                    return Ok(ty.clone());
+                    if let Ok(instance) = self.instantiate(ty.clone(), obj) {
+                        let subst = self
+                            .substitute_call(obj, &None, &instance, pos_args, kw_args, self)
+                            .is_ok();
+                        let eval = self.eval_t_params(instance, self.level, obj).is_ok();
+                        if subst && eval {
+                            return Ok(ty.clone());
+                        }
+                    }
                 }
             }
             let Type::Subr(subr_t) = input_t else {

@@ -1,0 +1,4 @@
+_ImageBase: ClassType
+
+.AxesImage!: ClassType
+.AxesImage! <: _ImageBase
