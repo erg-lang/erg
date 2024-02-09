@@ -1,3 +1,5 @@
+# HACK: import MutType to suppress segfault in CPython 3.10 (cause unknown)
+from _erg_type import MutType as _MutType
 from _erg_range import (
     Range,
     LeftOpenRange,

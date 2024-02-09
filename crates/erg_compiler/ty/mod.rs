@@ -340,11 +340,14 @@ impl LimitedDisplay for SubrType {
             if i > 0 || !self.non_default_params.is_empty() || self.var_params.is_some() {
                 write!(f, ", ")?;
             }
-            write!(f, "{}: ", pt.name().unwrap_or(&Str::ever("_")))?;
-            pt.typ().limited_fmt(f, limit - 1)?;
             if let Some(default) = pt.default_typ() {
+                write!(f, "{}: ", pt.name().unwrap_or(&Str::ever("_")))?;
+                pt.typ().limited_fmt(f, limit - 1)?;
                 write!(f, " := ")?;
                 default.limited_fmt(f, limit - 1)?;
+            } else {
+                write!(f, "{} := ", pt.name().unwrap_or(&Str::ever("_")))?;
+                pt.typ().limited_fmt(f, limit - 1)?;
             }
         }
         if let Some(kw_var_params) = &self.kw_var_params {
@@ -355,11 +358,14 @@ impl LimitedDisplay for SubrType {
                 write!(f, ", ")?;
             }
             write!(f, "**")?;
-            write!(f, "{}: ", kw_var_params.name().unwrap_or(&Str::ever("_")))?;
-            kw_var_params.typ().limited_fmt(f, limit - 1)?;
             if let Some(default) = kw_var_params.default_typ() {
+                write!(f, "{}: ", kw_var_params.name().unwrap_or(&Str::ever("_")))?;
+                kw_var_params.typ().limited_fmt(f, limit - 1)?;
                 write!(f, " := ")?;
                 default.limited_fmt(f, limit - 1)?;
+            } else {
+                write!(f, "{} := ", kw_var_params.name().unwrap_or(&Str::ever("_")))?;
+                kw_var_params.typ().limited_fmt(f, limit - 1)?;
             }
         }
         write!(f, ") {} ", self.kind.arrow())?;
