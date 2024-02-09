@@ -483,7 +483,7 @@ impl<'a> HIRLinker<'a> {
         let mod_path = self
             .cfg
             .input
-            .resolve_decl_path(Path::new(&mod_name_str[..]))
+            .resolve_decl_path(Path::new(&mod_name_str[..]), self.cfg)
             .unwrap();
         if !mod_path
             .canonicalize()
