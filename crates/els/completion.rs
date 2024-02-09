@@ -149,7 +149,7 @@ impl<'b> CompletionOrderSetter<'b> {
         {
             orders.push(CompletionOrder::NameMatched);
         }
-        #[allow(clippy::blocks_in_if_conditions)]
+        #[allow(clippy::blocks_in_conditions)]
         if self
             .arg_pt
             .map_or(false, |pt| self.mod_ctx.subtype_of(&self.vi.t, pt.typ()))

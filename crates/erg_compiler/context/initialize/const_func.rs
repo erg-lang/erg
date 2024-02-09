@@ -655,6 +655,95 @@ pub(crate) fn array_reversed(mut args: ValueArgs, ctx: &Context) -> EvalValueRes
     Ok(arr)
 }
 
+fn _array_insert_at(
+    arr: ValueObj,
+    index: usize,
+    value: ValueObj,
+    _ctx: &Context,
+) -> Result<ValueObj, String> {
+    match arr {
+        ValueObj::Array(a) => {
+            let mut a = a.to_vec();
+            if index > a.len() {
+                return Err(format!("Index out of range: {index}"));
+            }
+            a.insert(index, value);
+            Ok(ValueObj::Array(a.into()))
+        }
+        _ => Err(format!("Cannot insert into {arr}")),
+    }
+}
+
+pub(crate) fn array_insert_at(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let arr = args
+        .remove_left_or_key("Self")
+        .ok_or_else(|| not_passed("Self"))?;
+    let index = args
+        .remove_left_or_key("Index")
+        .ok_or_else(|| not_passed("Index"))?;
+    let value = args
+        .remove_left_or_key("Value")
+        .ok_or_else(|| not_passed("Value"))?;
+    let Ok(index) = usize::try_from(&index) else {
+        return Err(type_mismatch("Nat", index, "Index"));
+    };
+    let res = _array_insert_at(arr, index, value, ctx).unwrap();
+    let arr = TyParam::Value(res);
+    Ok(arr)
+}
+
+fn _array_remove_at(arr: ValueObj, index: usize, _ctx: &Context) -> Result<ValueObj, String> {
+    match arr {
+        ValueObj::Array(a) => {
+            let mut a = a.to_vec();
+            if index >= a.len() {
+                return Err(format!("Index out of range: {index}"));
+            }
+            a.remove(index);
+            Ok(ValueObj::Array(a.into()))
+        }
+        _ => Err(format!("Cannot remove from {arr}")),
+    }
+}
+
+pub(crate) fn array_remove_at(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let arr = args
+        .remove_left_or_key("Self")
+        .ok_or_else(|| not_passed("Self"))?;
+    let index = args
+        .remove_left_or_key("Index")
+        .ok_or_else(|| not_passed("Index"))?;
+    let Ok(index) = usize::try_from(&index) else {
+        return Err(type_mismatch("Nat", index, "Index"));
+    };
+    let res = _array_remove_at(arr, index, ctx).unwrap();
+    let arr = TyParam::Value(res);
+    Ok(arr)
+}
+
+fn _array_remove_all(arr: ValueObj, value: ValueObj, _ctx: &Context) -> Result<ValueObj, String> {
+    match arr {
+        ValueObj::Array(a) => {
+            let mut a = a.to_vec();
+            a.retain(|v| v != &value);
+            Ok(ValueObj::Array(a.into()))
+        }
+        _ => Err(format!("Cannot remove from {arr}")),
+    }
+}
+
+pub(crate) fn array_remove_all(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let arr = args
+        .remove_left_or_key("Self")
+        .ok_or_else(|| not_passed("Self"))?;
+    let value = args
+        .remove_left_or_key("Value")
+        .ok_or_else(|| not_passed("Value"))?;
+    let res = _array_remove_all(arr, value, ctx).unwrap();
+    let arr = TyParam::Value(res);
+    Ok(arr)
+}
+
 pub(crate) fn __range_getitem__(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
     let slf = args
         .remove_left_or_key("Self")

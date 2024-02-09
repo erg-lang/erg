@@ -1660,6 +1660,64 @@ impl Context {
             None,
             get_item,
         );
+        let array_insert_t = no_var_fn_met(
+            array_t(T.clone(), N.clone()),
+            vec![pos(Nat), kw(KW_ELEM, T.clone())],
+            vec![],
+            array_t(T.clone(), N.clone() + value(1usize)),
+        )
+        .quantify();
+        let array_insert = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_INSERT,
+            array_insert_at,
+            array_insert_t.clone(),
+            None,
+        )));
+        array_._register_builtin_const(
+            FUNC_INSERT,
+            Visibility::BUILTIN_PUBLIC,
+            Some(array_insert_t),
+            array_insert,
+            Some(FUNC_INSERT_AT.into()),
+        );
+        let array_remove_at_t = no_var_fn_met(
+            array_t(T.clone(), N.clone()),
+            vec![pos(Nat)],
+            vec![],
+            array_t(T.clone(), N.clone() - value(1usize)),
+        )
+        .quantify();
+        let array_remove_at = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_REMOVE_AT,
+            array_remove_at,
+            array_remove_at_t.clone(),
+            None,
+        )));
+        array_.register_builtin_const(
+            FUNC_REMOVE_AT,
+            Visibility::BUILTIN_PUBLIC,
+            Some(array_remove_at_t),
+            array_remove_at,
+        );
+        let array_remove_all_t = no_var_fn_met(
+            array_t(T.clone(), N.clone()),
+            vec![kw(KW_ELEM, T.clone())],
+            vec![],
+            array_t(T.clone(), TyParam::erased(Nat)),
+        )
+        .quantify();
+        let array_remove_all = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_REMOVE_ALL,
+            array_remove_all,
+            array_remove_all_t.clone(),
+            None,
+        )));
+        array_.register_builtin_const(
+            FUNC_REMOVE_ALL,
+            Visibility::BUILTIN_PUBLIC,
+            Some(array_remove_all_t),
+            array_remove_all,
+        );
         array_
             .register_marker_trait(self, poly(INDEXABLE, vec![ty_tp(input), ty_tp(T.clone())]))
             .unwrap();

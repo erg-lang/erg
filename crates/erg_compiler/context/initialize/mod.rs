@@ -292,8 +292,11 @@ const FUNC_EXTEND: &str = "extend";
 const PROC_EXTEND: &str = "extend!";
 const FUNC_INSERT: &str = "insert";
 const PROC_INSERT: &str = "insert!";
+const FUNC_INSERT_AT: &str = "insert_at";
 const FUNC_REMOVE: &str = "remove";
 const PROC_REMOVE: &str = "remove!";
+const FUNC_REMOVE_AT: &str = "remove_at";
+const FUNC_REMOVE_ALL: &str = "remove_all";
 const FUNC_POP: &str = "pop";
 const PROC_POP: &str = "pop!";
 const FUNC_COPY: &str = "copy";
@@ -749,6 +752,17 @@ impl Context {
         t: Option<Type>,
         obj: ValueObj,
     ) {
+        self._register_builtin_const(name, vis, t, obj, None)
+    }
+
+    fn _register_builtin_const(
+        &mut self,
+        name: &str,
+        vis: Visibility,
+        t: Option<Type>,
+        obj: ValueObj,
+        py_name: Option<Str>,
+    ) {
         if self.rec_get_const_obj(name).is_some() {
             panic!("already registered: {} {name}", self.name);
         } else {
@@ -772,7 +786,7 @@ impl Context {
                 Builtin,
                 None,
                 self.kind.clone(),
-                None,
+                py_name,
                 AbsLocation::unknown(),
             );
             self.consts.insert(VarName::from_str(Str::rc(name)), obj);

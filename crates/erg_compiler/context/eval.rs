@@ -2459,19 +2459,19 @@ impl Context {
             };
             if let Ok(value) = ValueObj::try_from(lhs.clone()) {
                 pos_args.push(value);
-            } else if let Ok(value) = self.eval_tp_into_value(lhs) {
+            } else if let Ok(value) = self.eval_tp_into_value(lhs.clone()) {
                 pos_args.push(value);
             } else {
-                return feature_error!(self, t_loc.loc(), "??");
+                return feature_error!(self, t_loc.loc(), &format!("convert {lhs} to value"));
             }
         }
         for pos_arg in args.into_iter() {
             if let Ok(value) = ValueObj::try_from(pos_arg.clone()) {
                 pos_args.push(value);
-            } else if let Ok(value) = self.eval_tp_into_value(pos_arg) {
+            } else if let Ok(value) = self.eval_tp_into_value(pos_arg.clone()) {
                 pos_args.push(value);
             } else {
-                return feature_error!(self, t_loc.loc(), "??");
+                return feature_error!(self, t_loc.loc(), &format!("convert {pos_arg} to value"));
             }
         }
         Ok(ValueArgs::new(pos_args, dict! {}))
@@ -2772,10 +2772,7 @@ impl Context {
     pub(crate) fn get_tp_t(&self, p: &TyParam) -> EvalResult<Type> {
         let p = self
             .eval_tp(p.clone())
-            .map_err(|errs| {
-                log!(err "{errs}");
-                errs
-            })
+            .inspect_err(|errs| log!(err "{errs}"))
             .unwrap_or(p.clone());
         match p {
             TyParam::Value(v) => Ok(v_enum(set![v])),
@@ -2914,7 +2911,20 @@ impl Context {
                 }
             },
             TyParam::ProjCall { obj, attr, args } => {
-                let tp = self.eval_proj_call(*obj, attr, args, &())?;
+                let Ok(tp) = self.eval_proj_call(*obj.clone(), attr.clone(), args, &()) else {
+                    let Some(obj_ctx) = self.get_nominal_type_ctx(&self.get_tp_t(&obj)?) else {
+                        return Ok(Type::Obj);
+                    };
+                    let value = obj_ctx.get_const_local(&Token::symbol(&attr), &self.name)?;
+                    match value {
+                        ValueObj::Subr(subr) => {
+                            return Ok(subr.sig_t().return_t().unwrap().clone());
+                        }
+                        _ => {
+                            return Ok(Type::Obj);
+                        }
+                    }
+                };
                 let ty = self.get_tp_t(&tp).unwrap_or(Type::Obj).derefine();
                 Ok(tp_enum(ty, set![tp]))
             }

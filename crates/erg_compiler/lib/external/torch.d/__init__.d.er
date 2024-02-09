@@ -58,9 +58,15 @@
     size: (|T, S: [Nat; _]|(self: .Tensor!(T, S), dim: Nat) -> Nat) \
         and (|T, S: [Nat; _]|(self: .Tensor!(T, S)) -> .Size)
     sum: |T, S: [Nat; _]|(self: .Tensor!(T, S)) -> .Tensor!(T, [])
+    squeeze: (|T, S: [Nat; _]|(self: .Tensor!(T, S)) -> .Tensor!(T, S.remove_all(1))) \
+        and (|T|(self: .Tensor!(T, _)) -> .Tensor!(T, _))
+    unsqueeze: (|T, S: [Nat; _], Dim: Nat|(self: .Tensor!(T, S), dim: {Dim}) -> .Tensor!(T, S.insert(Dim, 1))) \
+        and (|T|(self: .Tensor!(T, _), dim: Nat) -> .Tensor!(T, _))
 
 .relu: |T, S: [Nat; _]|(x: .Tensor!(T, S)) -> .Tensor!(T, S)
 .max: (|T|(input: .Tensor!(T, _), dim: Nat, keepdim := Bool) -> (.Tensor!(T, _)), .Tensor!(T, _)) \
     and (|T|(input: .Tensor!(T, _)) -> .Tensor!(T, _))
 .min: (|T|(input: .Tensor!(T, _), dim: Nat, keepdim := Bool) -> (.Tensor!(T, _)), .Tensor!(T, _)) \
     and (|T|(input: .Tensor!(T, _)) -> .Tensor!(T, _))
+.tensor: (|T, S: [T; _]|(data: {S}, dtype := .DType, device := .Device) -> .Tensor!(T, S)) \
+    and (|T|(data: [T; _], dtype := .DType, device := .Device) -> .Tensor!(T, _))
