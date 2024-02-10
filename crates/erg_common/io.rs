@@ -682,6 +682,14 @@ impl Input {
         py_path.push(last);
         decl_path == py_path
     }
+
+    pub fn mode(&self) -> &'static str {
+        if self.path().to_string_lossy().ends_with(".d.er") {
+            "declare"
+        } else {
+            "exec"
+        }
+    }
 }
 
 #[derive(Debug)]

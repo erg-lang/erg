@@ -228,7 +228,9 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: BuildRunnable> Runnable
 
     fn exec(&mut self) -> Result<ExitStatus, Self::Errs> {
         let src = self.cfg_mut().input.read();
-        let artifact = self.build(src, "exec").map_err(|arti| arti.errors)?;
+        let artifact = self
+            .build(src, self.cfg.input.mode())
+            .map_err(|arti| arti.errors)?;
         artifact.warns.write_all_stderr();
         println!("{}", artifact.object);
         Ok(ExitStatus::compile_passed(artifact.warns.len()))
@@ -382,7 +384,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
                 ));
             }
         };
-        self.build_root(ast, "exec")
+        self.build_root(ast, self.cfg.input.mode())
     }
 
     pub fn build_root(
