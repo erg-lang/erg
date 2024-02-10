@@ -38,6 +38,11 @@
         if self.major == 0, do:
             self.compatible_with::return self == other
         self.major == other.major
+    is_valid s: Str =
+        match s.split("."):
+            [major, minor, patch] -> major.isnumeric() and minor.isnumeric() and patch.isnumeric()
+            [major, minor, patch, pre] -> major.isnumeric() and minor.isnumeric() and patch.isnumeric() and pre.isalnum()
+            _ -> False
 #[
     greater self, other: .Version =
         match [self.major > other.major, self.major >= other.major, self.minor > other.minor, self.minor >= other.minor, self.patch > other.patch]:
