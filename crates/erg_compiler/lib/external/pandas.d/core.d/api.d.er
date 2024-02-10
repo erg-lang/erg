@@ -1,3 +1,0 @@
-{.DataFrame!;} = pyimport "./frame"
-{.Series!;} = pyimport "./series"
-{.Index;} = pyimport "./indexes/api"
