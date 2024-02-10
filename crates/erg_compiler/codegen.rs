@@ -320,6 +320,14 @@ impl PyCodeGenerator {
         self.units.last().unwrap()
     }
 
+    fn captured_vars(&self) -> Vec<&str> {
+        let mut caps = vec![];
+        for unit in self.units.iter() {
+            caps.extend(unit.captured_vars.iter().map(|s| &**s));
+        }
+        caps
+    }
+
     #[inline]
     fn mut_cur_block(&mut self) -> &mut PyCodeGenUnit {
         self.units.last_mut().unwrap()
@@ -639,21 +647,25 @@ impl PyCodeGenerator {
         }
         if let Some(idx) = self
             .cur_block_codeobj()
-            .names
-            .iter()
-            .position(|n| &**n == name)
-        {
-            Some(Name::local(idx))
-        } else if let Some(idx) = self
-            .cur_block_codeobj()
             .varnames
             .iter()
             .position(|v| &**v == name)
         {
-            if self.cur_block().captured_vars.contains(&Str::rc(name)) {
+            if self.captured_vars().contains(&name) {
                 Some(Name::deref(idx))
             } else {
                 Some(Name::fast(idx))
+            }
+        } else if let Some(idx) = self
+            .cur_block_codeobj()
+            .names
+            .iter()
+            .position(|n| &**n == name)
+        {
+            if self.captured_vars().contains(&name) {
+                None
+            } else {
+                Some(Name::local(idx))
             }
         } else {
             self.cur_block_codeobj()
@@ -3706,6 +3718,9 @@ impl PyCodeGenerator {
         let mut cells = vec![];
         if self.py_version.minor >= Some(11) {
             for captured in captured_names {
+                self.mut_cur_block()
+                    .captured_vars
+                    .push(captured.inspect().clone());
                 self.write_instr(Opcode311::MAKE_CELL);
                 cells.push((captured, self.lasti()));
                 self.write_arg(0);

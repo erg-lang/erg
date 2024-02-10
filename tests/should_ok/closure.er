@@ -37,3 +37,19 @@ Versions!.
 vs = Versions!.new()
 _ = vs.insert! "foo", SemVer.from_str "1.0.0"
 _ = vs.insert! "foo", SemVer.from_str "1.0.1"
+
+Triple = Class { .version = SemVer; }
+Triple.
+    new version = Triple { .version; }
+.Version! = Class Dict! { Str: Array!(Triple) }
+.Version!.
+    new!() = .Version! !{ "a" : ![Triple.new(SemVer.from_str("0.1.0"))] }
+    insert!(ref! self, name: Str, version: SemVer) =
+        if! all(map((triple) -> not(triple.version.compatible_with(version)), self::base[name])), do!:
+            self::base[name].push!(Triple.new(version))
+
+f!() =
+    vers = .Version!.new!()
+    vers.insert!("a", SemVer.from_str("0.2.0"))
+
+f!()
