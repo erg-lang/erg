@@ -226,6 +226,11 @@ fn exec_infer_trait() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_init_del() -> Result<(), ()> {
+    expect_success("examples/init_del.er", 0)
+}
+
+#[test]
 fn exec_int() -> Result<(), ()> {
     expect_success("tests/should_ok/int.er", 0)
 }
@@ -559,6 +564,11 @@ fn exec_import_cyclic_err() -> Result<(), ()> {
 #[test]
 fn exec_infer_union_array() -> Result<(), ()> {
     expect_failure("tests/should_err/infer_union_array.er", 2, 1)
+}
+
+#[test]
+fn exec_init_del_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/init_del.er", 0, 1)
 }
 
 #[test]

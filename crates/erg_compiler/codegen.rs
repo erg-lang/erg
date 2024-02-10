@@ -3453,10 +3453,19 @@ impl PyCodeGenerator {
         self.emit_load_const(name);
         self.emit_store_instr(Identifier::public("__qualname__"), Name);
         let mut methods = ClassDef::take_all_methods(class.methods_list);
-        let __init__ = methods.remove_def("__init__");
+        let __init__ = methods
+            .remove_def("__init__")
+            .or_else(|| methods.remove_def("__init__!"));
         self.emit_init_method(&class.sig, __init__, class.__new__.clone());
         if class.need_to_gen_new {
             self.emit_new_func(&class.sig, class.__new__);
+        }
+        let __del__ = methods
+            .remove_def("__del__")
+            .or_else(|| methods.remove_def("__del__!"));
+        if let Some(mut __del__) = __del__ {
+            __del__.sig.ident_mut().vi.py_name = Some(Str::from("__del__"));
+            self.emit_def(__del__);
         }
         if !methods.is_empty() {
             self.emit_simple_block(methods);

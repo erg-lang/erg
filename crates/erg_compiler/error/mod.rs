@@ -401,6 +401,30 @@ impl EffectError {
         )
     }
 
+    pub fn constructor_destructor_error(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: String,
+    ) -> Self {
+        Self::new(
+            ErrorCore::new(
+                vec![SubMessage::only_loc(loc)],
+                switch_lang!(
+                    "japanese" => "このオブジェクトのコンストラクタとデストラクタは副作用があるため，関数内で呼び出すことはできません",
+                    "simplified_chinese" => "此对象的构造函数和析构函数有副作用，因此不能在函数内调用",
+                    "traditional_chinese" => "此對象的構造函數和析構函數有副作用，因此不能在函數內調用",
+                    "english" => "the constructor and destructor of this object have side-effects, so they cannot be called inside a function",
+                ),
+                errno,
+                HasEffect,
+                loc,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
     pub fn proc_assign_error(input: Input, errno: usize, loc: Location, caused_by: String) -> Self {
         let hint = Some(
             switch_lang!(
