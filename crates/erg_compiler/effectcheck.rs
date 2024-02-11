@@ -8,8 +8,9 @@ use erg_common::traits::{Locational, Stream};
 use erg_common::Str;
 use erg_parser::token::TokenKind;
 
+use crate::context::Context;
 use crate::error::{EffectError, EffectErrors};
-use crate::hir::{Array, Def, Dict, Expr, Params, Set, Signature, Tuple, HIR};
+use crate::hir::{Array, Call, Def, Dict, Expr, Params, Set, Signature, Tuple, HIR};
 use crate::ty::{HasType, Visibility};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -31,20 +32,22 @@ use BlockKind::*;
 /// * check if expressions with side effects are not used in functions
 /// * check if methods that change internal state are not defined in immutable classes
 #[derive(Debug)]
-pub struct SideEffectChecker {
+pub struct SideEffectChecker<'c> {
     cfg: ErgConfig,
     path_stack: Vec<Visibility>,
     block_stack: Vec<BlockKind>,
     errs: EffectErrors,
+    ctx: &'c Context,
 }
 
-impl SideEffectChecker {
-    pub fn new(cfg: ErgConfig) -> Self {
+impl<'c> SideEffectChecker<'c> {
+    pub fn new(cfg: ErgConfig, ctx: &'c Context) -> Self {
         Self {
             cfg,
             path_stack: vec![],
             block_stack: vec![],
             errs: EffectErrors::empty(),
+            ctx,
         }
     }
 
@@ -402,6 +405,7 @@ impl SideEffectChecker {
                 other => todo!("{other}"),
             },
             Expr::Call(call) => {
+                self.constructor_destructor_check(call);
                 self.check_expr(&call.obj);
                 if (call.obj.t().is_procedure()
                     || call
@@ -483,6 +487,32 @@ impl SideEffectChecker {
             | Expr::Compound(_)
             | Expr::Import(_)
             | Expr::Dummy(_) => {}
+        }
+    }
+
+    fn constructor_destructor_check(&mut self, call: &Call) {
+        let Some(gen_t) = call.signature_t().and_then(|sig| sig.return_t()) else {
+            return;
+        };
+        // the call generates a new instance
+        // REVIEW: is this correct?
+        if !self.in_context_effects_allowed()
+            && call
+                .signature_t()
+                .is_some_and(|sig| sig.param_ts().iter().all(|p| !p.contains_type(gen_t)))
+        {
+            if let Some(typ_ctx) = self.ctx.get_nominal_type_ctx(gen_t) {
+                if typ_ctx.get_method_kv("__init__!").is_some()
+                    || typ_ctx.get_method_kv("__del__!").is_some()
+                {
+                    self.errs.push(EffectError::constructor_destructor_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        call.loc(),
+                        self.full_path(),
+                    ));
+                }
+            }
         }
     }
 

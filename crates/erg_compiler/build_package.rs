@@ -13,7 +13,7 @@ use std::time::{Duration, SystemTime};
 use erg_common::config::ErgMode;
 
 use erg_common::config::ErgConfig;
-use erg_common::consts::ELS;
+use erg_common::consts::{DEBUG_MODE, ELS};
 use erg_common::debug_power_assert;
 use erg_common::dict::Dict;
 use erg_common::env::is_std_decl_path;
@@ -228,7 +228,9 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: BuildRunnable> Runnable
 
     fn exec(&mut self) -> Result<ExitStatus, Self::Errs> {
         let src = self.cfg_mut().input.read();
-        let artifact = self.build(src, "exec").map_err(|arti| arti.errors)?;
+        let artifact = self
+            .build(src, self.cfg.input.mode())
+            .map_err(|arti| arti.errors)?;
         artifact.warns.write_all_stderr();
         println!("{}", artifact.object);
         Ok(ExitStatus::compile_passed(artifact.warns.len()))
@@ -382,7 +384,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
                 ));
             }
         };
-        self.build_root(ast, "exec")
+        self.build_root(ast, self.cfg.input.mode())
     }
 
     pub fn build_root(
@@ -525,7 +527,11 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
                 .spawn()
                 .and_then(|mut child| child.wait())
             {
-                if let Some(path) = self.cfg.input.resolve_decl_path(Path::new(&__name__[..])) {
+                if let Some(path) = self
+                    .cfg
+                    .input
+                    .resolve_decl_path(Path::new(&__name__[..]), &self.cfg)
+                {
                     let size = metadata(&path).unwrap().len();
                     // if pylyzer crashed
                     if !status.success() && size == 0 {
@@ -728,7 +734,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
             // return;
         } else if let Some(inliner) = self.inlines.get(path).cloned() {
             self.build_deps_and_module(&inliner, graph);
-        } else {
+        } else if DEBUG_MODE {
             todo!("{path} is not found in self.inlines and self.asts");
         }
     }

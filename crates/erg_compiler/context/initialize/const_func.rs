@@ -1445,7 +1445,7 @@ pub(crate) fn resolve_decl_path_func(
             return Err(type_mismatch("Str", other, "Path"));
         }
     };
-    let Some(path) = ctx.cfg.input.resolve_decl_path(path) else {
+    let Some(path) = ctx.cfg.input.resolve_decl_path(path, &ctx.cfg) else {
         return Err(ErrorCore::new(
             vec![SubMessage::only_loc(Location::Unknown)],
             format!("Path {} is not found", path.display()),

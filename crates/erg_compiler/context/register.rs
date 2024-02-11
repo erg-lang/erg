@@ -2267,7 +2267,11 @@ impl Context {
     }
 
     fn get_decl_path(&self, __name__: &Str, loc: &impl Locational) -> CompileResult<PathBuf> {
-        match self.cfg.input.resolve_decl_path(Path::new(&__name__[..])) {
+        match self
+            .cfg
+            .input
+            .resolve_decl_path(Path::new(&__name__[..]), &self.cfg)
+        {
             Some(path) => {
                 if self.cfg.input.decl_file_is(&path) {
                     return Ok(path);

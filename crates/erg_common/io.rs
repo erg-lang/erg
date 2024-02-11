@@ -499,7 +499,7 @@ impl Input {
 
     pub fn resolve_path(&self, path: &Path, cfg: &ErgConfig) -> Option<PathBuf> {
         self.resolve_real_path(path, cfg)
-            .or_else(|| self.resolve_decl_path(path))
+            .or_else(|| self.resolve_decl_path(path, cfg))
     }
 
     /// resolution order:
@@ -507,7 +507,7 @@ impl Input {
     /// 2. `./{path/to}/__init__.er`
     /// 3. `std/{path/to}.er`
     /// 4. `std/{path/to}/__init__.er`
-    /// 5. `pkgs/{path/to}/lib.er`
+    /// 5. `pkgs/{path/to}/src/lib.er`
     pub fn resolve_real_path(&self, path: &Path, cfg: &ErgConfig) -> Option<PathBuf> {
         if let Ok(path) = self.resolve_local(path) {
             Some(path)
@@ -522,7 +522,7 @@ impl Input {
             .canonicalize()
         {
             Some(normalize_path(path))
-        } else if let Some(pkg) = self.resolve_project_dep_path(path, cfg) {
+        } else if let Some(pkg) = self.resolve_project_dep_path(path, cfg, false) {
             Some(normalize_path(pkg))
         } else if path == Path::new("unsound") {
             Some(PathBuf::from("unsound"))
@@ -531,7 +531,12 @@ impl Input {
         }
     }
 
-    fn resolve_project_dep_path(&self, path: &Path, cfg: &ErgConfig) -> Option<PathBuf> {
+    fn resolve_project_dep_path(
+        &self,
+        path: &Path,
+        cfg: &ErgConfig,
+        decl: bool,
+    ) -> Option<PathBuf> {
         let name = format!("{}", path.display());
         let pkg = cfg.packages.iter().find(|p| p.as_name == name)?;
         let path = if let Some(path) = pkg.path {
@@ -539,7 +544,12 @@ impl Input {
         } else {
             erg_pkgs_path().join(pkg.name).join(pkg.version)
         };
-        Some(path.join("src").join("lib.er"))
+        let path = if decl {
+            path.join("src").join("lib.d.er")
+        } else {
+            path.join("src").join("lib.er")
+        };
+        path.canonicalize().ok()
     }
 
     /// resolution order:
@@ -552,9 +562,10 @@ impl Input {
     /// (and repeat for the project root)
     /// 7.  `std/{path/to}.d.er`
     /// 8.  `std/{path/to}/__init__.d.er`
-    /// 9.  `site-packages/{path}/__pycache__/{to}.d.er`
-    /// 10. `site-packages/{path/to}/__pycache__/__init__.d.er`
-    pub fn resolve_decl_path(&self, path: &Path) -> Option<PathBuf> {
+    /// 9.  `pkgs/{path/to}/src/lib.d.er`
+    /// 10. `site-packages/{path}/__pycache__/{to}.d.er`
+    /// 11. `site-packages/{path/to}/__pycache__/__init__.d.er`
+    pub fn resolve_decl_path(&self, path: &Path, cfg: &ErgConfig) -> Option<PathBuf> {
         if let Ok(path) = self.resolve_local_decl(self.dir(), path) {
             return Some(path);
         }
@@ -578,6 +589,9 @@ impl Input {
             if let Some(path) = Self::resolve_std_decl_path(root(), path) {
                 return Some(path);
             }
+        }
+        if let Some(pkg) = self.resolve_project_dep_path(path, cfg, true) {
+            return Some(normalize_path(pkg));
         }
         for site_packages in python_site_packages() {
             if let Some(path) = Self::resolve_site_pkgs_decl_path(site_packages, path) {
@@ -667,6 +681,14 @@ impl Input {
         py_path.push("__pycache__");
         py_path.push(last);
         decl_path == py_path
+    }
+
+    pub fn mode(&self) -> &'static str {
+        if self.path().to_string_lossy().ends_with(".d.er") {
+            "declare"
+        } else {
+            "exec"
+        }
     }
 }
 

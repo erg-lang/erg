@@ -642,6 +642,15 @@ impl SubrType {
             .map(|pt| pt.name().map_or("_", |s| &s[..]))
     }
 
+    pub fn param_ts(&self) -> impl Iterator<Item = &Type> + Clone {
+        self.non_default_params
+            .iter()
+            .chain(self.var_params.as_deref())
+            .chain(self.default_params.iter())
+            .chain(self.kw_var_params.as_deref())
+            .map(|pt| pt.typ())
+    }
+
     pub fn is_no_var(&self) -> bool {
         self.var_params.is_none() && self.kw_var_params.is_none()
     }
@@ -3322,6 +3331,17 @@ impl Type {
             Self::Subr(subr) => Some(subr.non_var_params()),
             Self::Quantified(quant) => quant.non_var_params(),
             _ => None,
+        }
+    }
+
+    pub fn param_ts(&self) -> Vec<Type> {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().param_ts(),
+            Self::Refinement(refine) => refine.t.param_ts(),
+            Self::Subr(subr) => subr.param_ts().cloned().collect(),
+            Self::Quantified(quant) => quant.param_ts(),
+            Self::Callable { param_ts, .. } => param_ts.clone(),
+            _ => vec![],
         }
     }
 

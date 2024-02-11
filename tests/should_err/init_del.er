@@ -1,0 +1,17 @@
+i = !0
+
+C = Class()
+C.
+    __init__! self =
+        print! "initialize:", self
+        i.inc!()
+    __del__! self =
+        print! "delete:", self
+        i.dec!()
+
+f() =
+    c = C.new() # ERR
+    log c
+
+f()
+assert i == 0

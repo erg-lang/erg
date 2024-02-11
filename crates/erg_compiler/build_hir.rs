@@ -181,7 +181,8 @@ impl<ASTBuilder: ASTBuildable> GenericHIRBuilder<ASTBuilder> {
 
     pub fn check(&mut self, ast: AST, mode: &str) -> Result<CompleteArtifact, IncompleteArtifact> {
         let mut artifact = self.lowerer.lower(ast, mode)?;
-        let effect_checker = SideEffectChecker::new(self.cfg().clone());
+        let ctx = &self.lowerer.get_context().unwrap().context;
+        let effect_checker = SideEffectChecker::new(self.cfg().clone(), ctx);
         let hir = effect_checker
             .check(artifact.object, self.lowerer.module.context.name.clone())
             .map_err(|(hir, errs)| {
