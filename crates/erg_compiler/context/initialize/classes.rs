@@ -1603,7 +1603,7 @@ impl Context {
             2,
         );
         array_add.register_builtin_erg_impl(OP_ADD, t, Immutable, Visibility::BUILTIN_PUBLIC);
-        let out_t = array_t(T.clone(), N.clone() + M);
+        let out_t = array_t(T.clone(), N.clone() + M.clone());
         array_add.register_builtin_const(
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
@@ -1619,6 +1619,19 @@ impl Context {
         )
         .quantify();
         array_.register_builtin_erg_impl(FUNC_PUSH, t, Immutable, Visibility::BUILTIN_PUBLIC);
+        let repeat_t = no_var_fn_met(
+            arr_t.clone(),
+            vec![pos(singleton(Nat, M.clone()))],
+            vec![],
+            array_t(T.clone(), N.clone() * M.clone()),
+        )
+        .quantify();
+        array_.register_builtin_erg_impl(
+            FUNC_REPEAT,
+            repeat_t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
         // [T; N].MutType! = [T; !N] (neither [T!; N] nor [T; N]!)
         let mut_type =
             ValueObj::builtin_class(poly(MUT_ARRAY, vec![TyParam::t(T.clone()), N.clone()]));

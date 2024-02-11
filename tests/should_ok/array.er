@@ -33,3 +33,8 @@ assert l == [4, 3]
 
 l.clear!()
 assert l == []
+
+l2 = [![1]].repeat 3
+l2[0].push! 2
+ans: Array(Array(Nat)) = [[1, 2], [1], [1]]
+assert l2 == ans

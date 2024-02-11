@@ -243,6 +243,7 @@ const FUNC_DEDUP: &str = "dedup";
 const FUNC_CONCAT: &str = "concat";
 const FUNC_DIFF: &str = "diff";
 const FUNC_PUSH: &str = "push";
+const FUNC_REPEAT: &str = "repeat";
 const PROC_PUSH: &str = "push!";
 const FUNC_MERGE: &str = "merge";
 const PROC_MERGE: &str = "merge!";

@@ -127,6 +127,13 @@ class Array(list):
             self.remove(item)
         return self
 
+    def repeat(self, n):
+        from copy import deepcopy
+        new = []
+        for _ in range(n):
+            new.extend(deepcopy(self))
+        return Array(new)
+
 class UnsizedArray:
     elem: object
     def __init__(self, elem):
