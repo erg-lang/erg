@@ -1001,12 +1001,21 @@ impl Context {
 
     pub(crate) fn register_methods(&mut self, t: &Type, ctx: &Self) {
         for impl_trait in ctx.super_traits.iter() {
+            let declared_in = self.module_path().into();
             if let Some(mut impls) = self.trait_impls().get_mut(&impl_trait.qual_name()) {
-                impls.insert(TraitImpl::new(t.clone(), impl_trait.clone()));
+                impls.insert(TraitImpl::new(
+                    t.clone(),
+                    impl_trait.clone(),
+                    Some(declared_in),
+                ));
             } else {
                 self.trait_impls().register(
                     impl_trait.qual_name(),
-                    set![TraitImpl::new(t.clone(), impl_trait.clone())],
+                    set![TraitImpl::new(
+                        t.clone(),
+                        impl_trait.clone(),
+                        Some(declared_in)
+                    )],
                 );
             }
         }

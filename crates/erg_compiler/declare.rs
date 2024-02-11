@@ -739,14 +739,19 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                                 ctx.level,
                             );
                             ctx.super_traits.push(impl_trait.clone());
+                            let declared_in = ctx.module_path().into();
                             if let Some(mut impls) =
                                 ctx.trait_impls().get_mut(&impl_trait.qual_name())
                             {
-                                impls.insert(TraitImpl::new(class.clone(), impl_trait.clone()));
+                                impls.insert(TraitImpl::new(
+                                    class.clone(),
+                                    impl_trait.clone(),
+                                    Some(declared_in),
+                                ));
                             } else {
                                 ctx.trait_impls().register(
                                     impl_trait.qual_name(),
-                                    set! { TraitImpl::new(class.clone(), impl_trait.clone()) },
+                                    set! { TraitImpl::new(class.clone(), impl_trait.clone(), Some(declared_in)) },
                                 );
                             }
                             ctx.methods_list.push(MethodContext::new(

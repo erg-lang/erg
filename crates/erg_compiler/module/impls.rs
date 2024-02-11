@@ -3,6 +3,7 @@ use std::fmt;
 use std::hash::Hash;
 
 use erg_common::dict::Dict;
+use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::set::Set;
 use erg_common::shared::{
     MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLockReadGuard, RwLockWriteGuard, Shared,
@@ -61,6 +62,12 @@ impl TraitImpls {
         self.cache.remove(path)
     }
 
+    pub fn remove_by_path(&mut self, path: &NormalizedPathBuf) {
+        for impls in self.cache.values_mut() {
+            impls.retain(|impl_| impl_.declared_in.as_ref() != Some(path));
+        }
+    }
+
     pub fn rename<Q: Eq + Hash + ?Sized>(&mut self, old: &Q, new: Str)
     where
         Str: Borrow<Q>,
@@ -70,8 +77,24 @@ impl TraitImpls {
         }
     }
 
+    pub fn rename_path(&mut self, old: &NormalizedPathBuf, new: NormalizedPathBuf) {
+        for impls in self.cache.values_mut() {
+            impls.inplace_map(|mut impl_| {
+                if impl_.declared_in.as_ref() == Some(old) {
+                    impl_.declared_in = Some(new.clone());
+                    impl_
+                } else {
+                    impl_
+                }
+            });
+        }
+    }
+
     pub fn initialize(&mut self) {
-        self.cache.clear();
+        for impls in self.cache.values_mut() {
+            impls.retain(|impl_| impl_.declared_in.is_none());
+        }
+        self.cache.retain(|_, impls| !impls.is_empty());
     }
 }
 
@@ -125,11 +148,15 @@ impl SharedTraitImpls {
         self.0.borrow_mut().register(name, impls);
     }
 
-    pub fn remove<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<Set<TraitImpl>>
+    pub fn remove<Q: Eq + Hash + ?Sized>(&self, qual_name: &Q) -> Option<Set<TraitImpl>>
     where
         Str: Borrow<Q>,
     {
-        self.0.borrow_mut().remove(path)
+        self.0.borrow_mut().remove(qual_name)
+    }
+
+    pub fn remove_by_path(&self, path: &NormalizedPathBuf) {
+        self.0.borrow_mut().remove_by_path(path);
     }
 
     pub fn rename<Q: Eq + Hash + ?Sized>(&self, old: &Q, new: Str)
@@ -137,6 +164,10 @@ impl SharedTraitImpls {
         Str: Borrow<Q>,
     {
         self.0.borrow_mut().rename(old, new);
+    }
+
+    pub fn rename_path(&self, old: &NormalizedPathBuf, new: NormalizedPathBuf) {
+        self.0.borrow_mut().rename_path(old, new);
     }
 
     pub fn ref_inner(&self) -> MappedRwLockReadGuard<Dict<Str, Set<TraitImpl>>> {

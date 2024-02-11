@@ -980,12 +980,17 @@ impl Context {
         trait_loc: &impl Locational,
     ) -> TyCheckResult<()> {
         // TODO: polymorphic trait
+        let declared_in = self.module_path().into();
         if let Some(mut impls) = self.trait_impls().get_mut(&trait_.qual_name()) {
-            impls.insert(TraitImpl::new(class.clone(), trait_.clone()));
+            impls.insert(TraitImpl::new(
+                class.clone(),
+                trait_.clone(),
+                Some(declared_in),
+            ));
         } else {
             self.trait_impls().register(
                 trait_.qual_name(),
-                set! {TraitImpl::new(class.clone(), trait_.clone())},
+                set! {TraitImpl::new(class.clone(), trait_.clone(), Some(declared_in))},
             );
         }
         let trait_ctx = if let Some(trait_ctx) = self.get_nominal_type_ctx(trait_) {

@@ -243,6 +243,10 @@ impl<T: Hash + Eq> Set<T> {
             elems: self.elems.drain().collect(),
         }
     }
+
+    pub fn inplace_map<F: FnMut(T) -> T>(&mut self, f: F) {
+        *self = self.take_all().into_iter().map(f).collect();
+    }
 }
 
 impl<T: Hash + Eq + Clone> Set<T> {
