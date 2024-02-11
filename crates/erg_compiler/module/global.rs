@@ -58,7 +58,7 @@ impl SharedCompilerResource {
         self.py_mod_cache.initialize();
         self.index.initialize();
         self.graph.initialize();
-        // self.trait_impls.initialize();
+        self.trait_impls.initialize();
         self.promises.initialize();
         self.errors.clear();
         self.warns.clear();
@@ -79,6 +79,7 @@ impl SharedCompilerResource {
         }
         self.index.remove_path(path);
         // self.graph.remove(path);
+        self.trait_impls.remove_by_path(path);
         self.promises.remove(path);
         self.errors.remove(path);
         self.warns.remove(path);
@@ -90,6 +91,7 @@ impl SharedCompilerResource {
         self.py_mod_cache.remove(path);
         self.index.remove_path(path);
         // self.graph.remove(path);
+        self.trait_impls.remove_by_path(path);
         self.promises.remove(path);
         self.errors.remove(path);
         self.warns.remove(path);
@@ -99,6 +101,7 @@ impl SharedCompilerResource {
         self.mod_cache.rename_path(old, new.clone());
         self.py_mod_cache.rename_path(old, new.clone());
         self.index.rename_path(old, new.clone());
+        self.trait_impls.rename_path(old, new.clone());
         self.graph.rename_path(old, new.clone());
         self.promises.rename(old, new);
     }

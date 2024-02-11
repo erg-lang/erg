@@ -3036,7 +3036,7 @@ impl Context {
                     let lti = l_impls.iter().find(|ti| &ti.sub_type == base).unwrap();
                     let rti = r_impls.iter().find(|ti| &ti.sub_type == base).unwrap();
                     let sup_trait = self.intersection(&lti.sup_trait, &rti.sup_trait);
-                    isec.insert(TraitImpl::new(lti.sub_type.clone(), sup_trait));
+                    isec.insert(TraitImpl::new(lti.sub_type.clone(), sup_trait, None));
                 }
                 isec
             }
