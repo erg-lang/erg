@@ -320,6 +320,10 @@ impl PyCodeGenerator {
         self.units.last().unwrap()
     }
 
+    fn is_toplevel(&self) -> bool {
+        self.cur_block() == self.toplevel_block()
+    }
+
     fn captured_vars(&self) -> Vec<&str> {
         let mut caps = vec![];
         for unit in self.units.iter() {
@@ -634,7 +638,7 @@ impl PyCodeGenerator {
             })
     }
 
-    fn local_search(&self, name: &str, _acc_kind: AccessKind) -> Option<Name> {
+    fn local_search(&self, name: &str, acc_kind: AccessKind) -> Option<Name> {
         if self.py_version.minor < Some(11) {
             if let Some(idx) = self
                 .cur_block_codeobj()
@@ -645,34 +649,47 @@ impl PyCodeGenerator {
                 return Some(Name::deref(idx));
             }
         }
-        if let Some(idx) = self
-            .cur_block_codeobj()
-            .varnames
-            .iter()
-            .position(|v| &**v == name)
-        {
-            if self.captured_vars().contains(&name) {
-                Some(Name::deref(idx))
-            } else {
-                Some(Name::fast(idx))
+        match acc_kind {
+            AccessKind::Name => {
+                if let Some(idx) = self
+                    .cur_block_codeobj()
+                    .freevars
+                    .iter()
+                    .position(|f| &**f == name)
+                {
+                    Some(Name::deref(idx))
+                } else if let Some(idx) = self
+                    .cur_block_codeobj()
+                    .varnames
+                    .iter()
+                    .position(|v| &**v == name)
+                {
+                    if self.captured_vars().contains(&name) {
+                        None
+                    } else {
+                        Some(Name::fast(idx))
+                    }
+                } else if let Some(idx) = self
+                    .cur_block_codeobj()
+                    .names
+                    .iter()
+                    .position(|n| &**n == name)
+                {
+                    if !self.is_toplevel() {
+                        None
+                    } else {
+                        Some(Name::local(idx))
+                    }
+                } else {
+                    None
+                }
             }
-        } else if let Some(idx) = self
-            .cur_block_codeobj()
-            .names
-            .iter()
-            .position(|n| &**n == name)
-        {
-            if self.py_version.minor >= Some(11) && self.captured_vars().contains(&name) {
-                None
-            } else {
-                Some(Name::local(idx))
-            }
-        } else {
-            self.cur_block_codeobj()
-                .freevars
+            _ => self
+                .cur_block_codeobj()
+                .names
                 .iter()
-                .position(|f| &**f == name)
-                .map(Name::deref)
+                .position(|n| &**n == name)
+                .map(Name::local),
         }
     }
 
@@ -702,7 +719,7 @@ impl PyCodeGenerator {
     }
 
     fn register_name(&mut self, name: Str, kind: RegisterNameKind) -> Name {
-        let current_is_toplevel = self.cur_block() == self.toplevel_block();
+        let current_is_toplevel = self.is_toplevel();
         match self.rec_search(&name) {
             Some(st @ (StoreLoadKind::Local | StoreLoadKind::Global)) => {
                 if kind.is_fast() {
@@ -843,6 +860,7 @@ impl PyCodeGenerator {
         self.write_instr(instr);
         self.write_arg(name.idx);
         self.stack_inc();
+        self.mut_cur_block_codeobj().stacksize += 2;
         if instr == LOAD_GLOBAL as u8 && self.py_version.minor >= Some(11) {
             self.write_bytes(&[0; 2]);
             self.write_bytes(&[0; 8]);
@@ -3719,11 +3737,11 @@ impl PyCodeGenerator {
             0
         };
         let mut cells = vec![];
-        if self.py_version.minor >= Some(11) {
-            for captured in captured_names {
-                self.mut_cur_block()
-                    .captured_vars
-                    .push(captured.inspect().clone());
+        for captured in captured_names {
+            self.mut_cur_block()
+                .captured_vars
+                .push(captured.inspect().clone());
+            if self.py_version.minor >= Some(11) {
                 self.write_instr(Opcode311::MAKE_CELL);
                 cells.push((captured, self.lasti()));
                 self.write_arg(0);
