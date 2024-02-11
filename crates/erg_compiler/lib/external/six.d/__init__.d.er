@@ -1,0 +1,13 @@
+.PY2: Bool
+.PY3: Bool
+
+.class_types: [Type; _]
+.intger_types: [Type; _]
+.string_types: [Type; _]
+.float_types: [Type; _]
+.text_type: Type
+.binary_type: Type
+.MAXSIZE: Nat
+
+.exec_!: (code: Str, globals := {Str: Obj}, locals := {Str: Obj}) => Obj
+.print_!: (*objs: [Obj; _], end := Str, sep := Str) => NoneType

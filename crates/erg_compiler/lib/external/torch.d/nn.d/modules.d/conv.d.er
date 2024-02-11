@@ -1,0 +1,71 @@
+{Device; DType; Tensor!;} = pyimport "torch"
+{Module;} = pyimport "torch/nn"
+
+_ConvNd: ClassType
+_ConvNd <: Module
+
+.Conv1d: ClassType
+.Conv1d <: _ConvNd
+.Conv1d.
+    __call__: (
+        in_channels: Nat,
+        out_channels: Nat,
+        kernel_size: Nat or [Nat; 1] or (Nat,),
+        stride := Nat or [Nat; 1] or (Nat,),
+        padding := Str or Nat or [Nat; 1] or (Nat,),
+        dilation := Nat or [Nat; 1] or (Nat,),
+        groups := Nat,
+        bias := Bool,
+        padding_mode := Str,
+        device := Device or Str or Nat,
+        dtype := DType or Str,
+    ) -> .Conv1d
+.Conv1d|<: GenericCallable|.
+    __call__: |T, S: [Nat; _]|(
+        self: .Conv1d,
+        input: Tensor!(T, S),
+    ) -> Tensor!(T, S)
+
+.Conv2d: ClassType
+.Conv2d <: _ConvNd
+.Conv2d.
+    __call__: (
+        in_channels: Nat,
+        out_channels: Nat,
+        kernel_size: Nat or [Nat; 2] or (Nat, Nat),
+        stride := Nat or [Nat; 2] or (Nat, Nat),
+        padding := Str or Nat or [Nat; 2] or (Nat, Nat),
+        dilation := Nat or [Nat; 2] or (Nat, Nat),
+        groups := Nat,
+        bias := Bool,
+        padding_mode := Str,
+        device := Device or Str or Nat,
+        dtype := DType or Str,
+    ) -> .Conv2d
+.Conv2d|<: GenericCallable|.
+    __call__: |T, S: [Nat; _]|(
+        self: .Conv2d,
+        input: Tensor!(T, S),
+    ) -> Tensor!(T, S)
+
+.Conv3d: ClassType
+.Conv3d <: _ConvNd
+.Conv3d.
+    __call__: (
+        in_channels: Nat,
+        out_channels: Nat,
+        kernel_size: Nat or [Nat; 3] or (Nat, Nat, Nat),
+        stride := Nat or [Nat; 3] or (Nat, Nat, Nat),
+        padding := Str or Nat or [Nat; 3] or (Nat, Nat, Nat),
+        dilation := Nat or [Nat; 3] or (Nat, Nat, Nat),
+        groups := Nat,
+        bias := Bool,
+        padding_mode := Str,
+        device := Device or Str or Nat,
+        dtype := DType or Str,
+    ) -> .Conv3d
+.Conv3d|<: GenericCallable|.
+    __call__: |T, S: [Nat; _]|(
+        self: .Conv3d,
+        input: Tensor!(T, S),
+    ) -> Tensor!(T, S)

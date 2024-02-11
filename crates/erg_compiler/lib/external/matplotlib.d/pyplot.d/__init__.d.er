@@ -1,0 +1,30 @@
+contextlib = pyimport "contextlib"
+
+# lines = pyimport "../lines"
+text = pyimport "../text"
+legend = pyimport "../legend"
+.style = pyimport "../style"
+figure = pyimport "../figure"
+axes = pyimport "../axes"
+image = pyimport "../image"
+
+.plot!: (*args: Obj, scaleX := Bool, scaleY := Bool) => [Obj; _]
+.imshow!: (X: Obj, cmap := Str, interpolation := Str) => image.AxesImage!
+.show!: () => NoneType
+.text!: (x: Float, y: Float, s: Str, fontdict := {Str: Obj}, fontsize := Nat) => text.Text
+.title!: (title: Str) => text.Text
+.xlabel!: (label: Str) => text.Text
+.ylabel!: (label: Str) => text.Text
+.xlim!: (left := Float, right := Float) => (Float, Float) \
+    and ((left_right: (Float, Float)) => (Float, Float))
+.ylim!: (bottom := Float, top := Float) => (Float, Float) \
+    and ((bottom_top: (Float, Float)) => (Float, Float))
+.legend!: (labels := [Str; _]) => legend.Legend
+.savefig!: (fname: Str, dpi := Float or Str, format := Str) => NoneType
+.subplots!: (() => (figure.Figure!, axes.Axes!)) \
+    and ((nrows: {1}, ncols: {1}) => (figure.Figure!, axes.Axes!)) \
+    and ((nrows: {1}, ncols: Nat) => (figure.Figure!, [axes.Axes!; _])) \
+    and ((nrows: Nat, ncols: {1}) => (figure.Figure!, [axes.Axes!; _])) \
+    and ((nrows: Nat, ncols: Nat) => (figure.Figure!, [[axes.Axes!; _]; _]))
+.figure!: (num := Int or Str, figsize := [Float; _], dpi := Float) => figure.Figure!
+.xkcd!: (scale := Float, length := Float, randomness := Float) => contextlib.ExitStack!

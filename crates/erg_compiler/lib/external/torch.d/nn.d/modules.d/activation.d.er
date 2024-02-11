@@ -1,0 +1,10 @@
+{Tensor!;} = pyimport "torch"
+
+.ReLU: ClassType
+.ReLU.
+    __call__: () -> .ReLU
+.ReLU|<: GenericCallable|.
+    __call__: |T, S: [Nat; _]|(
+        self: .ReLU,
+        input: Tensor!(T, S),
+    ) -> Tensor!(T, S)

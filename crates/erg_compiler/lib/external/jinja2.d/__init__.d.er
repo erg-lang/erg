@@ -1,0 +1,26 @@
+.BaseLoader: ClassType
+
+.PackageLoader: ClassType
+.PackageLoader <: .BaseLoader
+.PackageLoader.
+    __call__: (package_name: Str, package_path: Str) -> .PackageLoader
+
+.FileSystemLoader: ClassType
+.FileSystemLoader <: .BaseLoader
+.FileSystemLoader.
+    __call__: (path: Str) -> .FileSystemLoader
+
+.DictLoader: ClassType
+.DictLoader <: .BaseLoader
+.DictLoader.
+    __call__: (mapping: {Str: Str}) -> .DictLoader
+
+.Template: ClassType
+.Template.
+    __call__: (source: Str, autoescape := Bool, enable_async := Bool) -> .Template
+    render: (self: Ref(.Template), **kwargs: Obj) -> Str
+
+.Enviroment: ClassType
+.Enviroment.
+    __call__: (loader := .BaseLoader, trim_blocks := Bool) -> .Enviroment
+    get_template: (self: Ref(.Enviroment), name := Str) -> .Template

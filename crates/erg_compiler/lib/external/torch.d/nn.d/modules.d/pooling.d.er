@@ -1,0 +1,57 @@
+{Tensor!;} = pyimport "torch"
+{Module;} = pyimport "torch/nn"
+
+_MaxPoolNd: ClassType
+_MaxPoolNd <: Module
+
+.MaxPool1d: ClassType
+.MaxPool1d <: _MaxPoolNd
+.MaxPool1d <: GenericCallable
+.MaxPool1d.
+    __call__: (
+        kernel_size: Nat or [Nat; 1] or (Nat,),
+        stride := Nat or [Nat; 1] or (Nat,),
+        padding := Str or Nat or [Nat; 1] or (Nat,),
+        dilation := Nat or [Nat; 1] or (Nat,),
+        return_indices := Bool,
+        ceil_mode := Bool,
+    ) -> .MaxPool1d
+.MaxPool1d|<: GenericCallable|.
+    __call__: |T, S: [Nat; _]|(
+        self: .MaxPool1d,
+        input: Tensor!(T, S),
+    ) -> Tensor!(T, S)
+
+.MaxPool2d: ClassType
+.MaxPool2d <: _MaxPoolNd
+.MaxPool2d.
+    __call__: (
+        kernel_size: Nat or [Nat; 2] or (Nat, Nat),
+        stride := Nat or [Nat; 2] or (Nat, Nat),
+        padding := Str or Nat or [Nat; 2] or (Nat, Nat),
+        dilation := Nat or [Nat; 2] or (Nat, Nat),
+        return_indices := Bool,
+        ceil_mode := Bool,
+    ) -> .MaxPool2d
+.MaxPool2d|<: GenericCallable|.
+    __call__: |T, S: [Nat; _]|(
+        self: .MaxPool2d,
+        input: Tensor!(T, S),
+    ) -> Tensor!(T, S)
+
+.MaxPool3d: ClassType
+.MaxPool3d <: _MaxPoolNd
+.MaxPool3d.
+    __call__: (
+        kernel_size: Nat or [Nat; 3] or (Nat, Nat, Nat),
+        stride := Nat or [Nat; 3] or (Nat, Nat, Nat),
+        padding := Str or Nat or [Nat; 3] or (Nat, Nat, Nat),
+        dilation := Nat or [Nat; 3] or (Nat, Nat, Nat),
+        return_indices := Bool,
+        ceil_mode := Bool,
+    ) -> .MaxPool3d
+.MaxPool3d|<: GenericCallable|.
+    __call__: |T, S: [Nat; _]|(
+        self: .MaxPool3d,
+        input: Tensor!(T, S),
+    ) -> Tensor!(T, S)

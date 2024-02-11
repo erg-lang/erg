@@ -1,0 +1,69 @@
+Transform: ClassType
+
+.Compose: ClassType
+.Compose <: GenericCallable
+.Compose.
+    __call__: (transforms: [Transform; _]) -> .Compose
+
+.CenterCrop: ClassType
+.CenterCrop <: Transform
+.CenterCrop <: GenericCallable
+.CenterCrop.
+    __call__: (size: Nat or (Nat, Nat) or [Nat; 2]) -> .CenterCrop
+
+.GrayScale: ClassType
+.GrayScale <: Transform
+.GrayScale <: GenericCallable
+.GrayScale.
+    __call__: () -> .GrayScale
+
+.Normalize: ClassType
+.Normalize <: Transform
+.Normalize <: GenericCallable
+.Normalize.
+    __call__: (
+        mean: [Float; _],
+        std: [Float; _],
+        inplace := Bool,
+    ) -> .Normalize
+
+.RandomCrop: ClassType
+.RandomCrop <: Transform
+.RandomCrop <: GenericCallable
+.RandomCrop.
+    __call__: (
+        size: Nat or (Nat, Nat) or [Nat; 2],
+        padding := Nat or (Nat, Nat) or (Nat, Nat, Nat, Nat),
+        pad_if_needed:=Bool,
+        fill := Nat or (Nat, Nat, Nat),
+        padding_mode := Str,
+    ) -> .RandomCrop
+
+.RandomHorizontalFlip: ClassType
+.RandomHorizontalFlip <: Transform
+.RandomHorizontalFlip <: GenericCallable
+.RandomHorizontalFlip.
+    __call__: () -> .RandomHorizontalFlip
+
+.RandomResizedCrop: ClassType
+.RandomResizedCrop <: Transform
+.RandomResizedCrop <: GenericCallable
+.RandomResizedCrop.
+    __call__: (size: Nat or (Nat, Nat) or [Nat; 2]) -> .RandomResizedCrop
+
+.Resize: ClassType
+.Resize <: Transform
+.Resize <: GenericCallable
+.Resize.
+    __call__: (
+        size: Nat or (Nat, Nat) or [Nat; 2],
+        interpolation := Str,
+        max_size := Nat,
+        antialias := Bool,
+    ) -> .Resize
+
+.ToTensor: ClassType
+.ToTensor <: Transform
+.ToTensor <: GenericCallable
+.ToTensor.
+    __call__: () -> .ToTensor

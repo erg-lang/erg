@@ -1,0 +1,27 @@
+{Tensor!;} = pyimport "torch"
+{Module;} = pyimport "torch/nn"
+
+_Loss: ClassType
+_Loss <: Module
+_Loss.
+    reduction: Str
+
+_WeightedLoss: ClassType
+_WeightedLoss <: _Loss
+
+.CrossEntropyLoss: ClassType
+.CrossEntropyLoss <: _WeightedLoss
+.CrossEntropyLoss.
+    __call__: () -> .CrossEntropyLoss
+.CrossEntropyLoss|<: GenericCallable|.
+    __call__: |T|(
+        self: .CrossEntropyLoss,
+        input: Tensor!(T, _),
+        target: Tensor!(T, _),
+    ) -> Tensor!(T, [])
+.CrossEntropyLoss.
+    forward: |T|(
+        self: .CrossEntropyLoss,
+        input: Tensor!(T, _),
+        target: Tensor!(T, _),
+    ) -> Tensor!(T, [])

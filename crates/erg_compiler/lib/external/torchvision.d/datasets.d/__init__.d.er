@@ -1,0 +1,7 @@
+.cifar = pyimport "./cifar"
+.mnist = pyimport "./mnist"
+.utils = pyimport "./utils"
+.vision = pyimport "./vision"
+
+{.CIFAR10; .CIFAR100;} = .cifar
+{.MNIST; .FashionMNIST;} = .mnist

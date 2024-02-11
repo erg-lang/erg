@@ -1,0 +1,89 @@
+.Complex64 = 'complex64': ClassType
+.Complex128 = 'complex128': ClassType
+
+.Float16 = 'float16': ClassType
+.Float32 = 'float32': ClassType
+.Float64 = 'float64': ClassType
+
+.Int8 = 'int8': ClassType
+.Int16 = 'int16': ClassType
+.Int32 = 'int32': ClassType
+.Int64 = 'int64': ClassType
+
+.UInt8 = 'uint8': ClassType
+.UInt16 = 'uint16': ClassType
+.UInt32 = 'uint32': ClassType
+.UInt64 = 'uint64': ClassType
+
+.Bool_ = 'bool_': ClassType
+.Str_ = 'str_': ClassType
+
+.NDArray = 'ndarray': (T: Type, Shape: [Nat; _]) -> ClassType
+.NDArray(T, _) <: Output T
+.NDArray(_, _) <: Num
+.NDArray(T, S)|<: Add .NDArray(T, S)|.
+    Output: {.NDArray(T, S)}
+    __add__: (self: .NDArray(T, S), other: .NDArray(T, S)) -> .NDArray(T, S)
+.NDArray(T, S)|<: Add T|.
+    Output: {.NDArray(T, S)}
+    __add__: (self: .NDArray(T, S), other: T) -> .NDArray(T, S)
+.NDArray(T, S)|<: Sub .NDArray(T, S)|.
+    Output: {.NDArray(T, S)}
+    __sub__: (self: .NDArray(T, S), other: .NDArray(T, S)) -> .NDArray(T, S)
+.NDArray(T, S)|<: Sub T|.
+    Output: {.NDArray(T, S)}
+    __sub__: (self: .NDArray(T, S), other: T) -> .NDArray(T, S)
+.NDArray(T, S)|<: Mul .NDArray(T, S)|.
+    Output: {.NDArray(T, S)}
+    __mul__: (self: .NDArray(T, S), other: .NDArray(T, S)) -> .NDArray(T, S)
+.NDArray(T, S)|<: Mul T|.
+    Output: {.NDArray(T, S)}
+    __mul__: (self: .NDArray(T, S), other: T) -> .NDArray(T, S)
+.NDArray(T, S)|<: Div .NDArray(T, S)|.
+    Output: {.NDArray(T, S)}
+    __div__: (self: .NDArray(T, S), other: .NDArray(T, S)) -> .NDArray(T, S)
+.NDArray(T, S)|<: Div T|.
+    Output: {.NDArray(T, S)}
+    __div__: (self: .NDArray(T, S), other: T) -> .NDArray(T, S)
+.NDArray.
+    shape: [Nat; _]
+    ndim: Nat
+    dtype: Type
+    size: Nat
+    copy: |T, S: [Nat; _]|(self: .NDArray(T, S),) -> .NDArray(T, S)
+    reshape: |T, Old: [Nat; _], S: {A: [Nat; _] | A.prod() == Old.prod()}|(
+        self: .NDArray(T, Old),
+        shape: {S},
+    ) -> .NDArray(T, S)
+    sum: |T <: Num|(self: .NDArray(T, _),) -> T
+    take: (|T|(self: .NDArray(T, _), indice: Nat) -> T) \
+        and (|T|(self: .NDArray(T, _), indices: .NDArray(Nat) or [Nat; _]) -> .NDArray(T, _))
+    tobytes: |T|(self: .NDArray(T, _),) -> Bytes
+    tolist: |T|(self: .NDArray(T, _),) -> [T; _]
+
+.nan: Float
+.Nan: Float
+
+.abs: |T, S: [Nat; _]|(object: .NDArray(T, S),) -> .NDArray(T, S)
+.add: |T, S: [Nat; _]|(object: .NDArray(T, S), other: .NDArray(T, S)) -> .NDArray(T, S)
+.all: |T <: Num|(object: .NDArray(T),) -> Bool
+.any: |T <: Num|(object: .NDArray(T),) -> Bool
+.arange: |T <: Num|(start: T, stop := T, step := T) -> .NDArray(T)
+.array: |T, S: [Nat; _]|(object: HasScalarType(T) and HasShape(S),) -> .NDArray(T, S)
+.linspace: |T <: Num|(start: T, stop: T, num := Nat, endpoint := Bool, retstep := Bool, dtype := Type, axis := Nat) -> .NDArray(T)
+.max: |T <: Num|(object: .NDArray(T),) -> T
+.mean: |T <: Num|(object: .NDArray(T),) -> T
+.min: |T <: Num|(object: .NDArray(T),) -> T
+.ones: |T|(shape: Nat or [Nat; _], dtype := Type) -> .NDArray(T)
+.reshapce: |T|(object: .NDArray(T), shape: [Nat; _]) -> .NDArray(T)
+.std: |T <: Num|(object: .NDArray(T),) -> T
+.sum: |T|(object: .NDArray(T),) -> T
+.sqrt: |T|(object: .NDArray(T),) -> .NDArray(T)
+.transpose: |T|(object: .NDArray(T), axes := [Nat; _]) -> .NDArray(T)
+.zeros: (|N: Nat|(shape: {N}, dtype := Type) -> .NDArray(Nat, [N])) \
+    and (|S: [Nat; _]|(shape: {S}, dtype := Type) -> .NDArray(Nat, S))
+.empty: (|N: Nat|(shape: {N}, dtype := Type) -> .NDArray(Nat, [N])) \
+    and (|S: [Nat; _]|(shape: {S}, dtype := Type) -> .NDArray(Nat, S))
+.dot: (|T, I: Nat, J: Nat, K: Nat|(l: .NDArray(T, [I, J]), r: .NDArray(T, [J, K])) -> .NDArray(T, [I, K])) \
+    and (|T, I: Nat, J: Nat|(l: .NDArray(T, [I]), r: .NDArray(T, [I, J])) -> .NDArray(T, [J])) \
+    and (|T, I: Nat|(l: .NDArray(T, [I]), r: .NDArray(T, [I])) -> T)

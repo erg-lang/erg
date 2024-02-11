@@ -1,0 +1,38 @@
+.Token: ClassType
+.TokenKind: ClassType
+
+.Literal: ClassType
+.VarName: ClassType
+.Identifier: ClassType
+.Attribute: ClassType
+.TupleAttribute: ClassType
+.Subscript: ClassType
+.TypeApp: ClassType
+.NormalArray: ClassType
+.NormalTuple: ClassType
+.NormalDict: ClassType
+.NormalSet: ClassType
+.NormalRecord: ClassType
+.BinOp: ClassType
+.UnaryOp: ClassType
+.Call: ClassType
+.Args: ClassType
+.Block: ClassType
+.DataPack: ClassType
+.Lambda: ClassType
+.TypeAscription: ClassType
+.VarSignature: ClassType
+.SubrSignature: ClassType
+.Def: ClassType
+.Methods: ClassType
+.ClassDef: ClassType
+.PatchDef: ClassType
+.ReDef: ClassType
+.Compound: ClassType
+.InlineModule: ClassType
+.Dummy: ClassType
+.Module: ClassType
+
+.AST: ClassType
+.AST.
+    new: (name: Str, mod: .Module) -> .AST

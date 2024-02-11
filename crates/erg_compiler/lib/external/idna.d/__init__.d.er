@@ -1,0 +1,18 @@
+.core = pyimport "./core"
+
+{
+    .alabel;
+    .check_bidi;
+    .check_hyphen_ok;
+    .check_initial_combiner;
+    .check_label;
+    .check_nfc;
+    .decode;
+    .encode;
+    .ulabel;
+    .uts46_remap;
+    .valid_contextj;
+    .valid_contexto;
+    .valid_label_length;
+    .valid_string_length;
+} = .core

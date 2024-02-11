@@ -1,0 +1,17 @@
+.core = pyimport "core"
+.io = pyimport "io"
+.plotting = pyimport "plotting"
+.util = pyimport "util"
+
+{
+    .DataFrame!;
+    .Series!;
+    .Index;
+} = pyimport "core/api"
+
+{
+    .read_csv!;
+} = pyimport "io/parsers"
+{
+    .read_json!;
+} = pyimport "io/json"

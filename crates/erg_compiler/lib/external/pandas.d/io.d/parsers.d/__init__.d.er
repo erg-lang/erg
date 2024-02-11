@@ -1,0 +1,3 @@
+{DataFrame!;} = pyimport "../../core/frame"
+
+.read_csv!: (path: PathLike) => DataFrame!

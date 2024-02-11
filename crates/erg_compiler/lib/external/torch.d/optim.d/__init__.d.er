@@ -1,0 +1,47 @@
+{Parameter;} = pyimport "torch/nn/parameter"
+
+.Optimizer!: ClassType
+.Optimizer! <: InheritableType
+.Optimizer!.
+    __call__: (params: Iterable(Parameter)) -> .Optimizer!
+    zero_grad!: (self: RefMut .Optimizer!) => NoneType
+    step!: (self: RefMut .Optimizer!) => NoneType
+
+.ASGD!: ClassType
+.ASGD! <: .Optimizer!
+.Adadelta!: ClassType
+.Adadelta! <: .Optimizer!
+.Adagrad!: ClassType
+.Adagrad! <: .Optimizer!
+.Adam!: ClassType
+.Adam! <: .Optimizer!
+.Adam!.
+    __call__: (
+        params: Iterable(Parameter),
+        lr := Float,
+        betas := (Float, Float),
+        eps := Float,
+        weight_decay := Float,
+        amsgrad := Bool,
+        foreach := Bool,
+        maximize := Bool,
+    ) -> .Adam!
+
+.AdamW!: ClassType
+.AdamW! <: .Optimizer!
+.Adamax!: ClassType
+.Adamax! <: .Optimizer!
+.LBFGS!: ClassType
+.LBFGS! <: .Optimizer!
+.NAdam!: ClassType
+.NAdam! <: .Optimizer!
+.RAdam!: ClassType
+.RAdam! <: .Optimizer!
+.RMSprop!: ClassType
+.RMSprop! <: .Optimizer!
+.Rprop!: ClassType
+.Rprop! <: .Optimizer!
+.SGD!: ClassType
+.SGD! <: .Optimizer!
+.SparseAdam!: ClassType
+.SparseAdam! <: .Optimizer!

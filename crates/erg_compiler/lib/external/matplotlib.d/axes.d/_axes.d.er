@@ -1,0 +1,21 @@
+.Axes!: ClassType
+.Axes!.
+    scatter!: (
+        self: RefMut(.Axes!),
+        x: Num, # TODO: Float | ArrayLike
+        y: Num,
+        s := Num,
+        c := Iterable(Int),
+        vmin := Float,
+        vmax := Float,
+    ) => NoneType
+    set!: (
+        self: RefMut(.Axes!),
+        xlabel := Str,
+        xlim := (Float, Float),
+        xticks := Iterable(Obj),
+        ylabel := Str,
+        ylim := (Float, Float),
+        yticks := Iterable(Obj),
+        title := Str
+    ) => NoneType

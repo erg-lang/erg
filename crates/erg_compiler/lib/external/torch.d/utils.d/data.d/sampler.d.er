@@ -1,0 +1,13 @@
+.Sampler: ClassType
+
+.RandomSampler: ClassType
+.RandomSampler <: .Sampler
+
+.SequentialSampler: ClassType
+.SequentialSampler <: .Sampler
+
+.SubsetRandomSampler: ClassType
+.SubsetRandomSampler <: .Sampler
+
+.WeightedRandomSampler: ClassType
+.WeightedRandomSampler <: .Sampler

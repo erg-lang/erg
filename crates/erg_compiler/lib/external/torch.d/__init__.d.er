@@ -1,0 +1,87 @@
+np = pyimport "numpy"
+
+.backends = pyimport "./backends"
+.cuda = pyimport "./cuda"
+.nn = pyimport "./nn"
+.optim = pyimport "./optim"
+.serialization = pyimport "./serialization"
+.utils = pyimport "./utils"
+
+{.load!; .save!;} = pyimport "./serialization"
+{.manual_seed!;} = pyimport "./random"
+{.no_grad;} = pyimport "./autograd"
+
+.Device = 'device': ClassType
+.device: (type: Str) => .Device
+
+.DType = 'dtype': ClassType
+.dtype: (type: Str) => .DType
+
+.UInt8 = 'uint8': ClassType
+.Int8  = 'int8': ClassType
+.Int16 = 'int16': ClassType
+.Int32 = 'int32': ClassType
+.Int64 = 'int64': ClassType
+.Float16 = 'float16': ClassType
+.Float32 = 'float32': ClassType
+.Float64 = 'float64': ClassType
+.Complex32 = 'complex32': ClassType
+.Complex64 = 'complex64': ClassType
+.Complex128 = 'complex128': ClassType
+
+.Size: (S: [Nat; _]) -> ClassType
+.Size(S).
+    __call__: (size: {S}) -> .Size(S)
+.Size(S)|<: Eq|.
+    __eq__: (self: .Size(S), other: .Size(S)) -> Bool
+.Tensor!: (T: Type, Shape: [Nat; _]) -> ClassType
+.Tensor!(T, _) <: Output T
+.Tensor!(T, S)|<: IrregularEq|.
+    Output: {Tensor!(Bool, S)}
+    __eq__: (self: .Tensor!(T, S), other: .Tensor!(T, S)) -> .Tensor!(Bool, S)
+.Tensor!(T, S)|<: Indexable(Nat, .Tensor!(T, _))|.
+    __getitem__: (self: .Tensor!(T, S), index: Nat or [Nat; _]) -> .Tensor!(T, _)
+.Tensor!(T, S).
+    data: .Tensor!(T, S)
+    shape: .Size(S)
+.Tensor!(_, _).
+    dtype: .DType
+    clone: |T, S: [Nat; _]|(self: .Tensor!(T, S)) -> .Tensor!(T, S)
+    cpu: |T, S: [Nat; _]|(self: .Tensor!(T, S)) -> .Tensor!(T, S)
+    detach: |T, S: [Nat; _]|(self: .Tensor!(T, S)) -> .Tensor!(T, S)
+    numpy: |T, S: [Nat; _]|(self: .Tensor!(T, S)) -> np.NDArray(T, S)
+    view: (|T, Old: [Nat; _], S: {A: [Nat; _] | A.prod() == Old.prod()}|(
+        self: .Tensor!(T, Old),
+        shape: {S},
+    ) -> .Tensor!(T, S)) \
+        and (|T|(self: .Tensor!(T, _), shape: [Int; _]) -> .Tensor!(T, _))
+    backward!: |T, S: [Nat; _]|(
+        self: RefMut(.Tensor!(T, S)),
+        gradient := .Tensor!(T, S),
+        retain_graph := Bool,
+        create_graph := Bool,
+    ) => NoneType
+    # TODO: S bound
+    item: |T|(self: Ref .Tensor!(T, _)) -> T
+    to: (|T, S: [Nat; _]|(
+        self: .Tensor!(T, S),
+        other: .DType or .Device,
+        non_blocking := Bool,
+        copy := Bool,
+    ) -> .Tensor!(T, S))
+    size: (|T, S: [Nat; _]|(self: .Tensor!(T, S), dim: Nat) -> Nat) \
+        and (|T, S: [Nat; _]|(self: .Tensor!(T, S)) -> .Size)
+    sum: |T, S: [Nat; _]|(self: .Tensor!(T, S)) -> .Tensor!(T, [])
+    squeeze: (|T, S: [Nat; _]|(self: .Tensor!(T, S)) -> .Tensor!(T, S.remove_all(1))) \
+        and (|T|(self: .Tensor!(T, _)) -> .Tensor!(T, _))
+    unsqueeze: (|T, S: [Nat; _], Dim: Nat|(self: .Tensor!(T, S), dim: {Dim}) -> .Tensor!(T, S.insert(Dim, 1))) \
+        and (|T|(self: .Tensor!(T, _), dim: Nat) -> .Tensor!(T, _))
+
+.relu: |T, S: [Nat; _]|(x: .Tensor!(T, S)) -> .Tensor!(T, S)
+.softmax: |T, S: [Nat; _]|(x: .Tensor!(T, S), dim: Nat) -> .Tensor!(T, S)
+.max: (|T|(input: .Tensor!(T, _), dim: Nat, keepdim := Bool) -> (.Tensor!(T, _)), .Tensor!(T, _)) \
+    and (|T|(input: .Tensor!(T, _)) -> .Tensor!(T, _))
+.min: (|T|(input: .Tensor!(T, _), dim: Nat, keepdim := Bool) -> (.Tensor!(T, _)), .Tensor!(T, _)) \
+    and (|T|(input: .Tensor!(T, _)) -> .Tensor!(T, _))
+.tensor: (|T, S: [Nat; _]|(data: HasScalarType(T) and HasShape(S), dtype := .DType, device := .Device) -> .Tensor!(T, S)) \
+    and (|T|(data: [T; _], dtype := .DType, device := .Device) -> .Tensor!(T, _))

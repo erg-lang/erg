@@ -1,0 +1,43 @@
+{Tensor!;} = pyimport "torch"
+{Parameter;} = pyimport "torch/nn/parameter"
+
+.Module: ClassType
+.Module <: InheritableType
+.Module|<: GenericCallable|.
+    __call__: |T|(
+        self: .Module,
+        input: Tensor!(T, _),
+    ) -> Tensor!(T, _)
+.Module.
+    __init__: (self: RefMut(.Module)) => NoneType
+    parameters: (self: Ref(.Module), recurse := Bool) -> Iterator Parameter
+    named_parameters: (self: Ref(.Module), prefix := Str, recurse := Bool, remove_duplicate := Bool) -> Iterator((Str, Parameter))
+    # buffers: (self: Ref(.Module), recurse := Bool) -> Iterator .Tensor!
+    # named_buffers: (self: Ref(.Module), prefix := Str, recurse := Bool, remove_duplicate := Bool) -> Iterator((Str, .Tensor!))
+    children: (self: Ref(.Module)) -> Iterator .Module
+    named_children: (self: Ref(.Module), prefix := Str) -> Iterator((Str, .Module))
+    modules: (self: Ref(.Module)) -> Iterator .Module
+    named_modules: (self: Ref(.Module), memo := {.Module; _}, prefix := Str, remove_duplicate := Bool) -> Iterator((Str, .Module))
+    train: |T <: .Module|(self: Ref(T), mode := Bool) -> T
+    eval: |T <: .Module|(self: Ref(T)) -> T
+    zero_grad!: (self: RefMut(.Module), set_to_none := Bool) => NoneType
+    compile: (self: Ref(.Module), *args: Obj, **kwargs: Obj) -> .Module
+    # register_buffer!: (self: RefMut(.Module), name: Str, tensor := Tensor!, persistent := Bool) => NoneType
+    register_parameter!: (self: RefMut(.Module), name: Str, param := Parameter) => NoneType
+    add_module!: (self: RefMut(.Module), name: Str, module := .Module) => NoneType
+    register_module!: (self: RefMut(.Module), name: Str, module := .Module) => NoneType
+    get_submodule: (self: Ref(.Module), name: Str) -> .Module
+    get_parameter: (self: Ref(.Module), name: Str) -> Parameter
+    # get_buffer: (self: Ref(.Module), name: Str) -> .Tensor!
+    get_extra_state: (self: Ref(.Module)) -> Obj
+    set_extra_state!: (self: RefMut(.Module), state: Obj) => NoneType
+    apply!: |T <: .Module|(self: T, fn: (module: RefMut(T)) => NoneType) => T
+    cuda!: |T <: .Module|(self: T, device := Int) => T
+    ipu!: |T <: .Module|(self: T, device := Int) => T
+    xpu!: |T <: .Module|(self: T, device := Int) => T
+    cpu!: |T <: .Module|(self: T) => T
+    float: |T <: .Module|(self: T) -> T
+    double: |T <: .Module|(self: T) -> T
+    half: |T <: .Module|(self: T) -> T
+    bfloat16: |T <: .Module|(self: T) -> T
+    to: |T <: .Module|(self: T, *args: Obj, **kwargs: Obj) -> T

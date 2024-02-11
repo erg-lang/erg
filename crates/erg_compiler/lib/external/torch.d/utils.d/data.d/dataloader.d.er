@@ -1,0 +1,25 @@
+torch = pyimport "torch"
+dataset = pyimport "./dataset"
+{Sampler;} = pyimport "./sampler"
+
+.DataLoader: ClassType
+.DataLoader <: Iterable((torch.Tensor!(_, _), torch.Tensor!(_, _)))
+.DataLoader.
+    __call__: (
+        dataset: dataset.Dataset,
+        batch_size := Nat,
+        shuffle := Bool,
+        sampler := Sampler,
+        batch_sampler := Sampler,
+        num_workers := Nat,
+        collate_fn := Obj,
+        pin_memory := Bool,
+        drop_last := Bool,
+        timeout := Float,
+        worker_init_fn := Obj,
+        multiprocessing_context := Obj,
+        generator := Obj,
+        prefetch_factor := Nat,
+        persistent_workers := Bool,
+        pin_memory_device := Str,
+    ) -> .DataLoader

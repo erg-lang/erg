@@ -1,0 +1,23 @@
+vision = pyimport "./vision"
+
+.CIFAR10: ClassType
+.CIFAR10 <: vision.VisionDataset
+.CIFAR10.
+    __call__: (
+        root: Str,
+        train := Bool,
+        download := Bool,
+        transform := GenericCallable,
+        target_transform := GenericCallable,
+    ) -> .CIFAR10
+
+.CIFAR100: ClassType
+.CIFAR100 <: .CIFAR10
+.CIFAR100.
+    __call__: (
+        root: Str,
+        train := Bool,
+        download := Bool,
+        transform := GenericCallable,
+        target_transform := GenericCallable,
+    ) -> .CIFAR100

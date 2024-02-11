@@ -1,0 +1,17 @@
+.activation = pyimport "./activation"
+.container = pyimport "./container"
+.conv = pyimport "./conv"
+.flatten = pyimport "./flatten"
+.linear = pyimport "./linear"
+.loss = pyimport "./loss"
+.module = pyimport "./module"
+.pooling = pyimport "./pooling"
+
+{.ReLU;} = .activation
+{.Sequential;} = .container
+{.Conv1d; .Conv2d; .Conv3d;} = .conv
+{.Flatten;} = .flatten
+{.Linear;} = .linear
+{.CrossEntropyLoss;} = .loss
+{.Module;} = .module
+{.MaxPool1d; .MaxPool2d; .MaxPool3d;} = .pooling

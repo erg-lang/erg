@@ -1,0 +1,33 @@
+.IDNAError: ClassType
+.IDNABidiError: ClassType
+.IDNABidiError <: .IDNAError
+.InvalidCodepoint: ClassType
+.InvalidCodepoint <: .IDNAError
+.InvalidCodepointContext: ClassType
+.InvalidCodepointContext <: .IDNAError
+
+.valid_label_length: (label: Str or Bytes) -> Bool
+.valid_string_length: (label: Str or Bytes, trailing_dot: Bool) -> Bool
+.check_bidi: (label: Str, check_ltr := Bool) -> Bool
+.check_initial_combiner: (label: Str) -> Bool
+.check_hyphen_ok: (label: Str) -> Bool
+.check_nfc: (label: Str) -> Bool
+.valid_contextj: (label: Str, pos: Int) -> Bool
+.valid_contexto: (label: Str, pos: Int, exception := Bool) -> Bool
+.check_label: (label: Str or Bytes) -> NoneType
+.alabel: (label: Str) -> Bytes
+.ulabel: (label: Str or Bytes) -> Str
+.uts46_remap: (domain: Str or Bytes, std3_rules := Bool, transitional := Bool) -> Str
+.encode: (
+    s: Str or Bytes,
+    strict:= Bool,
+    uts46:= Bool,
+    std3_rules:= Bool,
+    transitional:= Bool,
+) -> Bytes
+.decode: (
+    s: Str or Bytes,
+    strict:= Bool,
+    uts46:= Bool,
+    std3_rules:= Bool,
+) -> Str

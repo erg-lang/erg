@@ -1,0 +1,5 @@
+axes = pyimport "./axes"
+
+.Figure!: ClassType
+.Figure!.
+    add_axes!: (self: RefMut(.Figure!), rect: [Nat; 4], projection := Str or NoneType, polar := Bool, label := Str) => axes.Axes!
