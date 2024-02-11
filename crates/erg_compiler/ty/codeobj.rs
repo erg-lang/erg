@@ -629,10 +629,17 @@ impl CodeObj {
         }
         match op308 {
             Opcode308::STORE_DEREF | Opcode308::LOAD_DEREF => {
-                write!(instrs, "{arg} ({})", self.freevars.get(arg).unwrap()).unwrap();
+                write!(
+                    instrs,
+                    "{arg} ({})",
+                    self.freevars
+                        .get(arg)
+                        .unwrap_or_else(|| &self.cellvars[arg])
+                )
+                .unwrap();
             }
             Opcode308::LOAD_CLOSURE => {
-                write!(instrs, "{arg} ({})", self.cellvars.get(arg).unwrap()).unwrap();
+                write!(instrs, "{arg} ({})", self.cellvars[arg]).unwrap();
             }
             Opcode308::JUMP_ABSOLUTE => {
                 write!(instrs, "{arg} (to {})", arg).unwrap();
@@ -670,10 +677,17 @@ impl CodeObj {
         }
         match op309 {
             Opcode309::STORE_DEREF | Opcode309::LOAD_DEREF => {
-                write!(instrs, "{arg} ({})", self.freevars.get(arg).unwrap()).unwrap();
+                write!(
+                    instrs,
+                    "{arg} ({})",
+                    self.freevars
+                        .get(arg)
+                        .unwrap_or_else(|| &self.cellvars[arg])
+                )
+                .unwrap();
             }
             Opcode309::LOAD_CLOSURE => {
-                write!(instrs, "{arg} ({})", self.cellvars.get(arg).unwrap()).unwrap();
+                write!(instrs, "{arg} ({})", self.cellvars[arg]).unwrap();
             }
             Opcode309::JUMP_ABSOLUTE => {
                 write!(instrs, "{arg} (to {})", arg).unwrap();
@@ -716,13 +730,12 @@ impl CodeObj {
                     "{arg} ({})",
                     self.freevars
                         .get(arg)
-                        .or_else(|| self.varnames.get(arg))
-                        .unwrap()
+                        .unwrap_or_else(|| &self.cellvars[arg])
                 )
                 .unwrap();
             }
             Opcode310::LOAD_CLOSURE => {
-                write!(instrs, "{arg} ({})", self.cellvars.get(arg).unwrap()).unwrap();
+                write!(instrs, "{arg} ({})", self.cellvars[arg]).unwrap();
             }
             Opcode310::JUMP_ABSOLUTE => {
                 write!(instrs, "{arg} (to {})", arg * 2).unwrap();
@@ -762,10 +775,10 @@ impl CodeObj {
         }
         match op311 {
             Opcode311::STORE_DEREF | Opcode311::LOAD_DEREF => {
-                write!(instrs, "{arg} ({})", self.varnames.get(arg).unwrap()).unwrap();
+                write!(instrs, "{arg} ({})", self.varnames[arg]).unwrap();
             }
             Opcode311::MAKE_CELL | Opcode311::LOAD_CLOSURE => {
-                write!(instrs, "{arg} ({})", self.varnames.get(arg).unwrap()).unwrap();
+                write!(instrs, "{arg} ({})", self.varnames[arg]).unwrap();
             }
             Opcode311::POP_JUMP_FORWARD_IF_FALSE | Opcode311::POP_JUMP_FORWARD_IF_TRUE => {
                 write!(instrs, "{arg} (to {})", idx + arg * 2 + 2).unwrap();
@@ -787,7 +800,7 @@ impl CodeObj {
                 write!(instrs, "{arg}").unwrap();
             }
             Opcode311::KW_NAMES => {
-                write!(instrs, "{arg} ({})", self.consts.get(arg).unwrap()).unwrap();
+                write!(instrs, "{arg} ({})", self.consts[arg]).unwrap();
             }
             Opcode311::BINARY_OP => {
                 write!(
