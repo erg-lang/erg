@@ -120,10 +120,26 @@ impl ControlKind {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct TraitImpl {
     pub sub_type: Type,
     pub sup_trait: Type,
+    pub declared_in: Option<NormalizedPathBuf>,
+}
+
+impl PartialEq for TraitImpl {
+    fn eq(&self, other: &Self) -> bool {
+        self.sub_type == other.sub_type && self.sup_trait == other.sup_trait
+    }
+}
+
+impl Eq for TraitImpl {}
+
+impl std::hash::Hash for TraitImpl {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.sub_type.hash(state);
+        self.sup_trait.hash(state);
+    }
 }
 
 impl std::fmt::Display for TraitImpl {
@@ -133,10 +149,15 @@ impl std::fmt::Display for TraitImpl {
 }
 
 impl TraitImpl {
-    pub const fn new(sub_type: Type, sup_trait: Type) -> Self {
+    pub const fn new(
+        sub_type: Type,
+        sup_trait: Type,
+        declared_in: Option<NormalizedPathBuf>,
+    ) -> Self {
         Self {
             sub_type,
             sup_trait,
+            declared_in,
         }
     }
 }
@@ -1036,7 +1057,7 @@ impl Context {
         Self::poly(
             name.into(),
             cfg,
-            ContextKind::GluePatch(TraitImpl::new(base, impls)),
+            ContextKind::GluePatch(TraitImpl::new(base, impls, None)),
             params,
             None,
             shared,
