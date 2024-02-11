@@ -662,7 +662,7 @@ impl PyCodeGenerator {
             .iter()
             .position(|n| &**n == name)
         {
-            if self.captured_vars().contains(&name) {
+            if self.py_version.minor >= Some(11) && self.captured_vars().contains(&name) {
                 None
             } else {
                 Some(Name::local(idx))
