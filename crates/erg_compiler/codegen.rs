@@ -3098,6 +3098,10 @@ impl PyCodeGenerator {
 
     fn emit_dict(&mut self, dict: crate::hir::Dict) {
         let init_stack_len = self.stack_len();
+        if !self.cfg.no_std {
+            self.emit_push_null();
+            self.emit_load_name_instr(Identifier::public("Dict"));
+        }
         match dict {
             crate::hir::Dict::Normal(dic) => {
                 let len = dic.kvs.len();
@@ -3114,6 +3118,10 @@ impl PyCodeGenerator {
                 }
             }
             other => todo!("{other}"),
+        }
+        if !self.cfg.no_std {
+            self.emit_call_instr(1, Name);
+            self.stack_dec();
         }
         debug_assert_eq!(self.stack_len(), init_stack_len + 1);
     }
@@ -3304,8 +3312,9 @@ impl PyCodeGenerator {
     fn emit_expr(&mut self, expr: Expr) {
         log!(info "entered {} ({expr})", fn_name!());
         self.push_lnotab(&expr);
+        let init_stack_len = self.stack_len();
         let mut wrapped = true;
-        if !self.cfg.no_std {
+        if !self.cfg.no_std && expr.should_wrap() {
             match expr.ref_t().derefine() {
                 Bool => {
                     self.emit_push_null();
@@ -3353,6 +3362,8 @@ impl PyCodeGenerator {
                     }
                 },
             }
+        } else {
+            wrapped = false;
         }
         match expr {
             Expr::Literal(lit) => self.emit_load_const(lit.value),
@@ -3380,6 +3391,7 @@ impl PyCodeGenerator {
             self.emit_call_instr(1, Name);
             self.stack_dec();
         }
+        debug_assert_eq!(self.stack_len(), init_stack_len + 1);
     }
 
     /// forブロックなどで使う

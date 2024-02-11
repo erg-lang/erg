@@ -2850,6 +2850,18 @@ impl Expr {
         }
     }
 
+    pub fn should_wrap(&self) -> bool {
+        match self {
+            Self::Literal(_)
+            | Self::Accessor(_)
+            | Self::Call(_)
+            | Self::BinOp(_)
+            | Self::UnaryOp(_) => true,
+            Self::TypeAsc(t) => t.expr.should_wrap(),
+            _ => false,
+        }
+    }
+
     pub fn need_to_be_closed(&self) -> bool {
         match self {
             Self::BinOp(_) | Self::UnaryOp(_) | Self::Lambda(_) | Self::TypeAsc(_) => true,
