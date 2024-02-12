@@ -12,7 +12,8 @@ use std::time::Duration;
 
 use thread_local::ThreadLocal;
 
-const TIMEOUT: Duration = Duration::from_secs(3);
+const GET_TIMEOUT: Duration = Duration::from_secs(4);
+const SET_TIMEOUT: Duration = Duration::from_secs(8);
 
 #[derive(Debug)]
 pub struct BorrowInfo {
@@ -125,9 +126,9 @@ impl<T> Shared<T> {
 impl<T: ?Sized> Shared<T> {
     #[track_caller]
     fn wait_until_unlocked(&self) {
-        let mut timeout = TIMEOUT;
+        let mut timeout = GET_TIMEOUT;
         loop {
-            let lock_thread = self.lock_thread_id.try_read_for(TIMEOUT).unwrap();
+            let lock_thread = self.lock_thread_id.try_read_for(GET_TIMEOUT).unwrap();
             if lock_thread.is_empty() || lock_thread.last() == Some(&std::thread::current().id()) {
                 break;
             }
@@ -145,16 +146,16 @@ impl<T: ?Sized> Shared<T> {
         self.wait_until_unlocked();
         #[cfg(any(feature = "backtrace", feature = "debug"))]
         {
-            *self.last_borrowed_at.try_write_for(TIMEOUT).unwrap() =
+            *self.last_borrowed_at.try_write_for(GET_TIMEOUT).unwrap() =
                 BorrowInfo::new(Some(std::panic::Location::caller()));
         }
-        self.data.try_read_for(TIMEOUT).unwrap_or_else(|| {
+        self.data.try_read_for(GET_TIMEOUT).unwrap_or_else(|| {
             #[cfg(any(feature = "backtrace", feature = "debug"))]
             {
                 panic!(
                     "Shared::borrow: already borrowed at {}, mutably borrowed at {:?}",
-                    self.last_borrowed_at.try_read_for(TIMEOUT).unwrap(),
-                    self.last_mut_borrowed_at.try_read_for(TIMEOUT).unwrap()
+                    self.last_borrowed_at.try_read_for(GET_TIMEOUT).unwrap(),
+                    self.last_mut_borrowed_at.try_read_for(GET_TIMEOUT).unwrap()
                 )
             }
             #[cfg(not(any(feature = "backtrace", feature = "debug")))]
@@ -171,17 +172,20 @@ impl<T: ?Sized> Shared<T> {
         #[cfg(any(feature = "backtrace", feature = "debug"))]
         {
             let caller = std::panic::Location::caller();
-            *self.last_borrowed_at.try_write_for(TIMEOUT).unwrap() = BorrowInfo::new(Some(caller));
-            *self.last_mut_borrowed_at.try_write_for(TIMEOUT).unwrap() =
+            *self.last_borrowed_at.try_write_for(SET_TIMEOUT).unwrap() =
                 BorrowInfo::new(Some(caller));
+            *self
+                .last_mut_borrowed_at
+                .try_write_for(SET_TIMEOUT)
+                .unwrap() = BorrowInfo::new(Some(caller));
         }
-        self.data.try_write_for(TIMEOUT).unwrap_or_else(|| {
+        self.data.try_write_for(SET_TIMEOUT).unwrap_or_else(|| {
             #[cfg(any(feature = "backtrace", feature = "debug"))]
             {
                 panic!(
                     "Shared::borrow_mut: already borrowed at {}, mutabbly borrowed at {}",
-                    self.last_borrowed_at.try_read_for(TIMEOUT).unwrap(),
-                    self.last_mut_borrowed_at.try_read_for(TIMEOUT).unwrap()
+                    self.last_borrowed_at.try_read_for(SET_TIMEOUT).unwrap(),
+                    self.last_mut_borrowed_at.try_read_for(SET_TIMEOUT).unwrap()
                 )
             }
             #[cfg(not(any(feature = "backtrace", feature = "debug")))]
@@ -194,20 +198,20 @@ impl<T: ?Sized> Shared<T> {
     /// Lock the data and deny access from other threads.
     /// Locking can be done any number of times and will not be available until unlocked the same number of times.
     pub fn inter_thread_lock(&self) {
-        let mut lock_thread = self.lock_thread_id.try_write_for(TIMEOUT).unwrap();
+        let mut lock_thread = self.lock_thread_id.try_write_for(GET_TIMEOUT).unwrap();
         loop {
             if lock_thread.is_empty() || lock_thread.last() == Some(&std::thread::current().id()) {
                 break;
             }
             drop(lock_thread);
-            lock_thread = self.lock_thread_id.try_write_for(TIMEOUT).unwrap();
+            lock_thread = self.lock_thread_id.try_write_for(GET_TIMEOUT).unwrap();
         }
         lock_thread.push(std::thread::current().id());
     }
 
     #[track_caller]
     pub fn inter_thread_unlock(&self) {
-        let mut lock_thread = self.lock_thread_id.try_write_for(TIMEOUT).unwrap();
+        let mut lock_thread = self.lock_thread_id.try_write_for(GET_TIMEOUT).unwrap();
         loop {
             if lock_thread.is_empty() {
                 panic!("not locked");
@@ -215,13 +219,13 @@ impl<T: ?Sized> Shared<T> {
                 break;
             }
             drop(lock_thread);
-            lock_thread = self.lock_thread_id.try_write_for(TIMEOUT).unwrap();
+            lock_thread = self.lock_thread_id.try_write_for(GET_TIMEOUT).unwrap();
         }
         lock_thread.pop();
     }
 
     pub fn inter_thread_unlock_using_id(&self, id: ThreadId) {
-        let mut lock_thread = self.lock_thread_id.try_write_for(TIMEOUT).unwrap();
+        let mut lock_thread = self.lock_thread_id.try_write_for(GET_TIMEOUT).unwrap();
         loop {
             if lock_thread.is_empty() {
                 panic!("not locked");
@@ -231,7 +235,7 @@ impl<T: ?Sized> Shared<T> {
                 break;
             }
             drop(lock_thread);
-            lock_thread = self.lock_thread_id.try_write_for(TIMEOUT).unwrap();
+            lock_thread = self.lock_thread_id.try_write_for(GET_TIMEOUT).unwrap();
         }
         lock_thread.pop();
     }
