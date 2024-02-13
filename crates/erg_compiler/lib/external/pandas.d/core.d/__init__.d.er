@@ -1,5 +1,0 @@
-.algorithms = pyimport "algorithms"
-.api = pyimport "api"
-.frame = pyimport "frame"
-.indexes = pyimport "indexes"
-.series = pyimport "series"

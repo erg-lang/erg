@@ -1,7 +1,0 @@
-.api = pyimport "api"
-.clipboads = pyimport "clipboards"
-.common = pyimport "common"
-.excel = pyimport "excel"
-.html = pyimport "html"
-.json = pyimport "json"
-.parsers = pyimport "parsers"

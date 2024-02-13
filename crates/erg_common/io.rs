@@ -7,10 +7,7 @@ use std::process::Stdio;
 
 use crate::config::ErgConfig;
 use crate::consts::EXPERIMENTAL_MODE;
-use crate::env::{
-    erg_path, erg_pkgs_path, erg_py_external_lib_path, erg_pystd_path, erg_std_path,
-    python_site_packages,
-};
+use crate::env::{erg_path, erg_pkgs_path, erg_pystd_path, erg_std_path, python_site_packages};
 use crate::pathutil::{add_postfix_foreach, remove_postfix};
 use crate::python_util::get_sys_path;
 use crate::random::random;
@@ -537,19 +534,41 @@ impl Input {
         cfg: &ErgConfig,
         decl: bool,
     ) -> Option<PathBuf> {
-        let name = format!("{}", path.display());
+        let name = path.components().next()?.as_os_str();
         let pkg = cfg.packages.iter().find(|p| p.as_name == name)?;
-        let path = if let Some(path) = pkg.path {
+        let root_path = if let Some(path) = pkg.path {
             PathBuf::from(path).canonicalize().ok()?
         } else {
             erg_pkgs_path().join(pkg.name).join(pkg.version)
         };
-        let path = if decl {
-            path.join("src").join("lib.d.er")
+        if path.components().count() <= 1 {
+            let full_path = if decl {
+                root_path.join("src").join("lib.d.er")
+            } else {
+                root_path.join("src").join("lib.er")
+            };
+            full_path.canonicalize().ok()
         } else {
-            path.join("src").join("lib.er")
-        };
-        path.canonicalize().ok()
+            let full_path = if decl {
+                let path =
+                    add_postfix_foreach(path.components().skip(1).collect::<PathBuf>(), ".d");
+                root_path.join("src").join(path).with_extension("d.er")
+            } else {
+                let path = path.components().skip(1).collect::<PathBuf>();
+                root_path.join("src").join(path).with_extension("er")
+            };
+            full_path.canonicalize().ok().or_else(|| {
+                let full_path = if decl {
+                    let path =
+                        add_postfix_foreach(path.components().skip(1).collect::<PathBuf>(), ".d");
+                    root_path.join("src").join(path).join("__init__.d.er")
+                } else {
+                    let path = path.components().skip(1).collect::<PathBuf>();
+                    root_path.join("src").join(path).join("__init__.er")
+                };
+                full_path.canonicalize().ok()
+            })
+        }
     }
 
     /// resolution order:
@@ -584,11 +603,8 @@ impl Input {
                 }
             }
         }
-        let py_roots = [erg_pystd_path, erg_py_external_lib_path];
-        for root in py_roots {
-            if let Some(path) = Self::resolve_std_decl_path(root(), path) {
-                return Some(path);
-            }
+        if let Some(path) = Self::resolve_std_decl_path(erg_pystd_path(), path) {
+            return Some(path);
         }
         if let Some(pkg) = self.resolve_project_dep_path(path, cfg, true) {
             return Some(normalize_path(pkg));
