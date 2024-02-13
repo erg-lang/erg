@@ -958,13 +958,13 @@ impl PyCodeGenerator {
         }
     }
 
-    fn emit_load_method_instr(&mut self, ident: Identifier) {
+    fn emit_load_method_instr(&mut self, ident: Identifier, acc_kind: AccessKind) {
         log!(info "entered {} ({ident})", fn_name!());
         let escaped = escape_ident(ident);
         let name = self
-            .local_search(&escaped, BoundAttr)
+            .local_search(&escaped, acc_kind)
             .unwrap_or_else(|| self.register_method(escaped));
-        let instr = self.select_load_instr(name.kind, BoundAttr);
+        let instr = self.select_load_instr(name.kind, acc_kind);
         self.write_instr(instr);
         self.write_arg(name.idx);
         if self.py_version.minor >= Some(11) {
@@ -2783,12 +2783,17 @@ impl PyCodeGenerator {
             return self.emit_call_fake_method(obj, func_name, method_name, args);
         }
         let is_type = method_name.ref_t().is_poly_type_meta();
+        let kind = if self.py_version.minor >= Some(11) || method_name.vi.t.is_method() {
+            BoundAttr
+        } else {
+            UnboundAttr
+        };
         self.emit_expr(obj);
-        self.emit_load_method_instr(method_name);
+        self.emit_load_method_instr(method_name, kind);
         if is_type {
             self.emit_index_args(args);
         } else {
-            self.emit_args_311(args, BoundAttr);
+            self.emit_args_311(args, kind);
         }
     }
 
@@ -3897,7 +3902,7 @@ impl PyCodeGenerator {
             )],
         );
         self.emit_load_name_instr(Identifier::private("#path"));
-        self.emit_load_method_instr(Identifier::public("append"));
+        self.emit_load_method_instr(Identifier::public("append"), BoundAttr);
         self.emit_load_const(erg_core_path().to_str().unwrap());
         self.emit_call_instr(1, BoundAttr);
         self.stack_dec();
