@@ -3657,6 +3657,7 @@ impl Context {
     /// ```erg
     /// recover_typarams(Int, Nat) == Nat
     /// recover_typarams(Array!(Int, _), Array(Nat, 2)) == Array!(Nat, 2)
+    /// recover_typarams(Str or NoneType, {"a", "b"}) == {"a", "b"}
     /// ```
     /// ```erg
     /// # REVIEW: should be?

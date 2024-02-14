@@ -119,6 +119,11 @@ impl Context {
         self.supertype_of(lhs, rhs) || self.subtype_of(lhs, rhs)
     }
 
+    pub(crate) fn _related_tp(&self, lhs: &TyParam, rhs: &TyParam) -> bool {
+        self._subtype_of_tp(lhs, rhs, Variance::Covariant)
+            || self.supertype_of_tp(lhs, rhs, Variance::Covariant)
+    }
+
     /// lhs :> rhs ?
     pub(crate) fn supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
         let res = match Self::cheap_supertype_of(lhs, rhs) {
@@ -1118,6 +1123,10 @@ impl Context {
         }
     }
 
+    pub(crate) fn covariant_supertype_of_tp(&self, lp: &TyParam, rp: &TyParam) -> bool {
+        self.supertype_of_tp(lp, rp, Variance::Covariant)
+    }
+
     /// lhs <: rhs?
     pub(crate) fn structural_subtype_of(&self, lhs: &Type, rhs: &Type) -> bool {
         self.structural_supertype_of(rhs, lhs)
@@ -1282,6 +1291,7 @@ impl Context {
     /// union(Array(Int, 2), Array(Str, 3)) == Array(Int, 2) or Array(Int, 3)
     /// union({ .a = Int }, { .a = Str }) == { .a = Int or Str }
     /// union({ .a = Int }, { .a = Int; .b = Int }) == { .a = Int }
+    /// union((A and B) or C) == (A or C) and (B or C)
     /// ```
     pub(crate) fn union(&self, lhs: &Type, rhs: &Type) -> Type {
         if lhs == rhs {
@@ -1345,6 +1355,16 @@ impl Context {
                 _ => self.simple_union(lhs, rhs),
             },
             (other, or @ Or(_, _)) | (or @ Or(_, _), other) => self.union_add(or, other),
+            // (A and B) or C ==> (A or C) and (B or C)
+            (and_t @ And(_, _), other) | (other, and_t @ And(_, _)) => {
+                let ands = and_t.ands();
+                let mut t = Type::Obj;
+                for branch in ands.iter() {
+                    let union = self.union(branch, other);
+                    t = and(t, union);
+                }
+                t
+            }
             (t, Type::Never) | (Type::Never, t) => t.clone(),
             // Array({1, 2}, 2), Array({3, 4}, 2) ==> Array({1, 2, 3, 4}, 2)
             (
@@ -1497,12 +1517,6 @@ impl Context {
                 self.intersection(&fv.crack(), other)
             }
             (Refinement(l), Refinement(r)) => Type::Refinement(self.intersection_refinement(l, r)),
-            (other, Refinement(refine)) | (Refinement(refine), other) => {
-                let other = other.clone().into_refinement();
-                let intersec = self.intersection_refinement(&other, refine);
-                self.try_squash_refinement(intersec)
-                    .unwrap_or_else(Type::Refinement)
-            }
             (Structural(l), Structural(r)) => self.intersection(l, r).structuralize(),
             (Guard(l), Guard(r)) => {
                 if l.namespace == r.namespace && l.target == r.target {
@@ -1526,6 +1540,25 @@ impl Context {
             // A and B and A == A and B
             (other, and @ And(_, _)) | (and @ And(_, _), other) => {
                 self.intersection_add(and, other)
+            }
+            // (A or B) and C == (A and C) or (B and C)
+            (or_t @ Or(_, _), other) | (other, or_t @ Or(_, _)) => {
+                let ors = or_t.ors();
+                if ors.iter().any(|t| t.has_unbound_var()) {
+                    return self.simple_intersection(lhs, rhs);
+                }
+                let mut t = Type::Never;
+                for branch in ors.iter() {
+                    let isec = self.intersection(branch, other);
+                    t = self.union(&t, &isec);
+                }
+                t
+            }
+            (other, Refinement(refine)) | (Refinement(refine), other) => {
+                let other = other.clone().into_refinement();
+                let intersec = self.intersection_refinement(&other, refine);
+                self.try_squash_refinement(intersec)
+                    .unwrap_or_else(Type::Refinement)
             }
             // overloading
             (l, r) if l.is_subr() && r.is_subr() => and(lhs.clone(), rhs.clone()),

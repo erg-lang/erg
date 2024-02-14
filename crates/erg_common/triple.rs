@@ -141,6 +141,14 @@ impl<T> Triple<T, T> {
             Triple::Ok(a) | Triple::Err(a) => Some(a),
         }
     }
+
+    pub fn merge_or(self, default: T) -> T {
+        match self {
+            Triple::None => default,
+            Triple::Ok(ok) => ok,
+            Triple::Err(err) => err,
+        }
+    }
 }
 
 impl<T, E: std::error::Error> Triple<T, E> {

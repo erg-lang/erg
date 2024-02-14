@@ -155,6 +155,7 @@ impl<'c> Substituter<'c> {
     /// e.g.
     /// ```erg
     /// qt: Array(T, N), st: Array(Int, 3)
+    /// qt: T or NoneType, st: NoneType or Int (T == Int)
     /// ```
     /// invalid (no effect):
     /// ```erg
@@ -167,8 +168,15 @@ impl<'c> Substituter<'c> {
         st: &Type,
     ) -> EvalResult<Option<Self>> {
         let qtps = qt.typarams();
-        let stps = st.typarams();
-        if qt.qual_name() != st.qual_name() || qtps.len() != stps.len() {
+        let mut stps = st.typarams();
+        // Or, And are commutative, choose fitting order
+        if qt.qual_name() == st.qual_name() && (st.qual_name() == "Or" || st.qual_name() == "And") {
+            if ctx.covariant_supertype_of_tp(&qtps[0], &stps[1])
+                && ctx.covariant_supertype_of_tp(&qtps[1], &stps[0])
+            {
+                stps.swap(0, 1);
+            }
+        } else if qt.qual_name() != st.qual_name() || qtps.len() != stps.len() {
             if let Some(inner) = st.ref_inner().or_else(|| st.ref_mut_inner()) {
                 return Self::substitute_typarams(ctx, qt, &inner);
             } else if let Some(sub) = st.get_sub() {

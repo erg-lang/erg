@@ -87,6 +87,9 @@ fn _test_infer_types() -> Result<(), ()> {
     let c_new_t = func2(add_r, r, c.clone()).quantify();
     module.context.assert_var_type("c_new", &c_new_t)?;
     module.context.assert_attr_type(&c, "new", &c_new_t)?;
+    module
+        .context
+        .assert_var_type("val", &v_enum(set! { "b".into(), "d".into() }))?;
     Ok(())
 }
 

@@ -1180,6 +1180,9 @@ impl Context {
         super_exists
     }
 
+    /// Check if a trait implementation exists for a polymorphic class.
+    /// This is needed because the trait implementation spec can contain projection types.
+    /// e.g. `Tuple(Ts) <: Container(Ts.union())`
     fn poly_class_trait_impl_exists(&self, class: &Type, trait_: &Type) -> bool {
         let class_hash = get_hash(&class);
         let trait_hash = get_hash(&trait_);
