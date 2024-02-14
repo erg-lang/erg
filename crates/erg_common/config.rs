@@ -15,6 +15,11 @@ use crate::normalize_path;
 use crate::python_util::{detect_magic_number, get_python_version, PythonVersion};
 use crate::serialize::{get_magic_num_from_bytes, get_ver_from_magic_num};
 
+#[cfg(not(feature = "pylib"))]
+use erg_proc_macros::{new, pyclass, pymethods};
+#[cfg(feature = "pylib")]
+use pyo3::prelude::*;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ErgMode {
     Lex,
@@ -92,6 +97,7 @@ impl From<&str> for TranspileTarget {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Package {
     pub name: &'static str,
@@ -112,6 +118,19 @@ impl Package {
             as_name,
             version,
             path,
+        }
+    }
+}
+
+#[pymethods]
+impl Package {
+    #[new]
+    fn _new(name: String, as_name: String, version: String, path: Option<String>) -> Self {
+        Self {
+            name: Box::leak(name.into_boxed_str()),
+            as_name: Box::leak(as_name.into_boxed_str()),
+            version: Box::leak(version.into_boxed_str()),
+            path: path.map(|s| Box::leak(s.into_boxed_str()) as &'static str),
         }
     }
 }

@@ -27,6 +27,9 @@ pub mod transpile;
 pub mod ty;
 pub mod varinfo;
 
+#[allow(unused)]
+use erg_common::config::Package;
+
 pub use build_hir::{GenericHIRBuilder, HIRBuilder};
 pub use erg_parser::build_ast::ASTBuilder;
 pub use transpile::Transpiler;
@@ -36,16 +39,22 @@ use pyo3::prelude::*;
 #[cfg(feature = "pylib")]
 use pyo3::types::{IntoPyDict, PyBytes};
 
-/// compile(code: str, mode: str) -> code
+/// compile_with_dependencies(code: str, mode: str, pkgs: list[Package]) -> code
 /// --
 ///
 /// compile an Erg code as a module at runtime
 #[cfg(feature = "pylib")]
 #[pyfunction]
-#[pyo3(name = "compile")]
-fn _compile(py: Python<'_>, code: String, mode: &str) -> Result<PyObject, error::CompileErrors> {
+#[pyo3(name = "compile_with_dependencies")]
+fn _compile_with_dependencies(
+    py: Python<'_>,
+    code: String,
+    mode: &str,
+    pkgs: Vec<Package>,
+) -> Result<PyObject, error::CompileErrors> {
     use erg_common::{config::ErgConfig, traits::Runnable};
-    let cfg = ErgConfig::string(code);
+    let mut cfg = ErgConfig::string(code);
+    cfg.packages = pkgs;
     let mut compiler = Compiler::new(cfg);
     let src = compiler.cfg_mut().input.read();
     let code = compiler
@@ -57,6 +66,17 @@ fn _compile(py: Python<'_>, code: String, mode: &str) -> Result<PyObject, error:
     py.run("import marshal", None, None).unwrap();
     let code = py.eval("marshal.loads(bytes)", None, Some(dict)).unwrap();
     Ok(code.into())
+}
+
+/// compile(code: str, mode: str) -> code
+/// --
+///
+/// compile an Erg code as a module at runtime
+#[cfg(feature = "pylib")]
+#[pyfunction]
+#[pyo3(name = "compile")]
+fn _compile(py: Python<'_>, code: String, mode: &str) -> Result<PyObject, error::CompileErrors> {
+    _compile_with_dependencies(py, code, mode, vec![])
 }
 
 /// compile_ast(ast: erg_parser.AST, mode: str) -> code
@@ -97,6 +117,22 @@ fn _compile_ast(
 fn _compile_file(py: Python<'_>, path: String) -> Result<PyObject, error::CompileErrors> {
     let code = std::fs::read_to_string(&path).unwrap_or_else(|err| panic!("{err}, path: {path}"));
     _compile(py, code, "exec")
+}
+
+/// compile_file_with_dependencies(path: str, pkgs: list[Package]) -> code
+/// --
+///
+/// compile an Erg file as a module at runtime
+#[cfg(feature = "pylib")]
+#[pyfunction]
+#[pyo3(name = "compile_file_with_dependencies")]
+fn _compile_file_with_dependencies(
+    py: Python<'_>,
+    path: String,
+    pkgs: Vec<Package>,
+) -> Result<PyObject, error::CompileErrors> {
+    let code = std::fs::read_to_string(&path).unwrap_or_else(|err| panic!("{err}, path: {path}"));
+    _compile_with_dependencies(py, code, "exec", pkgs)
 }
 
 /// exec(code: str) -> module
@@ -145,9 +181,12 @@ fn _import(py: Python<'_>, name: String) -> Result<PyObject, error::CompileError
 #[cfg(feature = "pylib")]
 #[pymodule]
 fn erg_compiler(py: Python<'_>, m: &PyModule) -> PyResult<()> {
+    m.add_class::<Package>()?;
     m.add_function(wrap_pyfunction!(_compile, m)?)?;
+    m.add_function(wrap_pyfunction!(_compile_with_dependencies, m)?)?;
     m.add_function(wrap_pyfunction!(_compile_ast, m)?)?;
     m.add_function(wrap_pyfunction!(_compile_file, m)?)?;
+    m.add_function(wrap_pyfunction!(_compile_file_with_dependencies, m)?)?;
     m.add_function(wrap_pyfunction!(_exec, m)?)?;
     m.add_function(wrap_pyfunction!(_exec_ast, m)?)?;
     m.add_function(wrap_pyfunction!(_import, m)?)?;

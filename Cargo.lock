@@ -124,6 +124,7 @@ version = "0.6.31-nightly.0"
 dependencies = [
  "backtrace-on-stack-overflow",
  "crossterm",
+ "erg_proc_macros",
  "parking_lot",
  "pyo3",
  "thread_local",
@@ -152,7 +153,6 @@ dependencies = [
 name = "erg_proc_macros"
 version = "0.6.31-nightly.0"
 dependencies = [
- "erg_common",
  "quote",
  "syn 1.0.109",
 ]
