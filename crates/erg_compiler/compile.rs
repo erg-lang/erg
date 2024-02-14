@@ -163,6 +163,12 @@ impl Runnable for Compiler {
         self.code_generator.clear();
     }
 
+    fn set_input(&mut self, input: erg_common::io::Input) {
+        self.cfg.input = input;
+        self.builder.set_input(self.cfg.input.clone());
+        self.code_generator.set_input(self.cfg.input.clone());
+    }
+
     fn exec(&mut self) -> Result<ExitStatus, Self::Errs> {
         let path = self.cfg.dump_pyc_path();
         let src = self.cfg.input.read();

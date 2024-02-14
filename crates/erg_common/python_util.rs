@@ -653,6 +653,12 @@ impl Default for PythonVersion {
 }
 
 impl PythonVersion {
+    pub const V3_07: Self = Self::new(3, Some(7), Some(0));
+    pub const V3_08: Self = Self::new(3, Some(8), Some(0));
+    pub const V3_09: Self = Self::new(3, Some(9), Some(0));
+    pub const V3_10: Self = Self::new(3, Some(10), Some(0));
+    pub const V3_11: Self = Self::new(3, Some(11), Some(0));
+
     pub const fn new(major: u8, minor: Option<u8>, micro: Option<u8>) -> Self {
         Self {
             major,

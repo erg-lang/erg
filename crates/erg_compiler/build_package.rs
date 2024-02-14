@@ -226,6 +226,11 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: BuildRunnable> Runnable
         // don't initialize the ownership checker
     }
 
+    fn set_input(&mut self, input: Input) {
+        self.cfg.input = input;
+        self.main_builder.set_input(self.cfg.input.clone());
+    }
+
     fn exec(&mut self) -> Result<ExitStatus, Self::Errs> {
         let src = self.cfg_mut().input.read();
         let artifact = self

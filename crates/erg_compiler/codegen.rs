@@ -210,7 +210,7 @@ impl_stream!(PyCodeGenStack, PyCodeGenUnit);
 
 #[derive(Debug, Default)]
 pub struct PyCodeGenerator {
-    cfg: ErgConfig,
+    pub(crate) cfg: ErgConfig,
     pub(crate) py_version: PythonVersion,
     str_cache: CacheSet<str>,
     prelude_loaded: bool,
@@ -284,6 +284,10 @@ impl PyCodeGenerator {
 
     pub fn clear(&mut self) {
         self.units.clear();
+    }
+
+    pub fn set_input(&mut self, input: Input) {
+        self.cfg.input = input;
     }
 
     pub fn initialize(&mut self) {

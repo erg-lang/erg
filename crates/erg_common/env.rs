@@ -79,8 +79,8 @@ fn _python_site_packages() -> impl Iterator<Item = PathBuf> {
         .filter(|p| p.ends_with("site-packages"))
         .map(|p| {
             p.canonicalize().unwrap_or_else(|_| {
-                eprintln!("{RED}[ERR] ERG_PATH/lib/external not found {RESET}");
-                fallback_erg_path().join("lib/external")
+                eprintln!("{RED}[ERR] {} not found {RESET}", p.display());
+                fallback_erg_path().join("lib/pkgs")
             })
         })
 }
