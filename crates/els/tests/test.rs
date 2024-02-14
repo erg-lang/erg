@@ -184,7 +184,7 @@ fn test_tolerant_completion() -> Result<(), Box<dyn std::error::Error>> {
     let resp = client.request_completion(uri.raw(), 2, 10, ".")?;
     if let Some(CompletionResponse::Array(items)) = resp {
         assert!(items.len() >= 10);
-        assert!(items.iter().any(|item| item.label == "tqdm"));
+        assert!(items.iter().any(|item| item.label == "pi"));
         Ok(())
     } else {
         Err(format!("not items: {resp:?}").into())

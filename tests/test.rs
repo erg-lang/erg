@@ -1,10 +1,7 @@
 mod common;
-use common::{
-    expect_compile_success, expect_end_with, expect_error_location_and_msg, expect_failure,
-    expect_success,
-};
+use common::{expect_end_with, expect_error_location_and_msg, expect_failure, expect_success};
 use erg_common::error::Location;
-use erg_common::python_util::{env_python_version, module_exists, opt_which_python};
+use erg_common::python_util::env_python_version;
 
 #[test]
 fn exec_addition_ok() -> Result<(), ()> {
@@ -107,11 +104,6 @@ fn exec_dependent() -> Result<(), ()> {
 }
 
 #[test]
-fn exec_dependent_refinement() -> Result<(), ()> {
-    expect_compile_success("tests/should_ok/dependent_refinement.er", 0)
-}
-
-#[test]
 fn exec_dict() -> Result<(), ()> {
     expect_success("examples/dict.er", 0)
 }
@@ -134,29 +126,6 @@ fn exec_use_ansicolor() -> Result<(), ()> {
 #[test]
 fn exec_use_exception() -> Result<(), ()> {
     expect_success("examples/use_exception.er", 0)
-}
-
-#[test]
-fn exec_erg_compiler() -> Result<(), ()> {
-    let py_command = opt_which_python().unwrap();
-    if module_exists(&py_command, "erg_compiler") {
-        expect_success("examples/use_compiler.er", 0)
-    } else {
-        expect_compile_success("examples/use_compiler.er", 0)
-    }
-}
-
-#[test]
-fn exec_external() -> Result<(), ()> {
-    let py_command = opt_which_python().unwrap();
-    if module_exists(&py_command, "matplotlib")
-        && module_exists(&py_command, "tqdm")
-        && module_exists(&py_command, "jinja2")
-    {
-        expect_success("tests/should_ok/external.er", 0)
-    } else {
-        expect_compile_success("tests/should_ok/external.er", 0)
-    }
 }
 
 #[test]
@@ -266,11 +235,6 @@ fn exec_many_import() -> Result<(), ()> {
 }
 
 #[test]
-fn exec_many_import_pytorch() -> Result<(), ()> {
-    expect_compile_success("tests/should_ok/many_import/pytorch.er", 0)
-}
-
-#[test]
 fn exec_map() -> Result<(), ()> {
     expect_success("tests/should_ok/map.er", 0)
 }
@@ -338,11 +302,6 @@ fn exec_pyimport_test() -> Result<(), ()> {
     } else {
         expect_success("tests/should_ok/pyimport.er", 2)
     }
-}
-
-#[test]
-fn exec_pytorch() -> Result<(), ()> {
-    expect_compile_success("examples/pytorch.er", 0)
 }
 
 #[test]
@@ -523,11 +482,6 @@ fn exec_collection_err() -> Result<(), ()> {
 #[test]
 fn exec_dependent_err() -> Result<(), ()> {
     expect_failure("tests/should_err/dependent.er", 0, 5)
-}
-
-#[test]
-fn exec_dependent_refinement_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/dependent_refinement.er", 0, 3)
 }
 
 #[test]

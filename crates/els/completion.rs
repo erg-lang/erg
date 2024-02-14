@@ -6,7 +6,7 @@ use serde_json::Value;
 use erg_common::config::ErgConfig;
 use erg_common::consts::PYTHON_MODE;
 use erg_common::dict::Dict;
-use erg_common::env::{erg_py_external_lib_path, erg_pystd_path};
+use erg_common::env::erg_pystd_path;
 use erg_common::impl_u8_enum;
 use erg_common::io::Input;
 use erg_common::python_util::{BUILTIN_PYTHON_MODS, EXT_COMMON_ALIAS, EXT_PYTHON_MODS};
@@ -399,14 +399,13 @@ impl CompletionCache {
                 let py_specific_mods = ["dataclasses", "typing", "collections/abc"];
                 #[cfg(not(feature = "py_compat"))]
                 let py_specific_mods = [];
-                let ext_mods = ["numpy", "pandas", "matplotlib", "matplotlib/pyplot"];
                 load_modules(
                     cfg.clone(),
                     clone.clone(),
                     erg_pystd_path(),
                     major_mods.into_iter().chain(py_specific_mods),
                 );
-                load_modules(cfg, clone, erg_py_external_lib_path(), ext_mods.into_iter());
+                // TODO: load modules from site-packages
                 flags
                     .builtin_modules_loaded
                     .store(true, std::sync::atomic::Ordering::Relaxed);

@@ -1,6 +1,6 @@
-tqdm = pyimport "tqdm"
+math = pyimport "math"
 
-f _: tqdm
+f _: math
 i = 1
 s = "a"
 g() = None + i s i

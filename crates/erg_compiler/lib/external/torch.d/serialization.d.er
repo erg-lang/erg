@@ -1,2 +1,0 @@
-.load!: (f: PathLike) => NoneType
-.save!: (obj: Obj, f: PathLike) => NoneType

@@ -1,6 +1,0 @@
-{.Module;} = pyimport "torch/nn"
-
-.ResNet: ClassType
-.ResNet <: .Module
-
-.resnet18: () -> .ResNet

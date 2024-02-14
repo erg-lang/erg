@@ -31,6 +31,12 @@ fn main() -> std::io::Result<()> {
     copy_dir(&erg_path, "lib").unwrap_or_else(|_| {
         eprintln!("failed to copy the std library to {erg_path}");
     });
+    let pkgs_path = path::Path::new(&erg_path).join("lib").join("pkgs");
+    if !pkgs_path.exists() {
+        fs::create_dir(&pkgs_path).unwrap_or_else(|_| {
+            eprintln!("failed to create the directory: {}", pkgs_path.display());
+        });
+    }
     Ok(())
 }
 

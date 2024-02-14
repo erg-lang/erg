@@ -4,6 +4,7 @@ use std::fmt;
 use std::ops::Deref;
 use std::path::{Component, Path, PathBuf};
 
+use crate::env::erg_pkgs_path;
 use crate::{normalize_path, Str};
 
 /// Guaranteed equivalence path.
@@ -234,18 +235,48 @@ pub fn remove_verbatim(path: &Path) -> String {
     path.to_string_lossy().replace("\\\\?\\", "")
 }
 
-/// e.g. http.d/client.d.er -> http.client
+/// e.g.
+/// ```txt
+/// http.d/client.d.er -> http.client
+/// .../torch/1.0.0/src/lib.d.er -> torch
+/// .../torch/1.0.0/src/random.d.er -> torch/random
 /// math.d.er -> math
+/// ```
 pub fn mod_name(path: &Path) -> Str {
+    let path = match path.strip_prefix(erg_pkgs_path()) {
+        Ok(path) => {
+            // <namespace>/<mod_root>/<version>/src/<sub>
+            let mod_root = path
+                .components()
+                .nth(1)
+                .unwrap()
+                .as_os_str()
+                .to_string_lossy();
+            let sub = path
+                .components()
+                .skip(4)
+                .map(|c| {
+                    c.as_os_str()
+                        .to_string_lossy()
+                        .trim_end_matches("lib.d.er")
+                        .trim_end_matches(".d.er")
+                        .trim_end_matches(".d")
+                        .to_string()
+                })
+                .collect::<Vec<_>>()
+                .join("/");
+            return Str::rc(format!("{mod_root}/{sub}").trim_end_matches('/'));
+        }
+        Err(_) => path,
+    };
     let mut name = path
         .file_name()
         .unwrap()
-        .to_str()
-        .unwrap()
+        .to_string_lossy()
         .trim_end_matches(".d.er")
         .to_string();
     for parent in path.components().rev().skip(1) {
-        let parent = parent.as_os_str().to_str().unwrap();
+        let parent = parent.as_os_str().to_string_lossy();
         if parent.ends_with(".d") {
             name = parent.trim_end_matches(".d").to_string() + "." + &name;
         } else {

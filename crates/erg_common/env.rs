@@ -62,16 +62,6 @@ fn _erg_pystd_path() -> PathBuf {
             fallback_erg_path().join("lib/pystd")
         })
 }
-fn _erg_external_lib_path() -> PathBuf {
-    _erg_path()
-        .join("lib")
-        .join("external")
-        .canonicalize()
-        .unwrap_or_else(|_| {
-            eprintln!("{RED}[ERR] ERG_PATH/lib/external not found {RESET}");
-            fallback_erg_path().join("lib/external")
-        })
-}
 fn _erg_pkgs_path() -> PathBuf {
     _erg_path()
         .join("lib")
@@ -100,7 +90,6 @@ pub static ERG_CORE_PATH: OnceLock<PathBuf> = OnceLock::new();
 pub static ERG_CORE_DECL_PATH: OnceLock<PathBuf> = OnceLock::new();
 pub static ERG_STD_PATH: OnceLock<PathBuf> = OnceLock::new();
 pub static ERG_PYSTD_PATH: OnceLock<PathBuf> = OnceLock::new();
-pub static ERG_EXTERNAL_LIB_PATH: OnceLock<PathBuf> = OnceLock::new();
 pub static ERG_PKGS_PATH: OnceLock<PathBuf> = OnceLock::new();
 pub static PYTHON_SITE_PACKAGES: OnceLock<Vec<PathBuf>> = OnceLock::new();
 
@@ -129,11 +118,6 @@ pub fn erg_pystd_path() -> &'static PathBuf {
     ERG_PYSTD_PATH.get_or_init(|| normalize_path(_erg_pystd_path()))
 }
 
-/// == `Path::new("~/.erg/lib/external")` if ERG_PATH is not set
-pub fn erg_py_external_lib_path() -> &'static PathBuf {
-    ERG_EXTERNAL_LIB_PATH.get_or_init(|| normalize_path(_erg_external_lib_path()))
-}
-
 /// == `Path::new("~/.erg/lib/pkgs")` if ERG_PATH is not set
 pub fn erg_pkgs_path() -> &'static PathBuf {
     ERG_PKGS_PATH.get_or_init(|| normalize_path(_erg_pkgs_path()))
@@ -145,7 +129,6 @@ pub fn python_site_packages() -> &'static Vec<PathBuf> {
 
 pub fn is_std_decl_path(path: &Path) -> bool {
     path.starts_with(erg_pystd_path().as_path())
-        || path.starts_with(erg_py_external_lib_path().as_path())
 }
 
 pub fn is_pystd_main_module(path: &Path) -> bool {
