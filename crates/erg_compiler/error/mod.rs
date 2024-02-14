@@ -614,7 +614,7 @@ impl From<CompileErrors> for ParseErrors {
 #[cfg(feature = "pylib")]
 impl std::convert::From<CompileErrors> for pyo3::PyErr {
     fn from(errs: CompileErrors) -> pyo3::PyErr {
-        pyo3::exceptions::PyOSError::new_err(errs[0].to_string())
+        pyo3::exceptions::PyOSError::new_err(format!("{} errors occurred\n{errs}", errs.len()))
     }
 }
 

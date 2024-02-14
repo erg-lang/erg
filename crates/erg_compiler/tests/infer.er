@@ -30,3 +30,11 @@ c_new x, y = C.new x, y
 C = Class Int
 C.
     new x, y = Self x + y
+
+val!() =
+    for! [{ "a": "b" }], (pkg as {Str: Str}) =>
+        x = pkg.get("a", "c")
+        assert x in {"b"}
+        val!::return x
+    "d"
+val = val!()

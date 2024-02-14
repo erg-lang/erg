@@ -3657,6 +3657,7 @@ impl Context {
     /// ```erg
     /// recover_typarams(Int, Nat) == Nat
     /// recover_typarams(Array!(Int, _), Array(Nat, 2)) == Array!(Nat, 2)
+    /// recover_typarams(Str or NoneType, {"a", "b"}) == {"a", "b"}
     /// ```
     /// ```erg
     /// # REVIEW: should be?
@@ -3667,7 +3668,8 @@ impl Context {
         let is_never =
             self.subtype_of(&intersec, &Type::Never) && guard.to.as_ref() != &Type::Never;
         if !is_never {
-            return Ok(intersec);
+            let min = self.min(&intersec, &guard.to).merge_or(&intersec);
+            return Ok(min.clone());
         }
         if guard.to.is_monomorphic() {
             if self.related(base, &guard.to) {

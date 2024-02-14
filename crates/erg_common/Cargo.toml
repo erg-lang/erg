@@ -34,6 +34,7 @@ crossterm = { optional = true, version = "0.25.0" }
 parking_lot = "0.12"
 thread_local = "1.1"
 pyo3 = { workspace = true, optional = true }
+erg_proc_macros = { workspace = true }
 
 [lib]
 path = "lib.rs"
