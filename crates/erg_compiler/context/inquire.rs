@@ -2171,10 +2171,7 @@ impl Context {
                                 &param_t,
                                 &arg_t,
                                 self.get_candidates(&arg_t),
-                                e.core
-                                    .get_hint()
-                                    .map(|s| s.to_string())
-                                    .or(std::mem::take(&mut hint)),
+                                std::mem::take(&mut hint),
                             )
                         })
                         .collect(),
