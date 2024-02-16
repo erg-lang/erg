@@ -1,4 +1,5 @@
 .PurePath: ClassType
+.PurePath <: PathLike
 .PurePath.
     parts: [Str; _]
     drive: Str
@@ -44,19 +45,19 @@
     expanduser!: (self: .Path) => .Path
     home!: () => .Path
     iterdir!: (self: .Path) => Iterable .Path
-    joinpath: (self: .Path, *other: .Path) -> .Path
+    joinpath: (self: .Path, *other: PathLike) -> .Path
     mkdir!: (self: .Path, mode := Nat, parents := Bool, exist_ok := Bool) => NoneType
     open!: (self: .Path, mode := Str) => File!
     rmdir!: (self: .Path) => NoneType
     read_bytes!: (self: .Path) => Bytes
     read_text!: (self: .Path, encoding := Str, errors := Str) => Str
     rename!: (self: .Path, target: PathLike) => NoneType
-    samefile!: (self: .Path, other: .Path) => Bool
+    samefile!: (self: .Path, other: PathLike) => Bool
     touch!: (self: .Path, mode := Nat, exist_ok := Bool) => NoneType
     unlink!: (self: .Path, missing_ok := Bool) => NoneType
     write_bytes!: (self: .Path, data: Bytes) => NoneType
     write_text!: (self: .Path, data: Str, encoding := Str, errors := Str) => NoneType
-    relative_to: (self: .Path, *other: .Path) -> .Path
+    relative_to: (self: .Path, *other: PathLike) -> .Path
     with_name: (self: .Path, name: Str) -> .Path
     with_stem: (self: .Path, suffix: Str) -> .Path
     with_suffix: (self: .Path, suffix: Str) -> .Path
