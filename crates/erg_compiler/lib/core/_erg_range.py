@@ -95,13 +95,13 @@ class RangeIterator:
         self.rng = rng
         self.needle = self.rng.start
         if issubclass(Nat, type(self.rng.start)):
-            if not (self.needle in self.rng):
+            if self.needle not in self.rng:
                 self.needle += 1
         elif issubclass(Str, type(self.rng.start)):
-            if not (self.needle in self.rng):
+            if self.needle not in self.rng:
                 self.needle = chr(ord(self.needle) + 1)
         else:
-            if not (self.needle in self.rng):
+            if self.needle not in self.rng:
                 self.needle = self.needle.succ()
 
     def __iter__(self):

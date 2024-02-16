@@ -1,6 +1,7 @@
-from _erg_result import Error
 from _erg_control import then__
+from _erg_result import Error
 from _erg_type import MutType
+
 
 class Float(float):
     EPSILON = 2.220446049250313e-16
@@ -49,6 +50,7 @@ class Float(float):
 
     def nearly_eq(self, other, epsilon=EPSILON):
         return abs(self - other) < epsilon
+
 
 class FloatMut(MutType):  # inherits Float
     value: Float
