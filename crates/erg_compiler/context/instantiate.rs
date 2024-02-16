@@ -167,6 +167,11 @@ impl TyVarCache {
         if name.inspect() == "_" {
             return Ok(());
         }
+        if self.var_infos.get(name).is_none() {
+            let vi = VarInfo::type_var(Type::Type, ctx.absolutize(name.loc()), ctx.name.clone());
+            ctx.index().register(name.inspect().clone(), &vi);
+            self.var_infos.insert(name.clone(), vi);
+        }
         if let Some(inst) = self.tyvar_instances.get(name) {
             self.update_tyvar(inst, tv, ctx);
         } else if let Some(inst) = self.typaram_instances.get(name) {
@@ -179,9 +184,6 @@ impl TyVarCache {
             }
         } else {
             self.tyvar_instances.insert(name.clone(), tv.clone());
-            let vi = VarInfo::type_var(Type::Type, ctx.absolutize(name.loc()), ctx.name.clone());
-            ctx.index().register(name.inspect().clone(), &vi);
-            self.var_infos.insert(name.clone(), vi);
         }
         Ok(())
     }
@@ -260,6 +262,12 @@ impl TyVarCache {
             )
             .into());
         }
+        if self.var_infos.get(name).is_none() {
+            let t = ctx.get_tp_t(tp).unwrap_or(Type::Obj);
+            let vi = VarInfo::type_var(t, ctx.absolutize(name.loc()), ctx.name.clone());
+            ctx.index().register(name.inspect().clone(), &vi);
+            self.var_infos.insert(name.clone(), vi);
+        }
         // FIXME:
         if let Some(inst) = self.typaram_instances.get(name) {
             self.update_typaram(inst, tp, ctx);
@@ -270,10 +278,6 @@ impl TyVarCache {
                 unreachable!("{name} / {inst} / {tp}");
             }
         } else {
-            let t = ctx.get_tp_t(tp).unwrap_or(Type::Obj);
-            let vi = VarInfo::type_var(t, ctx.absolutize(name.loc()), ctx.name.clone());
-            ctx.index().register(name.inspect().clone(), &vi);
-            self.var_infos.insert(name.clone(), vi);
             self.typaram_instances.insert(name.clone(), tp.clone());
         }
         Ok(())

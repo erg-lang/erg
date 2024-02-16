@@ -1519,6 +1519,7 @@ impl Context {
         if let Some(ctx) = self.get_type_ctx(ident.inspect()) {
             let arg_ts = ctx.params.iter().map(|(_, vi)| &vi.t);
             for ((tp, arg), arg_t) in ctx.typ.typarams().iter().zip(args.pos_args()).zip(arg_ts) {
+                let tp = self.detach_tp(tp.clone(), &mut tv_ctx);
                 if let ast::Expr::Accessor(ast::Accessor::Ident(ident)) = &arg.expr {
                     if self.subtype_of(arg_t, &Type::Type) {
                         if let Ok(tv) = self.convert_tp_into_type(tp.clone()) {
@@ -1526,7 +1527,7 @@ impl Context {
                             continue;
                         }
                     }
-                    let _ = tv_ctx.push_or_init_typaram(&ident.name, tp, self);
+                    let _ = tv_ctx.push_or_init_typaram(&ident.name, &tp, self);
                 }
             }
         }

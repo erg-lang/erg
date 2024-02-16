@@ -2438,7 +2438,7 @@ impl Context {
         }
     }
 
-    fn detach_tp(&self, tp: TyParam, tv_cache: &mut TyVarCache) -> TyParam {
+    pub(crate) fn detach_tp(&self, tp: TyParam, tv_cache: &mut TyVarCache) -> TyParam {
         match tp {
             TyParam::FreeVar(fv) if fv.is_linked() => {
                 let tp = fv.crack().clone();
