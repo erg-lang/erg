@@ -238,10 +238,12 @@ pub fn remove_verbatim(path: &Path) -> String {
 /// e.g.
 /// ```txt
 /// http.d/client.d.er -> http.client
-/// .../torch/1.0.0/src/lib.d.er -> torch
-/// .../torch/1.0.0/src/random.d.er -> torch/random
+/// $ERG_PATH/pkgs/certified/torch/1.0.0/src/lib.d.er -> torch
+/// $ERG_PATH/pkgs/certified/torch/1.0.0/src/random.d.er -> torch/random
+/// /users/foo/torch/src/lib.d.er -> torch
 /// math.d.er -> math
 /// ```
+/// FIXME: split by `.` instead of `/`
 pub fn mod_name(path: &Path) -> Str {
     let path = match path.strip_prefix(erg_pkgs_path()) {
         Ok(path) => {
@@ -259,6 +261,32 @@ pub fn mod_name(path: &Path) -> Str {
                     c.as_os_str()
                         .to_string_lossy()
                         .trim_end_matches("lib.d.er")
+                        .trim_end_matches(".d.er")
+                        .trim_end_matches(".d")
+                        .to_string()
+                })
+                .collect::<Vec<_>>()
+                .join("/");
+            return Str::rc(format!("{mod_root}/{sub}").trim_end_matches('/'));
+        }
+        // using local or git path
+        Err(_) if path.display().to_string().split("/src/").count() > 1 => {
+            // <mod_root>/src/<sub>
+            let path = path.display().to_string();
+            let mod_root = path
+                .split("/src/")
+                .next()
+                .unwrap()
+                .split('/')
+                .last()
+                .unwrap();
+            let sub = path
+                .split("/src/")
+                .nth(1)
+                .unwrap()
+                .split('/')
+                .map(|c| {
+                    c.trim_end_matches("lib.d.er")
                         .trim_end_matches(".d.er")
                         .trim_end_matches(".d")
                         .to_string()
