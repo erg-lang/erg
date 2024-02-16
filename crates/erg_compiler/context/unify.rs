@@ -1544,7 +1544,9 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
         Ok(())
     }
 
-    // TODO: Current implementation is inefficient because coercion is performed twice with `subtype_of` in `sub_unify`
+    /// e.g. `maybe_sub: Vec, maybe_sup: Iterable T (Vec <: Iterable Int, T <: Int)`
+    ///
+    /// TODO: Current implementation is inefficient because coercion is performed twice with `subtype_of` in `sub_unify`
     fn nominal_sub_unify(
         &self,
         maybe_sub: &Type,
@@ -1573,7 +1575,9 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 compatibles.push(&sub_ctx.typ);
             }
             for sup_ty in sups {
-                if self.ctx.subtype_of(sup_ty, maybe_sup) {
+                if sup_ty.qual_name() == maybe_sup.qual_name()
+                    && self.ctx.subtype_of(sup_ty, maybe_sup)
+                {
                     if !compatibles.is_empty() {
                         let mut idx = compatibles.len();
                         for (i, comp) in compatibles.iter().enumerate() {

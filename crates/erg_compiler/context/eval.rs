@@ -177,6 +177,14 @@ impl<'c> Substituter<'c> {
                 stps.swap(0, 1);
             }
         } else if qt.qual_name() != st.qual_name() || qtps.len() != stps.len() {
+            // e.g. qt: Iterable(T), st: Vec(<: Iterable(Int))
+            /*if let Some(st_sups) = ctx.get_nominal_super_type_ctxs(st) {
+                for sup in st_sups {
+                    if sup.typ.qual_name() == qt.qual_name() {
+                        return Self::substitute_typarams(ctx, qt, &sup.typ);
+                    }
+                }
+            }*/
             if let Some(inner) = st.ref_inner().or_else(|| st.ref_mut_inner()) {
                 return Self::substitute_typarams(ctx, qt, &inner);
             } else if let Some(sub) = st.get_sub() {
