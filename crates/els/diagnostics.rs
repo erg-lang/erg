@@ -197,6 +197,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         };
         let ast_diff = ASTDiff::diff(old, &new);
         crate::_log!(self, "diff: {ast_diff}");
+        if ast_diff.is_nop() {
+            return Ok(());
+        }
         if let Some((mut lowerer, mut irs)) = self.steal_lowerer(&uri) {
             if let Some((hir_diff, hir)) =
                 HIRDiff::new(ast_diff, &mut lowerer).zip(irs.hir.as_mut())

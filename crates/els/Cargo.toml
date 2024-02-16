@@ -10,7 +10,7 @@ repository.workspace = true
 homepage.workspace = true
 
 [features]
-debug = ["erg_common/debug", "erg_compiler/debug"]
+debug = ["erg_common/debug", "erg_compiler/debug", "molc/debug"]
 japanese = ["erg_common/japanese", "erg_compiler/japanese"]
 simplified_chinese = ["erg_common/simplified_chinese", "erg_compiler/simplified_chinese"]
 traditional_chinese = ["erg_common/traditional_chinese", "erg_compiler/traditional_chinese"]
@@ -19,7 +19,7 @@ pretty = ["erg_common/pretty", "erg_compiler/pretty"]
 large_thread = ["erg_common/large_thread", "erg_compiler/large_thread"]
 py_compat = ["erg_compiler/py_compat"]
 experimental = ["erg_common/experimental", "erg_compiler/experimental"]
-backtrace = ["erg_common/backtrace"]
+backtrace = ["erg_common/backtrace", "molc/debug"]
 
 [dependencies]
 erg_common = { workspace = true, features = ["els"] }

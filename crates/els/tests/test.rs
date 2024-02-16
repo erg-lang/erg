@@ -407,7 +407,7 @@ fn test_dependents_check() -> Result<(), Box<dyn std::error::Error>> {
     );
     // insert invalid code to b.er:8, causing a syntax error in b.er but not c.er
     client.notify_change(uri_b.clone().raw(), add_char(7, 0, "a.\n"))?;
-    client.wait_messages(2)?;
+    client.wait_messages(1)?;
     client.responses.clear();
     client.notify_save(uri_b.clone().raw())?;
     let b_diags = client.wait_diagnostics()?;
