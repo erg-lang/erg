@@ -468,6 +468,7 @@ impl PyScriptGenerator {
             if self.range_ops_loaded {
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_float.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_array.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/core/_erg_bytes.py"));
             } else {
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_int.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_nat.py"));
@@ -475,6 +476,7 @@ impl PyScriptGenerator {
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_str.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_float.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_array.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/core/_erg_bytes.py"));
             }
             self.builtin_types_loaded = true;
         }
@@ -681,7 +683,9 @@ impl PyScriptGenerator {
         match acc {
             Accessor::Ident(ident) => {
                 match &ident.inspect()[..] {
-                    "Str" | "Bool" | "Nat" | "Array" => {
+                    "Str" | "Bytes" | "Bool" | "Nat" | "Int" | "Float" | "Array" | "Dict"
+                    | "Set" | "Str!" | "Bytes!" | "Bool!" | "Nat!" | "Int!" | "Float!"
+                    | "Array!" => {
                         self.load_builtin_types_if_not();
                     }
                     "if" | "if!" | "for!" | "while" | "discard" => {
