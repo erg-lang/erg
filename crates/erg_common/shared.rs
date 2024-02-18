@@ -12,16 +12,8 @@ use std::time::Duration;
 
 use thread_local::ThreadLocal;
 
-const GET_TIMEOUT: Duration = if cfg!(debug_assertions) {
-    Duration::from_secs(32)
-} else {
-    Duration::from_secs(4)
-};
-const SET_TIMEOUT: Duration = if cfg!(debug_assertions) {
-    Duration::from_secs(64)
-} else {
-    Duration::from_secs(8)
-};
+const GET_TIMEOUT: Duration = Duration::from_secs(4);
+const SET_TIMEOUT: Duration = Duration::from_secs(8);
 
 #[derive(Debug)]
 pub struct BorrowInfo {
