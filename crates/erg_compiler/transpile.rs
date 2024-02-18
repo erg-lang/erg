@@ -29,7 +29,7 @@ use crate::link_hir::HIRLinker;
 use crate::module::SharedCompilerResource;
 use crate::ty::typaram::OpKind;
 use crate::ty::value::ValueObj;
-use crate::ty::{Field, Type, VisibilityModifier};
+use crate::ty::{Field, HasType, Type, VisibilityModifier};
 use crate::varinfo::{AbsLocation, VarInfo};
 
 /// patch method -> function
@@ -67,6 +67,36 @@ fn replace_non_symbolic(name: &str) -> String {
         .replace('%', "__percent__")
         .replace('!', "__erg_proc__")
         .replace('$', "erg_shared__")
+}
+
+pub enum Enclosure {
+    /// ()
+    Paren,
+    /// []
+    Bracket,
+    /// {}
+    Brace,
+    None,
+}
+
+impl Enclosure {
+    pub const fn open(&self) -> char {
+        match self {
+            Enclosure::Paren => '(',
+            Enclosure::Bracket => '[',
+            Enclosure::Brace => '{',
+            Enclosure::None => ' ',
+        }
+    }
+
+    pub const fn close(&self) -> char {
+        match self {
+            Enclosure::Paren => ')',
+            Enclosure::Bracket => ']',
+            Enclosure::Brace => '}',
+            Enclosure::None => ' ',
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -898,6 +928,11 @@ impl PyScriptGenerator {
     }
 
     fn transpile_simple_call(&mut self, call: Call) -> String {
+        let enc = if call.obj.ref_t().is_poly_type_meta() {
+            Enclosure::Bracket
+        } else {
+            Enclosure::Paren
+        };
         let is_py_api = if let Some(attr) = &call.attr_name {
             let is_py_api = attr.is_py_api();
             if let Some(name) = debind(attr) {
@@ -905,7 +940,7 @@ impl PyScriptGenerator {
                 return format!(
                     "{name}({}, {})",
                     self.transpile_expr(*call.obj),
-                    self.transpile_args(call.args, is_py_api, false)
+                    self.transpile_args(call.args, is_py_api, enc)
                 );
             }
             is_py_api
@@ -916,15 +951,13 @@ impl PyScriptGenerator {
         if let Some(attr) = call.attr_name {
             code += &format!(".{}", Self::transpile_ident(attr));
         }
-        code += &self.transpile_args(call.args, is_py_api, true);
+        code += &self.transpile_args(call.args, is_py_api, enc);
         code
     }
 
-    fn transpile_args(&mut self, mut args: Args, is_py_api: bool, paren: bool) -> String {
+    fn transpile_args(&mut self, mut args: Args, is_py_api: bool, enc: Enclosure) -> String {
         let mut code = String::new();
-        if paren {
-            code.push('(');
-        }
+        code.push(enc.open());
         while let Some(arg) = args.try_remove_pos(0) {
             code += &self.transpile_expr(arg.expr);
             code.push(',');
@@ -937,9 +970,7 @@ impl PyScriptGenerator {
                 self.transpile_expr(arg.expr)
             );
         }
-        if paren {
-            code.push(')');
-        }
+        code.push(enc.close());
         code
     }
 

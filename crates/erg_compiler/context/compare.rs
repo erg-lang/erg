@@ -560,7 +560,9 @@ impl Context {
             (ty @ (Type | ClassType | TraitType), Poly { name, params })
                 if &name[..] == "Array" || &name[..] == "UnsizedArray" || &name[..] == "Set" =>
             {
-                let elem_t = self.convert_tp_into_type(params[0].clone()).unwrap();
+                let Ok(elem_t) = self.convert_tp_into_type(params[0].clone()) else {
+                    return false;
+                };
                 self.supertype_of(ty, &elem_t)
             }
             (ty @ (Type | ClassType | TraitType), Poly { name, params })
