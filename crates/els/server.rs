@@ -790,7 +790,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         }
     }
 
-    fn handle_notification(&mut self, msg: &Value, method: &str) -> ELSResult<()> {
+    fn handle_notification(&self, msg: &Value, method: &str) -> ELSResult<()> {
         match method {
             "initialized" => {
                 self.flags.client_initialized.store(true, Ordering::Relaxed);
@@ -845,7 +845,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         }
     }
 
-    fn handle_response(&mut self, id: i64, msg: &Value) -> ELSResult<()> {
+    fn handle_response(&self, id: i64, msg: &Value) -> ELSResult<()> {
         match id {
             HEALTH_CHECKER_ID => {
                 self.channels
@@ -887,7 +887,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         Checker::inherit(self.cfg.inherit(path), shared)
     }
 
-    pub(crate) fn steal_lowerer(&mut self, uri: &NormalizedUrl) -> Option<(ASTLowerer, IRs)> {
+    pub(crate) fn steal_lowerer(&self, uri: &NormalizedUrl) -> Option<(ASTLowerer, IRs)> {
         let path = uri.to_file_path().ok()?;
         let module = self.shared.remove_module(&path)?;
         let lowerer = ASTLowerer::new_with_ctx(module.module);
@@ -897,12 +897,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         ))
     }
 
-    pub(crate) fn restore_lowerer(
-        &mut self,
-        uri: NormalizedUrl,
-        mut lowerer: ASTLowerer,
-        irs: IRs,
-    ) {
+    pub(crate) fn restore_lowerer(&self, uri: NormalizedUrl, mut lowerer: ASTLowerer, irs: IRs) {
         let module = lowerer.pop_mod_ctx().unwrap();
         let entry = ModuleEntry::new(irs.id, irs.ast, irs.hir, module, irs.status);
         self.restore_entry(uri, entry);
@@ -910,6 +905,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
 
     pub(crate) fn get_visitor(&self, uri: &NormalizedUrl) -> Option<HIRVisitor> {
         let path = uri.to_file_path().ok()?;
+        if self.shared.get_module(&path).is_none() && path.exists() {
+            let code = self.file_cache.get_entire_code(uri).ok()?;
+            let _ = self.check_file(uri.clone(), code);
+        }
         let Some(ent) = self.shared.get_module(&path) else {
             _log!(self, "module not found: {uri}");
             return None;
@@ -1037,7 +1036,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         self.shared.raw_ref_builtins_ctx().map(|mc| &mc.context)
     }
 
-    pub(crate) fn clear_cache(&mut self, uri: &NormalizedUrl) {
+    pub(crate) fn clear_cache(&self, uri: &NormalizedUrl) {
         let path = NormalizedPathBuf::from(util::uri_to_path(uri));
         self.shared.clear(&path);
     }
@@ -1047,12 +1046,12 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         &self.file_cache
     }
 
-    pub fn remove_module_entry(&mut self, uri: &NormalizedUrl) -> Option<ModuleEntry> {
+    pub fn remove_module_entry(&self, uri: &NormalizedUrl) -> Option<ModuleEntry> {
         let path = uri.to_file_path().ok()?;
         self.shared.remove_module(&path)
     }
 
-    pub fn insert_module_entry(&mut self, uri: NormalizedUrl, entry: ModuleEntry) {
+    pub fn insert_module_entry(&self, uri: NormalizedUrl, entry: ModuleEntry) {
         let Ok(path) = uri.to_file_path() else {
             return;
         };

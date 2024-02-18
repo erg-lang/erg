@@ -27,7 +27,7 @@ use crate::server::{ELSResult, RedirectableStdout, Server};
 use crate::util::{self, NormalizedUrl};
 
 impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
-    pub(crate) fn rename(&mut self, msg: &Value) -> ELSResult<()> {
+    pub(crate) fn rename(&self, msg: &Value) -> ELSResult<()> {
         let params = RenameParams::deserialize(&msg["params"])?;
         let id = msg["id"].as_i64().unwrap();
         self.send_log(format!("rename request: {params:?}"))?;
