@@ -239,7 +239,7 @@ impl<'a> HIRLinker<'a> {
                             *expr = Self::self_module();
                         }
                         "global" => {
-                            *expr = Expr::from(Identifier::public("__builtins__"));
+                            *expr = Expr::from(Identifier::static_public("__builtins__"));
                         }
                         _ => {}
                     },
@@ -358,8 +358,8 @@ impl<'a> HIRLinker<'a> {
     }
 
     fn self_module() -> Expr {
-        let __import__ = Identifier::public("__import__");
-        let __name__ = Identifier::public("__name__");
+        let __import__ = Identifier::static_public("__import__");
+        let __name__ = Identifier::static_public("__name__");
         Expr::from(__import__).call1(Expr::from(__name__))
     }
 
@@ -440,14 +440,14 @@ impl<'a> HIRLinker<'a> {
         let linker = self.inherit(&cfg);
         let hir = linker.link_child(hir);
         let code = Expr::Code(Block::new(Vec::from(hir.module)));
-        let __dict__ = Identifier::public("__dict__");
+        let __dict__ = Identifier::static_public("__dict__");
         let m_dict = mod_var.clone().attr_expr(__dict__);
         let locals = Expr::Accessor(Accessor::public_with_line(Str::ever("locals"), line));
         let locals_call = locals.call_expr(Args::empty());
         let args = Args::single(PosArg::new(locals_call));
         let mod_update = Expr::Call(Call::new(
             m_dict.clone(),
-            Some(Identifier::public("update")),
+            Some(Identifier::static_public("update")),
             args,
         ));
         let exec = Expr::Accessor(Accessor::public_with_line(Str::ever("exec"), line));

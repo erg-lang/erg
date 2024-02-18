@@ -1230,10 +1230,10 @@ impl Context {
             Mutability::Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
-        let pyeval = Identifier::public("pyeval");
+        let pyeval = Identifier::static_public("pyeval");
         let sig = VarSignature::new(pyeval.clone(), None);
         let sig = Signature::Var(sig);
-        let eval = Expr::Accessor(Accessor::Ident(Identifier::public("eval")));
+        let eval = Expr::Accessor(Accessor::Ident(Identifier::static_public("eval")));
         let block = Block::new(vec![eval]);
         let body = DefBody::new(Token::DUMMY, block, DefId(0));
         let eval = Def::new(sig, body);
@@ -1244,10 +1244,10 @@ impl Context {
             Mutability::Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
-        let pyexec = Identifier::public("pyexec");
+        let pyexec = Identifier::static_public("pyexec");
         let sig = VarSignature::new(pyexec.clone(), None);
         let sig = Signature::Var(sig);
-        let exec = Expr::Accessor(Accessor::Ident(Identifier::public("exec")));
+        let exec = Expr::Accessor(Accessor::Ident(Identifier::static_public("exec")));
         let block = Block::new(vec![exec]);
         let body = DefBody::new(Token::DUMMY, block, DefId(0));
         let exec = Def::new(sig, body);
@@ -1259,7 +1259,7 @@ impl Context {
             Mutability::Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
-        let perform = Identifier::public("perform");
+        let perform = Identifier::static_public("perform");
         let params = Params::single(crate::hir::NonDefaultParamSignature::new(
             NonDefaultParamSignature::simple("p!".into()),
             VarInfo::const_default_public(),
@@ -1274,7 +1274,7 @@ impl Context {
             vec![],
         );
         let sig = Signature::Subr(sig);
-        let call = Identifier::public("p!").call(Args::empty());
+        let call = Identifier::static_public("p!").call(Args::empty());
         let block = Block::new(vec![Expr::Call(call)]);
         let body = DefBody::new(Token::DUMMY, block, DefId(0));
         let perform = Def::new(sig, body);

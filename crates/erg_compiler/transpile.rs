@@ -629,7 +629,11 @@ impl PyScriptGenerator {
         let escaped = Self::escape_str(&lit.token.content);
         if matches!(
             &lit.value,
-            ValueObj::Bool(_) | ValueObj::Int(_) | ValueObj::Nat(_) | ValueObj::Str(_)
+            ValueObj::Bool(_)
+                | ValueObj::Int(_)
+                | ValueObj::Nat(_)
+                | ValueObj::Str(_)
+                | ValueObj::Float(_)
         ) {
             self.load_builtin_types_if_not();
             format!("{}({escaped})", lit.value.class())
@@ -716,6 +720,22 @@ impl PyScriptGenerator {
     }
 
     fn transpile_acc(&mut self, acc: Accessor) -> String {
+        let mut prefix = "".to_string();
+        match acc.ref_t().derefine() {
+            v @ (Type::Bool | Type::Nat | Type::Int | Type::Float | Type::Str) => {
+                self.load_builtin_types_if_not();
+                prefix.push_str(&v.qual_name());
+                prefix.push('(');
+            }
+            other => {
+                if let t @ ("Bytes" | "Array" | "Dict" | "Set") = &other.qual_name()[..] {
+                    self.load_builtin_types_if_not();
+                    prefix.push_str(t);
+                    prefix.push('(');
+                }
+            }
+        }
+        let postfix = if prefix.is_empty() { "" } else { ")" };
         match acc {
             Accessor::Ident(ident) => {
                 match &ident.inspect()[..] {
@@ -732,16 +752,16 @@ impl PyScriptGenerator {
                     }
                     _ => {}
                 }
-                Self::transpile_ident(ident)
+                prefix + &Self::transpile_ident(ident) + postfix
             }
             Accessor::Attr(attr) => {
                 if let Some(name) = debind(&attr.ident) {
                     demangle(&name)
                 } else {
                     format!(
-                        "({}).{}",
+                        "{prefix}({}).{}{postfix}",
                         self.transpile_expr(*attr.obj),
-                        Self::transpile_ident(attr.ident)
+                        Self::transpile_ident(attr.ident),
                     )
                 }
             }

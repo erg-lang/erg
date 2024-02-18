@@ -394,7 +394,7 @@ impl PyCodeGenerator {
     #[allow(unused)]
     fn terminate(&mut self) {
         self.emit_push_null();
-        self.emit_load_name_instr(Identifier::public("exit"));
+        self.emit_load_name_instr(Identifier::static_public("exit"));
         self.emit_load_const(1);
         if self.py_version.minor >= Some(11) {
             self.emit_precall_and_call(1);
@@ -842,14 +842,14 @@ impl PyCodeGenerator {
             }
             "CodeType" => {
                 self.emit_global_import_items(
-                    Identifier::public("types"),
-                    vec![(Identifier::public("CodeType"), None)],
+                    Identifier::static_public("types"),
+                    vec![(Identifier::static_public("CodeType"), None)],
                 );
             }
             // NoneType is not defined in the global scope, use `type(None)` instead
             "NoneType" => {
                 self.emit_push_null();
-                self.emit_load_name_instr(Identifier::public("type"));
+                self.emit_load_name_instr(Identifier::static_public("type"));
                 let none = Expr::Literal(Literal::new(ValueObj::None, Token::DUMMY));
                 let args = Args::single(PosArg::new(none));
                 self.emit_args_311(args, AccessKind::Name);
@@ -1268,9 +1268,9 @@ impl PyCodeGenerator {
         ));
         let mod_name = self.toplevel_block_codeobj().name.clone();
         self.emit_load_const(mod_name);
-        self.emit_store_instr(Identifier::public("__module__"), Name);
+        self.emit_store_instr(Identifier::static_public("__module__"), Name);
         self.emit_load_const(name);
-        self.emit_store_instr(Identifier::public("__qualname__"), Name);
+        self.emit_store_instr(Identifier::static_public("__qualname__"), Name);
         for def in req {
             self.emit_empty_func(
                 Some(sig.ident().inspect()),
@@ -1777,19 +1777,19 @@ impl PyCodeGenerator {
             // l..<r == range(l, r)
             TokenKind::RightOpen => {
                 self.emit_push_null();
-                self.emit_load_name_instr(Identifier::public("RightOpenRange"));
+                self.emit_load_name_instr(Identifier::static_public("RightOpenRange"));
             }
             TokenKind::LeftOpen => {
                 self.emit_push_null();
-                self.emit_load_name_instr(Identifier::public("LeftOpenRange"));
+                self.emit_load_name_instr(Identifier::static_public("LeftOpenRange"));
             }
             TokenKind::Closed => {
                 self.emit_push_null();
-                self.emit_load_name_instr(Identifier::public("ClosedRange"));
+                self.emit_load_name_instr(Identifier::static_public("ClosedRange"));
             }
             TokenKind::Open => {
                 self.emit_push_null();
-                self.emit_load_name_instr(Identifier::public("OpenRange"));
+                self.emit_load_name_instr(Identifier::static_public("OpenRange"));
             }
             // From 3.10, `or` can be used for types.
             // But Erg supports Python 3.7~, so we should use `typing.Union`.
@@ -2153,12 +2153,12 @@ impl PyCodeGenerator {
             self.load_control();
         }
         let local = match kind {
-            ControlKind::If => Identifier::public("if__"),
-            ControlKind::For => Identifier::public("for__"),
-            ControlKind::While => Identifier::public("while__"),
-            ControlKind::With => Identifier::public("with__"),
-            ControlKind::Discard => Identifier::public("discard__"),
-            ControlKind::Assert => Identifier::public("assert__"),
+            ControlKind::If => Identifier::static_public("if__"),
+            ControlKind::For => Identifier::static_public("for__"),
+            ControlKind::While => Identifier::static_public("while__"),
+            ControlKind::With => Identifier::static_public("with__"),
+            ControlKind::Discard => Identifier::static_public("discard__"),
+            ControlKind::Assert => Identifier::static_public("assert__"),
             kind => todo!("{kind:?}"),
         };
         self.emit_call_local(local, args);
@@ -2997,7 +2997,7 @@ impl PyCodeGenerator {
             self.write_arg(0);
             self.stack_inc();
         } else {
-            self.emit_load_global_instr(Identifier::public("AssertionError"));
+            self.emit_load_global_instr(Identifier::static_public("AssertionError"));
         }
         if let Some(expr) = args.try_remove(0) {
             self.emit_expr(expr);
@@ -3029,9 +3029,9 @@ impl PyCodeGenerator {
         if !self.cfg.no_std {
             self.emit_push_null();
             if array.is_unsized() {
-                self.emit_load_name_instr(Identifier::public("UnsizedArray"));
+                self.emit_load_name_instr(Identifier::static_public("UnsizedArray"));
             } else {
-                self.emit_load_name_instr(Identifier::public("Array"));
+                self.emit_load_name_instr(Identifier::static_public("Array"));
             }
         }
         match array {
@@ -3127,7 +3127,7 @@ impl PyCodeGenerator {
         let init_stack_len = self.stack_len();
         if !self.cfg.no_std {
             self.emit_push_null();
-            self.emit_load_name_instr(Identifier::public("Dict"));
+            self.emit_load_name_instr(Identifier::static_public("Dict"));
         }
         match dict {
             crate::hir::Dict::Normal(dic) => {
@@ -3343,46 +3343,14 @@ impl PyCodeGenerator {
         let mut wrapped = true;
         if !self.cfg.no_std && expr.should_wrap() {
             match expr.ref_t().derefine() {
-                Bool => {
+                v @ (Bool | Nat | Int | Float | Str) => {
                     self.emit_push_null();
-                    self.emit_load_name_instr(Identifier::public("Bool"));
-                }
-                Nat => {
-                    self.emit_push_null();
-                    self.emit_load_name_instr(Identifier::public("Nat"));
-                }
-                Int => {
-                    self.emit_push_null();
-                    self.emit_load_name_instr(Identifier::public("Int"));
-                }
-                Float => {
-                    self.emit_push_null();
-                    self.emit_load_name_instr(Identifier::public("Float"));
-                }
-                Str => {
-                    self.emit_push_null();
-                    self.emit_load_name_instr(Identifier::public("Str"));
+                    self.emit_load_name_instr(Identifier::public(&v.qual_name()));
                 }
                 other => match &other.qual_name()[..] {
-                    "Bytes" => {
+                    t @ ("Bytes" | "Array" | "Dict" | "Set") => {
                         self.emit_push_null();
-                        self.emit_load_name_instr(Identifier::public("Bytes"));
-                    }
-                    "Array" => {
-                        self.emit_push_null();
-                        self.emit_load_name_instr(Identifier::public("Array"));
-                    }
-                    "Dict" => {
-                        self.emit_push_null();
-                        self.emit_load_name_instr(Identifier::public("Dict"));
-                    }
-                    "Set" => {
-                        self.emit_push_null();
-                        self.emit_load_name_instr(Identifier::public("Set"));
-                    }
-                    "Tuple" => {
-                        self.emit_push_null();
-                        self.emit_load_name_instr(Identifier::public("tuple"));
+                        self.emit_load_name_instr(Identifier::public(t));
                     }
                     _ => {
                         wrapped = false;
@@ -3500,9 +3468,9 @@ impl PyCodeGenerator {
         let init_stack_len = self.stack_len();
         let mod_name = self.toplevel_block_codeobj().name.clone();
         self.emit_load_const(mod_name);
-        self.emit_store_instr(Identifier::public("__module__"), Name);
+        self.emit_store_instr(Identifier::static_public("__module__"), Name);
         self.emit_load_const(name);
-        self.emit_store_instr(Identifier::public("__qualname__"), Name);
+        self.emit_store_instr(Identifier::static_public("__qualname__"), Name);
         let mut methods = ClassDef::take_all_methods(class.methods_list);
         let __init__ = methods
             .remove_def("__init__")
@@ -3856,11 +3824,11 @@ impl PyCodeGenerator {
     }
 
     fn load_contains_op(&mut self) {
-        let mod_name = Identifier::public("_erg_std_prelude");
+        let mod_name = Identifier::static_public("_erg_std_prelude");
         self.emit_global_import_items(
             mod_name,
             vec![(
-                Identifier::public("contains_operator"),
+                Identifier::static_public("contains_operator"),
                 Some(Identifier::private("#contains_operator")),
             )],
         );
@@ -3868,11 +3836,11 @@ impl PyCodeGenerator {
     }
 
     fn load_mutate_op(&mut self) {
-        let mod_name = Identifier::public("_erg_std_prelude");
+        let mod_name = Identifier::static_public("_erg_std_prelude");
         self.emit_global_import_items(
             mod_name,
             vec![(
-                Identifier::public("mutate_operator"),
+                Identifier::static_public("mutate_operator"),
                 Some(Identifier::private("#mutate_operator")),
             )],
         );
@@ -3880,43 +3848,43 @@ impl PyCodeGenerator {
     }
 
     fn load_control(&mut self) {
-        let mod_name = Identifier::public("_erg_control");
+        let mod_name = Identifier::static_public("_erg_control");
         self.emit_import_all_instr(mod_name);
         self.control_loaded = true;
     }
 
     fn load_convertors(&mut self) {
-        let mod_name = Identifier::public("_erg_convertors");
+        let mod_name = Identifier::static_public("_erg_convertors");
         self.emit_import_all_instr(mod_name);
         self.convertors_loaded = true;
     }
 
     fn load_operators(&mut self) {
-        let mod_name = Identifier::public("operator");
+        let mod_name = Identifier::static_public("operator");
         self.emit_import_all_instr(mod_name);
         self.operators_loaded = true;
     }
 
     fn load_prelude_py(&mut self) {
         self.emit_global_import_items(
-            Identifier::public("sys"),
+            Identifier::static_public("sys"),
             vec![(
-                Identifier::public("path"),
+                Identifier::static_public("path"),
                 Some(Identifier::private("#path")),
             )],
         );
         self.emit_load_name_instr(Identifier::private("#path"));
-        self.emit_load_method_instr(Identifier::public("append"), BoundAttr);
+        self.emit_load_method_instr(Identifier::static_public("append"), BoundAttr);
         self.emit_load_const(erg_core_path().to_str().unwrap());
         self.emit_call_instr(1, BoundAttr);
         self.stack_dec();
         self.emit_pop_top();
-        let erg_std_mod = Identifier::public("_erg_std_prelude");
+        let erg_std_mod = Identifier::static_public("_erg_std_prelude");
         // escaping
         self.emit_global_import_items(
             erg_std_mod.clone(),
             vec![(
-                Identifier::public("contains_operator"),
+                Identifier::static_public("contains_operator"),
                 Some(Identifier::private("#contains_operator")),
             )],
         );
@@ -3925,9 +3893,9 @@ impl PyCodeGenerator {
 
     fn load_record_type(&mut self) {
         self.emit_global_import_items(
-            Identifier::public("collections"),
+            Identifier::static_public("collections"),
             vec![(
-                Identifier::public("namedtuple"),
+                Identifier::static_public("namedtuple"),
                 Some(Identifier::private("#NamedTuple")),
             )],
         );
@@ -3935,14 +3903,14 @@ impl PyCodeGenerator {
 
     fn load_abc(&mut self) {
         self.emit_global_import_items(
-            Identifier::public("abc"),
+            Identifier::static_public("abc"),
             vec![
                 (
-                    Identifier::public("ABCMeta"),
+                    Identifier::static_public("ABCMeta"),
                     Some(Identifier::private("#ABCMeta")),
                 ),
                 (
-                    Identifier::public("abstractmethod"),
+                    Identifier::static_public("abstractmethod"),
                     Some(Identifier::private("#abstractmethod")),
                 ),
             ],
@@ -3951,9 +3919,9 @@ impl PyCodeGenerator {
 
     fn load_union(&mut self) {
         self.emit_global_import_items(
-            Identifier::public("_erg_type"),
+            Identifier::static_public("_erg_type"),
             vec![(
-                Identifier::public("UnionType"),
+                Identifier::static_public("UnionType"),
                 Some(Identifier::private("#UnionType")),
             )],
         );
@@ -3961,9 +3929,9 @@ impl PyCodeGenerator {
 
     fn load_fake_generic(&mut self) {
         self.emit_global_import_items(
-            Identifier::public("_erg_type"),
+            Identifier::static_public("_erg_type"),
             vec![(
-                Identifier::public("FakeGenericAlias"),
+                Identifier::static_public("FakeGenericAlias"),
                 Some(Identifier::private("#FakeGenericAlias")),
             )],
         );
@@ -3971,9 +3939,9 @@ impl PyCodeGenerator {
 
     fn load_module_type(&mut self) {
         self.emit_global_import_items(
-            Identifier::public("types"),
+            Identifier::static_public("types"),
             vec![(
-                Identifier::public("ModuleType"),
+                Identifier::static_public("ModuleType"),
                 Some(Identifier::private("#ModuleType")),
             )],
         );
@@ -3981,8 +3949,11 @@ impl PyCodeGenerator {
 
     fn load_builtins(&mut self) {
         self.emit_global_import_items(
-            Identifier::public("_erg_builtins"),
-            vec![(Identifier::public("sum"), Some(Identifier::private("#sum")))],
+            Identifier::static_public("_erg_builtins"),
+            vec![(
+                Identifier::static_public("sum"),
+                Some(Identifier::private("#sum")),
+            )],
         );
     }
 
