@@ -93,3 +93,48 @@ jobs:
         run: |
           cargo login ${{ secrets.CARGO_TOKEN }}
           ./cargo_publish.sh
+
+  create-nightly-release:
+    if: contains(github.event.head_commit.message, 'update version (nightly')
+    runs-on: ubuntu-latest
+    steps:
+      - id: generate-version
+        run: echo "version=v$(cargo read-manifest | jq -r .version)" >> $GITHUB_OUTPUT
+      - uses: actions/checkout@v3
+      - uses: taiki-e/create-gh-release-action@v1
+        with:
+          title: ${{ steps.generate-version.outputs.version }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  upload-nightly-artifacts:
+    needs: create-nightly-release
+    if: contains(github.event.head_commit.message, 'update version (nightly')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: armv7-unknown-linux-gnueabihf
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: update-rustup
+        run: rustup update stable
+      - uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          bin: erg
+          target: ${{ matrix.target }}
+          include: crates/erg_compiler/lib
+          features: full
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
