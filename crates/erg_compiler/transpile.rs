@@ -498,6 +498,8 @@ impl PyScriptGenerator {
             if self.range_ops_loaded {
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_float.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_array.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/core/_erg_dict.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/core/_erg_set.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_bytes.py"));
             } else {
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_int.py"));
@@ -506,6 +508,8 @@ impl PyScriptGenerator {
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_str.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_float.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_array.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/core/_erg_dict.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/core/_erg_set.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_bytes.py"));
             }
             self.builtin_types_loaded = true;
@@ -554,11 +558,12 @@ impl PyScriptGenerator {
             },
             Expr::Set(set) => match set {
                 Set::Normal(st) => {
-                    let mut code = "{".to_string();
+                    self.load_builtin_types_if_not();
+                    let mut code = "Set({".to_string();
                     for elem in st.elems.pos_args {
                         code += &format!("{},", self.transpile_expr(elem.expr));
                     }
-                    code += "}";
+                    code += "})";
                     code
                 }
                 other => todo!("transpiling {other}"),
@@ -576,7 +581,8 @@ impl PyScriptGenerator {
             },
             Expr::Dict(dict) => match dict {
                 Dict::Normal(dic) => {
-                    let mut code = "{".to_string();
+                    self.load_builtin_types_if_not();
+                    let mut code = "Dict({".to_string();
                     for kv in dic.kvs {
                         code += &format!(
                             "({}): ({}),",
@@ -584,7 +590,7 @@ impl PyScriptGenerator {
                             self.transpile_expr(kv.value)
                         );
                     }
-                    code += "}";
+                    code += "})";
                     code
                 }
                 other => todo!("transpiling {other}"),
