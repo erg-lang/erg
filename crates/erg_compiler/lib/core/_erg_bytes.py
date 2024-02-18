@@ -1,6 +1,9 @@
 class Bytes(bytes):
-    def try_new(*b):  # -> Result[Nat]
-        return Bytes(bytes(*b))
+    def try_new(b):  # -> Result[Nat]
+        if isinstance(b, bytes):
+            return Bytes(bytes(b))
+        else:
+            return Error("not a bytes")
 
     def __getitem__(self, index_or_slice):
         from _erg_range import Range
