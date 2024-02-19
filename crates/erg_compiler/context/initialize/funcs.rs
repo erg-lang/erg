@@ -1133,7 +1133,7 @@ impl Context {
             op_t,
             Const,
             Visibility::BUILTIN_PRIVATE,
-            Some(OP_MUL),
+            Some(OP_NEG),
         );
         let invert_t = func1(Int, Int);
         self.register_builtin_py_impl(
