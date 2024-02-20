@@ -532,22 +532,26 @@ pub enum BlockKind {
     AtMark,       // @
     MultiLineStr, // """
     ClassDef,     // class definition
+    Collections,  // {}, () and []
     None,         // one line
 }
 
-pub fn from_str(bk: &str) -> BlockKind {
-    match bk {
-        "Assignment" => BlockKind::Assignment,
-        "AtMark" => BlockKind::AtMark,
-        "ClassPriv" => BlockKind::ClassPriv,
-        "ClassPub" => BlockKind::ClassPub,
-        "ColonCall" => BlockKind::ColonCall,
-        "Error" => BlockKind::Error,
-        "Lambda" => BlockKind::Lambda,
-        "MultiLineStr" => BlockKind::MultiLineStr,
-        "ClassDef" => BlockKind::ClassDef,
-        "None" => BlockKind::None,
-        _ => unimplemented!("Failed to convert to BlockKind"),
+impl From<&str> for BlockKind {
+    fn from(value: &str) -> Self {
+        match value {
+            "Assignment" => BlockKind::Assignment,
+            "AtMark" => BlockKind::AtMark,
+            "ClassPriv" => BlockKind::ClassPriv,
+            "ClassPub" => BlockKind::ClassPub,
+            "ColonCall" => BlockKind::ColonCall,
+            "Error" => BlockKind::Error,
+            "Lambda" => BlockKind::Lambda,
+            "MultiLineStr" => BlockKind::MultiLineStr,
+            "ClassDef" => BlockKind::ClassDef,
+            "Collections" => BlockKind::Collections,
+            "None" => BlockKind::None,
+            _ => unimplemented!("Failed to convert to BlockKind"),
+        }
     }
 }
 
@@ -709,6 +713,9 @@ pub trait Runnable: Sized + Default + New {
         if src.contains("Class") || src.contains("Inherit") {
             return BlockKind::ClassDef;
         }
+        if src.ends_with(['(', '{', '[']) {
+            return BlockKind::Collections;
+        }
         BlockKind::None
     }
     fn input(&self) -> &Input {
@@ -789,8 +796,18 @@ pub trait Runnable: Sized + Default + New {
                             instance.clear();
                             continue;
                         }
-                        "" => {
+                        "" | "}" | ")" => {
                             // eval after the end of the block
+                            if vm.now == BlockKind::Collections && line == "}" {
+                                vm.push_code("}");
+                                vm.push_code("\n");
+                            } else if vm.now == BlockKind::Collections && line == ")" {
+                                vm.push_code(")");
+                                vm.push_code("\n");
+                            } else if vm.now == BlockKind::Collections && line == "]" {
+                                vm.push_code("]");
+                                vm.push_code("\n");
+                            }
                             if vm.now_block.len() == 2 {
                                 vm.remove_block_kind();
                             } else if vm.now_block.len() > 1 {
@@ -874,6 +891,9 @@ pub trait Runnable: Sized + Default + New {
                         }
                         // single eval
                         BlockKind::None => {
+                            if vm.length == 1 {
+                                instance.input().set_block_begin();
+                            }
                             vm.push_code(indent.as_str());
                             instance.input().insert_whitespace(indent.as_str());
                             vm.push_code(line);

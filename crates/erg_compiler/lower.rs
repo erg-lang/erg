@@ -8,13 +8,16 @@ use erg_common::config::{ErgConfig, ErgMode};
 use erg_common::consts::{ELS, ERG_MODE, PYTHON_MODE};
 use erg_common::dict;
 use erg_common::dict::Dict;
+use erg_common::error::{ErrorDisplay, ErrorKind};
 use erg_common::error::{Location, MultiErrorDisplay};
 use erg_common::fresh::FreshNameGenerator;
 use erg_common::pathutil::{mod_name, NormalizedPathBuf};
 use erg_common::set;
 use erg_common::set::Set;
+use erg_common::traits::BlockKind;
+use erg_common::traits::New;
+use erg_common::traits::OptionalTranspose;
 use erg_common::traits::{ExitStatus, Locational, NoTypeDisplay, Runnable, Stream};
-use erg_common::traits::{New, OptionalTranspose};
 use erg_common::triple::Triple;
 use erg_common::{fmt_option, fn_name, log, switch_lang, Str};
 
@@ -24,6 +27,7 @@ use erg_parser::build_ast::{ASTBuildable, ASTBuilder as DefaultASTBuilder};
 use erg_parser::desugar::Desugarer;
 use erg_parser::token::{Token, TokenKind};
 use erg_parser::Parser;
+use erg_parser::ParserRunner;
 
 use crate::artifact::{BuildRunnable, Buildable, CompleteArtifact, IncompleteArtifact};
 use crate::build_package::CheckStatus;
@@ -153,6 +157,39 @@ impl<ASTBuilder: ASTBuildable> Runnable for GenericASTLowerer<ASTBuilder> {
             .map_err(|artifact| artifact.errors)?;
         artifact.warns.write_all_stderr();
         Ok(format!("{}", artifact.object))
+    }
+
+    fn expect_block(&self, src: &str) -> BlockKind {
+        let mut parser = ParserRunner::new(self.cfg().clone());
+        match parser.eval(src.to_string()) {
+            Err(errs) => {
+                let kind = errs
+                    .iter()
+                    .filter(|e| e.core().kind == ErrorKind::ExpectNextLine)
+                    .map(|e| {
+                        let msg = e.core().sub_messages.last().unwrap();
+                        // ExpectNextLine error must have msg otherwise it's a bug
+                        msg.get_msg().first().unwrap().to_owned()
+                    })
+                    .next();
+                if let Some(kind) = kind {
+                    return BlockKind::from(kind.as_str());
+                }
+                if errs
+                    .iter()
+                    .any(|err| err.core.main_message.contains("\"\"\""))
+                {
+                    return BlockKind::MultiLineStr;
+                }
+                BlockKind::Error
+            }
+            Ok(_) => {
+                if src.contains("Class") {
+                    return BlockKind::ClassDef;
+                }
+                BlockKind::None
+            }
+        }
     }
 }
 
