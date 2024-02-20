@@ -62,6 +62,20 @@ impl<K: Hash + Eq, V> FromIterator<(K, V)> for Dict<K, V> {
     }
 }
 
+impl<K: Hash + Eq, V> Extend<(K, V)> for Dict<K, V> {
+    #[inline]
+    fn extend<I: IntoIterator<Item = (K, V)>>(&mut self, iter: I) {
+        self.guaranteed_extend(iter);
+    }
+}
+
+impl<K: Hash + Eq, V> From<Vec<(K, V)>> for Dict<K, V> {
+    #[inline]
+    fn from(v: Vec<(K, V)>) -> Dict<K, V> {
+        v.into_iter().collect()
+    }
+}
+
 impl<K: Hash + Eq, V, Q: ?Sized> Index<&Q> for Dict<K, V>
 where
     K: Borrow<Q>,
