@@ -31,8 +31,6 @@ impl Context {
         let never = Self::builtin_mono_class(NEVER, 1);
         /* Obj */
         let mut obj = Self::builtin_mono_class(OBJ, 2);
-        let Slf = mono_q(SELF, subtypeof(Obj));
-        let t = fn0_met(Slf.clone(), Slf).quantify();
         obj.register_py_builtin(
             FUNDAMENTAL_DICT,
             dict! {Str => Obj}.into(),
@@ -40,7 +38,12 @@ impl Context {
             3,
         );
         obj.register_py_builtin(FUNDAMENTAL_MODULE, Str, Some(FUNDAMENTAL_MODULE), 4);
-        obj.register_py_builtin(FUNC_CLONE, t, Some(FUNC_CLONE), 5);
+        obj.register_py_builtin(
+            FUNDAMENTAL_HASH,
+            fn0_met(Obj, Int),
+            Some(FUNDAMENTAL_HASH),
+            5,
+        );
         obj.register_py_builtin(
             FUNDAMENTAL_BYTES,
             fn0_met(Obj, mono(BYTES)),

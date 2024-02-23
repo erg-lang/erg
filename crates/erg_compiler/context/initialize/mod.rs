@@ -131,7 +131,6 @@ const NEG: &str = "Neg";
 const NEVER: &str = "Never";
 const OBJ: &str = "Obj";
 const MUTABLE_OBJ: &str = "Obj!";
-const FUNC_CLONE: &str = "clone";
 const BYTES: &str = "Bytes";
 const BYTEARRAY: &str = "ByteArray!";
 const FLOAT: &str = "Float";
