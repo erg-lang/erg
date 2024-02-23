@@ -519,6 +519,7 @@ pub enum ValueObj {
     Ellipsis,
     NotImplemented,
     NegInf,
+    /// different from `Float.Inf`
     Inf,
     #[default]
     Illegal, // to avoid conversions with TryFrom
@@ -977,7 +978,7 @@ impl ValueObj {
     pub const fn is_num(&self) -> bool {
         matches!(
             self,
-            Self::Float(_) | Self::Int(_) | Self::Nat(_) | Self::Bool(_)
+            Self::Float(_) | Self::Int(_) | Self::Nat(_) | Self::Bool(_) | Self::Inf | Self::NegInf
         )
     }
 
@@ -1373,6 +1374,36 @@ impl ValueObj {
         }
     }
 
+    pub fn try_pow(self, other: Self) -> Option<Self> {
+        match (self, other) {
+            (Self::Int(l), Self::Int(r)) => Some(Self::Int(l.pow(r.try_into().ok()?))),
+            (Self::Nat(l), Self::Nat(r)) => Some(Self::Nat(l.pow(r.try_into().ok()?))),
+            (Self::Float(l), Self::Float(r)) => Some(Self::Float(l.powf(r))),
+            (Self::Int(l), Self::Nat(r)) => Some(Self::Int(l.pow(r.try_into().ok()?))),
+            (Self::Nat(l), Self::Int(r)) => Some(Self::Nat(l.pow(r.try_into().ok()?))),
+            (Self::Float(l), Self::Nat(r)) => Some(Self::Float(l.powf(r as f64))),
+            (Self::Nat(l), Self::Float(r)) => Some(Self::Float((l as f64).powf(r))),
+            (Self::Float(l), Self::Int(r)) => Some(Self::Float(l.powi(r))),
+            (Self::Int(l), Self::Float(r)) => Some(Self::Float((l as f64).powf(r))),
+            _ => None,
+        }
+    }
+
+    pub fn try_mod(self, other: Self) -> Option<Self> {
+        match (self, other) {
+            (Self::Int(l), Self::Int(r)) => Some(Self::Int(l % r)),
+            (Self::Nat(l), Self::Nat(r)) => Some(Self::Nat(l % r)),
+            (Self::Float(l), Self::Float(r)) => Some(Self::Float(l % r)),
+            (Self::Int(l), Self::Nat(r)) => Some(Self::Int(l % r as i32)),
+            (Self::Nat(l), Self::Int(r)) => Some(Self::Int(l as i32 % r)),
+            (Self::Float(l), Self::Nat(r)) => Some(Self::Float(l % r as f64)),
+            (Self::Nat(l), Self::Float(r)) => Some(Self::Float(l as f64 % r)),
+            (Self::Float(l), Self::Int(r)) => Some(Self::Float(l % r as f64)),
+            (Self::Int(l), Self::Float(r)) => Some(Self::Float(l as f64 % r)),
+            _ => None,
+        }
+    }
+
     pub fn try_gt(self, other: Self) -> Option<Self> {
         match (self, other) {
             (Self::Int(l), Self::Int(r)) => Some(Self::from(l > r)),
@@ -1384,6 +1415,15 @@ impl ValueObj {
             (Self::Nat(l), Self::Float(r)) => Some(Self::from(l as f64 > r)),
             (Self::Float(l), Self::Int(r)) => Some(Self::from(l > r as f64)),
             (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 > r)),
+            (Self::Inf, Self::Inf) | (Self::NegInf, Self::NegInf) => Some(Self::Bool(false)),
+            (Self::Inf, Self::Nat(_) | Self::Int(_) | Self::Float(_) | Self::Bool(_))
+            | (Self::Nat(_) | Self::Int(_) | Self::Float(_) | Self::Bool(_), Self::NegInf) => {
+                Some(Self::Bool(true))
+            }
+            (Self::NegInf, Self::Nat(_) | Self::Int(_) | Self::Float(_) | Self::Bool(_))
+            | (Self::Nat(_) | Self::Int(_) | Self::Float(_) | Self::Bool(_), Self::Inf) => {
+                Some(Self::Bool(false))
+            }
             _ => None,
         }
     }
@@ -1399,6 +1439,15 @@ impl ValueObj {
             (Self::Nat(l), Self::Float(r)) => Some(Self::from(l as f64 >= r)),
             (Self::Float(l), Self::Int(r)) => Some(Self::from(l >= r as f64)),
             (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 >= r)),
+            (Self::Inf, Self::Inf) | (Self::NegInf, Self::NegInf) => Some(Self::Bool(true)),
+            (Self::Inf, Self::Nat(_) | Self::Int(_) | Self::Float(_) | Self::Bool(_))
+            | (Self::Nat(_) | Self::Int(_) | Self::Float(_) | Self::Bool(_), Self::NegInf) => {
+                Some(Self::Bool(true))
+            }
+            (Self::NegInf, Self::Nat(_) | Self::Int(_) | Self::Float(_) | Self::Bool(_))
+            | (Self::Nat(_) | Self::Int(_) | Self::Float(_) | Self::Bool(_), Self::Inf) => {
+                Some(Self::Bool(false))
+            }
             _ => None,
         }
     }
@@ -1414,6 +1463,15 @@ impl ValueObj {
             (Self::Nat(l), Self::Float(r)) => Some(Self::from((l as f64) < r)),
             (Self::Float(l), Self::Int(r)) => Some(Self::from(l < r as f64)),
             (Self::Int(l), Self::Float(r)) => Some(Self::from((l as f64) < r)),
+            (Self::Inf, Self::Inf) | (Self::NegInf, Self::NegInf) => Some(Self::Bool(false)),
+            (Self::Inf, Self::Nat(_) | Self::Int(_) | Self::Float(_) | Self::Bool(_))
+            | (Self::Nat(_) | Self::Int(_) | Self::Float(_) | Self::Bool(_), Self::NegInf) => {
+                Some(Self::Bool(false))
+            }
+            (Self::NegInf, Self::Nat(_) | Self::Int(_) | Self::Float(_) | Self::Bool(_))
+            | (Self::Nat(_) | Self::Int(_) | Self::Float(_) | Self::Bool(_), Self::Inf) => {
+                Some(Self::Bool(true))
+            }
             _ => None,
         }
     }
@@ -1429,6 +1487,15 @@ impl ValueObj {
             (Self::Nat(l), Self::Float(r)) => Some(Self::from((l as f64) <= r)),
             (Self::Float(l), Self::Int(r)) => Some(Self::from(l <= r as f64)),
             (Self::Int(l), Self::Float(r)) => Some(Self::from((l as f64) <= r)),
+            (Self::Inf, Self::Inf) | (Self::NegInf, Self::NegInf) => Some(Self::Bool(true)),
+            (Self::Inf, Self::Nat(_) | Self::Int(_) | Self::Float(_) | Self::Bool(_))
+            | (Self::Nat(_) | Self::Int(_) | Self::Float(_) | Self::Bool(_), Self::NegInf) => {
+                Some(Self::Bool(false))
+            }
+            (Self::NegInf, Self::Nat(_) | Self::Int(_) | Self::Float(_) | Self::Bool(_))
+            | (Self::Nat(_) | Self::Int(_) | Self::Float(_) | Self::Bool(_), Self::Inf) => {
+                Some(Self::Bool(true))
+            }
             _ => None,
         }
     }
@@ -1447,6 +1514,7 @@ impl ValueObj {
             (Self::Str(l), Self::Str(r)) => Some(Self::from(l == r)),
             (Self::Bool(l), Self::Bool(r)) => Some(Self::from(l == r)),
             (Self::Type(l), Self::Type(r)) => Some(Self::from(l == r)),
+            (Self::Inf, Self::Inf) | (Self::NegInf, Self::NegInf) => Some(Self::Bool(true)),
             // TODO:
             _ => None,
         }
@@ -1466,6 +1534,7 @@ impl ValueObj {
             (Self::Str(l), Self::Str(r)) => Some(Self::from(l != r)),
             (Self::Bool(l), Self::Bool(r)) => Some(Self::from(l != r)),
             (Self::Type(l), Self::Type(r)) => Some(Self::from(l != r)),
+            (Self::Inf, Self::Inf) | (Self::NegInf, Self::NegInf) => Some(Self::Bool(false)),
             _ => None,
         }
     }

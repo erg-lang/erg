@@ -603,7 +603,7 @@ impl Context {
             match acc {
                 Accessor::Ident(ident) => {
                     let obj = self.rec_get_const_obj(ident.inspect()).ok_or_else(|| {
-                        EvalError::no_var_error(
+                        EvalError::not_comptime_fn_error(
                             self.cfg.input.clone(),
                             line!() as usize,
                             ident.loc(),
@@ -1164,6 +1164,20 @@ impl Context {
                 ))
             }),
             FloorDiv => lhs.try_floordiv(rhs).ok_or_else(|| {
+                EvalErrors::from(EvalError::unreachable(
+                    self.cfg.input.clone(),
+                    fn_name!(),
+                    line!(),
+                ))
+            }),
+            Pow => lhs.try_pow(rhs).ok_or_else(|| {
+                EvalErrors::from(EvalError::unreachable(
+                    self.cfg.input.clone(),
+                    fn_name!(),
+                    line!(),
+                ))
+            }),
+            Mod => lhs.try_mod(rhs).ok_or_else(|| {
                 EvalErrors::from(EvalError::unreachable(
                     self.cfg.input.clone(),
                     fn_name!(),
