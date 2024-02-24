@@ -309,7 +309,10 @@ impl<ASTBuilder: ASTBuildable> GenericASTLowerer<ASTBuilder> {
             }
             Expr::Def(def) => {
                 if let Signature::Subr(subr) = &def.sig {
-                    let return_t = subr.ref_t().return_t().unwrap();
+                    let Some(return_t) = subr.ref_t().return_t() else {
+                        log!(err "{subr}");
+                        return;
+                    };
                     if return_t.union_pair().is_some() && subr.return_t_spec.is_none() {
                         let typ = if cfg!(feature = "debug") {
                             return_t.clone()

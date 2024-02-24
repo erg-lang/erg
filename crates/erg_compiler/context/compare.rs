@@ -1220,12 +1220,13 @@ impl Context {
                 let l_inf = self.inf(&lt);
                 let l_sup = self.sup(&lt);
                 if let (Some(inf), Some(sup)) = (l_inf, l_sup) {
+                    let (Some(l), Some(r)) = (self.try_cmp(&inf, p), self.try_cmp(&sup, p)) else {
+                        log!(err "{inf}, {sup}, {p}");
+                        return None;
+                    };
                     // (n: Int, 1) -> (-inf..inf, 1) -> (cmp(-inf, 1), cmp(inf, 1)) -> (Less, Greater) -> Any
                     // (n: 5..10, 2) -> (cmp(5..10, 2), cmp(5..10, 2)) -> (Greater, Greater) -> Greater
-                    match (
-                        self.try_cmp(&inf, p).unwrap(),
-                        self.try_cmp(&sup, p).unwrap()
-                    ) {
+                    match (l, r) {
                         (Less, Less) => Some(Less),
                         (Less, Equal) => Some(LessEqual),
                         (Less, LessEqual) => Some(LessEqual),
@@ -1254,8 +1255,12 @@ impl Context {
                         (Any, Less) => Some(Less),
                         (Any, Equal | LessEqual) => Some(LessEqual),
                         (Any, Greater | NotEqual | GreaterEqual | Any) => Some(Any),
-                        (l, r) =>
-                            todo!("cmp({inf}, {sup}) = {l:?}, cmp({inf}, {sup}) = {r:?}"),
+                        (l, r) => {
+                            if DEBUG_MODE {
+                                todo!("cmp({inf}, {sup}) = {l:?}, cmp({inf}, {sup}) = {r:?}");
+                            }
+                            None
+                        },
                     }
                 } else {
                     match (self.supertype_of(&lt, &pt), self.subtype_of(&lt, &pt)) {

@@ -683,6 +683,36 @@ impl SubrType {
             self.return_t.derefine(),
         )
     }
+
+    pub fn args_ownership(&self) -> ArgsOwnership {
+        let mut nd_args = vec![];
+        for nd_param in self.non_default_params.iter() {
+            let ownership = match nd_param.typ() {
+                Type::Ref(_) => Ownership::Ref,
+                Type::RefMut { .. } => Ownership::RefMut,
+                _ => Ownership::Owned,
+            };
+            nd_args.push((nd_param.name().cloned(), ownership));
+        }
+        let var_args = self
+            .var_params
+            .as_ref()
+            .map(|t| (t.name().cloned(), t.typ().ownership()));
+        let mut d_args = vec![];
+        for d_param in self.default_params.iter() {
+            let ownership = match d_param.typ() {
+                Type::Ref(_) => Ownership::Ref,
+                Type::RefMut { .. } => Ownership::RefMut,
+                _ => Ownership::Owned,
+            };
+            d_args.push((d_param.name().unwrap().clone(), ownership));
+        }
+        let kw_var_args = self
+            .kw_var_params
+            .as_ref()
+            .map(|t| (t.name().cloned(), t.typ().ownership()));
+        ArgsOwnership::new(nd_args, var_args, d_args, kw_var_args)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -2500,35 +2530,7 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().args_ownership(),
             Self::Refinement(refine) => refine.t.args_ownership(),
-            Self::Subr(subr) => {
-                let mut nd_args = vec![];
-                for nd_param in subr.non_default_params.iter() {
-                    let ownership = match nd_param.typ() {
-                        Self::Ref(_) => Ownership::Ref,
-                        Self::RefMut { .. } => Ownership::RefMut,
-                        _ => Ownership::Owned,
-                    };
-                    nd_args.push((nd_param.name().cloned(), ownership));
-                }
-                let var_args = subr
-                    .var_params
-                    .as_ref()
-                    .map(|t| (t.name().cloned(), t.typ().ownership()));
-                let mut d_args = vec![];
-                for d_param in subr.default_params.iter() {
-                    let ownership = match d_param.typ() {
-                        Self::Ref(_) => Ownership::Ref,
-                        Self::RefMut { .. } => Ownership::RefMut,
-                        _ => Ownership::Owned,
-                    };
-                    d_args.push((d_param.name().unwrap().clone(), ownership));
-                }
-                let kw_var_args = subr
-                    .kw_var_params
-                    .as_ref()
-                    .map(|t| (t.name().cloned(), t.typ().ownership()));
-                ArgsOwnership::new(nd_args, var_args, d_args, kw_var_args)
-            }
+            Self::Subr(subr) => subr.args_ownership(),
             Self::Quantified(quant) => quant.args_ownership(),
             other => todo!("{other}"),
         }

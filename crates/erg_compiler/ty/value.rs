@@ -1249,15 +1249,15 @@ impl ValueObj {
             return Some(Ordering::Equal);
         }
         match (self, other) {
+            (Self::NegInf, Self::Inf) => Some(Ordering::Less),
+            (Self::Inf, Self::NegInf) => Some(Ordering::Greater),
+            // REVIEW: 等しいとみなしてよいのか?
+            (Self::Inf, Self::Inf) | (Self::NegInf, Self::NegInf) => Some(Ordering::Equal),
             (l, r) if l.is_num() && r.is_num() => {
                 f64::try_from(l).ok()?.partial_cmp(&f64::try_from(r).ok()?)
             }
             (Self::Inf, n) | (n, Self::NegInf) if n.is_num() => Some(Ordering::Greater),
             (n, Self::Inf) | (Self::NegInf, n) if n.is_num() => Some(Ordering::Less),
-            (Self::NegInf, Self::Inf) => Some(Ordering::Less),
-            (Self::Inf, Self::NegInf) => Some(Ordering::Greater),
-            // REVIEW: 等しいとみなしてよいのか?
-            (Self::Inf, Self::Inf) | (Self::NegInf, Self::NegInf) => Some(Ordering::Equal),
             /* (Self::PlusEpsilon(l), r) => l.try_cmp(r)
                 .map(|o| if matches!(o, Ordering::Equal) { Ordering::Less } else { o }),
             (l, Self::PlusEpsilon(r)) => l.try_cmp(r)

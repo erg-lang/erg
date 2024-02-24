@@ -537,7 +537,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
                     .input
                     .resolve_decl_path(Path::new(&__name__[..]), &self.cfg)
                 {
-                    let size = metadata(&path).unwrap().len();
+                    let size = metadata(&path).or(Err(()))?.len();
                     // if pylyzer crashed
                     if !status.success() && size == 0 {
                         // The presence of the decl file indicates that the analysis is in progress or completed,
@@ -602,7 +602,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         let import_path = NormalizedPathBuf::from(import_path.clone());
         self.shared.graph.add_node_if_none(&import_path);
         // If we import `foo/bar`, we also need to import `foo`
-        let first = __name__.split('/').next().unwrap();
+        let first = __name__.split('/').next().unwrap_or_default();
         let root_path = if !first.is_empty() && first != "." && first != &__name__[..] {
             Some(Path::new(first))
         } else {
