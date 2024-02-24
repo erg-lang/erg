@@ -20,6 +20,10 @@ pub enum Predicate {
         name: Option<Str>,
         args: Vec<TyParam>,
     },
+    Attr {
+        receiver: TyParam,
+        name: Str,
+    },
     /// TODO: unify with GeneralEqual
     /// i == 0 => Eq{ lhs: "i", rhs: 0 }
     Equal {
@@ -81,6 +85,7 @@ impl fmt::Display for Predicate {
                         .join(", ")
                 )
             }
+            Self::Attr { receiver, name } => write!(f, "{receiver}.{name}"),
             Self::Equal { lhs, rhs } => write!(f, "{lhs} == {rhs}"),
             Self::GreaterEqual { lhs, rhs } => write!(f, "{lhs} >= {rhs}"),
             Self::LessEqual { lhs, rhs } => write!(f, "{lhs} <= {rhs}"),
@@ -120,6 +125,7 @@ impl LimitedDisplay for Predicate {
                         .join(", ")
                 )
             }
+            Self::Attr { receiver, name } => write!(f, "{receiver}.{name}"),
             Self::Equal { lhs, rhs } => {
                 write!(f, "{lhs} == ")?;
                 rhs.limited_fmt(f, limit - 1)
@@ -261,6 +267,7 @@ impl HasLevel for Predicate {
                 .level()
                 .zip(args.iter().map(|a| a.level().unwrap_or(usize::MAX)).min())
                 .map(|(a, b)| a.min(b)),
+            Self::Attr { receiver, .. } => receiver.level(),
         }
     }
 
@@ -272,6 +279,9 @@ impl HasLevel for Predicate {
                 for arg in args {
                     arg.set_level(level);
                 }
+            }
+            Self::Attr { receiver, .. } => {
+                receiver.set_level(level);
             }
             Self::Equal { rhs, .. }
             | Self::GreaterEqual { rhs, .. }
@@ -359,6 +369,10 @@ impl Predicate {
             name,
             args,
         }
+    }
+
+    pub fn attr(receiver: TyParam, name: Str) -> Self {
+        Self::Attr { receiver, name }
     }
 
     pub const fn eq(lhs: Str, rhs: TyParam) -> Self {
@@ -616,6 +630,7 @@ impl Predicate {
                 }
                 set
             }
+            Self::Attr { receiver, .. } => receiver.qvars(),
             Self::Equal { rhs, .. }
             | Self::GreaterEqual { rhs, .. }
             | Self::LessEqual { rhs, .. }
@@ -638,6 +653,7 @@ impl Predicate {
             Self::Call { receiver, args, .. } => {
                 receiver.has_qvar() || args.iter().any(|a| a.has_qvar())
             }
+            Self::Attr { receiver, .. } => receiver.has_qvar(),
             Self::Equal { rhs, .. }
             | Self::GreaterEqual { rhs, .. }
             | Self::LessEqual { rhs, .. }
@@ -658,6 +674,7 @@ impl Predicate {
             Self::Call { receiver, args, .. } => {
                 receiver.has_unbound_var() || args.iter().any(|a| a.has_unbound_var())
             }
+            Self::Attr { receiver, .. } => receiver.has_unbound_var(),
             Self::Equal { rhs, .. }
             | Self::GreaterEqual { rhs, .. }
             | Self::LessEqual { rhs, .. }
@@ -681,6 +698,7 @@ impl Predicate {
                 receiver.has_undoable_linked_var()
                     || args.iter().any(|a| a.has_undoable_linked_var())
             }
+            Self::Attr { receiver, .. } => receiver.has_undoable_linked_var(),
             Self::Equal { rhs, .. }
             | Self::GreaterEqual { rhs, .. }
             | Self::LessEqual { rhs, .. }
@@ -732,7 +750,7 @@ impl Predicate {
 
     pub fn typarams(&self) -> Vec<&TyParam> {
         match self {
-            Self::Value(_) | Self::Const(_) => vec![],
+            Self::Value(_) | Self::Const(_) | Self::Attr { .. } => vec![],
             // REVIEW: Should the receiver be included?
             Self::Call { args, .. } => {
                 let mut vec = vec![];
@@ -797,6 +815,7 @@ impl Predicate {
                 }
                 set
             }
+            Self::Attr { receiver, .. } => receiver.variables(),
             Self::Equal { rhs, .. }
             | Self::GreaterEqual { rhs, .. }
             | Self::LessEqual { rhs, .. }

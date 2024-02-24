@@ -1589,6 +1589,7 @@ impl Context {
                 Ok(TyParam::Value(ValueObj::Type(t)))
             }
             TyParam::ProjCall { obj, attr, args } => self.eval_proj_call(*obj, attr, args, &()),
+            TyParam::Proj { obj, attr } => self.eval_tp_proj(*obj, attr, &()),
             TyParam::Value(_) => Ok(p.clone()),
             other => feature_error!(self, Location::Unknown, &format!("evaluating {other}")),
         }
@@ -1949,6 +1950,51 @@ impl Context {
             ));
             Err(errs)
         }
+    }
+
+    pub(crate) fn eval_tp_proj(
+        &self,
+        lhs: TyParam,
+        rhs: Str,
+        t_loc: &impl Locational,
+    ) -> EvalResult<TyParam> {
+        // in Methods
+        if let Some(ctx) = lhs
+            .qual_name()
+            .and_then(|name| self.get_same_name_context(&name))
+        {
+            if let Some(value) = ctx.rec_get_const_obj(&rhs) {
+                return Ok(TyParam::value(value.clone()));
+            }
+        }
+        let ty_ctxs = match self
+            .get_tp_t(&lhs)
+            .ok()
+            .and_then(|t| self.get_nominal_super_type_ctxs(&t))
+        {
+            Some(ty_ctxs) => ty_ctxs,
+            None => {
+                let errs = EvalErrors::from(EvalError::type_not_found(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    t_loc.loc(),
+                    self.caused_by(),
+                    &Type::Obj,
+                ));
+                return Err(errs);
+            }
+        };
+        for ty_ctx in ty_ctxs {
+            if let Some(value) = ty_ctx.rec_get_const_obj(&rhs) {
+                return Ok(TyParam::value(value.clone()));
+            }
+            for methods in ty_ctx.methods_list.iter() {
+                if let Some(value) = methods.rec_get_const_obj(&rhs) {
+                    return Ok(TyParam::value(value.clone()));
+                }
+            }
+        }
+        Ok(lhs.proj(rhs))
     }
 
     /// ```erg
@@ -2749,6 +2795,10 @@ impl Context {
                 } else {
                     feature_error!(self, Location::Unknown, "eval_pred: Predicate::Call")
                 }
+            }
+            Predicate::Attr { receiver, name } => {
+                let receiver = self.eval_tp(receiver)?;
+                Ok(Predicate::attr(receiver, name))
             }
             Predicate::GeneralEqual { lhs, rhs } => {
                 match (self.eval_pred(*lhs)?, self.eval_pred(*rhs)?) {

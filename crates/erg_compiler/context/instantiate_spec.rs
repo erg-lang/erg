@@ -1577,6 +1577,10 @@ impl Context {
                 self.inc_ref_local(local, self, tmp_tv_cache);
                 Ok(Predicate::Const(local.inspect().clone()))
             }
+            ast::ConstExpr::Accessor(ast::ConstAccessor::Attr(attr)) => {
+                let obj = self.instantiate_const_expr(&attr.obj, None, tmp_tv_cache, false)?;
+                Ok(Predicate::attr(obj, attr.name.inspect().clone()))
+            }
             ast::ConstExpr::App(app) => {
                 let receiver = self.instantiate_const_expr(&app.obj, None, tmp_tv_cache, false)?;
                 let name = app.attr_name.as_ref().map(|n| n.inspect().to_owned());

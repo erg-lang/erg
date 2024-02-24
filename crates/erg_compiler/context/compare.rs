@@ -1664,7 +1664,9 @@ impl Context {
             Predicate::Call { receiver, name, .. } => {
                 let receiver_t = self.get_tp_t(receiver).unwrap_or(Obj);
                 if let Some(name) = name {
-                    let ctx = self.get_nominal_type_ctx(&receiver_t).unwrap();
+                    let Some(ctx) = self.get_nominal_type_ctx(&receiver_t) else {
+                        return Obj;
+                    };
                     if let Some((_, method)) = ctx.get_var_info(name) {
                         method.t.return_t().cloned().unwrap_or(Obj)
                     } else {
@@ -1672,6 +1674,17 @@ impl Context {
                     }
                 } else {
                     receiver_t.return_t().cloned().unwrap_or(Obj)
+                }
+            }
+            Predicate::Attr { receiver, name } => {
+                let receiver_t = self.get_tp_t(receiver).unwrap_or(Obj);
+                let Some(ctx) = self.get_nominal_type_ctx(&receiver_t) else {
+                    return Obj;
+                };
+                if let Some((_, field)) = ctx.get_var_info(name) {
+                    field.t.clone()
+                } else {
+                    Obj
                 }
             }
             // REVIEW

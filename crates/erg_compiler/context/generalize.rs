@@ -335,6 +335,10 @@ impl Generalizer {
                 }
                 Predicate::call(receiver, name, new_args)
             }
+            Predicate::Attr { receiver, name } => {
+                let receiver = self.generalize_tp(receiver, uninit);
+                Predicate::attr(receiver, name)
+            }
             Predicate::Value(_) => pred,
             Predicate::GeneralEqual { lhs, rhs } => {
                 let lhs = self.generalize_pred(*lhs, uninit);
