@@ -1258,6 +1258,7 @@ impl ValueObj {
             }
             (Self::Inf, n) | (n, Self::NegInf) if n.is_num() => Some(Ordering::Greater),
             (n, Self::Inf) | (Self::NegInf, n) if n.is_num() => Some(Ordering::Less),
+            (Self::Str(l), Self::Str(r)) => Some(l.cmp(r)),
             /* (Self::PlusEpsilon(l), r) => l.try_cmp(r)
                 .map(|o| if matches!(o, Ordering::Equal) { Ordering::Less } else { o }),
             (l, Self::PlusEpsilon(r)) => l.try_cmp(r)

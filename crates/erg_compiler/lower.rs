@@ -2789,10 +2789,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 tasc.expr.loc(),
                 self.module.context.caused_by(),
                 switch_lang!(
-                    "japanese" => "無効な型宣言です(左辺には記名型のみ使用出来ます)".to_string(),
+                    "japanese" => "無効な型宣言です(左辺には変数のみ使用出来ます)".to_string(),
                     "simplified_chinese" => "无效的类型声明".to_string(),
                     "traditional_chinese" => "無效的型宣告".to_string(),
-                    "english" => "Invalid type declaration (currently only nominal types are allowed at LHS)".to_string(),
+                    "english" => "Invalid type declaration (currently only variables are allowed at LHS)".to_string(),
                 ),
                 None,
             )));

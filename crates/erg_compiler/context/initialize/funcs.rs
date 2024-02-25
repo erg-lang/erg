@@ -856,6 +856,22 @@ impl Context {
         let t_pred = nd_func(vec![kw(KW_N, Nat)], None, Nat);
         let pred = ConstSubr::Builtin(BuiltinConstSubr::new(FUNC_PRED, pred_func, t_pred, None));
         self.register_builtin_const(FUNC_PRED, vis.clone(), None, ValueObj::Subr(pred));
+        let t_derefine = nd_func(vec![kw(KW_T, Type)], None, Type);
+        let derefine = ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_DEREFINE,
+            derefine_func,
+            t_derefine,
+            None,
+        ));
+        self.register_builtin_const(FUNC_DEREFINE, vis.clone(), None, ValueObj::Subr(derefine));
+        let t_fill_ord = nd_func(vec![kw(KW_T, Type)], None, Type);
+        let fill_ord = ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_FILL_ORD,
+            fill_ord_func,
+            t_fill_ord,
+            None,
+        ));
+        self.register_builtin_const(FUNC_FILL_ORD, vis.clone(), None, ValueObj::Subr(fill_ord));
     }
 
     pub(super) fn init_builtin_py_specific_funcs(&mut self) {
@@ -983,8 +999,8 @@ impl Context {
             Some("eq"),
         );
         self.register_builtin_py_impl(OP_NE, op_t, Const, Visibility::BUILTIN_PRIVATE, Some("ne"));
-        let O = mono_q(TY_O, subtypeof(mono(PARTIAL_ORD)));
-        let op_t = bin_op(O.clone(), O.clone(), Bool).quantify();
+        let PO = mono_q(TY_O, subtypeof(mono(PARTIAL_ORD)));
+        let op_t = bin_op(PO.clone(), PO.clone(), Bool).quantify();
         self.register_builtin_py_impl(
             OP_LT,
             op_t.clone(),
@@ -1055,7 +1071,13 @@ impl Context {
             Visibility::BUILTIN_PRIVATE,
             Some("rshift"),
         );
-        let op_t = bin_op(O.clone(), O.clone(), range(O)).quantify();
+        let O = mono_q(TY_O, subtypeof(mono(ORD)));
+        let op_t = bin_op(
+            O.clone(),
+            O.clone(),
+            range(poly(FUNC_FILL_ORD, vec![ty_tp(O)])),
+        )
+        .quantify();
         self.register_builtin_erg_decl(OP_RNG, op_t.clone(), Visibility::BUILTIN_PRIVATE);
         self.register_builtin_erg_decl(OP_LORNG, op_t.clone(), Visibility::BUILTIN_PRIVATE);
         self.register_builtin_erg_decl(OP_RORNG, op_t.clone(), Visibility::BUILTIN_PRIVATE);

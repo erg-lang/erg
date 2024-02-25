@@ -464,6 +464,10 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 Ok(TyParam::FreeVar(fv))
             }
             TyParam::Type(t) => Ok(TyParam::t(self.deref_tyvar(*t)?)),
+            TyParam::Value(ValueObj::Type(mut t)) => {
+                t.try_map_t(|t| self.deref_tyvar(t.clone()))?;
+                Ok(TyParam::Value(ValueObj::Type(t)))
+            }
             TyParam::Erased(t) => Ok(TyParam::erased(self.deref_tyvar(*t)?)),
             TyParam::App { name, mut args } => {
                 for param in args.iter_mut() {

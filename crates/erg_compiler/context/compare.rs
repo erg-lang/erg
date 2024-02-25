@@ -1984,7 +1984,7 @@ impl Context {
     }
 
     // sup/inf({±∞}) = ±∞ではあるが、Inf/NegInfにはOrdを実装しない
-    fn sup(&self, t: &Type) -> Option<TyParam> {
+    pub(crate) fn sup(&self, t: &Type) -> Option<TyParam> {
         match t {
             Int | Nat | Float => Some(TyParam::value(Inf)),
             Refinement(refine) => {
@@ -2011,7 +2011,7 @@ impl Context {
         }
     }
 
-    fn inf(&self, t: &Type) -> Option<TyParam> {
+    pub(crate) fn inf(&self, t: &Type) -> Option<TyParam> {
         match t {
             Int | Float => Some(TyParam::value(-Inf)),
             Nat => Some(TyParam::value(0usize)),

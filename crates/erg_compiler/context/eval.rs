@@ -667,7 +667,7 @@ impl Context {
         &self,
         subr: ConstSubr,
         args: ValueArgs,
-        loc: Location,
+        loc: impl Locational,
     ) -> EvalResult<TyParam> {
         match subr {
             ConstSubr::User(user) => {
@@ -695,7 +695,7 @@ impl Context {
             }
             ConstSubr::Builtin(builtin) => builtin.call(args, self).map_err(|mut e| {
                 if e.0.loc.is_unknown() {
-                    e.0.loc = loc;
+                    e.0.loc = loc.loc();
                 }
                 EvalErrors::from(EvalError::new(
                     *e.0,
@@ -705,7 +705,7 @@ impl Context {
             }),
             ConstSubr::Gen(gen) => gen.call(args, self).map_err(|mut e| {
                 if e.0.loc.is_unknown() {
-                    e.0.loc = loc;
+                    e.0.loc = loc.loc();
                 }
                 EvalErrors::from(EvalError::new(
                     *e.0,
@@ -1748,6 +1748,15 @@ impl Context {
                             return Err((poly(name, params), errs));
                         }
                     };
+                }
+                if let Some(ValueObj::Subr(subr)) = self.rec_get_const_obj(&name) {
+                    if let Ok(args) = self.convert_args(None, subr, params.clone(), t_loc) {
+                        let ret = self.call(subr.clone(), args, t_loc);
+                        if let Some(t) = ret.ok().and_then(|tp| self.convert_tp_into_type(tp).ok())
+                        {
+                            return Ok(t);
+                        }
+                    }
                 }
                 Ok(poly(name, params))
             }

@@ -9,6 +9,7 @@ use erg_common::traits::Stream;
 use erg_common::{dict, set};
 
 use crate::context::eval::UndoableLinkedList;
+use crate::context::initialize::closed_range;
 use crate::context::Context;
 use crate::feature_error;
 use crate::ty::constructors::{and, mono, tuple_t, v_enum};
@@ -1521,4 +1522,46 @@ pub(crate) fn zip_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<T
         zipped.push(ValueObj::Tuple(vec![v1, v2].into()));
     }
     Ok(TyParam::Value(ValueObj::Array(zipped.into())))
+}
+
+/// ```erg
+/// derefine({X: T | ...}) == T
+/// ```
+pub(crate) fn derefine_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let val = args
+        .remove_left_or_key("T")
+        .ok_or_else(|| not_passed("T"))?;
+    let t = match ctx.convert_value_into_type(val) {
+        Ok(t) => t.derefine(),
+        Err(val) => {
+            return Err(type_mismatch("Type", val, "T"));
+        }
+    };
+    Ok(TyParam::t(t))
+}
+
+/// ```erg
+/// fill_ord({1, 4}) == {1, 2, 3, 4}
+/// fill_ord({"a", "c"}) == {"a", "b", "c"}
+/// ```
+pub(crate) fn fill_ord_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let val = args
+        .remove_left_or_key("T")
+        .ok_or_else(|| not_passed("T"))?;
+    let t = match ctx.convert_value_into_type(val) {
+        Ok(t) => {
+            let coerced = ctx.coerce(t.clone(), &()).unwrap_or(t);
+            let inf = ctx.inf(&coerced);
+            let sup = ctx.sup(&coerced);
+            let der = coerced.derefine();
+            match (inf, sup) {
+                (Some(inf), Some(sup)) => closed_range(der, inf, sup),
+                _ => coerced,
+            }
+        }
+        Err(val) => {
+            return Err(type_mismatch("Type", val, "T"));
+        }
+    };
+    Ok(TyParam::t(t))
 }
