@@ -194,6 +194,22 @@ impl StructuralEq for Predicate {
             | (Self::LessEqual { rhs, .. }, Self::LessEqual { rhs: r2, .. }) => {
                 rhs.structural_eq(r2)
             }
+            (Self::GeneralEqual { lhs, rhs }, Self::GeneralEqual { lhs: l, rhs: r })
+            | (Self::GeneralLessEqual { lhs, rhs }, Self::GeneralLessEqual { lhs: l, rhs: r })
+            | (
+                Self::GeneralGreaterEqual { lhs, rhs },
+                Self::GeneralGreaterEqual { lhs: l, rhs: r },
+            )
+            | (Self::GeneralNotEqual { lhs, rhs }, Self::GeneralNotEqual { lhs: l, rhs: r }) => {
+                lhs.structural_eq(l) && rhs.structural_eq(r)
+            }
+            (
+                Self::Attr { receiver, name },
+                Self::Attr {
+                    receiver: r,
+                    name: n,
+                },
+            ) => receiver.structural_eq(r) && name == n,
             (
                 Self::Call {
                     receiver,
@@ -593,6 +609,10 @@ impl Predicate {
                     args: new_args,
                 }
             }
+            Self::Attr { receiver, name } => Self::Attr {
+                receiver: receiver.substitute(var, tp),
+                name,
+            },
             _ => self,
         }
     }
@@ -604,6 +624,11 @@ impl Predicate {
             | Self::LessEqual { lhs, .. }
             | Self::GreaterEqual { lhs, .. }
             | Self::NotEqual { lhs, .. } => &lhs[..] == name,
+            Self::GeneralEqual { lhs, rhs }
+            | Self::GeneralLessEqual { lhs, rhs }
+            | Self::GeneralGreaterEqual { lhs, rhs }
+            | Self::GeneralNotEqual { lhs, rhs } => lhs.mentions(name) || rhs.mentions(name),
+            Self::Not(pred) => pred.mentions(name),
             Self::And(lhs, rhs) | Self::Or(lhs, rhs) => lhs.mentions(name) || rhs.mentions(name),
             _ => false,
         }
@@ -779,6 +804,10 @@ impl Predicate {
             Self::GreaterEqual { lhs, rhs } => Self::lt(lhs, rhs),
             Self::LessEqual { lhs, rhs } => Self::gt(lhs, rhs),
             Self::NotEqual { lhs, rhs } => Self::eq(lhs, rhs),
+            Self::GeneralEqual { lhs, rhs } => Self::GeneralNotEqual { lhs, rhs },
+            Self::GeneralLessEqual { lhs, rhs } => Self::GeneralGreaterEqual { lhs, rhs },
+            Self::GeneralGreaterEqual { lhs, rhs } => Self::GeneralLessEqual { lhs, rhs },
+            Self::GeneralNotEqual { lhs, rhs } => Self::GeneralEqual { lhs, rhs },
             Self::Not(pred) => *pred,
             other => Self::Not(Box::new(other)),
         }

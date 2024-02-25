@@ -3760,7 +3760,7 @@ impl Type {
         }
     }
 
-    fn addr_eq(&self, other: &Type) -> bool {
+    pub(crate) fn addr_eq(&self, other: &Type) -> bool {
         match (self, other) {
             (Self::FreeVar(slf), _) if slf.is_linked() => slf.crack().addr_eq(other),
             (_, Self::FreeVar(otr)) if otr.is_linked() => otr.crack().addr_eq(self),

@@ -1093,6 +1093,11 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 // * sub_unify({0},   ?T(:> {1},   <: Nat)): (?T(:> {0, 1}, <: Nat))
                 // * sub_unify(Bool,  ?T(<: Bool or Y)): (?T == Bool)
                 // * sub_unify(Float, ?T(<: Structural{ .imag = ?U })) ==> ?U == Float
+                if let Type::Refinement(refine) = maybe_sub {
+                    if refine.t.addr_eq(maybe_sup) {
+                        return Ok(());
+                    }
+                }
                 if let Some((sub, mut sup)) = sup_fv.get_subsup() {
                     if sup.is_structural() || !sup.is_recursive() {
                         self.sub_unify(maybe_sub, &sup)?;
