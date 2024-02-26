@@ -258,6 +258,14 @@ impl<T: ?Sized> Shared<T> {
         self.data.try_write()
     }
 
+    pub fn try_borrow_for(&self, timeout: Duration) -> Option<RwLockReadGuard<'_, T>> {
+        self.data.try_read_for(timeout)
+    }
+
+    pub fn try_borrow_mut_for(&self, timeout: Duration) -> Option<RwLockWriteGuard<'_, T>> {
+        self.data.try_write_for(timeout)
+    }
+
     /// # Safety
     /// don't call this except you need to handle cyclic references.
     pub unsafe fn force_unlock_write(&self) {
