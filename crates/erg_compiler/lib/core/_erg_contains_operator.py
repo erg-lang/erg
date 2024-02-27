@@ -1,10 +1,10 @@
-from _erg_result import is_ok
-from _erg_range import Range
-from _erg_type import is_type
-from _erg_type import _isinstance
-from _erg_type import UnionType
-
 from collections import namedtuple
+
+from _erg_range import Range
+from _erg_result import is_ok
+from _erg_type import UnionType
+from _erg_type import _isinstance
+from _erg_type import is_type
 
 # (elem in y) == contains_operator(y, elem)
 def contains_operator(y, elem) -> bool:
@@ -56,11 +56,12 @@ def contains_operator(y, elem) -> bool:
             value = next(iter(y.values()))
             value_check = all([contains_operator(value, el) for el in elem.values()])
             return key_check and value_check
-        type_check = True # TODO:
+        type_check = True  # TODO:
         len_check = True  # It can be True even if either elem or y has the larger number of elems
         return type_check and len_check
     elif _isinstance(elem, list):
         from _erg_array import Array
+
         return contains_operator(y, Array(elem))
     elif callable(elem):
         # TODO:

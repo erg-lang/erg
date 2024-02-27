@@ -190,8 +190,9 @@ impl Context {
                 Nat,
             )
         } else {
-            let S = Type::from(dict! { Field::public("__len__".into()) => fn0_met(Never, Nat) })
-                .structuralize();
+            let S =
+                Type::from(dict! { Field::public(FUNDAMENTAL_LEN.into()) => fn0_met(Never, Nat) })
+                    .structuralize();
             func1(S, Nat)
         };
         let len = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
@@ -392,7 +393,7 @@ impl Context {
         self.register_py_builtin(FUNC_ARRAY, t_array, Some(FUNC_LIST), 215);
         self.register_py_builtin(FUNC_ASCII, t_ascii, Some(FUNC_ASCII), 53);
         // Leave as `Const`, as it may negatively affect assert casting.
-        let name = if PYTHON_MODE { "assert" } else { "assert__" };
+        let name = if PYTHON_MODE { FUNC_ASSERT } else { "assert__" };
         self.register_builtin_py_impl(FUNC_ASSERT, t_assert, Const, vis.clone(), Some(name));
         self.register_builtin_py_impl(FUNC_BIN, t_bin, Immutable, vis.clone(), Some(FUNC_BIN));
         self.register_builtin_py_impl(
@@ -913,7 +914,7 @@ impl Context {
             op_t,
             Const,
             Visibility::BUILTIN_PRIVATE,
-            Some("add"),
+            Some(FUNC_ADD),
         );
         let L = mono_q(TY_L, subtypeof(poly(SUB, params.clone())));
         let op_t = bin_op(L.clone(), R.clone(), proj(L, OUTPUT)).quantify();
@@ -922,7 +923,7 @@ impl Context {
             op_t,
             Const,
             Visibility::BUILTIN_PRIVATE,
-            Some("sub"),
+            Some(FUNC_SUB),
         );
         let L = mono_q(TY_L, subtypeof(poly(MUL, params.clone())));
         let op_t = bin_op(L.clone(), R.clone(), proj(L, OUTPUT)).quantify();
@@ -931,7 +932,7 @@ impl Context {
             op_t,
             Const,
             Visibility::BUILTIN_PRIVATE,
-            Some("mul"),
+            Some(FUNC_MUL),
         );
         let L = mono_q(TY_L, subtypeof(poly(DIV, params.clone())));
         let op_t = bin_op(L.clone(), R.clone(), proj(L, OUTPUT)).quantify();
@@ -940,7 +941,7 @@ impl Context {
             op_t,
             Const,
             Visibility::BUILTIN_PRIVATE,
-            Some("truediv"),
+            Some(FUNC_TRUEDIV),
         );
         let L = mono_q(TY_L, subtypeof(poly(FLOOR_DIV, params)));
         let op_t = bin_op(L.clone(), R, proj(L, OUTPUT)).quantify();
@@ -949,7 +950,7 @@ impl Context {
             op_t,
             Const,
             Visibility::BUILTIN_PRIVATE,
-            Some("floordiv"),
+            Some(FUNC_FLOORDIV),
         );
         let P = mono_q(TY_P, Constraint::Uninited);
         let P = mono_q(TY_P, subtypeof(poly(MUL, vec![ty_tp(P)])));
@@ -960,7 +961,7 @@ impl Context {
             op_t,
             Const,
             Visibility::BUILTIN_PRIVATE,
-            Some("pow"),
+            Some(FUNC_POW),
         );
         let M = mono_q(TY_M, Constraint::Uninited);
         let M = mono_q(TY_M, subtypeof(poly(DIV, vec![ty_tp(M)])));
@@ -970,7 +971,7 @@ impl Context {
             op_t,
             Const,
             Visibility::BUILTIN_PRIVATE,
-            Some("mod"),
+            Some(FUNC_MOD),
         );
         let op_t = nd_proc(vec![kw(KW_LHS, Obj), kw(KW_RHS, Obj)], None, Bool);
         self.register_builtin_py_impl(
@@ -978,14 +979,14 @@ impl Context {
             op_t.clone(),
             Const,
             Visibility::BUILTIN_PRIVATE,
-            Some("is_"),
+            Some(FUNC_IS),
         );
         self.register_builtin_py_impl(
             OP_IS_NOT,
             op_t,
             Const,
             Visibility::BUILTIN_PRIVATE,
-            Some("is_not"),
+            Some(FUNC_IS_NOT),
         );
         let E = mono_q(TY_E, subtypeof(mono(EQ)));
         let E2 = mono_q(TY_E, subtypeof(mono(IRREGULAR_EQ)));
@@ -996,9 +997,15 @@ impl Context {
             op_t.clone(),
             Const,
             Visibility::BUILTIN_PRIVATE,
-            Some("eq"),
+            Some(FUNC_EQ),
         );
-        self.register_builtin_py_impl(OP_NE, op_t, Const, Visibility::BUILTIN_PRIVATE, Some("ne"));
+        self.register_builtin_py_impl(
+            OP_NE,
+            op_t,
+            Const,
+            Visibility::BUILTIN_PRIVATE,
+            Some(FUNC_NE),
+        );
         let PO = mono_q(TY_O, subtypeof(mono(PARTIAL_ORD)));
         let op_t = bin_op(PO.clone(), PO.clone(), Bool).quantify();
         self.register_builtin_py_impl(
@@ -1006,23 +1013,29 @@ impl Context {
             op_t.clone(),
             Const,
             Visibility::BUILTIN_PRIVATE,
-            Some("lt"),
+            Some(FUNC_LT),
         );
         self.register_builtin_py_impl(
             OP_LE,
             op_t.clone(),
             Const,
             Visibility::BUILTIN_PRIVATE,
-            Some("le"),
+            Some(FUNC_LE),
         );
         self.register_builtin_py_impl(
             OP_GT,
             op_t.clone(),
             Const,
             Visibility::BUILTIN_PRIVATE,
-            Some("gt"),
+            Some(FUNC_GT),
         );
-        self.register_builtin_py_impl(OP_GE, op_t, Const, Visibility::BUILTIN_PRIVATE, Some("ge"));
+        self.register_builtin_py_impl(
+            OP_GE,
+            op_t,
+            Const,
+            Visibility::BUILTIN_PRIVATE,
+            Some(FUNC_GE),
+        );
         let T = type_q(TY_T);
         let U = type_q(TY_U);
         let or_t = bin_op(Bool, Bool, Bool)
@@ -1033,7 +1046,13 @@ impl Context {
             )
             .quantify()
             & bin_op(Type, Type, Type);
-        self.register_builtin_py_impl(OP_OR, or_t, Const, Visibility::BUILTIN_PRIVATE, Some("or_"));
+        self.register_builtin_py_impl(
+            OP_OR,
+            or_t,
+            Const,
+            Visibility::BUILTIN_PRIVATE,
+            Some(FUNC_OR),
+        );
         let and_t = bin_op(Bool, Bool, Bool)
             & bin_op(
                 tp_enum(Type, set! { ty_tp(T.clone()) }),
@@ -1046,7 +1065,7 @@ impl Context {
             and_t,
             Const,
             Visibility::BUILTIN_PRIVATE,
-            Some("and_"),
+            Some(FUNC_AND),
         );
         let xor_t = bin_op(Bool, Bool, Bool);
         self.register_builtin_py_impl(
@@ -1054,7 +1073,7 @@ impl Context {
             xor_t,
             Const,
             Visibility::BUILTIN_PRIVATE,
-            Some("xor"),
+            Some(FUNC_XOR),
         );
         let shift_t = bin_op(Int, Nat, Int);
         self.register_builtin_py_impl(
@@ -1062,14 +1081,14 @@ impl Context {
             shift_t.clone(),
             Const,
             Visibility::BUILTIN_PRIVATE,
-            Some("lshift"),
+            Some(FUNC_LSHIFT),
         );
         self.register_builtin_py_impl(
             OP_RSHIFT,
             shift_t,
             Const,
             Visibility::BUILTIN_PRIVATE,
-            Some("rshift"),
+            Some(FUNC_RSHIFT),
         );
         let O = mono_q(TY_O, subtypeof(mono(ORD)));
         let op_t = bin_op(
@@ -1105,7 +1124,7 @@ impl Context {
             op_t,
             Const,
             Visibility::BUILTIN_PRIVATE,
-            Some("__pos__"),
+            Some(OP_POS),
         );
         let N = mono_q(TY_N, subtypeof(mono(NEG)));
         let op_t = func1(N.clone(), proj(N, OUTPUT)).quantify();
@@ -1114,7 +1133,7 @@ impl Context {
             op_t,
             Const,
             Visibility::BUILTIN_PRIVATE,
-            Some("__neg__"),
+            Some(OP_NEG),
         );
         let invert_t = func1(Int, Int);
         self.register_builtin_py_impl(
@@ -1122,19 +1141,19 @@ impl Context {
             invert_t,
             Const,
             Visibility::BUILTIN_PRIVATE,
-            Some("__invert__"),
+            Some(OP_INVERT),
         );
     }
 
     pub(super) fn init_py_compat_builtin_operators(&mut self) {
         /* binary */
-        let R = type_q("R");
-        let O = type_q("O");
+        let R = type_q(TY_R);
+        let O = type_q(TY_O);
         // Erg    : |L <: Add(R), R: Type|(lhs: L, rhs: R) -> L.Output
         // Python : |L, R, O: Type|(lhs: Structural({ .__add__ = (L, R) -> O }), rhs: R) -> O
         let op_t = {
             let S = Type::from(
-                dict! { Field::public("__add__".into()) => fn1_met(Never, R.clone(), O.clone()) },
+                dict! { Field::public(OP_ADD.into()) => fn1_met(Never, R.clone(), O.clone()) },
             )
             .structuralize();
             bin_op(S, R.clone(), O.clone()).quantify()
@@ -1142,7 +1161,7 @@ impl Context {
         self.register_builtin_erg_impl(OP_ADD, op_t, Const, Visibility::BUILTIN_PRIVATE);
         let op_t = {
             let S = Type::from(
-                dict! { Field::public("__sub__".into()) => fn1_met(Never, R.clone(), O.clone()) },
+                dict! { Field::public(OP_SUB.into()) => fn1_met(Never, R.clone(), O.clone()) },
             )
             .structuralize();
             bin_op(S, R.clone(), O.clone()).quantify()
@@ -1150,7 +1169,7 @@ impl Context {
         self.register_builtin_erg_impl(OP_SUB, op_t, Const, Visibility::BUILTIN_PRIVATE);
         let op_t = {
             let S = Type::from(
-                dict! { Field::public("__mul__".into()) => fn1_met(Never, R.clone(), O.clone()) },
+                dict! { Field::public(OP_MUL.into()) => fn1_met(Never, R.clone(), O.clone()) },
             )
             .structuralize();
             bin_op(S, R.clone(), O.clone()).quantify()
@@ -1158,7 +1177,7 @@ impl Context {
         self.register_builtin_erg_impl(OP_MUL, op_t, Const, Visibility::BUILTIN_PRIVATE);
         let op_t = {
             let S = Type::from(
-                dict! { Field::public("__div__".into()) => fn1_met(Never, R.clone(), O.clone()) },
+                dict! { Field::public(OP_DIV.into()) => fn1_met(Never, R.clone(), O.clone()) },
             )
             .structuralize();
             bin_op(S, R.clone(), O.clone()).quantify()
@@ -1166,7 +1185,7 @@ impl Context {
         self.register_builtin_erg_impl(OP_DIV, op_t, Const, Visibility::BUILTIN_PRIVATE);
         let op_t = {
             let S = Type::from(
-                dict! { Field::public("__floordiv__".into()) => fn1_met(Never, R.clone(), O.clone()) },
+                dict! { Field::public(OP_FLOOR_DIV.into()) => fn1_met(Never, R.clone(), O.clone()) },
             )
             .structuralize();
             bin_op(S, R.clone(), O.clone()).quantify()
@@ -1174,7 +1193,7 @@ impl Context {
         self.register_builtin_erg_impl(OP_FLOOR_DIV, op_t, Const, Visibility::BUILTIN_PRIVATE);
         let op_t = {
             let S = Type::from(
-                dict! { Field::public("__pow__".into()) => fn1_met(Never, R.clone(), O.clone()) },
+                dict! { Field::public(OP_POW.into()) => fn1_met(Never, R.clone(), O.clone()) },
             )
             .structuralize();
             bin_op(S, R.clone(), O.clone()).quantify()
@@ -1182,7 +1201,7 @@ impl Context {
         self.register_builtin_erg_impl(OP_POW, op_t, Const, Visibility::BUILTIN_PRIVATE);
         let op_t = {
             let S = Type::from(
-                dict! { Field::public("__mod__".into()) => fn1_met(Never, R.clone(), O.clone()) },
+                dict! { Field::public(OP_MOD.into()) => fn1_met(Never, R.clone(), O.clone()) },
             )
             .structuralize();
             bin_op(S, R.clone(), O.clone()).quantify()
@@ -1191,13 +1210,13 @@ impl Context {
         let op_t = nd_proc(vec![kw(KW_LHS, Obj), kw(KW_RHS, Obj)], None, Bool);
         self.register_builtin_erg_impl(OP_IS, op_t.clone(), Const, Visibility::BUILTIN_PRIVATE);
         self.register_builtin_erg_impl(OP_IS_NOT, op_t, Const, Visibility::BUILTIN_PRIVATE);
-        let E = type_q("E");
+        let E = type_q(TY_E);
         let op_t = bin_op(E.clone(), E, Bool).quantify();
         self.register_builtin_erg_impl(OP_EQ, op_t.clone(), Const, Visibility::BUILTIN_PRIVATE);
         self.register_builtin_erg_impl(OP_NE, op_t, Const, Visibility::BUILTIN_PRIVATE);
         let op_t = {
             let S = Type::from(
-                dict! { Field::public("__lt__".into()) => fn1_met(Never, R.clone(), Bool) },
+                dict! { Field::public(OP_LT.into()) => fn1_met(Never, R.clone(), Bool) },
             )
             .structuralize();
             bin_op(S, R.clone(), Bool).quantify()
@@ -1205,7 +1224,7 @@ impl Context {
         self.register_builtin_erg_impl(OP_LT, op_t, Const, Visibility::BUILTIN_PRIVATE);
         let op_t = {
             let S = Type::from(
-                dict! { Field::public("__le__".into()) => fn1_met(Never, R.clone(), Bool) },
+                dict! { Field::public(OP_LE.into()) => fn1_met(Never, R.clone(), Bool) },
             )
             .structuralize();
             bin_op(S, R.clone(), Bool).quantify()
@@ -1213,7 +1232,7 @@ impl Context {
         self.register_builtin_erg_impl(OP_LE, op_t, Const, Visibility::BUILTIN_PRIVATE);
         let op_t = {
             let S = Type::from(
-                dict! { Field::public("__gt__".into()) => fn1_met(Never, R.clone(), Bool) },
+                dict! { Field::public(OP_GT.into()) => fn1_met(Never, R.clone(), Bool) },
             )
             .structuralize();
             bin_op(S, R.clone(), Bool).quantify()
@@ -1221,7 +1240,7 @@ impl Context {
         self.register_builtin_erg_impl(OP_GT, op_t, Const, Visibility::BUILTIN_PRIVATE);
         let op_t = {
             let S = Type::from(
-                dict! { Field::public("__ge__".into()) => fn1_met(Never, R.clone(), Bool) },
+                dict! { Field::public(OP_GE.into()) => fn1_met(Never, R.clone(), Bool) },
             )
             .structuralize();
             bin_op(S, R.clone(), Bool).quantify()
@@ -1229,7 +1248,7 @@ impl Context {
         self.register_builtin_erg_impl(OP_GE, op_t, Const, Visibility::BUILTIN_PRIVATE);
         let op_t = {
             let S = Type::from(
-                dict! { Field::public("__and__".into()) => fn1_met(Never, R.clone(), O.clone()) },
+                dict! { Field::public(OP_AND.into()) => fn1_met(Never, R.clone(), O.clone()) },
             )
             .structuralize();
             bin_op(S, R.clone(), O.clone()).quantify()
@@ -1237,7 +1256,7 @@ impl Context {
         self.register_builtin_erg_impl(OP_AND, op_t, Const, Visibility::BUILTIN_PRIVATE);
         let op_t = {
             let S = Type::from(
-                dict! { Field::public("__or__".into()) => fn1_met(Never, R.clone(), O.clone()) },
+                dict! { Field::public(OP_OR.into()) => fn1_met(Never, R.clone(), O.clone()) },
             )
             .structuralize();
             bin_op(S, R.clone(), O.clone()).quantify()
@@ -1245,7 +1264,7 @@ impl Context {
         self.register_builtin_erg_impl(OP_OR, op_t, Const, Visibility::BUILTIN_PRIVATE);
         let op_t = {
             let S = Type::from(
-                dict! { Field::public("__xor__".into()) => fn1_met(Never, R.clone(), O.clone()) },
+                dict! { Field::public(OP_XOR.into()) => fn1_met(Never, R.clone(), O.clone()) },
             )
             .structuralize();
             bin_op(S, R.clone(), O.clone()).quantify()
@@ -1253,7 +1272,7 @@ impl Context {
         self.register_builtin_erg_impl(OP_XOR, op_t, Const, Visibility::BUILTIN_PRIVATE);
         let op_t = {
             let S = Type::from(
-                dict! { Field::public("__lshift__".into()) => fn1_met(Never, R.clone(), O.clone()) },
+                dict! { Field::public(OP_LSHIFT.into()) => fn1_met(Never, R.clone(), O.clone()) },
             )
             .structuralize();
             bin_op(S, R.clone(), O.clone()).quantify()
@@ -1261,7 +1280,7 @@ impl Context {
         self.register_builtin_erg_impl(OP_LSHIFT, op_t, Const, Visibility::BUILTIN_PRIVATE);
         let op_t = {
             let S = Type::from(
-                dict! { Field::public("__rshift__".into()) => fn1_met(Never, R.clone(), O.clone()) },
+                dict! { Field::public(OP_RSHIFT.into()) => fn1_met(Never, R.clone(), O.clone()) },
             )
             .structuralize();
             bin_op(S, R.clone(), O).quantify()
@@ -1281,24 +1300,21 @@ impl Context {
         let op_t = func1(M.clone(), proj(M, MUTABLE_MUT_TYPE)).quantify();
         self.register_builtin_erg_impl(OP_MUTATE, op_t, Const, Visibility::BUILTIN_PRIVATE);
         let op_t = {
-            let S =
-                Type::from(dict! { Field::public("__pos__".into()) => fn0_met(Never, R.clone()) })
-                    .structuralize();
+            let S = Type::from(dict! { Field::public(OP_POS.into()) => fn0_met(Never, R.clone()) })
+                .structuralize();
             func1(S, R.clone()).quantify()
         };
         self.register_builtin_erg_decl(OP_POS, op_t, Visibility::BUILTIN_PRIVATE);
         let op_t = {
-            let S =
-                Type::from(dict! { Field::public("__neg__".into()) => fn0_met(Never, R.clone()) })
-                    .structuralize();
+            let S = Type::from(dict! { Field::public(OP_NEG.into()) => fn0_met(Never, R.clone()) })
+                .structuralize();
             func1(S, R.clone()).quantify()
         };
         self.register_builtin_erg_decl(OP_NEG, op_t, Visibility::BUILTIN_PRIVATE);
         let op_t = {
-            let S = Type::from(
-                dict! { Field::public("__invert__".into()) => fn0_met(Never, R.clone()) },
-            )
-            .structuralize();
+            let S =
+                Type::from(dict! { Field::public(OP_INVERT.into()) => fn0_met(Never, R.clone()) })
+                    .structuralize();
             func1(S, R).quantify()
         };
         self.register_builtin_erg_decl(OP_INVERT, op_t, Visibility::BUILTIN_PRIVATE);

@@ -1,11 +1,12 @@
-from _erg_control import then__
-from _erg_range import Range
-from _erg_nat import NatMut
-from _erg_int import IntMut
 from _erg_contains_operator import contains_operator
-from _erg_result import is_ok
+from _erg_control import then__
+from _erg_int import IntMut
+from _erg_nat import NatMut
+from _erg_range import Range
 from _erg_result import Error
+from _erg_result import is_ok
 from _erg_type import UnionType
+
 
 class Array(list):
     @staticmethod
@@ -15,7 +16,7 @@ class Array(list):
         else:
             return Error("not a list")
 
-    def generic_try_new(arr, cls = None):  # -> Result[Array]
+    def generic_try_new(arr, cls=None):  # -> Result[Array]
         if cls is None:
             return Array.try_new(arr)
         else:
@@ -82,7 +83,7 @@ class Array(list):
         if isinstance(t, list):
             if len(t) < len(self):
                 return False
-            for (inner_t, elem) in zip(t, self):
+            for inner_t, elem in zip(t, self):
                 if not contains_operator(inner_t, elem):
                     return False
             return True
@@ -109,6 +110,7 @@ class Array(list):
 
     def prod(self, start=1):
         from functools import reduce
+
         return reduce(lambda x, y: x * y, self, start)
 
     def reversed(self):
@@ -129,12 +131,15 @@ class Array(list):
 
     def repeat(self, n):
         from copy import deepcopy
+
         new = []
         for _ in range(n):
             new.extend(deepcopy(self))
         return Array(new)
 
+
 class UnsizedArray:
     elem: object
+
     def __init__(self, elem):
         self.elem = elem

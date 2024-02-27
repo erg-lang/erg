@@ -2,39 +2,46 @@ try:
     from typing import Union
 except ImportError:
     import warnings
+
     warnings.warn("`typing.Union` is not available. Please use Python 3.8+.")
+
     class Union:
         pass
 
+
 class UnionType:
-        __origin__ = Union
-        __args__: list # list[type]
-        def __init__(self, *args):
-            self.__args__ = args
-        def __str__(self):
-            s = "UnionType["
-            for i, arg in enumerate(self.__args__):
-                if i > 0:
-                    s += ", "
-                s += str(arg)
-            s += "]"
-            return s
-        def __repr__(self):
-            return self.__str__()
+    __origin__ = Union
+    __args__: list  # list[type]
+
+    def __init__(self, *args):
+        self.__args__ = args
+
+    def __str__(self):
+        s = "UnionType[" + ", ".join(str(arg) for arg in self.__args__) + "]"
+        return s
+
+    def __repr__(self):
+        return self.__str__()
+
 
 class FakeGenericAlias:
-        __origin__: type
-        __args__: list # list[type]
-        def __init__(self, origin, *args):
-            self.__origin__ = origin
-            self.__args__ = args
+    __origin__: type
+    __args__: list  # list[type]
+
+    def __init__(self, origin, *args):
+        self.__origin__ = origin
+        self.__args__ = args
+
+
 try:
     from types import GenericAlias
 except ImportError:
     GenericAlias = FakeGenericAlias
 
+
 def is_type(x) -> bool:
     return isinstance(x, (type, FakeGenericAlias, GenericAlias, UnionType))
+
 
 # The behavior of `builtins.isinstance` depends on the Python version.
 def _isinstance(obj, classinfo) -> bool:
@@ -48,6 +55,7 @@ def _isinstance(obj, classinfo) -> bool:
             return isinstance(obj, classinfo)
         except:
             return False
+
 
 class MutType:
     value: object
