@@ -560,7 +560,9 @@ impl Context {
             (ty @ (Type | ClassType | TraitType), Poly { name, params })
                 if &name[..] == "Array" || &name[..] == "UnsizedArray" || &name[..] == "Set" =>
             {
-                let elem_t = self.convert_tp_into_type(params[0].clone()).unwrap();
+                let Ok(elem_t) = self.convert_tp_into_type(params[0].clone()) else {
+                    return false;
+                };
                 self.supertype_of(ty, &elem_t)
             }
             (ty @ (Type | ClassType | TraitType), Poly { name, params })
@@ -1218,12 +1220,13 @@ impl Context {
                 let l_inf = self.inf(&lt);
                 let l_sup = self.sup(&lt);
                 if let (Some(inf), Some(sup)) = (l_inf, l_sup) {
+                    let (Some(l), Some(r)) = (self.try_cmp(&inf, p), self.try_cmp(&sup, p)) else {
+                        log!(err "{inf}, {sup}, {p}");
+                        return None;
+                    };
                     // (n: Int, 1) -> (-inf..inf, 1) -> (cmp(-inf, 1), cmp(inf, 1)) -> (Less, Greater) -> Any
                     // (n: 5..10, 2) -> (cmp(5..10, 2), cmp(5..10, 2)) -> (Greater, Greater) -> Greater
-                    match (
-                        self.try_cmp(&inf, p).unwrap(),
-                        self.try_cmp(&sup, p).unwrap()
-                    ) {
+                    match (l, r) {
                         (Less, Less) => Some(Less),
                         (Less, Equal) => Some(LessEqual),
                         (Less, LessEqual) => Some(LessEqual),
@@ -1252,8 +1255,12 @@ impl Context {
                         (Any, Less) => Some(Less),
                         (Any, Equal | LessEqual) => Some(LessEqual),
                         (Any, Greater | NotEqual | GreaterEqual | Any) => Some(Any),
-                        (l, r) =>
-                            todo!("cmp({inf}, {sup}) = {l:?}, cmp({inf}, {sup}) = {r:?}"),
+                        (l, r) => {
+                            if DEBUG_MODE {
+                                todo!("cmp({inf}, {sup}) = {l:?}, cmp({inf}, {sup}) = {r:?}");
+                            }
+                            None
+                        },
                     }
                 } else {
                     match (self.supertype_of(&lt, &pt), self.subtype_of(&lt, &pt)) {
@@ -1662,7 +1669,9 @@ impl Context {
             Predicate::Call { receiver, name, .. } => {
                 let receiver_t = self.get_tp_t(receiver).unwrap_or(Obj);
                 if let Some(name) = name {
-                    let ctx = self.get_nominal_type_ctx(&receiver_t).unwrap();
+                    let Some(ctx) = self.get_nominal_type_ctx(&receiver_t) else {
+                        return Obj;
+                    };
                     if let Some((_, method)) = ctx.get_var_info(name) {
                         method.t.return_t().cloned().unwrap_or(Obj)
                     } else {
@@ -1670,6 +1679,17 @@ impl Context {
                     }
                 } else {
                     receiver_t.return_t().cloned().unwrap_or(Obj)
+                }
+            }
+            Predicate::Attr { receiver, name } => {
+                let receiver_t = self.get_tp_t(receiver).unwrap_or(Obj);
+                let Some(ctx) = self.get_nominal_type_ctx(&receiver_t) else {
+                    return Obj;
+                };
+                if let Some((_, field)) = ctx.get_var_info(name) {
+                    field.t.clone()
+                } else {
+                    Obj
                 }
             }
             // REVIEW
@@ -1964,7 +1984,7 @@ impl Context {
     }
 
     // sup/inf({±∞}) = ±∞ではあるが、Inf/NegInfにはOrdを実装しない
-    fn sup(&self, t: &Type) -> Option<TyParam> {
+    pub(crate) fn sup(&self, t: &Type) -> Option<TyParam> {
         match t {
             Int | Nat | Float => Some(TyParam::value(Inf)),
             Refinement(refine) => {
@@ -1991,7 +2011,7 @@ impl Context {
         }
     }
 
-    fn inf(&self, t: &Type) -> Option<TyParam> {
+    pub(crate) fn inf(&self, t: &Type) -> Option<TyParam> {
         match t {
             Int | Float => Some(TyParam::value(-Inf)),
             Nat => Some(TyParam::value(0usize)),

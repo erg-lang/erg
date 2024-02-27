@@ -289,6 +289,19 @@ impl SharedModuleCache {
         ref_.get(path).map(|entry| &entry.module)
     }
 
+    pub fn raw_ref_ctx_with_timeout<Q: Eq + Hash + ?Sized>(
+        &self,
+        path: &Q,
+        timeout: std::time::Duration,
+    ) -> Option<&ModuleContext>
+    where
+        NormalizedPathBuf: Borrow<Q>,
+    {
+        let _ref = self.0.try_borrow_for(timeout)?;
+        let ref_ = unsafe { self.0.as_ptr().as_ref().unwrap() };
+        ref_.get(path).map(|entry| &entry.module)
+    }
+
     // HACK: <builtins> is referenced very frequently and mutable references are not taken,
     // so it can be take without lock.
     pub fn raw_ref_builtins_ctx(&self) -> Option<&ModuleContext> {

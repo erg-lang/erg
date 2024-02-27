@@ -238,7 +238,9 @@ impl Constraint {
     pub fn eliminate_recursion(self, target: &Type) -> Self {
         match self {
             Self::Sandwiched { sub, sup } => {
-                if sub.addr_eq(target) {
+                if sub.addr_eq(target) && sup.addr_eq(target) {
+                    Self::new_type_of(Type::Type)
+                } else if sub.addr_eq(target) {
                     Self::new_subtype_of(sup)
                 } else if sup.addr_eq(target) {
                     Self::new_supertype_of(sub)

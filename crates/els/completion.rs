@@ -588,7 +588,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             });
         let Some(mod_ctx) = self.get_mod_ctx(&uri) else {
             _log!(self, "module context not found: {uri}");
-            return Ok(None);
+            return Ok(Some(CompletionResponse::Array(result)));
         };
         for (name, vi) in contexts.into_iter().flat_map(|ctx| ctx.local_dir()) {
             if comp_kind.should_be_method() && vi.vis.is_private() {

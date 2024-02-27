@@ -1,9 +1,10 @@
+use erg_common::dict::Dict;
 use erg_common::style::{Attribute, Color, StyledStrings, THEME};
 use erg_common::{option_enum_unwrap, switch_lang};
 
 use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
-use crate::ty::{HasType, Predicate, SubrKind, SubrType, Type};
+use crate::ty::{Field, HasType, Predicate, SubrKind, SubrType, Type};
 
 use crate::context::Context;
 
@@ -103,6 +104,18 @@ impl Context {
                     }
                 }
             }
+            (Type::Record(expt), Type::Record(fnd)) => {
+                if let Some(hint) = self.get_record_type_mismatch_hint(expt, fnd) {
+                    return Some(hint);
+                }
+            }
+            (Type::NamedTuple(expt), Type::NamedTuple(fnd)) => {
+                let expt = Dict::from(expt.clone());
+                let fnd = Dict::from(fnd.clone());
+                if let Some(hint) = self.get_record_type_mismatch_hint(&expt, &fnd) {
+                    return Some(hint);
+                }
+            }
             (Type::And(l, r), found) => {
                 let left = self.readable_type(l.as_ref().clone());
                 let right = self.readable_type(r.as_ref().clone());
@@ -183,6 +196,42 @@ impl Context {
         }
     }
 
+    fn get_record_type_mismatch_hint(
+        &self,
+        expected: &Dict<Field, Type>,
+        found: &Dict<Field, Type>,
+    ) -> Option<String> {
+        let missing = expected.clone().diff(found);
+        if missing.is_empty() {
+            let mut mismatched = "".to_string();
+            for (field, expected) in expected.iter() {
+                if let Some(found) = found.get(field) {
+                    if !self.supertype_of(expected, found) {
+                        if !mismatched.is_empty() {
+                            mismatched.push_str(", ");
+                        }
+                        mismatched.push_str(&format!("{field}: {expected} but found {found}"));
+                    }
+                }
+            }
+            if mismatched.is_empty() {
+                None
+            } else {
+                Some(mismatched)
+            }
+        } else {
+            let mut hint = "missing: ".to_string();
+            for (i, (field, typ)) in missing.iter().enumerate() {
+                if i > 0 {
+                    hint.push_str(", ");
+                }
+                hint.push_str(&format!("{field}: {typ}"));
+            }
+            Some(hint)
+        }
+    }
+
+    // TODO: parameter type mismatches
     fn get_subr_type_mismatch_hint(&self, expected: &SubrType, found: &SubrType) -> Option<String> {
         let mut hint = StyledStrings::default();
         if let (SubrKind::Func, SubrKind::Proc) = (expected.kind, found.kind) {

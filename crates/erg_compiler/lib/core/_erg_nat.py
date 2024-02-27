@@ -1,8 +1,9 @@
-from _erg_result import Error
-from _erg_int import Int
-from _erg_int import IntMut  # don't unify with the above line
 from _erg_control import then__
+from _erg_int import IntMut  # don't unify with the above line
+from _erg_int import Int
+from _erg_result import Error
 from _erg_type import MutType
+
 
 class Nat(Int):
     def __init__(self, i):

@@ -1,7 +1,8 @@
-from _erg_result import Error
-from _erg_int import Int
 from _erg_control import then__
+from _erg_int import Int
+from _erg_result import Error
 from _erg_type import MutType
+
 
 class Str(str):
     def __instancecheck__(cls, obj):
@@ -39,6 +40,7 @@ class Str(str):
 
     def __getitem__(self, index_or_slice):
         from _erg_range import Range
+
         if isinstance(index_or_slice, slice):
             return Str(str.__getitem__(self, index_or_slice))
         elif isinstance(index_or_slice, Range):

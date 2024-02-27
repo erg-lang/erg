@@ -1,0 +1,13 @@
+X1 = 1 + 1
+X2 = 1 - 1
+X3 = 1 * 1
+X4 = 1 / 1
+X5 = 1 ** 1
+X6 = 1 % 1
+
+X7 = abs 1
+X8 = all [True, True, True]
+X9 = any [True, False, True]
+X10 = sum [1, 2, 3]
+X11 = max [1, 2, 3]
+X12 = min [1, 2, 3]

@@ -215,6 +215,43 @@ impl LowerError {
         )
     }
 
+    pub fn not_comptime_fn_error(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: String,
+        name: &str,
+        similar_name: Option<&str>,
+    ) -> Self {
+        let name = readable_name(name);
+        let hint = similar_name.map(|n| {
+            let n = n.with_color_and_attr(HINT, ATTR);
+            switch_lang!(
+                "japanese" => format!("似た名前の関数があります: {n}"),
+                "simplified_chinese" => format!("存在相同名称函数: {n}"),
+                "traditional_chinese" => format!("存在相同名稱函數: {n}"),
+                "english" => format!("exists a similar name function: {n}"),
+            )
+        });
+        let found = name.with_color_and_attr(ERR, ATTR);
+        Self::new(
+            ErrorCore::new(
+                vec![SubMessage::ambiguous_new(loc, vec![], hint)],
+                switch_lang!(
+                    "japanese" => format!("{found}はコンパイル時関数ではありません"),
+                    "simplified_chinese" => format!("{found}不是编译时函数"),
+                    "traditional_chinese" => format!("{found}不是編譯時函數"),
+                    "english" => format!("{found} is not a compile-time function"),
+                ),
+                errno,
+                NameError,
+                loc,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
     /// TODO: replace `no_var_error` with this function
     pub fn detailed_no_var_error(
         input: Input,

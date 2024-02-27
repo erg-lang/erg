@@ -603,7 +603,7 @@ impl Context {
             match acc {
                 Accessor::Ident(ident) => {
                     let obj = self.rec_get_const_obj(ident.inspect()).ok_or_else(|| {
-                        EvalError::no_var_error(
+                        EvalError::not_comptime_fn_error(
                             self.cfg.input.clone(),
                             line!() as usize,
                             ident.loc(),
@@ -667,7 +667,7 @@ impl Context {
         &self,
         subr: ConstSubr,
         args: ValueArgs,
-        loc: Location,
+        loc: impl Locational,
     ) -> EvalResult<TyParam> {
         match subr {
             ConstSubr::User(user) => {
@@ -695,7 +695,7 @@ impl Context {
             }
             ConstSubr::Builtin(builtin) => builtin.call(args, self).map_err(|mut e| {
                 if e.0.loc.is_unknown() {
-                    e.0.loc = loc;
+                    e.0.loc = loc.loc();
                 }
                 EvalErrors::from(EvalError::new(
                     *e.0,
@@ -705,7 +705,7 @@ impl Context {
             }),
             ConstSubr::Gen(gen) => gen.call(args, self).map_err(|mut e| {
                 if e.0.loc.is_unknown() {
-                    e.0.loc = loc;
+                    e.0.loc = loc.loc();
                 }
                 EvalErrors::from(EvalError::new(
                     *e.0,
@@ -1170,6 +1170,20 @@ impl Context {
                     line!(),
                 ))
             }),
+            Pow => lhs.try_pow(rhs).ok_or_else(|| {
+                EvalErrors::from(EvalError::unreachable(
+                    self.cfg.input.clone(),
+                    fn_name!(),
+                    line!(),
+                ))
+            }),
+            Mod => lhs.try_mod(rhs).ok_or_else(|| {
+                EvalErrors::from(EvalError::unreachable(
+                    self.cfg.input.clone(),
+                    fn_name!(),
+                    line!(),
+                ))
+            }),
             Gt => lhs.try_gt(rhs).ok_or_else(|| {
                 EvalErrors::from(EvalError::unreachable(
                     self.cfg.input.clone(),
@@ -1575,6 +1589,7 @@ impl Context {
                 Ok(TyParam::Value(ValueObj::Type(t)))
             }
             TyParam::ProjCall { obj, attr, args } => self.eval_proj_call(*obj, attr, args, &()),
+            TyParam::Proj { obj, attr } => self.eval_tp_proj(*obj, attr, &()),
             TyParam::Value(_) => Ok(p.clone()),
             other => feature_error!(self, Location::Unknown, &format!("evaluating {other}")),
         }
@@ -1733,6 +1748,15 @@ impl Context {
                             return Err((poly(name, params), errs));
                         }
                     };
+                }
+                if let Some(ValueObj::Subr(subr)) = self.rec_get_const_obj(&name) {
+                    if let Ok(args) = self.convert_args(None, subr, params.clone(), t_loc) {
+                        let ret = self.call(subr.clone(), args, t_loc);
+                        if let Some(t) = ret.ok().and_then(|tp| self.convert_tp_into_type(tp).ok())
+                        {
+                            return Ok(t);
+                        }
+                    }
                 }
                 Ok(poly(name, params))
             }
@@ -1935,6 +1959,51 @@ impl Context {
             ));
             Err(errs)
         }
+    }
+
+    pub(crate) fn eval_tp_proj(
+        &self,
+        lhs: TyParam,
+        rhs: Str,
+        t_loc: &impl Locational,
+    ) -> EvalResult<TyParam> {
+        // in Methods
+        if let Some(ctx) = lhs
+            .qual_name()
+            .and_then(|name| self.get_same_name_context(&name))
+        {
+            if let Some(value) = ctx.rec_get_const_obj(&rhs) {
+                return Ok(TyParam::value(value.clone()));
+            }
+        }
+        let ty_ctxs = match self
+            .get_tp_t(&lhs)
+            .ok()
+            .and_then(|t| self.get_nominal_super_type_ctxs(&t))
+        {
+            Some(ty_ctxs) => ty_ctxs,
+            None => {
+                let errs = EvalErrors::from(EvalError::type_not_found(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    t_loc.loc(),
+                    self.caused_by(),
+                    &Type::Obj,
+                ));
+                return Err(errs);
+            }
+        };
+        for ty_ctx in ty_ctxs {
+            if let Some(value) = ty_ctx.rec_get_const_obj(&rhs) {
+                return Ok(TyParam::value(value.clone()));
+            }
+            for methods in ty_ctx.methods_list.iter() {
+                if let Some(value) = methods.rec_get_const_obj(&rhs) {
+                    return Ok(TyParam::value(value.clone()));
+                }
+            }
+        }
+        Ok(lhs.proj(rhs))
     }
 
     /// ```erg
@@ -2735,6 +2804,10 @@ impl Context {
                 } else {
                     feature_error!(self, Location::Unknown, "eval_pred: Predicate::Call")
                 }
+            }
+            Predicate::Attr { receiver, name } => {
+                let receiver = self.eval_tp(receiver)?;
+                Ok(Predicate::attr(receiver, name))
             }
             Predicate::GeneralEqual { lhs, rhs } => {
                 match (self.eval_pred(*lhs)?, self.eval_pred(*rhs)?) {

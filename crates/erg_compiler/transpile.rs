@@ -29,7 +29,7 @@ use crate::link_hir::HIRLinker;
 use crate::module::SharedCompilerResource;
 use crate::ty::typaram::OpKind;
 use crate::ty::value::ValueObj;
-use crate::ty::{Field, Type, VisibilityModifier};
+use crate::ty::{Field, HasType, Type, VisibilityModifier};
 use crate::varinfo::{AbsLocation, VarInfo};
 
 /// patch method -> function
@@ -67,6 +67,36 @@ fn replace_non_symbolic(name: &str) -> String {
         .replace('%', "__percent__")
         .replace('!', "__erg_proc__")
         .replace('$', "erg_shared__")
+}
+
+pub enum Enclosure {
+    /// ()
+    Paren,
+    /// []
+    Bracket,
+    /// {}
+    Brace,
+    None,
+}
+
+impl Enclosure {
+    pub const fn open(&self) -> char {
+        match self {
+            Enclosure::Paren => '(',
+            Enclosure::Bracket => '[',
+            Enclosure::Brace => '{',
+            Enclosure::None => ' ',
+        }
+    }
+
+    pub const fn close(&self) -> char {
+        match self {
+            Enclosure::Paren => ')',
+            Enclosure::Bracket => ']',
+            Enclosure::Brace => '}',
+            Enclosure::None => ' ',
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -468,6 +498,9 @@ impl PyScriptGenerator {
             if self.range_ops_loaded {
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_float.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_array.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/core/_erg_dict.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/core/_erg_set.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/core/_erg_bytes.py"));
             } else {
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_int.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_nat.py"));
@@ -475,6 +508,9 @@ impl PyScriptGenerator {
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_str.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_float.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_array.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/core/_erg_dict.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/core/_erg_set.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/core/_erg_bytes.py"));
             }
             self.builtin_types_loaded = true;
         }
@@ -522,11 +558,12 @@ impl PyScriptGenerator {
             },
             Expr::Set(set) => match set {
                 Set::Normal(st) => {
-                    let mut code = "{".to_string();
+                    self.load_builtin_types_if_not();
+                    let mut code = "Set({".to_string();
                     for elem in st.elems.pos_args {
                         code += &format!("{},", self.transpile_expr(elem.expr));
                     }
-                    code += "}";
+                    code += "})";
                     code
                 }
                 other => todo!("transpiling {other}"),
@@ -544,7 +581,8 @@ impl PyScriptGenerator {
             },
             Expr::Dict(dict) => match dict {
                 Dict::Normal(dic) => {
-                    let mut code = "{".to_string();
+                    self.load_builtin_types_if_not();
+                    let mut code = "Dict({".to_string();
                     for kv in dic.kvs {
                         code += &format!(
                             "({}): ({}),",
@@ -552,7 +590,7 @@ impl PyScriptGenerator {
                             self.transpile_expr(kv.value)
                         );
                     }
-                    code += "}";
+                    code += "})";
                     code
                 }
                 other => todo!("transpiling {other}"),
@@ -591,7 +629,11 @@ impl PyScriptGenerator {
         let escaped = Self::escape_str(&lit.token.content);
         if matches!(
             &lit.value,
-            ValueObj::Bool(_) | ValueObj::Int(_) | ValueObj::Nat(_) | ValueObj::Str(_)
+            ValueObj::Bool(_)
+                | ValueObj::Int(_)
+                | ValueObj::Nat(_)
+                | ValueObj::Str(_)
+                | ValueObj::Float(_)
         ) {
             self.load_builtin_types_if_not();
             format!("{}({escaped})", lit.value.class())
@@ -678,10 +720,28 @@ impl PyScriptGenerator {
     }
 
     fn transpile_acc(&mut self, acc: Accessor) -> String {
+        let mut prefix = "".to_string();
+        match acc.ref_t().derefine() {
+            v @ (Type::Bool | Type::Nat | Type::Int | Type::Float | Type::Str) => {
+                self.load_builtin_types_if_not();
+                prefix.push_str(&v.qual_name());
+                prefix.push('(');
+            }
+            other => {
+                if let t @ ("Bytes" | "Array" | "Dict" | "Set") = &other.qual_name()[..] {
+                    self.load_builtin_types_if_not();
+                    prefix.push_str(t);
+                    prefix.push('(');
+                }
+            }
+        }
+        let postfix = if prefix.is_empty() { "" } else { ")" };
         match acc {
             Accessor::Ident(ident) => {
                 match &ident.inspect()[..] {
-                    "Str" | "Bool" | "Nat" | "Array" => {
+                    "Str" | "Bytes" | "Bool" | "Nat" | "Int" | "Float" | "Array" | "Dict"
+                    | "Set" | "Str!" | "Bytes!" | "Bool!" | "Nat!" | "Int!" | "Float!"
+                    | "Array!" => {
                         self.load_builtin_types_if_not();
                     }
                     "if" | "if!" | "for!" | "while" | "discard" => {
@@ -692,16 +752,16 @@ impl PyScriptGenerator {
                     }
                     _ => {}
                 }
-                Self::transpile_ident(ident)
+                prefix + &Self::transpile_ident(ident) + postfix
             }
             Accessor::Attr(attr) => {
                 if let Some(name) = debind(&attr.ident) {
                     demangle(&name)
                 } else {
                     format!(
-                        "({}).{}",
+                        "{prefix}({}).{}{postfix}",
                         self.transpile_expr(*attr.obj),
-                        Self::transpile_ident(attr.ident)
+                        Self::transpile_ident(attr.ident),
                     )
                 }
             }
@@ -894,6 +954,11 @@ impl PyScriptGenerator {
     }
 
     fn transpile_simple_call(&mut self, call: Call) -> String {
+        let enc = if call.obj.ref_t().is_poly_type_meta() {
+            Enclosure::Bracket
+        } else {
+            Enclosure::Paren
+        };
         let is_py_api = if let Some(attr) = &call.attr_name {
             let is_py_api = attr.is_py_api();
             if let Some(name) = debind(attr) {
@@ -901,7 +966,7 @@ impl PyScriptGenerator {
                 return format!(
                     "{name}({}, {})",
                     self.transpile_expr(*call.obj),
-                    self.transpile_args(call.args, is_py_api, false)
+                    self.transpile_args(call.args, is_py_api, enc)
                 );
             }
             is_py_api
@@ -912,15 +977,13 @@ impl PyScriptGenerator {
         if let Some(attr) = call.attr_name {
             code += &format!(".{}", Self::transpile_ident(attr));
         }
-        code += &self.transpile_args(call.args, is_py_api, true);
+        code += &self.transpile_args(call.args, is_py_api, enc);
         code
     }
 
-    fn transpile_args(&mut self, mut args: Args, is_py_api: bool, paren: bool) -> String {
+    fn transpile_args(&mut self, mut args: Args, is_py_api: bool, enc: Enclosure) -> String {
         let mut code = String::new();
-        if paren {
-            code.push('(');
-        }
+        code.push(enc.open());
         while let Some(arg) = args.try_remove_pos(0) {
             code += &self.transpile_expr(arg.expr);
             code.push(',');
@@ -933,9 +996,7 @@ impl PyScriptGenerator {
                 self.transpile_expr(arg.expr)
             );
         }
-        if paren {
-            code.push(')');
-        }
+        code.push(enc.close());
         code
     }
 

@@ -3,9 +3,10 @@ from _erg_nat import NatMut
 from _erg_result import Error
 from _erg_type import MutType
 
+
 class Bool(Nat):
     def try_new(b: bool):  # -> Result[Nat]
-        if b == True or b == False:
+        if isinstance(b, bool):
             return Bool(b)
         else:
             return Error("Bool can't be other than True or False")

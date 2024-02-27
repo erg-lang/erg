@@ -737,14 +737,15 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             })
             .and_then(|dict| (dict.len() == 1).then_some(dict));
         for kv in dict.kvs.into_iter() {
-            let expect_key = expect.as_ref().map(|dict| dict.keys().next().unwrap());
-            let expect_value = expect.as_ref().map(|dict| dict.values().next().unwrap());
+            let expect_key = expect.as_ref().and_then(|dict| dict.keys().next());
+            let expect_value = expect.as_ref().and_then(|dict| dict.values().next());
             let key = self.lower_expr(kv.key, expect_key)?;
             let value = self.lower_expr(kv.value, expect_value)?;
             if let Some(popped_val_t) = union.insert(key.t(), value.t()) {
                 if PYTHON_MODE {
-                    let val_t = union.get_mut(key.ref_t()).unwrap();
-                    *val_t = self.module.context.union(&mem::take(val_t), &popped_val_t);
+                    if let Some(val_t) = union.get_mut(key.ref_t()) {
+                        *val_t = self.module.context.union(&mem::take(val_t), &popped_val_t);
+                    }
                 } else {
                     return Err(LowerErrors::from(LowerError::syntax_error(
                         self.cfg.input.clone(),
@@ -942,7 +943,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     .context
                     .get_singular_ctxs_by_ident(&ident, &self.module.context)
                     .ok()
-                    .map(|ctx| ctx.first().unwrap().name.clone()),
+                    .and_then(|ctxs| ctxs.first().map(|ctx| ctx.name.clone())),
             )
         };
         self.inc_ref(ident.inspect(), &vi, &ident.name);
@@ -1359,7 +1360,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     .context
                     .subtype_of(vi.t.return_t().unwrap(), &Type::Bool),
                 "{} is not a subtype of Bool",
-                vi.t.return_t().unwrap()
+                vi.t.return_t().unwrap_or(&Type::Obj)
             );
             if let Some(ret_t) = vi.t.mut_return_t() {
                 *ret_t = guard;
@@ -2416,7 +2417,9 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 ) {
                     Err(err) => self.errs.push(err),
                     Ok(_) => {
-                        *attr.ref_mut_t().unwrap() = derefined.clone();
+                        if let Some(attr_t) = attr.ref_mut_t() {
+                            *attr_t = derefined.clone();
+                        }
                         if let hir::Accessor::Ident(ident) = &attr {
                             if let Some(vi) = self
                                 .module
@@ -2786,10 +2789,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 tasc.expr.loc(),
                 self.module.context.caused_by(),
                 switch_lang!(
-                    "japanese" => "無効な型宣言です(左辺には記名型のみ使用出来ます)".to_string(),
+                    "japanese" => "無効な型宣言です(左辺には変数のみ使用出来ます)".to_string(),
                     "simplified_chinese" => "无效的类型声明".to_string(),
                     "traditional_chinese" => "無效的型宣告".to_string(),
-                    "english" => "Invalid type declaration (currently only nominal types are allowed at LHS)".to_string(),
+                    "english" => "Invalid type declaration (currently only variables are allowed at LHS)".to_string(),
                 ),
                 None,
             )));

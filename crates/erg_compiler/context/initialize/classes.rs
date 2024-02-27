@@ -31,8 +31,6 @@ impl Context {
         let never = Self::builtin_mono_class(NEVER, 1);
         /* Obj */
         let mut obj = Self::builtin_mono_class(OBJ, 2);
-        let Slf = mono_q(SELF, subtypeof(Obj));
-        let t = fn0_met(Slf.clone(), Slf).quantify();
         obj.register_py_builtin(
             FUNDAMENTAL_DICT,
             dict! {Str => Obj}.into(),
@@ -40,7 +38,12 @@ impl Context {
             3,
         );
         obj.register_py_builtin(FUNDAMENTAL_MODULE, Str, Some(FUNDAMENTAL_MODULE), 4);
-        obj.register_py_builtin(FUNC_CLONE, t, Some(FUNC_CLONE), 5);
+        obj.register_py_builtin(
+            FUNDAMENTAL_HASH,
+            fn0_met(Obj, Int),
+            Some(FUNDAMENTAL_HASH),
+            5,
+        );
         obj.register_py_builtin(
             FUNDAMENTAL_BYTES,
             fn0_met(Obj, mono(BYTES)),
@@ -488,7 +491,7 @@ impl Context {
             mono(BYTES),
         );
         int.register_py_builtin(FUNC_TO_BYTES, t_to_bytes, Some(FUNC_TO_BYTES), 55);
-        let t_call = no_var_func(vec![pos(Obj)], vec![kw("base", Nat)], Int);
+        let t_call = no_var_func(vec![pos(Obj)], vec![kw(KW_BASE, Nat)], Int);
         int.register_builtin_erg_impl(
             FUNDAMENTAL_CALL,
             t_call,
@@ -656,7 +659,7 @@ impl Context {
             Some(FUNC_TIMES),
             13,
         );
-        let t_call = no_var_func(vec![pos(Obj)], vec![kw("base", Nat)], Nat);
+        let t_call = no_var_func(vec![pos(Obj)], vec![kw(KW_BASE, Nat)], Nat);
         nat.register_builtin_erg_impl(
             FUNDAMENTAL_CALL,
             t_call,
@@ -1195,7 +1198,7 @@ impl Context {
         );
         str_.register_marker_trait(self, poly(INDEXABLE, vec![ty_tp(Nat), ty_tp(Str)]))
             .unwrap();
-        let t_call = func(vec![], None, vec![kw("object", Obj)], None, Str);
+        let t_call = func(vec![], None, vec![kw(KW_OBJECT, Obj)], None, Str);
         str_.register_builtin_erg_impl(
             FUNDAMENTAL_CALL,
             t_call,
@@ -1850,7 +1853,7 @@ impl Context {
             array_t(T.clone(), TyParam::erased(Nat)),
             vec![],
             vec![kw(
-                "same_bucket",
+                KW_SAME_BUCKET,
                 or(func2(T.clone(), T.clone(), Bool), NoneType),
             )],
             array_t(T.clone(), TyParam::erased(Nat)),
@@ -1859,7 +1862,7 @@ impl Context {
         let sum_t = no_var_fn_met(
             array_t(T.clone(), TyParam::erased(Nat)),
             vec![],
-            vec![kw("start", T.clone())],
+            vec![kw(KW_START, T.clone())],
             T.clone(),
         );
         let sum = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
@@ -1872,7 +1875,7 @@ impl Context {
         let prod_t = no_var_fn_met(
             array_t(T.clone(), TyParam::erased(Nat)),
             vec![],
-            vec![kw("start", T.clone())],
+            vec![kw(KW_START, T.clone())],
             T.clone(),
         );
         let prod = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
@@ -2137,11 +2140,11 @@ impl Context {
             None,
         )));
         dict_.register_builtin_const(FUNC_AS_RECORD, Visibility::BUILTIN_PUBLIC, None, as_record);
-        let Def = type_q("Default");
+        let Def = type_q(TY_DEFAULT);
         let get_t = no_var_fn_met(
             dict_t.clone(),
-            vec![kw("key", T.clone())],
-            vec![kw_default("default", Def.clone(), NoneType)],
+            vec![kw(KW_KEY, T.clone())],
+            vec![kw_default(KW_DEFAULT, Def.clone(), NoneType)],
             or(
                 proj_call(D.clone(), FUNDAMENTAL_GETITEM, vec![ty_tp(T.clone())]),
                 Def,
@@ -2151,7 +2154,7 @@ impl Context {
         dict_.register_py_builtin(FUNC_GET, get_t, Some(FUNC_GET), 9);
         let copy_t = fn0_met(dict_t.clone(), dict_t.clone()).quantify();
         dict_.register_py_builtin(COPY, copy_t, Some(COPY), 7);
-        let D2 = mono_q_tp("D2", instanceof(mono(GENERIC_DICT)));
+        let D2 = mono_q_tp(TY_D2, instanceof(mono(GENERIC_DICT)));
         let other_dict_t = poly(DICT, vec![D2.clone()]);
         let dict_concat_t = fn1_met(
             dict_t.clone(),
@@ -2332,7 +2335,7 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         record.register_trait(mono(RECORD), record_eq);
-        let Slf = mono_q("Self", subtypeof(mono(RECORD)));
+        let Slf = mono_q(SELF, subtypeof(mono(RECORD)));
         let as_dict_t =
             fn0_met(Slf.clone(), proj_call(ty_tp(Slf), FUNC_AS_DICT, vec![])).quantify();
         let as_dict = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
@@ -2346,7 +2349,7 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             None,
             as_dict,
-            Some("_asdict"),
+            Some(FUNC_ASDICT),
             None,
         );
         let mut record_meta_type = Self::builtin_mono_class(RECORD_META_TYPE, 2);
@@ -2355,7 +2358,7 @@ impl Context {
         /* GenericNamedTuple */
         let mut generic_named_tuple = Self::builtin_mono_class(GENERIC_NAMED_TUPLE, 2);
         generic_named_tuple.register_superclass(mono(GENERIC_TUPLE), &generic_tuple);
-        let Slf = mono_q("Self", subtypeof(mono(GENERIC_NAMED_TUPLE)));
+        let Slf = mono_q(SELF, subtypeof(mono(GENERIC_NAMED_TUPLE)));
         let input_t = tp_enum(Nat, set! {N.clone()});
         let return_t = proj_call(ty_tp(Slf.clone()), FUNDAMENTAL_GETITEM, vec![N.clone()]);
         let named_tuple_getitem =
@@ -2678,7 +2681,7 @@ impl Context {
         let mut int_mut = Self::builtin_mono_class(MUT_INT, 2);
         int_mut.register_superclass(Int, &int);
         int_mut.register_superclass(mono(MUT_FLOAT), &float_mut);
-        let t = pr_met(mono(MUT_INT), vec![], None, vec![kw("i", Int)], NoneType);
+        let t = pr_met(mono(MUT_INT), vec![], None, vec![kw(KW_I, Int)], NoneType);
         int_mut.register_builtin_py_impl(
             PROC_INC,
             t.clone(),
@@ -2806,7 +2809,7 @@ impl Context {
         str_mut.register_trait(mono(MUT_STR), str_mut_mutable);
         let t = pr_met(
             ref_mut(mono(MUT_STR), None),
-            vec![kw("s", Str)],
+            vec![kw(KW_S, Str)],
             None,
             vec![],
             NoneType,
@@ -2836,7 +2839,7 @@ impl Context {
         );
         let t = pr_met(
             ref_mut(mono(MUT_STR), None),
-            vec![kw("idx", Nat), kw("s", Str)],
+            vec![kw(KW_IDX, Nat), kw(KW_S, Str)],
             None,
             vec![],
             NoneType,
@@ -2850,7 +2853,7 @@ impl Context {
         );
         let t = pr_met(
             ref_mut(mono(MUT_STR), None),
-            vec![kw("idx", Nat)],
+            vec![kw(KW_IDX, Nat)],
             None,
             vec![],
             Str,
@@ -3127,8 +3130,8 @@ impl Context {
         let mut dict_mut =
             Self::builtin_poly_class(MUT_DICT, vec![PS::named_nd(TY_D, mono(GENERIC_DICT))], 3);
         dict_mut.register_superclass(dict_t.clone(), &dict_);
-        let K = type_q("K");
-        let V = type_q("V");
+        let K = type_q(TY_K);
+        let V = type_q(TY_V);
         let insert_t = pr_met(
             ref_mut(
                 dict_mut_t.clone(),

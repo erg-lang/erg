@@ -484,10 +484,18 @@ impl Identifier {
         Self { raw, qual_name, vi }
     }
 
-    pub fn public(name: &'static str) -> Self {
+    pub fn static_public(name: &'static str) -> Self {
         let ident = ast::Identifier::public_from_token(
             Token::from_str(TokenKind::Dot, "."),
             Token::static_symbol(name),
+        );
+        Self::bare(ident)
+    }
+
+    pub fn public(name: &str) -> Self {
+        let ident = ast::Identifier::public_from_token(
+            Token::from_str(TokenKind::Dot, "."),
+            Token::symbol(name),
         );
         Self::bare(ident)
     }

@@ -20,6 +20,10 @@ pub enum Predicate {
         name: Option<Str>,
         args: Vec<TyParam>,
     },
+    Attr {
+        receiver: TyParam,
+        name: Str,
+    },
     /// TODO: unify with GeneralEqual
     /// i == 0 => Eq{ lhs: "i", rhs: 0 }
     Equal {
@@ -81,6 +85,7 @@ impl fmt::Display for Predicate {
                         .join(", ")
                 )
             }
+            Self::Attr { receiver, name } => write!(f, "{receiver}.{name}"),
             Self::Equal { lhs, rhs } => write!(f, "{lhs} == {rhs}"),
             Self::GreaterEqual { lhs, rhs } => write!(f, "{lhs} >= {rhs}"),
             Self::LessEqual { lhs, rhs } => write!(f, "{lhs} <= {rhs}"),
@@ -120,6 +125,7 @@ impl LimitedDisplay for Predicate {
                         .join(", ")
                 )
             }
+            Self::Attr { receiver, name } => write!(f, "{receiver}.{name}"),
             Self::Equal { lhs, rhs } => {
                 write!(f, "{lhs} == ")?;
                 rhs.limited_fmt(f, limit - 1)
@@ -188,6 +194,22 @@ impl StructuralEq for Predicate {
             | (Self::LessEqual { rhs, .. }, Self::LessEqual { rhs: r2, .. }) => {
                 rhs.structural_eq(r2)
             }
+            (Self::GeneralEqual { lhs, rhs }, Self::GeneralEqual { lhs: l, rhs: r })
+            | (Self::GeneralLessEqual { lhs, rhs }, Self::GeneralLessEqual { lhs: l, rhs: r })
+            | (
+                Self::GeneralGreaterEqual { lhs, rhs },
+                Self::GeneralGreaterEqual { lhs: l, rhs: r },
+            )
+            | (Self::GeneralNotEqual { lhs, rhs }, Self::GeneralNotEqual { lhs: l, rhs: r }) => {
+                lhs.structural_eq(l) && rhs.structural_eq(r)
+            }
+            (
+                Self::Attr { receiver, name },
+                Self::Attr {
+                    receiver: r,
+                    name: n,
+                },
+            ) => receiver.structural_eq(r) && name == n,
             (
                 Self::Call {
                     receiver,
@@ -261,6 +283,7 @@ impl HasLevel for Predicate {
                 .level()
                 .zip(args.iter().map(|a| a.level().unwrap_or(usize::MAX)).min())
                 .map(|(a, b)| a.min(b)),
+            Self::Attr { receiver, .. } => receiver.level(),
         }
     }
 
@@ -272,6 +295,9 @@ impl HasLevel for Predicate {
                 for arg in args {
                     arg.set_level(level);
                 }
+            }
+            Self::Attr { receiver, .. } => {
+                receiver.set_level(level);
             }
             Self::Equal { rhs, .. }
             | Self::GreaterEqual { rhs, .. }
@@ -359,6 +385,10 @@ impl Predicate {
             name,
             args,
         }
+    }
+
+    pub fn attr(receiver: TyParam, name: Str) -> Self {
+        Self::Attr { receiver, name }
     }
 
     pub const fn eq(lhs: Str, rhs: TyParam) -> Self {
@@ -579,6 +609,10 @@ impl Predicate {
                     args: new_args,
                 }
             }
+            Self::Attr { receiver, name } => Self::Attr {
+                receiver: receiver.substitute(var, tp),
+                name,
+            },
             _ => self,
         }
     }
@@ -590,6 +624,11 @@ impl Predicate {
             | Self::LessEqual { lhs, .. }
             | Self::GreaterEqual { lhs, .. }
             | Self::NotEqual { lhs, .. } => &lhs[..] == name,
+            Self::GeneralEqual { lhs, rhs }
+            | Self::GeneralLessEqual { lhs, rhs }
+            | Self::GeneralGreaterEqual { lhs, rhs }
+            | Self::GeneralNotEqual { lhs, rhs } => lhs.mentions(name) || rhs.mentions(name),
+            Self::Not(pred) => pred.mentions(name),
             Self::And(lhs, rhs) | Self::Or(lhs, rhs) => lhs.mentions(name) || rhs.mentions(name),
             _ => false,
         }
@@ -616,6 +655,7 @@ impl Predicate {
                 }
                 set
             }
+            Self::Attr { receiver, .. } => receiver.qvars(),
             Self::Equal { rhs, .. }
             | Self::GreaterEqual { rhs, .. }
             | Self::LessEqual { rhs, .. }
@@ -638,6 +678,7 @@ impl Predicate {
             Self::Call { receiver, args, .. } => {
                 receiver.has_qvar() || args.iter().any(|a| a.has_qvar())
             }
+            Self::Attr { receiver, .. } => receiver.has_qvar(),
             Self::Equal { rhs, .. }
             | Self::GreaterEqual { rhs, .. }
             | Self::LessEqual { rhs, .. }
@@ -658,6 +699,7 @@ impl Predicate {
             Self::Call { receiver, args, .. } => {
                 receiver.has_unbound_var() || args.iter().any(|a| a.has_unbound_var())
             }
+            Self::Attr { receiver, .. } => receiver.has_unbound_var(),
             Self::Equal { rhs, .. }
             | Self::GreaterEqual { rhs, .. }
             | Self::LessEqual { rhs, .. }
@@ -681,6 +723,7 @@ impl Predicate {
                 receiver.has_undoable_linked_var()
                     || args.iter().any(|a| a.has_undoable_linked_var())
             }
+            Self::Attr { receiver, .. } => receiver.has_undoable_linked_var(),
             Self::Equal { rhs, .. }
             | Self::GreaterEqual { rhs, .. }
             | Self::LessEqual { rhs, .. }
@@ -732,7 +775,7 @@ impl Predicate {
 
     pub fn typarams(&self) -> Vec<&TyParam> {
         match self {
-            Self::Value(_) | Self::Const(_) => vec![],
+            Self::Value(_) | Self::Const(_) | Self::Attr { .. } => vec![],
             // REVIEW: Should the receiver be included?
             Self::Call { args, .. } => {
                 let mut vec = vec![];
@@ -761,6 +804,10 @@ impl Predicate {
             Self::GreaterEqual { lhs, rhs } => Self::lt(lhs, rhs),
             Self::LessEqual { lhs, rhs } => Self::gt(lhs, rhs),
             Self::NotEqual { lhs, rhs } => Self::eq(lhs, rhs),
+            Self::GeneralEqual { lhs, rhs } => Self::GeneralNotEqual { lhs, rhs },
+            Self::GeneralLessEqual { lhs, rhs } => Self::GeneralGreaterEqual { lhs, rhs },
+            Self::GeneralGreaterEqual { lhs, rhs } => Self::GeneralLessEqual { lhs, rhs },
+            Self::GeneralNotEqual { lhs, rhs } => Self::GeneralEqual { lhs, rhs },
             Self::Not(pred) => *pred,
             other => Self::Not(Box::new(other)),
         }
@@ -797,6 +844,7 @@ impl Predicate {
                 }
                 set
             }
+            Self::Attr { receiver, .. } => receiver.variables(),
             Self::Equal { rhs, .. }
             | Self::GreaterEqual { rhs, .. }
             | Self::LessEqual { rhs, .. }

@@ -151,7 +151,9 @@ impl OwnershipChecker {
             Expr::Accessor(acc) => self.check_acc(acc, ownership, chunk),
             // TODO: referenced
             Expr::Call(call) => {
-                let sig_t = call.signature_t().unwrap();
+                let Some(sig_t) = call.signature_t() else {
+                    return;
+                };
                 if !sig_t.is_subr() {
                     return;
                 }

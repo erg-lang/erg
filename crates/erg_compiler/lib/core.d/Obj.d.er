@@ -2,7 +2,7 @@
 .Obj.
     __dict__: {Str: .Obj}
     __module__: Str
-    clone: |T <: .Obj|(self: T) -> T
+    __hash__: (self: .Obj) -> Int
     __bytes__: (self: .Obj) -> Bytes
     __repr__: (self: .Obj) -> Str
     __sizeof__: (self: .Obj) -> Nat

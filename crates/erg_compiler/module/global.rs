@@ -142,11 +142,15 @@ impl SharedCompilerResource {
         }
     }
 
-    pub fn raw_ref_ctx(&self, path: &std::path::Path) -> Option<&ModuleContext> {
+    pub fn raw_ref_ctx_with_timeout(
+        &self,
+        path: &std::path::Path,
+        timeout: std::time::Duration,
+    ) -> Option<&ModuleContext> {
         if path.to_string_lossy().ends_with(".d.er") {
-            self.py_mod_cache.raw_ref_ctx(path)
+            self.py_mod_cache.raw_ref_ctx_with_timeout(path, timeout)
         } else {
-            self.mod_cache.raw_ref_ctx(path)
+            self.mod_cache.raw_ref_ctx_with_timeout(path, timeout)
         }
     }
 

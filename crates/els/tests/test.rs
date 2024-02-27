@@ -46,7 +46,7 @@ fn test_completion() -> Result<(), Box<dyn std::error::Error>> {
         assert!(items.len() >= 40);
         assert!(items.iter().any(|item| item.label == "abs"));
     } else {
-        return Err(format!("not items: {resp:?}").into());
+        return Err(format!("{}: not items: {resp:?}", line!()).into());
     }
     client.notify_open(FILE_B)?;
     client.notify_change(uri_b.clone().raw(), add_char(6, 20, "."))?;
@@ -54,7 +54,7 @@ fn test_completion() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(CompletionResponse::Array(items)) = resp {
         assert!(items.iter().any(|item| item.label == "a"));
     } else {
-        return Err(format!("not items: {resp:?}").into());
+        return Err(format!("{}: not items: {resp:?}", line!()).into());
     }
     Ok(())
 }
@@ -142,7 +142,7 @@ fn test_completion_retrigger() -> Result<(), Box<dyn std::error::Error>> {
         assert!(!items.is_empty());
         assert!(items.iter().any(|item| item.label == "print!"));
     } else {
-        return Err(format!("not items: {resp:?}").into());
+        return Err(format!("{}: not items: {resp:?}", line!()).into());
     }
     client.notify_change(uri.clone().raw(), add_char(3, 15, "t"))?;
     let resp = client.request_completion(uri.raw(), 3, 15, "t")?;
@@ -151,7 +151,7 @@ fn test_completion_retrigger() -> Result<(), Box<dyn std::error::Error>> {
         assert!(items.iter().any(|item| item.label == "bit_count"));
         assert!(items.iter().any(|item| item.label == "bit_length"));
     } else {
-        return Err(format!("not items: {resp:?}").into());
+        return Err(format!("{}: not items: {resp:?}", line!()).into());
     }
     Ok(())
 }
@@ -170,7 +170,7 @@ fn test_tolerant_completion() -> Result<(), Box<dyn std::error::Error>> {
         assert!(items.len() >= 40);
         assert!(items.iter().any(|item| item.label == "capitalize"));
     } else {
-        return Err(format!("not items: {resp:?}").into());
+        return Err(format!("{}: not items: {resp:?}", line!()).into());
     }
     client.notify_change(uri.clone().raw(), add_char(5, 14, "."))?;
     let resp = client.request_completion(uri.clone().raw(), 5, 15, ".")?;
@@ -178,7 +178,7 @@ fn test_tolerant_completion() -> Result<(), Box<dyn std::error::Error>> {
         assert!(items.len() >= 40);
         assert!(items.iter().any(|item| item.label == "abs"));
     } else {
-        return Err(format!("not items: {resp:?}").into());
+        return Err(format!("{}: not items: {resp:?}", line!()).into());
     }
     client.notify_change(uri.clone().raw(), add_char(2, 9, "."))?;
     let resp = client.request_completion(uri.raw(), 2, 10, ".")?;
@@ -187,7 +187,7 @@ fn test_tolerant_completion() -> Result<(), Box<dyn std::error::Error>> {
         assert!(items.iter().any(|item| item.label == "pi"));
         Ok(())
     } else {
-        Err(format!("not items: {resp:?}").into())
+        Err(format!("{}: not items: {resp:?}", line!()).into())
     }
 }
 

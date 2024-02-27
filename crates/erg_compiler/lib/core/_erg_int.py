@@ -1,6 +1,7 @@
-from _erg_result import Error
 from _erg_control import then__
+from _erg_result import Error
 from _erg_type import MutType
+
 
 class Int(int):
     def try_new(i):  # -> Result[Nat]

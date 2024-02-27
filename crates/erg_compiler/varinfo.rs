@@ -20,7 +20,7 @@ pub enum Mutability {
 
 impl From<&str> for Mutability {
     fn from(item: &str) -> Self {
-        if item.chars().next().unwrap().is_uppercase() {
+        if item.chars().next().is_some_and(|c| c.is_uppercase()) {
             Self::Const
         } else {
             Self::Immutable

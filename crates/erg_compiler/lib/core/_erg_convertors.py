@@ -1,6 +1,6 @@
+from _erg_float import Float
 from _erg_int import Int
 from _erg_nat import Nat
-from _erg_float import Float
 from _erg_str import Str
 
 

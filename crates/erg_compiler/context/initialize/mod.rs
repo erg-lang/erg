@@ -131,7 +131,6 @@ const NEG: &str = "Neg";
 const NEVER: &str = "Never";
 const OBJ: &str = "Obj";
 const MUTABLE_OBJ: &str = "Obj!";
-const FUNC_CLONE: &str = "clone";
 const BYTES: &str = "Bytes";
 const BYTEARRAY: &str = "ByteArray!";
 const FLOAT: &str = "Float";
@@ -153,6 +152,8 @@ const MUT_RATIO: &str = "Ratio!";
 const FUNC_ABS: &str = "abs";
 const FUNC_SUCC: &str = "succ";
 const FUNC_PRED: &str = "pred";
+const FUNC_DEREFINE: &str = "derefine";
+const FUNC_FILL_ORD: &str = "fill_ord";
 const FUNC_BIT_LENGTH: &str = "bit_length";
 const FUNC_BIT_COUNT: &str = "bit_count";
 const FUNC_BYTEORDER: &str = "byteorder";
@@ -201,6 +202,24 @@ const FUNC_ISSPACE: &str = "isspace";
 const FUNC_ISTITLE: &str = "istitle";
 const FUNC_ISIDENTIFIER: &str = "isidentifier";
 const FUNC_ISPRINTABLE: &str = "isprintable";
+const FUNC_RSHIFT: &str = "rshift";
+const FUNC_LSHIFT: &str = "lshift";
+const FUNC_IS: &str = "is_";
+const FUNC_NE: &str = "ne";
+const FUNC_EQ: &str = "eq";
+const FUNC_LT: &str = "lt";
+const FUNC_GT: &str = "gt";
+const FUNC_GE: &str = "ge";
+const FUNC_LE: &str = "le";
+const FUNC_XOR: &str = "xor";
+const FUNC_AND: &str = "and_";
+const FUNC_OR: &str = "or_";
+const FUNC_MOD: &str = "mod";
+const FUNC_MUL: &str = "mul";
+const FUNC_SUB: &str = "sub";
+const FUNC_TRUEDIV: &str = "truediv";
+const FUNC_FLOORDIV: &str = "floordiv";
+const FUNC_IS_NOT: &str = "is_not";
 const NONE_TYPE: &str = "NoneType";
 const TYPE: &str = "Type";
 const CLASS: &str = "Class";
@@ -282,6 +301,7 @@ const FUNC_UNION: &str = "union";
 const FUNC_SHAPE: &str = "shape";
 const FUNC_SCALAR_TYPE: &str = "scalar_type";
 const FUNC_AS_DICT: &str = "as_dict";
+const FUNC_ASDICT: &str = "_asdict";
 const FUNC_AS_RECORD: &str = "as_record";
 const FUNC_INC: &str = "inc";
 const PROC_INC: &str = "inc!";
@@ -514,6 +534,7 @@ const TY_A: &str = "A";
 const TY_B: &str = "B";
 const TY_C: &str = "C";
 const TY_D: &str = "D";
+const TY_D2: &str = "D2";
 const TY_E: &str = "E";
 const TY_F: &str = "F";
 const TY_T: &str = "T";
@@ -529,6 +550,7 @@ const TY_M: &str = "M";
 const TY_O: &str = "O";
 const TY_K: &str = "K";
 const TY_V: &str = "V";
+const TY_DEFAULT: &str = "Default";
 
 const KW_OLD: &str = "old";
 const KW_B: &str = "b";
@@ -536,6 +558,7 @@ const KW_C: &str = "c";
 const KW_N: &str = "n";
 const KW_S: &str = "s";
 const KW_X: &str = "X";
+const KW_T: &str = "T";
 const KW_SELF: &str = "self";
 const KW_LENGTH: &str = "length";
 const KW_PROC: &str = "proc!";
@@ -559,6 +582,7 @@ const KW_OBJECT: &str = "object";
 const KW_OBJECTS: &str = "objects";
 const KW_TEST: &str = "test";
 const KW_MSG: &str = "msg";
+const KW_SAME_BUCKET: &str = "same_bucket";
 const KW_SPEC: &str = "spec";
 const KW_STR: &str = "str";
 const KW_I: &str = "i";
@@ -1230,10 +1254,10 @@ impl Context {
             Mutability::Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
-        let pyeval = Identifier::public("pyeval");
+        let pyeval = Identifier::static_public("pyeval");
         let sig = VarSignature::new(pyeval.clone(), None);
         let sig = Signature::Var(sig);
-        let eval = Expr::Accessor(Accessor::Ident(Identifier::public("eval")));
+        let eval = Expr::Accessor(Accessor::Ident(Identifier::static_public("eval")));
         let block = Block::new(vec![eval]);
         let body = DefBody::new(Token::DUMMY, block, DefId(0));
         let eval = Def::new(sig, body);
@@ -1244,10 +1268,10 @@ impl Context {
             Mutability::Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
-        let pyexec = Identifier::public("pyexec");
+        let pyexec = Identifier::static_public("pyexec");
         let sig = VarSignature::new(pyexec.clone(), None);
         let sig = Signature::Var(sig);
-        let exec = Expr::Accessor(Accessor::Ident(Identifier::public("exec")));
+        let exec = Expr::Accessor(Accessor::Ident(Identifier::static_public("exec")));
         let block = Block::new(vec![exec]);
         let body = DefBody::new(Token::DUMMY, block, DefId(0));
         let exec = Def::new(sig, body);
@@ -1259,7 +1283,7 @@ impl Context {
             Mutability::Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
-        let perform = Identifier::public("perform");
+        let perform = Identifier::static_public("perform");
         let params = Params::single(crate::hir::NonDefaultParamSignature::new(
             NonDefaultParamSignature::simple("p!".into()),
             VarInfo::const_default_public(),
@@ -1274,7 +1298,7 @@ impl Context {
             vec![],
         );
         let sig = Signature::Subr(sig);
-        let call = Identifier::public("p!").call(Args::empty());
+        let call = Identifier::static_public("p!").call(Args::empty());
         let block = Block::new(vec![Expr::Call(call)]);
         let body = DefBody::new(Token::DUMMY, block, DefId(0));
         let perform = Def::new(sig, body);

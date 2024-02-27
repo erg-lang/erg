@@ -144,12 +144,7 @@ impl<T: ?Sized> Shared<T> {
     #[track_caller]
     pub fn borrow(&self) -> RwLockReadGuard<'_, T> {
         self.wait_until_unlocked();
-        #[cfg(any(feature = "backtrace", feature = "debug"))]
-        {
-            *self.last_borrowed_at.try_write_for(GET_TIMEOUT).unwrap() =
-                BorrowInfo::new(Some(std::panic::Location::caller()));
-        }
-        self.data.try_read_for(GET_TIMEOUT).unwrap_or_else(|| {
+        let res = self.data.try_read_for(GET_TIMEOUT).unwrap_or_else(|| {
             #[cfg(any(feature = "backtrace", feature = "debug"))]
             {
                 panic!(
@@ -162,24 +157,20 @@ impl<T: ?Sized> Shared<T> {
             {
                 panic!("Shared::borrow: already borrowed")
             }
-        })
+        });
+        #[cfg(any(feature = "backtrace", feature = "debug"))]
+        {
+            *self.last_borrowed_at.try_write_for(GET_TIMEOUT).unwrap() =
+                BorrowInfo::new(Some(std::panic::Location::caller()));
+        }
+        res
     }
 
     #[inline]
     #[track_caller]
     pub fn borrow_mut(&self) -> RwLockWriteGuard<'_, T> {
         self.wait_until_unlocked();
-        #[cfg(any(feature = "backtrace", feature = "debug"))]
-        {
-            let caller = std::panic::Location::caller();
-            *self.last_borrowed_at.try_write_for(SET_TIMEOUT).unwrap() =
-                BorrowInfo::new(Some(caller));
-            *self
-                .last_mut_borrowed_at
-                .try_write_for(SET_TIMEOUT)
-                .unwrap() = BorrowInfo::new(Some(caller));
-        }
-        self.data.try_write_for(SET_TIMEOUT).unwrap_or_else(|| {
+        let res = self.data.try_write_for(SET_TIMEOUT).unwrap_or_else(|| {
             #[cfg(any(feature = "backtrace", feature = "debug"))]
             {
                 panic!(
@@ -192,7 +183,18 @@ impl<T: ?Sized> Shared<T> {
             {
                 panic!("Shared::borrow_mut: already borrowed")
             }
-        })
+        });
+        #[cfg(any(feature = "backtrace", feature = "debug"))]
+        {
+            let caller = std::panic::Location::caller();
+            *self.last_borrowed_at.try_write_for(SET_TIMEOUT).unwrap() =
+                BorrowInfo::new(Some(caller));
+            *self
+                .last_mut_borrowed_at
+                .try_write_for(SET_TIMEOUT)
+                .unwrap() = BorrowInfo::new(Some(caller));
+        }
+        res
     }
 
     /// Lock the data and deny access from other threads.
@@ -256,6 +258,14 @@ impl<T: ?Sized> Shared<T> {
         self.data.try_write()
     }
 
+    pub fn try_borrow_for(&self, timeout: Duration) -> Option<RwLockReadGuard<'_, T>> {
+        self.data.try_read_for(timeout)
+    }
+
+    pub fn try_borrow_mut_for(&self, timeout: Duration) -> Option<RwLockWriteGuard<'_, T>> {
+        self.data.try_write_for(timeout)
+    }
+
     /// # Safety
     /// don't call this except you need to handle cyclic references.
     pub unsafe fn force_unlock_write(&self) {
@@ -277,6 +287,10 @@ impl<T: Clone> Shared<T> {
 pub struct Forkable<T: Send + Clone> {
     data: Arc<ThreadLocal<RefCell<T>>>,
     init: Arc<T>,
+    #[cfg(any(feature = "backtrace", feature = "debug"))]
+    last_borrowed_at: Arc<ThreadLocal<RefCell<BorrowInfo>>>,
+    #[cfg(any(feature = "backtrace", feature = "debug"))]
+    last_mut_borrowed_at: Arc<ThreadLocal<RefCell<BorrowInfo>>>,
 }
 
 impl<T: fmt::Debug + Send + Clone> fmt::Debug for Forkable<T> {
@@ -307,6 +321,10 @@ impl<T: Send + Clone> Forkable<T> {
         Self {
             data: Arc::new(ThreadLocal::new()),
             init: Arc::new(init),
+            #[cfg(any(feature = "backtrace", feature = "debug"))]
+            last_borrowed_at: Arc::new(ThreadLocal::new()),
+            #[cfg(any(feature = "backtrace", feature = "debug"))]
+            last_mut_borrowed_at: Arc::new(ThreadLocal::new()),
         }
     }
 
@@ -318,5 +336,78 @@ impl<T: Send + Clone> Forkable<T> {
 
     pub fn clone_inner(&self) -> T {
         self.deref().borrow().clone()
+    }
+
+    #[track_caller]
+    pub fn borrow(&self) -> std::cell::Ref<'_, T> {
+        match self.deref().try_borrow() {
+            Ok(res) => {
+                #[cfg(any(feature = "backtrace", feature = "debug"))]
+                {
+                    *self
+                        .last_borrowed_at
+                        .get_or(|| RefCell::new(BorrowInfo::new(None)))
+                        .borrow_mut() = BorrowInfo::new(Some(std::panic::Location::caller()));
+                }
+                res
+            }
+            Err(err) => {
+                #[cfg(any(feature = "backtrace", feature = "debug"))]
+                {
+                    panic!(
+                        "Forkable::borrow: already borrowed at {}, mutably borrowed at {} ({err})",
+                        self.last_borrowed_at
+                            .get_or(|| RefCell::new(BorrowInfo::new(None)))
+                            .borrow(),
+                        self.last_mut_borrowed_at
+                            .get_or(|| RefCell::new(BorrowInfo::new(None)))
+                            .borrow()
+                    )
+                }
+                #[cfg(not(any(feature = "backtrace", feature = "debug")))]
+                {
+                    panic!("Forkable::borrow: {err}")
+                }
+            }
+        }
+    }
+
+    #[track_caller]
+    pub fn borrow_mut(&self) -> std::cell::RefMut<'_, T> {
+        match self.deref().try_borrow_mut() {
+            Ok(res) => {
+                #[cfg(any(feature = "backtrace", feature = "debug"))]
+                {
+                    let caller = std::panic::Location::caller();
+                    *self
+                        .last_borrowed_at
+                        .get_or(|| RefCell::new(BorrowInfo::new(None)))
+                        .borrow_mut() = BorrowInfo::new(Some(caller));
+                    *self
+                        .last_mut_borrowed_at
+                        .get_or(|| RefCell::new(BorrowInfo::new(None)))
+                        .borrow_mut() = BorrowInfo::new(Some(caller));
+                }
+                res
+            }
+            Err(err) => {
+                #[cfg(any(feature = "backtrace", feature = "debug"))]
+                {
+                    panic!(
+                        "Forkable::borrow_mut: already borrowed at {}, mutably borrowed at {} ({err})",
+                        self.last_borrowed_at
+                            .get_or(|| RefCell::new(BorrowInfo::new(None)))
+                            .borrow(),
+                        self.last_mut_borrowed_at
+                            .get_or(|| RefCell::new(BorrowInfo::new(None)))
+                            .borrow()
+                    )
+                }
+                #[cfg(not(any(feature = "backtrace", feature = "debug")))]
+                {
+                    panic!("Forkable::borrow_mut: {err}")
+                }
+            }
+        }
     }
 }

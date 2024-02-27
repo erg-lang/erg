@@ -1246,7 +1246,11 @@ impl TyParam {
             Self::Type(t) => t.contains_type(target),
             Self::Erased(t) => t.contains_type(target),
             Self::Proj { obj, .. } => obj.contains_type(target),
+            Self::ProjCall { obj, args, .. } => {
+                obj.contains_type(target) || args.iter().any(|t| t.contains_type(target))
+            }
             Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.contains_type(target)),
+            Self::UnsizedArray(elem) => elem.contains_type(target),
             Self::Set(ts) => ts.iter().any(|t| t.contains_type(target)),
             Self::Dict(ts) => ts
                 .iter()
@@ -1272,12 +1276,18 @@ impl TyParam {
             Self::Type(t) => t.contains_tp(target),
             Self::Erased(t) => t.contains_tp(target),
             Self::Proj { obj, .. } => obj.contains_tp(target),
+            Self::ProjCall { obj, args, .. } => {
+                obj.contains_tp(target) || args.iter().any(|t| t.contains_tp(target))
+            }
             Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.contains_tp(target)),
+            Self::UnsizedArray(elem) => elem.contains_tp(target),
             Self::Set(ts) => ts.iter().any(|t| t.contains_tp(target)),
             Self::Dict(ts) => ts
                 .iter()
                 .any(|(k, v)| k.contains_tp(target) || v.contains_tp(target)),
-            Self::Record(rec) => rec.iter().any(|(_, tp)| tp.contains_tp(target)),
+            Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
+                rec.iter().any(|(_, tp)| tp.contains_tp(target))
+            }
             Self::Lambda(lambda) => lambda.body.iter().any(|tp| tp.contains_tp(target)),
             Self::UnaryOp { val, .. } => val.contains_tp(target),
             Self::BinOp { lhs, rhs, .. } => lhs.contains_tp(target) || rhs.contains_tp(target),
@@ -1302,11 +1312,12 @@ impl TyParam {
             Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.contains_tp(self)),
             Self::UnsizedArray(elem) => elem.contains_tp(self),
             Self::Set(ts) => ts.iter().any(|t| t.contains_tp(self)),
-            Self::Record(rec) => rec.iter().any(|(_, t)| t.contains_tp(self)),
+            Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
+                rec.iter().any(|(_, t)| t.contains_tp(self))
+            }
             Self::Dict(ts) => ts
                 .iter()
                 .any(|(k, v)| k.contains_tp(self) || v.contains_tp(self)),
-            Self::DataClass { fields, .. } => fields.iter().any(|(_, t)| t.contains_tp(self)),
             Self::Type(t) => t.contains_tp(self),
             Self::Value(ValueObj::Type(t)) => t.typ().contains_tp(self),
             Self::Erased(t) => t.contains_tp(self),
@@ -1334,7 +1345,11 @@ impl TyParam {
             }
             Self::Type(t) => t.has_unbound_var(),
             Self::Proj { obj, .. } => obj.has_unbound_var(),
+            Self::ProjCall { obj, args, .. } => {
+                obj.has_unbound_var() || args.iter().any(|t| t.has_unbound_var())
+            }
             Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.has_unbound_var()),
+            Self::UnsizedArray(elem) => elem.has_unbound_var(),
             Self::Set(ts) => ts.iter().any(|t| t.has_unbound_var()),
             Self::Dict(kv) => kv
                 .iter()
@@ -1361,7 +1376,11 @@ impl TyParam {
             Self::FreeVar(fv) => fv.is_undoable_linked(),
             Self::Type(t) => t.has_undoable_linked_var(),
             Self::Proj { obj, .. } => obj.has_undoable_linked_var(),
+            Self::ProjCall { obj, args, .. } => {
+                obj.has_undoable_linked_var() || args.iter().any(|t| t.has_undoable_linked_var())
+            }
             Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.has_undoable_linked_var()),
+            Self::UnsizedArray(elem) => elem.has_undoable_linked_var(),
             Self::Set(ts) => ts.iter().any(|t| t.has_undoable_linked_var()),
             Self::Dict(kv) => kv
                 .iter()
@@ -1386,9 +1405,13 @@ impl TyParam {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().union_size(),
             Self::Type(t) => t.union_size(),
             Self::Proj { obj, .. } => obj.union_size(),
+            Self::ProjCall { obj, args, .. } => obj
+                .union_size()
+                .max(args.iter().map(|t| t.union_size()).max().unwrap_or(1)),
             Self::Array(ts) | Self::Tuple(ts) => {
                 ts.iter().map(|t| t.union_size()).max().unwrap_or(1)
             }
+            Self::UnsizedArray(elem) => elem.union_size(),
             Self::Set(ts) => ts.iter().map(|t| t.union_size()).max().unwrap_or(1),
             Self::Dict(kv) => kv
                 .iter()
@@ -1797,6 +1820,7 @@ impl TyParam {
                     t.dereference();
                 }
             }
+            Self::UnsizedArray(elem) => elem.dereference(),
             Self::Set(ts) => {
                 let ts_ = std::mem::take(ts);
                 *ts = ts_

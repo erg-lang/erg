@@ -74,6 +74,11 @@ fn exec_comprehension() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_comptime() -> Result<(), ()> {
+    expect_success("tests/should_ok/comptime.er", 12)
+}
+
+#[test]
 fn exec_container_class() -> Result<(), ()> {
     expect_success("tests/should_ok/container_class.er", 0)
 }
