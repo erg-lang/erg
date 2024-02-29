@@ -1654,6 +1654,11 @@ impl Parser {
         };
         if self.cur_is(Colon) {
             self.lpop();
+            if self.cur_is(EOF) {
+                let err = ParseError::expect_next_line_error(line!() as usize, op.loc(), "Lambda");
+                self.errs.push(err);
+                return Err(());
+            }
             let body = self
                 .try_reduce_block()
                 .map_err(|_| self.stack_dec(fn_name!()))?;
@@ -2096,6 +2101,15 @@ impl Parser {
                         break;
                     }
                     let op = self.lpop();
+                    if self.cur_is(EOF) {
+                        let err = ParseError::expect_next_line_error(
+                            line!() as usize,
+                            op.loc(),
+                            "Lambda",
+                        );
+                        self.errs.push(err);
+                        return Err(());
+                    }
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let t_spec_as_expr = self
                         .try_reduce_expr(false, in_type_args, in_brace, false)
