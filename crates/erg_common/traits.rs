@@ -792,6 +792,7 @@ pub trait Runnable: Sized + Default + New {
                         ":clear" | ":cln" => {
                             output.write_all("\x1b[2J\x1b[1;1H".as_bytes()).unwrap();
                             output.flush().unwrap();
+                            instance.input().set_block_begin();
                             vm.clear();
                             instance.clear();
                             continue;
@@ -891,9 +892,6 @@ pub trait Runnable: Sized + Default + New {
                         }
                         // single eval
                         BlockKind::None => {
-                            if vm.length == 1 {
-                                instance.input().set_block_begin();
-                            }
                             vm.push_code(indent.as_str());
                             instance.input().insert_whitespace(indent.as_str());
                             vm.push_code(line);
@@ -930,9 +928,6 @@ pub trait Runnable: Sized + Default + New {
                         }
                         // expect block
                         _ => {
-                            if vm.length == 1 {
-                                instance.input().set_block_begin();
-                            }
                             vm.push_code(indent.as_str());
                             instance.input().insert_whitespace(indent.as_str());
                             vm.push_block_kind(bk);

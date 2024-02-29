@@ -302,7 +302,7 @@ impl GlobalStdin {
     }
 
     pub fn set_block_begin(&'static self, n: usize) {
-        self.get().borrow_mut().block_begin = n - 1;
+        self.get().borrow_mut().block_begin = n;
     }
 
     pub fn set_indent(&'static self, n: usize) {
