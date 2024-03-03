@@ -706,6 +706,12 @@ impl Parser {
             .opt_reduce_decorator()
             .map_err(|_| self.stack_dec(fn_name!()))?
         {
+            if self.cur_is(EOF) {
+                let err =
+                    ParseError::expect_next_line_error(line!() as usize, deco.0.loc(), "AtMark");
+                self.errs.push(err);
+                return Err(());
+            }
             decs.insert(deco);
             expect_pop!(self, fail_next Newline);
         }
@@ -853,6 +859,12 @@ impl Parser {
 
     fn try_reduce_array_elems(&mut self) -> ParseResult<ArrayInner> {
         debug_call_info!(self);
+        if self.cur_is(EOF) {
+            let tk = self.tokens.last().unwrap();
+            let err = ParseError::expect_next_line_error(line!() as usize, tk.loc(), "Collections");
+            self.errs.push(err);
+            return Err(());
+        }
         if self.cur_category_is(TC::REnclosure) {
             let args = Args::empty();
             debug_exit_info!(self);
@@ -2866,7 +2878,12 @@ impl Parser {
     fn try_reduce_brace_container(&mut self) -> ParseResult<BraceContainer> {
         debug_call_info!(self);
         let l_brace = expect_pop!(self, fail_next LBrace);
-
+        if self.cur_is(EOF) {
+            let err =
+                ParseError::expect_next_line_error(line!() as usize, l_brace.loc(), "Collections");
+            self.errs.push(err);
+            return Err(());
+        }
         // Empty brace literals
         match self.peek_kind() {
             Some(RBrace) => {
