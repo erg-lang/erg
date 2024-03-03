@@ -817,7 +817,10 @@ pub trait Runnable: Sized + Default + New {
                                 continue;
                             }
                             match instance.eval(mem::take(&mut vm.codes)) {
-                                Ok(out) if out.is_empty() => continue,
+                                Ok(out) if out.is_empty() => {
+                                    instance.input().set_block_begin();
+                                    continue;
+                                }
                                 Ok(out) => {
                                     output.write_all((out + "\n").as_bytes()).unwrap();
                                     output.flush().unwrap();
