@@ -1,0 +1,15 @@
+.Set!: ClassType
+.Set!.
+    '''erg
+    s = !{}
+    s2 = s.copy()
+    s.add!(1)
+    assert s2 == {}
+    '''
+    copy: (self: Ref Set!) -> Set!
+    '''erg
+    s = !{}
+    s.add!(1)
+    assert s == {1}
+    '''
+    add!: |T|(self: RefMut(Set!(T)), x: T) => NoneType

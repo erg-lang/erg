@@ -163,3 +163,6 @@ class IntMut(MutType):  # inherits Int
 
     def pred(self):
         return self.value.pred()
+
+    def copy(self):
+        return IntMut(self.value)

@@ -158,3 +158,6 @@ class FloatMut(MutType):  # inherits Float
 
     def dec(self, value=1.0):
         self.value = Float(self.value - value)
+
+    def copy(self):
+        return FloatMut(self.value)

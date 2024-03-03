@@ -2152,8 +2152,10 @@ impl Context {
         )
         .quantify();
         dict_.register_py_builtin(FUNC_GET, get_t, Some(FUNC_GET), 9);
-        let copy_t = fn0_met(dict_t.clone(), dict_t.clone()).quantify();
-        dict_.register_py_builtin(COPY, copy_t, Some(COPY), 7);
+        let copy_t = fn0_met(ref_(dict_t.clone()), dict_t.clone()).quantify();
+        let mut dict_copy = Self::builtin_methods(Some(mono(COPY)), 1);
+        dict_copy.register_py_builtin(FUNC_COPY, copy_t, Some(FUNC_COPY), 7);
+        dict_.register_trait(dict_t.clone(), dict_copy);
         let D2 = mono_q_tp(TY_D2, instanceof(mono(GENERIC_DICT)));
         let other_dict_t = poly(DICT, vec![D2.clone()]);
         let dict_concat_t = fn1_met(
@@ -2555,18 +2557,20 @@ impl Context {
             .register_marker_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
             .unwrap();
         let t = fn0_met(fset_t.clone(), fset_t.clone()).quantify();
-        frozenset.register_py_builtin(COPY, t, Some(COPY), 3);
-        let bin_t = fn1_met(fset_t.clone(), fset_t.clone(), fset_t.clone()).quantify();
-        frozenset.register_py_builtin(DIFFERENCE, bin_t.clone(), Some(DIFFERENCE), 3);
-        frozenset.register_py_builtin(INTERSECTION, bin_t.clone(), Some(INTERSECTION), 3);
+        let mut frozenset_copy = Self::builtin_methods(Some(mono(COPY)), 1);
+        frozenset_copy.register_py_builtin(FUNC_COPY, t, Some(FUNC_COPY), 3);
+        frozenset.register_trait(fset_t.clone(), frozenset_copy);
+        let bin_t = fn1_met(ref_(fset_t.clone()), fset_t.clone(), fset_t.clone()).quantify();
+        frozenset.register_py_builtin(FUNC_DIFFERENCE, bin_t.clone(), Some(FUNC_DIFFERENCE), 3);
+        frozenset.register_py_builtin(FUNC_INTERSECTION, bin_t.clone(), Some(FUNC_INTERSECTION), 3);
         let bool_t = fn1_met(fset_t.clone(), fset_t.clone(), Bool).quantify();
-        frozenset.register_py_builtin(ISDISJOINT, bool_t.clone(), Some(ISDISJOINT), 3);
-        frozenset.register_py_builtin(ISSUBSET, bool_t.clone(), Some(ISSUBSET), 3);
-        frozenset.register_py_builtin(ISSUPERSET, bool_t, Some(ISSUPERSET), 3);
+        frozenset.register_py_builtin(FUNC_ISDISJOINT, bool_t.clone(), Some(FUNC_ISDISJOINT), 3);
+        frozenset.register_py_builtin(FUNC_ISSUBSET, bool_t.clone(), Some(FUNC_ISSUBSET), 3);
+        frozenset.register_py_builtin(FUNC_ISSUPERSET, bool_t, Some(FUNC_ISSUPERSET), 3);
         frozenset.register_py_builtin(
-            SYMMETRIC_DIFFERENCE,
+            FUNC_SYMMETRIC_DIFFERENCE,
             bin_t.clone(),
-            Some(SYMMETRIC_DIFFERENCE),
+            Some(FUNC_SYMMETRIC_DIFFERENCE),
             3,
         );
         frozenset.register_py_builtin(FUNC_UNION, bin_t, Some(FUNC_UNION), 3);
@@ -2651,6 +2655,14 @@ impl Context {
             Some(FUNC_DEC),
         );
         float_mut.register_trait(mono(MUT_FLOAT), float_mut_mutable);
+        let mut float_mut_copy = Self::builtin_methods(Some(mono(COPY)), 1);
+        float_mut_copy.register_builtin_erg_impl(
+            FUNC_COPY,
+            fn0_met(ref_(mono(MUT_FLOAT)), mono(MUT_FLOAT)),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        float_mut.register_trait(mono(MUT_FLOAT), float_mut_copy);
         /* Ratio! */
         let mut ratio_mut = Self::builtin_mono_class(MUT_RATIO, 2);
         ratio_mut.register_superclass(Ratio, &ratio);
@@ -2677,6 +2689,14 @@ impl Context {
             Some(FUNC_UPDATE),
         );
         ratio_mut.register_trait(mono(MUT_RATIO), ratio_mut_mutable);
+        let mut ratio_mut_copy = Self::builtin_methods(Some(mono(COPY)), 1);
+        ratio_mut_copy.register_builtin_erg_impl(
+            FUNC_COPY,
+            fn0_met(ref_(mono(MUT_RATIO)), mono(MUT_RATIO)),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        ratio_mut.register_trait(mono(MUT_RATIO), ratio_mut_copy);
         /* Int! */
         let mut int_mut = Self::builtin_mono_class(MUT_INT, 2);
         int_mut.register_superclass(Int, &int);
@@ -2719,6 +2739,14 @@ impl Context {
             Some(FUNC_UPDATE),
         );
         int_mut.register_trait(mono(MUT_INT), int_mut_mutable);
+        let mut int_mut_copy = Self::builtin_methods(Some(mono(COPY)), 1);
+        int_mut_copy.register_builtin_erg_impl(
+            FUNC_COPY,
+            fn0_met(ref_(mono(MUT_INT)), mono(MUT_INT)),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        int_mut.register_trait(mono(MUT_INT), int_mut_copy);
         let mut nat_mut = Self::builtin_mono_class(MUT_NAT, 2);
         nat_mut.register_superclass(Nat, &nat);
         nat_mut.register_superclass(mono(MUT_INT), &int_mut);
@@ -2746,6 +2774,14 @@ impl Context {
             Some(FUNC_UPDATE),
         );
         nat_mut.register_trait(mono(MUT_NAT), nat_mut_mutable);
+        let mut nat_mut_copy = Self::builtin_methods(Some(mono(COPY)), 1);
+        nat_mut_copy.register_builtin_erg_impl(
+            FUNC_COPY,
+            fn0_met(ref_(mono(MUT_NAT)), mono(MUT_NAT)),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        nat_mut.register_trait(mono(MUT_NAT), nat_mut_copy);
         /* Bool! */
         let mut bool_mut = Self::builtin_mono_class(MUT_BOOL, 2);
         bool_mut.register_superclass(Bool, &bool_);
@@ -2773,6 +2809,14 @@ impl Context {
             Some(FUNC_UPDATE),
         );
         bool_mut.register_trait(mono(MUT_BOOL), bool_mut_mutable);
+        let mut bool_mut_copy = Self::builtin_methods(Some(mono(COPY)), 1);
+        bool_mut_copy.register_builtin_erg_impl(
+            FUNC_COPY,
+            fn0_met(ref_(mono(MUT_BOOL)), mono(MUT_BOOL)),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        bool_mut.register_trait(mono(MUT_BOOL), bool_mut_copy);
         let t = pr0_met(mono(MUT_BOOL), NoneType);
         bool_mut.register_builtin_py_impl(
             PROC_INVERT,
@@ -2807,6 +2851,14 @@ impl Context {
             Some(FUNC_UPDATE),
         );
         str_mut.register_trait(mono(MUT_STR), str_mut_mutable);
+        let mut str_mut_copy = Self::builtin_methods(Some(mono(COPY)), 1);
+        str_mut_copy.register_builtin_erg_impl(
+            FUNC_COPY,
+            fn0_met(ref_(mono(MUT_STR)), mono(MUT_STR)),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        str_mut.register_trait(mono(MUT_STR), str_mut_copy);
         let t = pr_met(
             ref_mut(mono(MUT_STR), None),
             vec![kw(KW_S, Str)],
@@ -2920,8 +2972,10 @@ impl Context {
         )
         .quantify();
         array_mut_.register_py_builtin(PROC_PUSH, t, Some(FUNC_APPEND), 15);
-        let t_copy = pr0_met(ref_(array_mut_t.clone()), array_mut_t.clone()).quantify();
-        array_mut_.register_py_builtin(FUNC_COPY, t_copy, Some(FUNC_COPY), 116);
+        let t_copy = fn0_met(ref_(array_mut_t.clone()), array_mut_t.clone()).quantify();
+        let mut array_mut_copy = Self::builtin_methods(Some(mono(COPY)), 2);
+        array_mut_copy.register_py_builtin(FUNC_COPY, t_copy, Some(FUNC_COPY), 116);
+        array_mut_.register_trait(array_mut_t.clone(), array_mut_copy);
         let t_extend = pr_met(
             ref_mut(
                 array_mut_t.clone(),
@@ -3061,14 +3115,16 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_APPEND),
         );
-        let t_copy = pr0_met(bytearray_mut_t.clone(), bytearray_mut_t.clone());
-        bytearray_mut.register_builtin_py_impl(
+        let t_copy = fn0_met(ref_(bytearray_mut_t.clone()), bytearray_mut_t.clone());
+        let mut bytearray_mut_copy = Self::builtin_methods(Some(mono(COPY)), 2);
+        bytearray_mut_copy.register_builtin_py_impl(
             FUNC_COPY,
             t_copy,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_COPY),
         );
+        bytearray_mut.register_trait(bytearray_mut_t.clone(), bytearray_mut_copy);
         let t_extend = pr_met(
             ref_mut(bytearray_mut_t.clone(), None),
             vec![kw(
@@ -3205,6 +3261,14 @@ impl Context {
         let mut set_mut_ =
             Self::builtin_poly_class(MUT_SET, vec![PS::t_nd(TY_T), PS::named_nd(TY_N, Nat)], 2);
         set_mut_.register_superclass(set_t.clone(), &set_);
+        let mut set_mut_copy = Self::builtin_methods(Some(mono(COPY)), 1);
+        set_mut_copy.register_py_builtin(
+            FUNC_COPY,
+            fn0_met(ref_(set_mut_t.clone()), set_mut_t.clone()).quantify(),
+            Some(FUNC_COPY),
+            9,
+        );
+        set_mut_.register_trait(set_mut_t.clone(), set_mut_copy);
         // `add!` will erase N
         let t = pr_met(
             ref_mut(

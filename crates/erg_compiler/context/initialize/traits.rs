@@ -32,6 +32,10 @@ impl Context {
         let mut sized = Self::builtin_mono_trait(SIZED, 2);
         let t = fn0_met(mono(SIZED), Nat).quantify();
         sized.register_builtin_erg_decl(FUNDAMENTAL_LEN, t, Visibility::BUILTIN_PUBLIC);
+        let mut copy = Self::builtin_mono_trait(COPY, 2);
+        let Slf = mono_q(SELF, subtypeof(mono(COPY)));
+        let t = fn0_met(Slf.clone(), Slf).quantify();
+        copy.register_builtin_erg_decl(FUNC_COPY, t, Visibility::BUILTIN_PUBLIC);
         let mut mutable = Self::builtin_mono_trait(MUTABLE, 2);
         let Slf = mono_q(SELF, subtypeof(mono(IMMUTIZABLE)));
         let immut_t = proj(Slf.clone(), IMMUT_TYPE);
@@ -451,6 +455,7 @@ impl Context {
         );
         self.register_builtin_type(mono(NAMED), named, vis.clone(), Const, None);
         self.register_builtin_type(mono(SIZED), sized, vis.clone(), Const, None);
+        self.register_builtin_type(mono(COPY), copy, vis.clone(), Const, None);
         self.register_builtin_type(mono(MUTABLE), mutable, vis.clone(), Const, None);
         self.register_builtin_type(mono(IMMUTIZABLE), immutizable, vis.clone(), Const, None);
         self.register_builtin_type(mono(MUTIZABLE), mutizable, vis.clone(), Const, None);
