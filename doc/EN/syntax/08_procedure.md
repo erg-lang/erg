@@ -32,34 +32,40 @@ func(x: Int) = y => print! x, y # NG
 ```
 
 ## Binding
+
 Procedures can manipulate mutable variables that are out of scope.
+
 ```python
 x = ! 0
 proc! () =
- x.inc! ()
+    x.inc! ()
 proc! ()
 assert x == 1
 ```
+
 In this case, 'proc!' has the following type.
+
 ```python
 proc!: {| x: Int! |} () => ()
 ```
+
 `{| x: Int! |} The ' part is called the bind column and represents the variable and its type that the procedure operates on.
 Binding columns are derived automatically, so you don't need to write them explicitly.
 Note that normal procedures can only manipulate predetermined external variables. This means that variables passed in arguments cannot be rewritten.
 If you want to do something like that, you need to use procedural methods. Procedural methods can rewrite 'self'.
+
 ```python
 C! N = Class {arr = [Int; N]!}
 C!.
- new() = Self! (0)::__new__ {arr = ![]}
-C! (N).
-    # push!: {|self: C!( N) ~> C! (N+1)|} (self: RefMut(C!( N)), x: Int) => NoneType
- push! ref! self, x = self.arr.push! (x)
-    # pop!: {|self: C!( N) ~> C! (N-1)|} (self: RefMut(C!( N))) => Int
- pop! ref! self = self.arr.pop! ()
-c = C!. new()
-c.push! (1)
-assert c.pop! () ==  1
+    new() = Self!(0) {arr = ![]}
+C!(N).
+    # push!: {|self: C!(N) ~> C!(N+1)|} (self: RefMut(C!(N)), x: Int) => NoneType
+    push! ref! self, x = self.arr.push! (x)
+    # pop!: {|self: C!(N) ~> C!(N-1)|} (self: RefMut(C!(N))) => Int
+    pop! ref! self = self.arr.pop! ()
+c = C!.new()
+c.push!(1)
+assert c.pop!() ==  1
 ```
 
 <p align='center'>

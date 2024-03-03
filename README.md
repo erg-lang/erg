@@ -109,7 +109,7 @@
     # Code that uses a lot of side effects is redundant, so you will naturally write pure code
     Counter! = Inherit Int!
     Counter!.
-        new i: Int = Self!::__new__ !i
+        new i: Int = Counter! !i
         inc! ref! self =
             self.update! old -> old + 1
 

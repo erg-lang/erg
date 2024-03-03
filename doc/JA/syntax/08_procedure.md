@@ -61,7 +61,7 @@ proc!: {|x: Int!|}() => ()
 ```python
 C! N = Class {arr = [Int; N]!}
 C!.
-    new() = Self!(0)::__new__ {arr = ![]}
+    new() = Self!(0) {arr = ![]}
 C!(N).
     # push!: {|self: C!(N) ~> C!(N+1)|}(self: RefMut(C!(N)), x: Int) => NoneType
     push! ref! self, x = self.arr.push!(x)

@@ -109,7 +109,7 @@
     # 使用大量副作用的代码是多余的，所以你自然会写纯代码
     Counter! = Inherit Int!
     Counter!.
-        new i: Int = Self!::__new__ !i
+        new i: Int = Counter! !i
         inc! ref! self =
             self.update! old -> old + 1
 

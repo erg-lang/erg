@@ -35,7 +35,7 @@ Also, overloading of types with different numbers of arguments can be reproduced
 ```python
 C = Class {.x = Int; .y = Int}
 C.
-    new(x, y := 0) = Self::__new__ {.x; .y}
+    new(x, y := 0) = Self {.x; .y}
 
 assert C.new(0, 0) == C.new(0)
 ```

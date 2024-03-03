@@ -19,7 +19,7 @@ UserId = Class {id = Nat}
 UserId.
     new id: Nat =
         assert id.dights().len() == 8, else: "UserId must be a positive number with length 8"
-        UserId::__new__ {id;}
+        UserId {id;}
 
 i = UserId.new(10000000)
 print! i # <__main__.UserId object>

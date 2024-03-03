@@ -37,7 +37,7 @@ assert add1(1.0) == 2.0
 ```python
 C = Class {.x = Int; .y = Int}
 C.
-    new(x, y := 0) = Self::__new__ {.x; .y}
+    new(x, y := 0) = Self {.x; .y}
 
 assert C.new(0, 0) == C.new(0)
 ```

@@ -7,9 +7,8 @@ Erg 中的类大致是一种可以创建自己的元素(实例)的类型
 
 ```python
 Person = Class {.name = Str; .age = Nat}
-# 如果 `.new` 没有定义，那么 Erg 将创建 `Person.new = Person::__new__`
 Person.
-    new name, age = Self::__new__ {.name = name; .age = age}
+    new name, age = Self {.name = name; .age = age}
 
 john = Person.new "John Smith", 25
 print! john # <Person object>
@@ -17,7 +16,7 @@ print! classof(john) # Person
 ```
 
 赋予"Class"的类型(通常是记录类型)称为需求类型(在本例中为"{.name = Str; .age = Nat}")
-可以使用 `<Class name>::__new__ {<attribute name> = <value>; 创建实例 ...}` 可以创建
+可以使用 `<Class name> {<attribute name> = <value>; 创建实例 ...}` 可以创建
 `{.name = "约翰·史密斯"; .age = 25}` 只是一条记录，但它通过传递 `Person.new` 转换为 `Person` 实例
 创建此类实例的子例程称为构造函数
 在上面的类中，`.new` 方法被定义为可以省略字段名等

@@ -7,9 +7,8 @@ Ergにおけるクラスは、大まかには自身の要素(インスタンス)
 
 ```python
 Person = Class {.name = Str; .age = Nat}
-# .newが定義されなかった場合、自動で`Person.new = Person::__new__`となる
 Person.
-    new name, age = Self::__new__ {.name = name; .age = age}
+    new name, age = Self {.name = name; .age = age}
 
 john = Person.new "John Smith", 25
 print! john # <Person object>
@@ -17,8 +16,8 @@ print! classof(john) # Person
 ```
 
 `Class`に与えられる型を要件型(この場合は`{.name = Str; .age = Nat}`)といいます。
-インスタンスは`クラス名::__new__ {属性名 = 値; ...}`で生成できます。
-`{.name = "John Smith"; .age = 25}`は単なるレコードですが、`Person.new`を通すことで`Person`インスタンスに変換されるわけです。
+インスタンスは`クラス名 {属性名 = 値; ...}`で生成できます。
+`{.name = "John Smith"; .age = 25}`は単なるレコードですが、コンストラクタまたは`Person.new`を通すことで`Person`インスタンスに変換されるわけです。
 このようなインスタンスを生成するサブルーチンはコンストラクタと呼ばれます。
 上のクラスでは、フィールド名等を省略できるように`.new`メソッドを定義しています。
 
@@ -31,7 +30,7 @@ Person.new name, age = ... # SyntaxError: cannot define attributes directly on a
 ## 省略記法
 
 レコードでない型`T`に対し`C = Class T`とすると、これは`C = Class {base = T}`と同じ意味になります。これはいわゆるnew typeパターンの定義を簡略化するためのものです。
-また、コンストラクタ`__new__`/`new`もレコードで包まず`T`型オブジェクトを直接渡せます。
+また、コンストラクタ/`new`もレコードで包まず`T`型オブジェクトを直接渡せます。
 
 ```python
 Id = Class {base = Int}

@@ -7,9 +7,8 @@ Erg 中的類大致是一種可以創建自己的元素(實例)的類型
 
 ```python
 Person = Class {.name = Str; .age = Nat}
-# 如果 `.new` 沒有定義，那么 Erg 將創建 `Person.new = Person::__new__`
 Person.
-    new name, age = Self::__new__ {.name = name; .age = age}
+    new name, age = Self {.name = name; .age = age}
 
 john = Person.new "John Smith", 25
 print! john # <Person object>
@@ -17,7 +16,7 @@ print! classof(john) # Person
 ```
 
 賦予"Class"的類型(通常是記錄類型)稱為需求類型(在本例中為"{.name = Str; .age = Nat}")
-可以使用 `<Class name>::__new__ {<attribute name> = <value>; 創建實例 ...}` 可以創建
+可以使用 `<Class name> {<attribute name> = <value>; 創建實例 ...}` 可以創建
 `{.name = "約翰·史密斯"; .age = 25}` 只是一條記錄，但它通過傳遞 `Person.new` 轉換為 `Person` 實例
 創建此類實例的子例程稱為構造函數
 在上面的類中，`.new` 方法被定義為可以省略字段名等
@@ -32,7 +31,7 @@ Person.new name, age = ... # 語法錯誤: 不能直接在對象上定義屬性
 
 對于非記錄類型`T` '`，可以通過`' `C = class T`定義類`C`。這是一個簡寫符號，相當于`C = Class {base = T}`。
 這是為了簡化所謂“新型模式”的定義。
-同樣，構造函數 `__new__` /  `new`可以直接傳遞給`T`類型對象，而無需將其包裝在記錄中
+同樣，構造函數 `__new__` / `new`可以直接傳遞給`T`類型對象，而無需將其包裝在記錄中
 
 ```python
 Id = Class {base = Int}
