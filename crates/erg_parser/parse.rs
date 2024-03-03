@@ -1037,7 +1037,8 @@ impl Parser {
             Some(t)
                 if (t.is(Dot) || t.is(DblColon))
                     && !self.nth_is(1, Newline)
-                    && !self.nth_is(1, LBrace) =>
+                    && !self.nth_is(1, LBrace)
+                    && !self.nth_is(1, LSqBr) =>
             {
                 Some(self.try_reduce_args(in_type_args))
             }
@@ -1822,9 +1823,10 @@ impl Parser {
                     ));
                 }
                 Some(t) if t.is(DblColon) => {
-                    let vis = VisModifierSpec::ExplicitPrivate(self.lpop());
-                    match self.lpop() {
-                        symbol if symbol.is(Symbol) => {
+                    let dcolon = self.lpop();
+                    let token = self.lpop();
+                    match token.kind {
+                        Symbol => {
                             let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
                                 let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
                                 self.errs.push(err);
@@ -1837,16 +1839,17 @@ impl Parser {
                                 .map_err(|_| self.stack_dec(fn_name!()))?
                             {
                                 let ident =
-                                    Identifier::new(VisModifierSpec::Private, VarName::new(symbol));
+                                    Identifier::new(VisModifierSpec::Private, VarName::new(token));
                                 let call = Call::new(obj, Some(ident), args);
                                 stack.push(ExprOrOp::Expr(Expr::Call(call)));
                             } else {
                                 let ident =
-                                    Identifier::new(VisModifierSpec::Private, VarName::new(symbol));
+                                    Identifier::new(VisModifierSpec::Private, VarName::new(token));
                                 stack.push(ExprOrOp::Expr(obj.attr_expr(ident)));
                             }
                         }
-                        line_break if line_break.is(Newline) => {
+                        Newline => {
+                            let vis = VisModifierSpec::ExplicitPrivate(dcolon);
                             let maybe_class = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                             let defs = self
                                 .try_reduce_class_attr_defs(maybe_class, vis)
@@ -1856,9 +1859,26 @@ impl Parser {
                             debug_exit_info!(self);
                             return Ok(expr);
                         }
-                        l_brace if l_brace.is(LBrace) => {
+                        LSqBr => {
+                            self.restore(token);
+                            let restriction = self
+                                .try_reduce_restriction()
+                                .map_err(|_| self.stack_dec(fn_name!()))?;
+                            let vis = VisModifierSpec::Restricted(restriction);
+                            expect_pop!(self, Newline);
                             let maybe_class = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                            self.restore(l_brace);
+                            let defs = self
+                                .try_reduce_class_attr_defs(maybe_class, vis)
+                                .map_err(|_| self.stack_dec(fn_name!()))?;
+                            let expr = Expr::Methods(defs);
+                            assert_eq!(stack.len(), 0);
+                            debug_exit_info!(self);
+                            return Ok(expr);
+                        }
+                        LBrace => {
+                            let vis = VisModifierSpec::ExplicitPrivate(dcolon);
+                            let maybe_class = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                            self.restore(token);
                             let container = self
                                 .try_reduce_brace_container()
                                 .map_err(|_| self.stack_dec(fn_name!()))?;
@@ -1879,8 +1899,8 @@ impl Parser {
                                 }
                             }
                         }
-                        other => {
-                            self.restore(other);
+                        _ => {
+                            self.restore(token);
                             let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
                             self.errs.push(err);
                             debug_exit_info!(self);
@@ -1890,8 +1910,9 @@ impl Parser {
                 }
                 Some(t) if t.is(Dot) => {
                     let dot = self.lpop();
-                    match self.lpop() {
-                        symbol if symbol.is(Symbol) => {
+                    let token = self.lpop();
+                    match token.kind {
+                        Symbol => {
                             let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
                                 let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
                                 self.errs.push(err);
@@ -1903,15 +1924,15 @@ impl Parser {
                                 .transpose()
                                 .map_err(|_| self.stack_dec(fn_name!()))?
                             {
-                                let ident = Identifier::public_from_token(dot, symbol);
+                                let ident = Identifier::public_from_token(dot, token);
                                 let call = Expr::Call(Call::new(obj, Some(ident), args));
                                 stack.push(ExprOrOp::Expr(call));
                             } else {
-                                let ident = Identifier::public_from_token(dot, symbol);
+                                let ident = Identifier::public_from_token(dot, token);
                                 stack.push(ExprOrOp::Expr(obj.attr_expr(ident)));
                             }
                         }
-                        line_break if line_break.is(Newline) => {
+                        Newline => {
                             let vis = VisModifierSpec::Public(dot);
                             let maybe_class = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                             let defs = self
@@ -1920,8 +1941,8 @@ impl Parser {
                             debug_exit_info!(self);
                             return Ok(Expr::Methods(defs));
                         }
-                        other => {
-                            self.restore(other);
+                        _ => {
+                            self.restore(token);
                             let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
                             self.errs.push(err);
                             debug_exit_info!(self);
@@ -2698,7 +2719,7 @@ impl Parser {
                             }
                         }
                         // MethodDefs
-                        Newline => {
+                        Newline | LSqBr => {
                             self.restore(token);
                             self.restore(vis);
                             break;
