@@ -1617,6 +1617,13 @@ impl Block {
         }
         None
     }
+
+    pub fn get_def(&self, name: &str) -> Option<&Def> {
+        self.0.iter().find_map(|e| match e {
+            Expr::Def(def) if def.sig.ident().inspect() == name => Some(def),
+            _ => None,
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

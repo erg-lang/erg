@@ -3473,8 +3473,9 @@ impl PyCodeGenerator {
         self.emit_store_instr(Identifier::static_public("__qualname__"), Name);
         let mut methods = ClassDef::take_all_methods(class.methods_list);
         let __init__ = methods
-            .remove_def("__init__")
-            .or_else(|| methods.remove_def("__init__!"));
+            .get_def("__init__")
+            .or_else(|| methods.get_def("__init__!"))
+            .cloned();
         self.emit_init_method(&class.sig, __init__, class.__new__.clone());
         if class.need_to_gen_new {
             self.emit_new_func(&class.sig, class.__new__);
@@ -3570,9 +3571,6 @@ impl PyCodeGenerator {
             vec![],
         );
         let mut attrs = vec![];
-        if let Some(__init__) = __init__ {
-            attrs.extend(__init__.body.block.clone());
-        }
         match new_first_param.map(|pt| pt.typ()) {
             // namedtupleは仕様上::xなどの名前を使えない
             // {x = Int; y = Int}
@@ -3611,6 +3609,9 @@ impl PyCodeGenerator {
                 attrs.push(Expr::ReDef(redef));
             }
             None => {}
+        }
+        if let Some(__init__) = __init__ {
+            attrs.extend(__init__.body.block.clone());
         }
         let none = Token::new_fake(TokenKind::NoneLit, "None", line, 0, 0);
         attrs.push(Expr::Literal(Literal::new(ValueObj::None, none)));
