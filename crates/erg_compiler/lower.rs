@@ -2301,9 +2301,8 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 self.errs.extend(err);
             }
         }
-        let Some(__new__) = class_ctx
-            .get_current_scope_var(&VarName::from_static("__new__"))
-            .or(class_ctx.get_current_scope_var(&VarName::from_static("__call__")))
+        let Some(constructor) =
+            class_ctx.get_class_attr(&VarName::from_static("__call__"), &self.module.context)
         else {
             return unreachable_error!(LowerErrors, LowerError, self);
         };
@@ -2316,7 +2315,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             hir_def.sig,
             require_or_sup,
             need_to_gen_new,
-            __new__.t.clone(),
+            constructor.t.clone(),
             hir_methods_list,
         ))
     }

@@ -1157,7 +1157,7 @@ impl PyScriptGenerator {
             "{}def __init__(self, param__):\n",
             "    ".repeat(self.level + 1)
         );
-        match classdef.__new__.non_default_params().unwrap()[0].typ() {
+        match classdef.constructor.non_default_params().unwrap()[0].typ() {
             Type::Record(rec) => {
                 for field in rec.keys() {
                     let vis = if field.vis.is_private() { "__" } else { "" };

@@ -2435,7 +2435,7 @@ pub struct ClassDef {
     pub require_or_sup: Option<Box<Expr>>,
     /// The type of `new` that is automatically defined if not defined
     pub need_to_gen_new: bool,
-    pub __new__: Type,
+    pub constructor: Type,
     pub methods_list: Vec<Methods>,
 }
 
@@ -2488,7 +2488,7 @@ impl ClassDef {
         sig: Signature,
         require_or_sup: Option<Expr>,
         need_to_gen_new: bool,
-        __new__: Type,
+        constructor: Type,
         methods_list: Vec<Methods>,
     ) -> Self {
         Self {
@@ -2496,7 +2496,7 @@ impl ClassDef {
             sig,
             require_or_sup: require_or_sup.map(Box::new),
             need_to_gen_new,
-            __new__,
+            constructor,
             methods_list,
         }
     }

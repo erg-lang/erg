@@ -167,6 +167,27 @@ impl Context {
             })
     }
 
+    pub(crate) fn get_current_scope_attr(&self, name: &VarName) -> Option<&VarInfo> {
+        #[cfg(feature = "py_compat")]
+        let search_name = self
+            .erg_to_py_names
+            .get(name.inspect())
+            .unwrap_or(name.inspect());
+        #[cfg(not(feature = "py_compat"))]
+        let search_name = name.inspect();
+        self.locals
+            .get(search_name)
+            .or_else(|| self.decls.get(search_name))
+            .or_else(|| {
+                for methods in self.methods_list.iter() {
+                    if let Some(vi) = methods.get_current_scope_attr(name) {
+                        return Some(vi);
+                    }
+                }
+                None
+            })
+    }
+
     pub(crate) fn get_method_context_of(&self, trait_: &Type) -> Option<&MethodContext> {
         #[allow(clippy::manual_find)]
         for methods in self.methods_list.iter() {

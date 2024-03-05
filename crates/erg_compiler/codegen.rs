@@ -3476,9 +3476,9 @@ impl PyCodeGenerator {
             .get_def("__init__")
             .or_else(|| methods.get_def("__init__!"))
             .cloned();
-        self.emit_init_method(&class.sig, __init__, class.__new__.clone());
+        self.emit_init_method(&class.sig, __init__, class.constructor.clone());
         if class.need_to_gen_new {
-            self.emit_new_func(&class.sig, class.__new__);
+            self.emit_new_func(&class.sig, class.constructor);
         }
         let __del__ = methods
             .remove_def("__del__")
@@ -3526,16 +3526,16 @@ impl PyCodeGenerator {
         unit.codeobj
     }
 
-    fn emit_init_method(&mut self, sig: &Signature, __init__: Option<Def>, __new__: Type) {
+    fn emit_init_method(&mut self, sig: &Signature, __init__: Option<Def>, constructor: Type) {
         log!(info "entered {}", fn_name!());
-        let new_first_param = __new__.non_default_params().unwrap().first();
+        let new_first_param = constructor.non_default_params().unwrap().first();
         let line = sig.ln_begin().unwrap_or(0);
         let class_name = sig.ident().inspect();
         let mut ident = Identifier::public_with_line(DOT, Str::ever("__init__"), line);
-        ident.vi.t = __new__.clone();
+        ident.vi.t = constructor.clone();
         let self_param = VarName::from_str_and_line(Str::ever("self"), line);
         let vi = VarInfo::nd_parameter(
-            __new__.return_t().unwrap().clone(),
+            constructor.return_t().unwrap().clone(),
             ident.vi.def_loc.clone(),
             "?".into(),
         );
@@ -3622,16 +3622,16 @@ impl PyCodeGenerator {
 
     /// ```python
     /// class C:
-    ///     # __new__ => C
+    ///     # constructor => C
     ///     def new(x): return C(x)
     /// ```
-    fn emit_new_func(&mut self, sig: &Signature, __new__: Type) {
+    fn emit_new_func(&mut self, sig: &Signature, constructor: Type) {
         log!(info "entered {}", fn_name!());
         let class_ident = sig.ident();
         let line = sig.ln_begin().unwrap_or(0);
         let mut ident = Identifier::public_with_line(DOT, Str::ever("new"), line);
         let class = Expr::Accessor(Accessor::Ident(class_ident.clone()));
-        ident.vi.t = __new__;
+        ident.vi.t = constructor;
         if let Some(new_first_param) = ident.vi.t.non_default_params().unwrap().first() {
             let param_name = new_first_param
                 .name()

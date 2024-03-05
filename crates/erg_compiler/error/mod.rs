@@ -20,6 +20,18 @@ pub use crate::error::tycheck::*;
 use crate::hir::Expr;
 use crate::ty::HasType;
 
+pub(crate) fn concat_result(l: CompileResult<()>, r: CompileResult<()>) -> CompileResult<()> {
+    match (l, r) {
+        (Ok(()), Ok(())) => Ok(()),
+        (Ok(()), Err(r)) => Err(r),
+        (Err(l), Ok(())) => Err(l),
+        (Err(mut l), Err(mut r)) => {
+            l.0.append(&mut r.0);
+            Err(l)
+        }
+    }
+}
+
 /// `unreachable!(self: Context)`
 #[macro_export]
 macro_rules! unreachable_error {

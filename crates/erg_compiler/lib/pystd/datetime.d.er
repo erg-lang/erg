@@ -1,4 +1,4 @@
-time = pyimport "time"
+{StructTime;} = pyimport "time"
 
 .MINYEAR: {1}
 .MAXYEAR: {9999}
@@ -36,7 +36,7 @@ time = pyimport "time"
     fromisoformat: (date_string: Str) -> .Date
     fromisocalendar: (year: Nat, week: Nat, day: Nat) -> .Date
     replace: (self: .Date, year := Nat, month := Nat, day := Nat) -> .Date
-    timetuple: (self: .Date) -> time.StructTime
+    timetuple: (self: .Date) -> StructTime
     toordinal: (self: .Date) -> Nat
     weekday: (self: .Date) -> 0..6
     isoweekday: (self: .Date) -> 1..7

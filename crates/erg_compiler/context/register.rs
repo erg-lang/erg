@@ -31,7 +31,7 @@ use crate::ty::{
 };
 
 use crate::context::{ClassDefType, Context, ContextKind, DefaultInfo, RegistrationMode};
-use crate::error::readable_name;
+use crate::error::{concat_result, readable_name};
 use crate::error::{
     CompileError, CompileErrors, CompileResult, TyCheckError, TyCheckErrors, TyCheckResult,
 };
@@ -1337,6 +1337,8 @@ impl Context {
     }
 
     /// e.g. `::__call__`
+    ///
+    /// NOTE: this is same as `register_auto_impl` if `PYTHON_MODE` is true
     fn register_fixed_auto_impl(
         &mut self,
         name: &'static str,
@@ -1346,6 +1348,11 @@ impl Context {
         py_name: Option<Str>,
     ) -> CompileResult<()> {
         let name = VarName::from_static(name);
+        let kind = if PYTHON_MODE {
+            VarKind::Auto
+        } else {
+            VarKind::FixedAuto
+        };
         if self.locals.get(&name).is_some() {
             Err(CompileErrors::from(CompileError::reassign_error(
                 self.cfg.input.clone(),
@@ -1361,7 +1368,7 @@ impl Context {
                     t,
                     muty,
                     vis,
-                    VarKind::FixedAuto,
+                    kind,
                     None,
                     self.kind.clone(),
                     py_name,
@@ -1607,8 +1614,9 @@ impl Context {
                         2,
                         self.level,
                     );
-                    self.gen_class_new_method(&gen, call, &mut ctx)?;
-                    self.register_gen_mono_type(ident, gen, ctx, Const)
+                    let res = self.gen_class_new_method(&gen, call, &mut ctx);
+                    let res2 = self.register_gen_mono_type(ident, gen, ctx, Const);
+                    concat_result(res, res2)
                 } else {
                     let params = gen
                         .typ()
@@ -1627,11 +1635,13 @@ impl Context {
                         2,
                         self.level,
                     );
-                    self.gen_class_new_method(&gen, call, &mut ctx)?;
-                    self.register_gen_poly_type(ident, gen, ctx, Const)
+                    let res = self.gen_class_new_method(&gen, call, &mut ctx);
+                    let res2 = self.register_gen_poly_type(ident, gen, ctx, Const);
+                    concat_result(res, res2)
                 }
             }
             GenTypeObj::Subclass(_) => {
+                let mut errs = CompileErrors::empty();
                 if gen.typ().is_monomorphic() {
                     let super_classes = vec![gen.base_or_sup().unwrap().typ().clone()];
                     // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
@@ -1643,7 +1653,7 @@ impl Context {
                         self.level,
                     );
                     for sup in super_classes.into_iter() {
-                        let sup_ctx = self.get_nominal_type_ctx(&sup).ok_or_else(|| {
+                        let sup_ctx = match self.get_nominal_type_ctx(&sup).ok_or_else(|| {
                             TyCheckErrors::from(TyCheckError::type_not_found(
                                 self.cfg.input.clone(),
                                 line!() as usize,
@@ -1651,7 +1661,13 @@ impl Context {
                                 self.caused_by(),
                                 &sup,
                             ))
-                        })?;
+                        }) {
+                            Ok(ctx) => ctx,
+                            Err(es) => {
+                                errs.extend(es);
+                                continue;
+                            }
+                        };
                         ctx.register_superclass(sup, sup_ctx);
                     }
                     let mut methods =
@@ -1669,40 +1685,58 @@ impl Context {
                                 ..
                             } = additional
                             {
-                                self.register_instance_attrs(&mut ctx, rec, call)?;
+                                if let Err(es) = self.register_instance_attrs(&mut ctx, rec, call) {
+                                    errs.extend(es);
+                                }
                             }
                             param_t
                                 .map(|t| self.intersection(t, additional.typ()))
                                 .or(Some(additional.typ().clone()))
                         } else {
-                            param_t.cloned()
+                            self.get_nominal_type_ctx(sup.typ())
+                                .and_then(|ctx| {
+                                    ctx.get_class_attr(&VarName::from_static("__call__"), ctx)
+                                })
+                                .and_then(|vi| vi.t.param_ts().first().cloned())
+                                .or(param_t.cloned())
                         };
                         let new_t = if let Some(t) = param_t {
                             func1(t, gen.typ().clone())
                         } else {
                             func0(gen.typ().clone())
                         };
-                        methods.register_fixed_auto_impl(
+                        if let Err(es) = methods.register_fixed_auto_impl(
                             "__call__",
                             new_t.clone(),
                             Immutable,
                             Visibility::private(ctx.name.clone()),
                             None,
-                        )?;
+                        ) {
+                            errs.extend(es);
+                        }
                         // 必要なら、ユーザーが独自に上書きする
-                        methods.register_auto_impl(
+                        if let Err(es) = methods.register_auto_impl(
                             "new",
                             new_t,
                             Immutable,
                             Visibility::public(ctx.name.clone()),
                             None,
-                        )?;
+                        ) {
+                            errs.extend(es);
+                        }
                         ctx.methods_list.push(MethodContext::new(
                             DefId(0),
                             ClassDefType::Simple(gen.typ().clone()),
                             methods,
                         ));
-                        self.register_gen_mono_type(ident, gen, ctx, Const)
+                        if let Err(es) = self.register_gen_mono_type(ident, gen, ctx, Const) {
+                            errs.extend(es);
+                        }
+                        if errs.is_empty() {
+                            Ok(())
+                        } else {
+                            Err(errs)
+                        }
                     } else {
                         let class_name = gen.base_or_sup().unwrap().typ().local_name();
                         Err(CompileErrors::from(CompileError::no_type_error(
@@ -1733,14 +1767,17 @@ impl Context {
                         2,
                         self.level,
                     );
-                    if let Some(TypeObj::Builtin {
+                    let res = if let Some(TypeObj::Builtin {
                         t: Type::Record(req),
                         ..
                     }) = gen.base_or_sup()
                     {
-                        self.register_instance_attrs(&mut ctx, req, call)?;
-                    }
-                    self.register_gen_mono_type(ident, gen, ctx, Const)
+                        self.register_instance_attrs(&mut ctx, req, call)
+                    } else {
+                        Ok(())
+                    };
+                    let res2 = self.register_gen_mono_type(ident, gen, ctx, Const);
+                    concat_result(res, res2)
                 } else {
                     feature_error!(
                         CompileErrors,
@@ -1771,9 +1808,11 @@ impl Context {
                     } else {
                         None
                     };
-                    if let Some(additional) = additional {
-                        self.register_instance_attrs(&mut ctx, additional, call)?;
-                    }
+                    let res = if let Some(additional) = additional {
+                        self.register_instance_attrs(&mut ctx, additional, call)
+                    } else {
+                        Ok(())
+                    };
                     for sup in super_classes.into_iter() {
                         if let Some(sup_ctx) = self.get_nominal_type_ctx(&sup) {
                             ctx.register_supertrait(sup, sup_ctx);
@@ -1781,7 +1820,8 @@ impl Context {
                             log!(err "{sup} not found");
                         }
                     }
-                    self.register_gen_mono_type(ident, gen, ctx, Const)
+                    let res2 = self.register_gen_mono_type(ident, gen, ctx, Const);
+                    concat_result(res, res2)
                 } else {
                     feature_error!(
                         CompileErrors,
