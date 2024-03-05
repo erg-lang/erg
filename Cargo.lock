@@ -94,7 +94,7 @@ dependencies = [
 
 [[package]]
 name = "els"
-version = "0.1.44-nightly.3"
+version = "0.1.44"
 dependencies = [
  "erg_common",
  "erg_compiler",
@@ -107,7 +107,7 @@ dependencies = [
 
 [[package]]
 name = "erg"
-version = "0.6.32-nightly.3"
+version = "0.6.32"
 dependencies = [
  "els",
  "erg_common",
@@ -117,7 +117,7 @@ dependencies = [
 
 [[package]]
 name = "erg_common"
-version = "0.6.32-nightly.3"
+version = "0.6.32"
 dependencies = [
  "backtrace-on-stack-overflow",
  "crossterm",
@@ -129,7 +129,7 @@ dependencies = [
 
 [[package]]
 name = "erg_compiler"
-version = "0.6.32-nightly.3"
+version = "0.6.32"
 dependencies = [
  "erg_common",
  "erg_parser",
@@ -138,7 +138,7 @@ dependencies = [
 
 [[package]]
 name = "erg_parser"
-version = "0.6.32-nightly.3"
+version = "0.6.32"
 dependencies = [
  "erg_common",
  "erg_proc_macros",
@@ -148,7 +148,7 @@ dependencies = [
 
 [[package]]
 name = "erg_proc_macros"
-version = "0.6.32-nightly.3"
+version = "0.6.32"
 dependencies = [
  "quote",
  "syn 1.0.109",
