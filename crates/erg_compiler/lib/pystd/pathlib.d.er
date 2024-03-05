@@ -1,5 +1,7 @@
 .PurePath: ClassType
 .PurePath <: PathLike
+.PurePath <: Eq
+.PurePath <: Hash
 .PurePath.
     parts: [Str; _]
     drive: Str

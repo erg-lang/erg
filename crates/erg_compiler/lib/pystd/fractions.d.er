@@ -1,6 +1,9 @@
 decimal = pyimport "decimal"
 
 .Fraction: ClassType
+.Fraction <: Eq
+.Fraction <: Hash
+.Fraction <: Ord
 .Fraction.
     numerator: Int
     denominator: Int

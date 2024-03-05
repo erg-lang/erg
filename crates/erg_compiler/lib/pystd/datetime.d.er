@@ -4,6 +4,9 @@ time = pyimport "time"
 .MAXYEAR: {9999}
 
 .TimeDelta = 'timedelta': ClassType
+.TimeDelta <: Eq
+.TimeDelta <: Hash
+.TimeDelta <: Ord
 .TimeDelta.
     __call__: (days := Nat, seconds := Nat, microseconds := Nat, milliseconds := Nat, minutes := Nat, hours := Nat, weeks := Nat) -> .TimeDelta
     __eq__: (self: .TimeDelta, other: .TimeDelta) -> Bool
@@ -17,6 +20,9 @@ time = pyimport "time"
     resolution: .TimeDelta
     total_seconds: (self: .TimeDelta) -> Float
 .Date = 'date': ClassType
+.Date <: Eq
+.Date <: Hash
+.Date <: Ord
 .Date.
     __call__: (year: Nat, month: Nat, day: Nat) -> .Date
     __eq__: (self: .Date, other: .Date) -> Bool
@@ -45,7 +51,13 @@ time = pyimport "time"
     max: .Date
     resolution: .TimeDelta
 .TZInfo = 'tzinfo': ClassType
+.TZInfo <: Eq
+.TZInfo <: Hash
+.TZInfo <: Ord
 .Time = 'time': ClassType
+.Time <: Eq
+.Time <: Hash
+.Time <: Ord
 .Time.
     __call__: (hour: 0..23, minute: 0..59, second := 0..59, microsecond := Nat, tzinfo := .TZInfo or NoneType) -> .Time
     __eq__: (self: .Time, other: .Time) -> Bool
@@ -61,6 +73,9 @@ time = pyimport "time"
     replace: (self: .Time, hour := 0..23, minute := 0..59, second := 0..59, microsecond := Nat, tzinfo := .TZInfo or NoneType) -> .Time
     isoformat: (self: .Time, timespec := Str) -> Str
 .DateTime = 'datetime': ClassType
+.DateTime <: Eq
+.DateTime <: Hash
+.DateTime <: Ord
 .DateTime.
     __call__: (year: 0..9999, month: 1..12, day: 1..31, hour := 0..23, minute := 0..59, second := 0..59, microsecond := Nat, tzinfo := .TZInfo or NoneType) -> .DateTime
     __eq__: (self: .DateTime, other: .DateTime) -> Bool
@@ -87,6 +102,9 @@ time = pyimport "time"
     replace: (self: .DateTime, year := 0..9999, month := 1..12, day := 1..31, hour := 0..23, minute := 0..59, second := 0..59, microsecond := Nat, tzinfo := .TZInfo or NoneType) -> .DateTime
     utcoffset: (self: .DateTime) -> .TimeDelta or NoneType
 .TimeZone = 'timezone': ClassType
+.TimeZone <: Eq
+.TimeZone <: Hash
+.TimeZone <: Ord
 .TimeZone.
     __eq__: (self: .TimeZone, other: .TimeZone) -> Bool
     __ne__: (self: .TimeZone, other: .TimeZone) -> Bool
