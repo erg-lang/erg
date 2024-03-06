@@ -532,22 +532,26 @@ pub enum BlockKind {
     AtMark,       // @
     MultiLineStr, // """
     ClassDef,     // class definition
+    Collections,  // {}, () and []
     None,         // one line
 }
 
-pub fn from_str(bk: &str) -> BlockKind {
-    match bk {
-        "Assignment" => BlockKind::Assignment,
-        "AtMark" => BlockKind::AtMark,
-        "ClassPriv" => BlockKind::ClassPriv,
-        "ClassPub" => BlockKind::ClassPub,
-        "ColonCall" => BlockKind::ColonCall,
-        "Error" => BlockKind::Error,
-        "Lambda" => BlockKind::Lambda,
-        "MultiLineStr" => BlockKind::MultiLineStr,
-        "ClassDef" => BlockKind::ClassDef,
-        "None" => BlockKind::None,
-        _ => unimplemented!("Failed to convert to BlockKind"),
+impl From<&str> for BlockKind {
+    fn from(value: &str) -> Self {
+        match value {
+            "Assignment" => BlockKind::Assignment,
+            "AtMark" => BlockKind::AtMark,
+            "ClassPriv" => BlockKind::ClassPriv,
+            "ClassPub" => BlockKind::ClassPub,
+            "ColonCall" => BlockKind::ColonCall,
+            "Error" => BlockKind::Error,
+            "Lambda" => BlockKind::Lambda,
+            "MultiLineStr" => BlockKind::MultiLineStr,
+            "ClassDef" => BlockKind::ClassDef,
+            "Collections" => BlockKind::Collections,
+            "None" => BlockKind::None,
+            _ => unimplemented!("Failed to convert to BlockKind"),
+        }
     }
 }
 
@@ -596,7 +600,7 @@ impl VirtualMachine {
         if bk == BlockKind::AtMark || bk == BlockKind::ClassDef {
             return;
         }
-        if bk == BlockKind::MultiLineStr {
+        if bk == BlockKind::MultiLineStr || bk == BlockKind::Collections {
             self.length = 1;
             return;
         }
@@ -621,7 +625,7 @@ impl VirtualMachine {
     }
 
     pub fn indent(&mut self) -> String {
-        if self.now == BlockKind::MultiLineStr {
+        if self.now == BlockKind::MultiLineStr || self.now == BlockKind::Collections {
             String::new()
         } else if self.length == 0 {
             self.length = 1;
@@ -709,6 +713,9 @@ pub trait Runnable: Sized + Default + New {
         if src.contains("Class") || src.contains("Inherit") {
             return BlockKind::ClassDef;
         }
+        if src.ends_with(['(', '{', '[']) {
+            return BlockKind::Collections;
+        }
         BlockKind::None
     }
     fn input(&self) -> &Input {
@@ -785,12 +792,30 @@ pub trait Runnable: Sized + Default + New {
                         ":clear" | ":cln" => {
                             output.write_all("\x1b[2J\x1b[1;1H".as_bytes()).unwrap();
                             output.flush().unwrap();
+                            instance.input().set_block_begin();
                             vm.clear();
                             instance.clear();
                             continue;
                         }
-                        "" => {
+                        "" | "}" | ")" | "]" => {
                             // eval after the end of the block
+                            if vm.now == BlockKind::Collections && line == "}" {
+                                vm.push_code("}");
+                                vm.push_code("\n");
+                            } else if vm.now == BlockKind::Collections && line == ")" {
+                                vm.push_code(")");
+                                vm.push_code("\n");
+                            } else if vm.now == BlockKind::Collections && line == "]" {
+                                vm.push_code("]");
+                                vm.push_code("\n");
+                            } else if vm.now == BlockKind::MultiLineStr
+                                || vm.now == BlockKind::Collections
+                            {
+                                vm.push_code(line);
+                                vm.push_code("\n");
+                                continue;
+                            }
+
                             if vm.now_block.len() == 2 {
                                 vm.remove_block_kind();
                             } else if vm.now_block.len() > 1 {
@@ -799,7 +824,9 @@ pub trait Runnable: Sized + Default + New {
                                 continue;
                             }
                             match instance.eval(mem::take(&mut vm.codes)) {
-                                Ok(out) if out.is_empty() => continue,
+                                Ok(out) if out.is_empty() => {
+                                    instance.input().set_block_begin();
+                                }
                                 Ok(out) => {
                                     output.write_all((out + "\n").as_bytes()).unwrap();
                                     output.flush().unwrap();
@@ -829,6 +856,14 @@ pub trait Runnable: Sized + Default + New {
                         line
                     };
                     let bk = instance.expect_block(line);
+                    let bk = if bk == BlockKind::Error
+                        && (vm.now == BlockKind::MultiLineStr || vm.now == BlockKind::Collections)
+                    {
+                        BlockKind::None
+                    } else {
+                        bk
+                    };
+                    // let bk = instance.expect_block(line);
                     match bk {
                         BlockKind::None if vm.now == BlockKind::AtMark => {
                             if let Some(eq) = line.find('=') {
@@ -867,7 +902,10 @@ pub trait Runnable: Sized + Default + New {
                             vm.push_code("\n");
                             vm.now = BlockKind::Main;
                         }
-                        BlockKind::None if vm.now == BlockKind::MultiLineStr => {
+                        BlockKind::None
+                            if vm.now == BlockKind::MultiLineStr
+                                || vm.now == BlockKind::Collections =>
+                        {
                             vm.push_code(line);
                             vm.push_code("\n");
                             continue;
@@ -893,9 +931,24 @@ pub trait Runnable: Sized + Default + New {
                             vm.push_code(line);
                             vm.push_code("\n");
                         }
+                        // end of Collection
+                        BlockKind::Collections if vm.now == BlockKind::Collections => {
+                            vm.remove_block_kind();
+                            vm.length = vm.now_block.len();
+                            vm.push_code(line);
+                            vm.push_code("\n");
+                        }
                         // start of MultiLineStr
                         BlockKind::MultiLineStr => {
                             vm.push_block_kind(BlockKind::MultiLineStr);
+                            vm.push_code(indent.as_str());
+                            instance.input().insert_whitespace(indent.as_str());
+                            vm.push_code(line);
+                            vm.push_code("\n");
+                            continue;
+                        }
+                        BlockKind::Collections => {
+                            vm.push_block_kind(BlockKind::Collections);
                             vm.push_code(indent.as_str());
                             instance.input().insert_whitespace(indent.as_str());
                             vm.push_code(line);
@@ -910,9 +963,6 @@ pub trait Runnable: Sized + Default + New {
                         }
                         // expect block
                         _ => {
-                            if vm.length == 1 {
-                                instance.input().set_block_begin();
-                            }
                             vm.push_code(indent.as_str());
                             instance.input().insert_whitespace(indent.as_str());
                             vm.push_block_kind(bk);

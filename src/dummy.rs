@@ -6,15 +6,16 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use erg_common::config::ErgConfig;
-use erg_common::error::MultiErrorDisplay;
+use erg_common::error::{ErrorDisplay, ErrorKind, MultiErrorDisplay};
 use erg_common::python_util::spawn_py;
-use erg_common::traits::{ExitStatus, New, Runnable, Stream};
+use erg_common::traits::{BlockKind, ExitStatus, New, Runnable, Stream};
 
 use erg_compiler::hir::Expr;
 use erg_compiler::ty::HasType;
 
 use erg_compiler::error::{CompileError, CompileErrors};
 use erg_compiler::Compiler;
+use erg_parser::ParserRunner;
 
 pub type EvalError = CompileError;
 pub type EvalErrors = CompileErrors;
@@ -378,6 +379,39 @@ impl Runnable for DummyVM {
             }
         }
         Ok(res)
+    }
+
+    fn expect_block(&self, src: &str) -> BlockKind {
+        let mut parser = ParserRunner::new(self.cfg().clone());
+        match parser.eval(src.to_string()) {
+            Err(errs) => {
+                let kind = errs
+                    .iter()
+                    .filter(|e| e.core().kind == ErrorKind::ExpectNextLine)
+                    .map(|e| {
+                        let msg = e.core().sub_messages.last().unwrap();
+                        // ExpectNextLine error must have msg otherwise it's a bug
+                        msg.get_msg().first().unwrap().to_owned()
+                    })
+                    .next();
+                if let Some(kind) = kind {
+                    return BlockKind::from(kind.as_str());
+                }
+                if errs
+                    .iter()
+                    .any(|err| err.core.main_message.contains("\"\"\""))
+                {
+                    return BlockKind::MultiLineStr;
+                }
+                BlockKind::Error
+            }
+            Ok(_) => {
+                if src.contains("Class") {
+                    return BlockKind::ClassDef;
+                }
+                BlockKind::None
+            }
+        }
     }
 }
 

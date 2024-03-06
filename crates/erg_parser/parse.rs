@@ -706,6 +706,12 @@ impl Parser {
             .opt_reduce_decorator()
             .map_err(|_| self.stack_dec(fn_name!()))?
         {
+            if self.cur_is(EOF) {
+                let err =
+                    ParseError::expect_next_line_error(line!() as usize, deco.0.loc(), "AtMark");
+                self.errs.push(err);
+                return Err(());
+            }
             decs.insert(deco);
             expect_pop!(self, fail_next Newline);
         }
@@ -853,6 +859,12 @@ impl Parser {
 
     fn try_reduce_array_elems(&mut self) -> ParseResult<ArrayInner> {
         debug_call_info!(self);
+        if self.cur_is(EOF) {
+            let tk = self.tokens.last().unwrap();
+            let err = ParseError::expect_next_line_error(line!() as usize, tk.loc(), "Collections");
+            self.errs.push(err);
+            return Err(());
+        }
         if self.cur_category_is(TC::REnclosure) {
             let args = Args::empty();
             debug_exit_info!(self);
@@ -1655,6 +1667,11 @@ impl Parser {
         };
         if self.cur_is(Colon) {
             self.lpop();
+            if self.cur_is(EOF) {
+                let err = ParseError::expect_next_line_error(line!() as usize, op.loc(), "Lambda");
+                self.errs.push(err);
+                return Err(());
+            }
             let body = self
                 .try_reduce_block()
                 .map_err(|_| self.stack_dec(fn_name!()))?;
@@ -1700,6 +1717,15 @@ impl Parser {
                 }
                 Some(op) if op.category_is(TC::DefOp) => {
                     let op = self.lpop();
+                    if self.cur_is(EOF) {
+                        let err = ParseError::expect_next_line_error(
+                            line!() as usize,
+                            op.loc(),
+                            "Assignment",
+                        );
+                        self.errs.push(err);
+                        return Err(());
+                    }
                     let is_multiline_block = self.cur_is(Newline);
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let sig = self
@@ -1732,6 +1758,15 @@ impl Parser {
                 }
                 Some(op) if op.category_is(TC::LambdaOp) => {
                     let op = self.lpop();
+                    if self.cur_is(EOF) {
+                        let err = ParseError::expect_next_line_error(
+                            line!() as usize,
+                            op.loc(),
+                            "Lambda",
+                        );
+                        self.errs.push(err);
+                        return Err(());
+                    }
                     let is_multiline_block = self.cur_is(Newline);
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let sig = self
@@ -2064,6 +2099,15 @@ impl Parser {
                         .convert_rhs_to_lambda_sig(lhs)
                         .map_err(|_| self.stack_dec(fn_name!()))?;
                     self.counter.inc();
+                    if self.cur_is(EOF) {
+                        let err = ParseError::expect_next_line_error(
+                            line!() as usize,
+                            op.loc(),
+                            "Lambda",
+                        );
+                        self.errs.push(err);
+                        return Err(());
+                    }
                     let block = if is_multiline_block {
                         self.try_reduce_block()
                             .map_err(|_| self.stack_dec(fn_name!()))?
@@ -2090,6 +2134,15 @@ impl Parser {
                         break;
                     }
                     let op = self.lpop();
+                    if self.cur_is(EOF) {
+                        let err = ParseError::expect_next_line_error(
+                            line!() as usize,
+                            op.loc(),
+                            "Lambda",
+                        );
+                        self.errs.push(err);
+                        return Err(());
+                    }
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let t_spec_as_expr = self
                         .try_reduce_expr(false, in_type_args, in_brace, false)
@@ -2665,6 +2718,17 @@ impl Parser {
                             self.restore(vis);
                             break;
                         }
+                        EOF => {
+                            let err = ParseError::expect_next_line_error(
+                                line!() as usize,
+                                token.loc(),
+                                "ClassPub",
+                            );
+                            self.errs.push(err);
+                            self.restore(token);
+                            self.level -= 1;
+                            return Err(());
+                        }
                         _ => {
                             let err = ParseError::invalid_acc_chain(
                                 line!() as usize,
@@ -2723,6 +2787,17 @@ impl Parser {
                             self.restore(token);
                             self.restore(vis);
                             break;
+                        }
+                        EOF => {
+                            let err = ParseError::expect_next_line_error(
+                                line!() as usize,
+                                token.loc(),
+                                "ClassPriv",
+                            );
+                            self.errs.push(err);
+                            self.restore(token);
+                            self.level -= 1;
+                            return Err(());
                         }
                         _ => {
                             self.restore(token);
@@ -2824,7 +2899,12 @@ impl Parser {
     fn try_reduce_brace_container(&mut self) -> ParseResult<BraceContainer> {
         debug_call_info!(self);
         let l_brace = expect_pop!(self, fail_next LBrace);
-
+        if self.cur_is(EOF) {
+            let err =
+                ParseError::expect_next_line_error(line!() as usize, l_brace.loc(), "Collections");
+            self.errs.push(err);
+            return Err(());
+        }
         // Empty brace literals
         match self.peek_kind() {
             Some(RBrace) => {
