@@ -6,10 +6,10 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 
 use erg_common::error::Location;
-use erg_common::impl_displayable_deque_stream_for_wrapper;
+use erg_common::{impl_display_from_nested, impl_displayable_deque_stream_for_wrapper};
 use erg_common::opcode311::BinOpCode;
 use erg_common::str::Str;
-use erg_common::traits::{DequeStream, Locational};
+use erg_common::traits::{DequeStream, Locational, NestedDisplay};
 // use erg_common::ty::Type;
 // use erg_common::typaram::OpKind;
 // use erg_common::value::ValueObj;
@@ -368,11 +368,13 @@ impl fmt::Debug for Token {
     }
 }
 
-impl fmt::Display for Token {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl NestedDisplay for Token {
+    fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
         write!(f, "{:?} {}", self.kind, self.content.replace('\n', "\\n"))
     }
 }
+
+impl_display_from_nested!(Token);
 
 // the values of lineno and col are not relevant for comparison
 // use `deep_eq` if you want to compare them

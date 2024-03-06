@@ -47,7 +47,7 @@ macro_rules! impl_from_py_for_enum {
         impl FromPyObject<'_> for $Ty {
             fn extract(ob: &PyAny) -> PyResult<Self> {
                 $(if let Ok(extracted) = ob.extract::<$inner>() {
-                    return Ok(Self::$Variant(extracted));
+                    Ok(Self::$Variant(extracted))
                 } else)* {
                     Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
                         format!("expected one of {:?}, but got {}", &[$(stringify!($Variant),)*], ob.get_type().name()?),
@@ -61,7 +61,7 @@ macro_rules! impl_from_py_for_enum {
         impl FromPyObject<'_> for $Ty {
             fn extract(ob: &PyAny) -> PyResult<Self> {
                 $(if let Ok(extracted) = ob.extract::<$Variant>() {
-                    return Ok(Self::$Variant(extracted));
+                    Ok(Self::$Variant(extracted))
                 } else)* {
                     Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
                         format!("expected one of {:?}, but got {}", &[$(stringify!($Variant),)*], ob.get_type().name()?),
@@ -323,10 +323,10 @@ impl KwArg {
 #[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Args {
-    pos_args: Vec<PosArg>,
-    pub(crate) var_args: Option<Box<PosArg>>,
-    kw_args: Vec<KwArg>,
-    pub(crate) kw_var_args: Option<Box<PosArg>>,
+    pub pos_args: Vec<PosArg>,
+    pub var_args: Option<Box<PosArg>>,
+    pub kw_args: Vec<KwArg>,
+    pub kw_var_args: Option<Box<PosArg>>,
     // these are for ELS
     pub paren: Option<(Token, Token)>,
 }
@@ -844,6 +844,13 @@ impl Accessor {
             Self::TupleAttr(attr) => attr.obj.is_const_acc(),
             Self::Attr(attr) => attr.obj.is_const_acc() && attr.ident.is_const(),
             Self::TypeApp(app) => app.obj.is_const_acc(),
+        }
+    }
+
+    pub fn to_str_literal(&self) -> Literal {
+        match self {
+            Self::Ident(ident) => ident.to_str_literal(),
+            other => todo!("{other}"),
         }
     }
 }
@@ -4072,6 +4079,10 @@ impl Identifier {
         format!("Identifier({})", self)
     }
 
+    pub fn to_str_literal(&self) -> Literal {
+        Literal::new(Token::new_with_loc(TokenKind::StrLit, Str::from(format!("\"{}\"", self.inspect())), self.loc()))
+    }
+
     pub fn is_const(&self) -> bool {
         self.name.is_const()
     }
@@ -4410,6 +4421,7 @@ pub enum VarPattern {
     Record(VarRecordPattern),
     // e.g. `Data::{x, y}`
     DataPack(VarDataPackPattern),
+    Splice(Splice),
 }
 
 impl NestedDisplay for VarPattern {
@@ -4421,14 +4433,15 @@ impl NestedDisplay for VarPattern {
             Self::Tuple(t) => write!(f, "{t}"),
             Self::Record(r) => write!(f, "{r}"),
             Self::DataPack(d) => write!(f, "{d}"),
+            Self::Splice(s) => write!(f, "{s}"),
         }
     }
 }
 
 impl_display_from_nested!(VarPattern);
-impl_locational_for_enum!(VarPattern; Discard, Ident, Array, Tuple, Record, DataPack);
-impl_into_py_for_enum!(VarPattern; Discard, Ident, Array, Tuple, Record, DataPack);
-impl_from_py_for_enum!(VarPattern; Discard(Token), Ident(Identifier), Array(VarArrayPattern), Tuple(VarTuplePattern), Record(VarRecordPattern), DataPack(VarDataPackPattern));
+impl_locational_for_enum!(VarPattern; Discard, Ident, Array, Tuple, Record, DataPack, Splice);
+impl_into_py_for_enum!(VarPattern; Discard, Ident, Array, Tuple, Record, DataPack, Splice);
+impl_from_py_for_enum!(VarPattern; Discard(Token), Ident(Identifier), Array(VarArrayPattern), Tuple(VarTuplePattern), Record(VarRecordPattern), DataPack(VarDataPackPattern), Splice(Splice));
 
 impl VarPattern {
     pub const fn inspect(&self) -> Option<&Str> {
@@ -5837,6 +5850,101 @@ impl Compound {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum MacroArg {
+    Expr(Expr),
+    Block(Block),
+    Token(Token),
+}
+
+impl_nested_display_for_chunk_enum!(MacroArg; Expr, Block, Token);
+impl_from_trait_for_enum!(MacroArg; Expr, Block, Token);
+impl_display_from_nested!(MacroArg);
+impl_locational_for_enum!(MacroArg; Expr, Block, Token);
+impl_from_py_for_enum!(MacroArg; Expr, Block, Token);
+impl_into_py_for_enum!(MacroArg; Expr, Block, Token);
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[pyclass(get_all, set_all)]
+pub struct MacroCall {
+    pub name: VarName,
+    pub args: Vec<MacroArg>,
+}
+
+impl NestedDisplay for MacroCall {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "{} {}", self.name, fmt_vec(&self.args))
+    }
+}
+
+impl_display_from_nested!(MacroCall);
+
+impl Locational for MacroCall {
+    fn loc(&self) -> Location {
+        if let Some(last) = self.args.last() {
+            Location::concat(&self.name, last)
+        } else {
+            self.name.loc()
+        }
+    }
+}
+
+impl MacroCall {
+    pub const fn new(name: VarName, args: Vec<MacroArg>) -> Self {
+        Self { name, args }
+    }
+}
+
+/// Quote(`'{...}`) and Splice(`${...}`) are used for macro expansion.
+/// Quote makes stage 0 (compiletime) expression from stage 1 (runtime) expression.
+#[pyclass]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Quote {
+    pub expr: Box<Expr>
+}
+
+impl NestedDisplay for Quote {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        write!(f, "'{{")?;
+        self.expr.fmt_nest(f, level)?;
+        write!(f, "}}")
+    }
+}
+
+impl_display_from_nested!(Quote);
+impl_locational!(Quote, expr);
+
+impl Quote {
+    pub fn new(expr: Expr) -> Self {
+        Self { expr: Box::new(expr) }
+    }
+}
+
+/// Quote(`'{...}`) and Splice(`${...}`) are used for macro expansion.
+/// Splice makes stage 1 (runtime) expression from stage 0 (compiletime) expression.
+#[pyclass]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Splice {
+    pub expr: Box<Expr>
+}
+
+impl NestedDisplay for Splice {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
+        write!(f, "${{")?;
+        self.expr.fmt_nest(f, level)?;
+        write!(f, "}}")
+    }
+}
+
+impl_display_from_nested!(Splice);
+impl_locational!(Splice, expr);
+
+impl Splice {
+    pub fn new(expr: Expr) -> Self {
+        Self { expr: Box::new(expr) }
+    }
+}
+
 /// Expression(式)
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expr {
@@ -5860,16 +5968,19 @@ pub enum Expr {
     ReDef(ReDef),
     Compound(Compound),
     InlineModule(InlineModule),
+    MacroCall(MacroCall),
+    Quote(Quote),
+    Splice(Splice),
     /// for mapping to Python AST
     Dummy(Dummy),
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, Dummy);
-impl_from_trait_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, Dummy);
+impl_nested_display_for_chunk_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, MacroCall, Quote, Splice, Dummy);
+impl_from_trait_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, MacroCall, Quote, Splice, Dummy);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, Dummy);
-impl_into_py_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, Dummy);
-impl_from_py_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, Dummy);
+impl_locational_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, MacroCall, Quote, Splice, Dummy);
+impl_into_py_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, MacroCall, Quote, Splice, Dummy);
+impl_from_py_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, MacroCall, Quote, Splice, Dummy);
 
 impl Expr {
     pub fn is_match_call(&self) -> bool {
@@ -5909,6 +6020,9 @@ impl Expr {
             Self::ReDef(_) => "re-definition",
             Self::Compound(_) => "compound",
             Self::InlineModule(_) => "inline module",
+            Self::MacroCall(_) => "macro call",
+            Self::Quote(_) => "quote",
+            Self::Splice(_) => "unquote",
             Self::Dummy(_) => "dummy",
         }
     }
@@ -5995,6 +6109,10 @@ impl Expr {
             vec![PosArg::new(expr1), PosArg::new(expr2)],
             None,
         ))
+    }
+
+    pub fn method_call_expr(self, attr_name: Option<Identifier>, args: Args) -> Self {
+        Self::Call(Call::new(self, attr_name, args))
     }
 
     pub fn type_asc(self, t_spec: TypeSpecWithOp) -> TypeAscription {
@@ -6087,6 +6205,13 @@ impl Expr {
                 sum
             }
             _ => 5,
+        }
+    }
+
+    pub fn to_str_literal(&self) -> Literal {
+        match self {
+            Self::Accessor(acc) => acc.to_str_literal(),
+            other => todo!("{other}"),
         }
     }
 }

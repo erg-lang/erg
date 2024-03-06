@@ -12,16 +12,12 @@ use erg_common::{debug_power_assert, Str};
 use erg_common::{enum_unwrap, get_hash, log, set};
 
 use crate::ast::{
-    Accessor, Args, Array, ArrayComprehension, ArrayTypeSpec, ArrayWithLength, BinOp, Block, Call,
-    ClassAttr, ClassAttrs, ClassDef, Compound, ConstExpr, DataPack, Def, DefBody, DefId,
-    DefaultParamSignature, Dict, Dummy, Expr, GuardClause, Identifier, InlineModule, KeyValue,
-    KwArg, Lambda, LambdaSignature, Literal, Methods, MixedRecord, Module,
-    NonDefaultParamSignature, NormalArray, NormalDict, NormalRecord, NormalSet, NormalTuple,
-    ParamPattern, ParamRecordAttr, ParamTuplePattern, Params, PatchDef, PosArg, ReDef, Record,
-    RecordAttrOrIdent, RecordAttrs, RecordTypeSpec, Set as astSet, SetComprehension, SetWithLength,
-    Signature, SubrSignature, Tuple, TupleTypeSpec, TypeAppArgs, TypeAppArgsKind, TypeBoundSpecs,
-    TypeSpec, TypeSpecWithOp, UnaryOp, VarName, VarPattern, VarRecordAttr, VarSignature,
-    VisModifierSpec, AST,
+    Accessor, Args, Array, ArrayComprehension, ArrayTypeSpec, ArrayWithLength, BinOp, Block, Call, ClassAttr, ClassAttrs, ClassDef, Compound, ConstExpr,
+    DataPack, Def, DefBody, DefId, DefaultParamSignature, Dict, Dummy, Expr, GuardClause, Identifier, InlineModule, KeyValue, KwArg,
+    Lambda, LambdaSignature, Literal, MacroArg, MacroCall, Methods, MixedRecord, Module, NonDefaultParamSignature, NormalArray, NormalDict, NormalRecord, NormalSet, NormalTuple,
+    ParamPattern, ParamRecordAttr, ParamTuplePattern, Params, PatchDef, PosArg, Quote, ReDef, Record, RecordAttrOrIdent, RecordAttrs, RecordTypeSpec,
+    Set as astSet, SetComprehension, SetWithLength, Signature, SubrSignature, Tuple, TupleTypeSpec, TypeAppArgs, TypeAppArgsKind, TypeBoundSpecs, TypeSpec, TypeSpecWithOp,
+    UnaryOp, Splice, VarName, VarPattern, VarRecordAttr, VarSignature, VisModifierSpec, AST
 };
 use crate::token::{Token, TokenKind, COLON, DOT};
 
@@ -410,6 +406,19 @@ impl Desugarer {
                 let ast = AST::new(inline.ast.name, Module::new(chunks));
                 Expr::InlineModule(InlineModule::new(inline.input, ast, inline.import))
             }
+            Expr::MacroCall(call) => {
+                let args = call.args.into_iter().map(|arg| match arg {
+                    MacroArg::Expr(expr) => MacroArg::Expr(desugar(expr)),
+                    _ => arg,
+                }).collect();
+                Expr::MacroCall(MacroCall::new(call.name, args))
+            }
+            Expr::Quote(quote) => {
+                Expr::Quote(Quote::new(desugar(*quote.expr)))
+            }
+            Expr::Splice(unquote) => {
+                Expr::Splice(Splice::new(desugar(*unquote.expr)))
+            }
             Expr::Dummy(exprs) => {
                 let loc = exprs.loc;
                 let mut chunks = vec![];
@@ -746,7 +755,7 @@ impl Desugarer {
                         self.desugar_nested_var_pattern(new, rhs, &buf_name, BufIndex::Record(lhs));
                     }
                 }
-                VarPattern::Ident(_) | VarPattern::Discard(_) => {
+                VarPattern::Ident(_) | VarPattern::Discard(_) | VarPattern::Splice(_) => {
                     if let VarPattern::Ident(ident) = v.pat {
                         v.pat = VarPattern::Ident(Self::desugar_ident(ident));
                     }
@@ -928,7 +937,7 @@ impl Desugarer {
                     );
                 }
             }
-            VarPattern::Ident(_) | VarPattern::Discard(_) => {
+            VarPattern::Ident(_) | VarPattern::Discard(_) | VarPattern::Splice(_) => {
                 let def = Def::new(Signature::Var(sig.clone()), body);
                 new_module.push(Expr::Def(def));
             }

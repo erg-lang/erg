@@ -44,9 +44,7 @@ impl HIROptimizer {
                     .shared
                     .index
                     .get_refs(&def.sig.ident().vi.def_loc)
-                    .unwrap()
-                    .referrers
-                    .is_empty()
+                    .is_some_and(|val| val.referrers.is_empty())
                     && SideEffectChecker::is_pure(expr)
                 {
                     *expr = Expr::Dummy(Dummy::empty());

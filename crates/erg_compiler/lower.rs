@@ -66,6 +66,254 @@ pub fn expr_to_cast_target(expr: &ast::Expr) -> CastTarget {
     }
 }
 
+#[derive(Debug)]
+pub struct MacroInfo {
+    params: Vec<Str>,
+    quote: ast::Quote,
+}
+
+impl MacroInfo {
+    pub fn new(params: Vec<Str>, template: ast::Quote) -> Self {
+        Self { params, quote: template }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct MacroFrame {
+    params: Dict<Str, ast::MacroArg>,
+}
+
+impl MacroFrame {
+    pub fn new() -> Self {
+        Self {
+            params: dict! {},
+        }
+    }
+
+    fn register_params(&mut self, params: Vec<Str>, args: Vec<ast::MacroArg>) {
+        for (param, arg) in params.into_iter().zip(args.into_iter()) {
+            self.params.insert(param, arg);
+        }
+    }
+
+    fn clear_params(&mut self, params: &[Str]) {
+        for param in params {
+            self.params.remove(param);
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct MacroContext {
+    macros: Dict<Str, MacroInfo>,
+    frame: MacroFrame,
+}
+
+impl Default for MacroContext {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl MacroContext {
+    pub fn empty() -> Self {
+        Self {
+            macros: dict! {},
+            frame: MacroFrame::new(),
+        }
+    }
+
+    pub fn new() -> Self {
+        let mut slf = Self::empty();
+        let import_func = ast::Expr::static_local("import");
+        // 1st parameter
+        let name = ast::Expr::static_local("name");
+        let attr = ast::Identifier::public(Str::from("to_str_literal"));
+        let lit = ast::Expr::Splice(ast::Splice::new(ast::Expr::Call(ast::Call::new(name.clone(), Some(attr), ast::Args::empty()))));
+        let args = ast::Args::pos_only(vec![ast::PosArg::new(lit)], None);
+        let call = ast::Expr::Call(ast::Call::new(import_func, None, args));
+        let body = ast::DefBody::new(Token::DUMMY, ast::Block::new(vec![call]), DefId(0));
+        let sig = ast::Signature::Var(ast::VarSignature::new(ast::VarPattern::Splice(ast::Splice::new(name)), None));
+        let template = ast::Expr::Def(ast::Def::new(sig, body));
+        let import_ = MacroInfo::new(vec!["name".into()], ast::Quote::new(template));
+        slf.insert(Str::from("import"), import_);
+        slf
+    }
+
+    pub fn insert(&mut self, name: Str, info: MacroInfo) {
+        self.macros.insert(name, info);
+    }
+
+    fn eval_splice(&self, splice: ast::Splice) -> LowerResult<ast::Expr> {
+        match *splice.expr {
+            ast::Expr::Call(call) => {
+                match call.attr_name.as_ref().map(|i| &i.inspect()[..]) {
+                    Some("to_str_literal") => {
+                        let lit = call.obj.to_str_literal();
+                        Ok(ast::Expr::Literal(lit))
+                    }
+                    _ => todo!("{call}"),
+                }
+            },
+            other => Ok(other),
+        }
+    }
+
+    fn eliminate_splices_of_args(&self, args: ast::Args) -> LowerResult<ast::Args> {
+        let mut pos_args = vec![];
+        for pos in args.pos_args.into_iter() {
+            pos_args.push(ast::PosArg::new(self.eliminate_splices(pos.expr)?));
+        }
+        let var_args = args.var_args.map(|x| *x);
+        let kw_args = args.kw_args;
+        let kw_var_args = args.kw_var_args.map(|x| *x);
+        Ok(ast::Args::new(pos_args, var_args, kw_args, kw_var_args, args.paren))
+    }
+
+    fn eliminate_splices_of_sig(&self, sig: ast::Signature) -> LowerResult<ast::Signature> {
+        match sig {
+            ast::Signature::Var(var) => {
+                let pat = match var.pat {
+                    ast::VarPattern::Splice(splice) => {
+                        match self.eval_splice(splice)? {
+                            ast::Expr::Accessor(ast::Accessor::Ident(ident)) => ast::VarPattern::Ident(ident),
+                            expr => todo!("{expr}"),
+                        }
+                    }
+                    _ => var.pat,
+                };
+                Ok(ast::Signature::Var(ast::VarSignature::new(pat, var.t_spec)))
+            },
+            ast::Signature::Subr(subr) => Ok(ast::Signature::Subr(subr)),
+        }
+    }
+
+    fn eliminate_splices_of_block(&self, block: ast::Block) -> LowerResult<ast::Block> {
+        let mut new_block = vec![];
+        for chunk in block.into_iter() {
+            new_block.push(self.eliminate_splices(chunk)?);
+        }
+        Ok(ast::Block::new(new_block))
+    }
+
+    fn eliminate_splices(&self, expr: ast::Expr) -> LowerResult<ast::Expr> {
+        match expr {
+            ast::Expr::Splice(splice) => self.eval_splice(splice),
+            ast::Expr::Call(call) => {
+                let obj = self.eliminate_splices(*call.obj)?;
+                let args = self.eliminate_splices_of_args(call.args)?;
+                Ok(ast::Expr::Call(ast::Call::new(obj, call.attr_name, args)))
+            }
+            ast::Expr::Def(def) => {
+                let sig = self.eliminate_splices_of_sig(def.sig)?;
+                let block = self.eliminate_splices_of_block(def.body.block)?;
+                Ok(ast::Expr::Def(ast::Def::new(sig, ast::DefBody::new(def.body.op, block, def.body.id))))
+            }
+            _ => Ok(expr),
+        }
+    }
+
+    fn substitute_splice_args(&self, args: ast::Args) -> LowerResult<ast::Args> {
+        let mut pos_args = vec![];
+        for pos in args.pos_args.into_iter() {
+            pos_args.push(ast::PosArg::new(self.substitute_splice(pos.expr)?));
+        }
+        let var_args = args.var_args.map(|x| *x);
+        let kw_args = args.kw_args;
+        let kw_var_args = args.kw_var_args.map(|x| *x);
+        Ok(ast::Args::new(pos_args, var_args, kw_args, kw_var_args, args.paren))
+    }
+
+    fn substitute_splice(&self, expr: ast::Expr) -> LowerResult<ast::Expr> {
+        match expr {
+            ast::Expr::Accessor(ast::Accessor::Ident(ident)) => {
+                if let Some(ast::MacroArg::Expr(expr)) = self.frame.params.get(ident.inspect()) {
+                    Ok(expr.clone())
+                } else {
+                    Ok(ast::Expr::Accessor(ast::Accessor::Ident(ident)))
+                }
+            }
+            ast::Expr::Accessor(ast::Accessor::Attr(attr)) => {
+                let obj = self.substitute_splice(*attr.obj)?;
+                Ok(obj.attr_expr(attr.ident))
+            }
+            ast::Expr::Call(call) => {
+                let obj = self.substitute_splice(*call.obj)?;
+                let args = self.substitute_splice_args(call.args)?;
+                Ok(obj.method_call_expr(call.attr_name, args))
+            }
+            _ => Ok(expr),
+        }
+    }
+
+    fn substitute_sig(&self, sig: ast::Signature) -> LowerResult<ast::Signature> {
+        match sig {
+            ast::Signature::Var(var) => {
+                let pat = match var.pat {
+                    ast::VarPattern::Splice(splice) => {
+                        let expr = self.substitute_splice(*splice.expr)?;
+                        ast::VarPattern::Splice(ast::Splice::new(expr))
+                    }
+                    _ => var.pat,
+                };
+                Ok(ast::Signature::Var(ast::VarSignature::new(pat, var.t_spec)))
+            }
+            ast::Signature::Subr(subr) => Ok(ast::Signature::Subr(subr)),
+        }
+    }
+
+    fn substitute_block(&self, block: ast::Block) -> LowerResult<ast::Block> {
+        let mut new_block = vec![];
+        for chunk in block.into_iter() {
+            new_block.push(self.substitute(chunk)?);
+        }
+        Ok(ast::Block::new(new_block))
+    }
+
+    fn substitute_args(&self, args: ast::Args) -> LowerResult<ast::Args> {
+        let mut pos_args = vec![];
+        for pos in args.pos_args.into_iter() {
+            pos_args.push(ast::PosArg::new(self.substitute(pos.expr)?));
+        }
+        let var_args = args.var_args.map(|x| *x);
+        let kw_args = args.kw_args;
+        let kw_var_args = args.kw_var_args.map(|x| *x);
+        Ok(ast::Args::new(pos_args, var_args, kw_args, kw_var_args, args.paren))
+    }
+
+    fn substitute(&self, expr: ast::Expr) -> LowerResult<ast::Expr> {
+        match expr {
+            ast::Expr::Splice(splice) => {
+                let splice = ast::Splice::new(self.substitute_splice(*splice.expr)?);
+                Ok(ast::Expr::Splice(splice))
+            }
+            ast::Expr::Call(call) => {
+                let obj = self.substitute(*call.obj)?;
+                let args = self.substitute_args(call.args)?;
+                Ok(ast::Expr::Call(ast::Call::new(obj, call.attr_name, args)))
+            }
+            ast::Expr::Def(def) => {
+                let sig = self.substitute_sig(def.sig)?;
+                let block = self.substitute_block(def.body.block)?;
+                Ok(ast::Expr::Def(ast::Def::new(sig, ast::DefBody::new(def.body.op, block, def.body.id))))
+            }
+            _ => Ok(expr),
+        }
+    }
+
+    pub fn eval_macro(&mut self, mac: ast::MacroCall) -> LowerResult<ast::Expr> {
+        let Some(mac_info) = self.macros.get(mac.name.inspect()) else {
+            todo!("{mac}");
+        };
+        self.frame.register_params(mac_info.params.clone(), mac.args);
+        let expr = self.substitute(*mac_info.quote.expr.clone())
+            .inspect_err(|_| self.frame.clear_params(&mac_info.params))?;
+        let result = self.eliminate_splices(expr);
+        self.frame.clear_params(&mac_info.params);
+        result
+    }
+}
+
 /// Checks & infers types of an AST, and convert (lower) it into a HIR
 #[derive(Debug)]
 pub struct GenericASTLowerer<ASTBuilder: ASTBuildable = DefaultASTBuilder> {
@@ -74,6 +322,7 @@ pub struct GenericASTLowerer<ASTBuilder: ASTBuildable = DefaultASTBuilder> {
     pub(crate) errs: LowerErrors,
     pub(crate) warns: LowerWarnings,
     fresh_gen: FreshNameGenerator,
+    macro_ctx: MacroContext,
     _parser: PhantomData<fn() -> ASTBuilder>,
 }
 
@@ -228,6 +477,7 @@ impl<ASTBuilder: ASTBuildable> GenericASTLowerer<ASTBuilder> {
             errs: LowerErrors::empty(),
             warns: LowerWarnings::empty(),
             fresh_gen: FreshNameGenerator::new("lower"),
+            macro_ctx: MacroContext::new(),
             _parser: PhantomData,
         }
     }
@@ -239,6 +489,7 @@ impl<ASTBuilder: ASTBuildable> GenericASTLowerer<ASTBuilder> {
             errs: LowerErrors::empty(),
             warns: LowerWarnings::empty(),
             fresh_gen: FreshNameGenerator::new("lower"),
+            macro_ctx: MacroContext::new(),
             _parser: PhantomData,
         }
     }
@@ -2892,6 +3143,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             ast::Expr::InlineModule(inline) => {
                 hir::Expr::Call(self.lower_inline_module(inline, expect))
             }
+            ast::Expr::MacroCall(mac) => {
+                let expr = self.expand_macro(mac)?;
+                self.lower_expr(expr, expect)?
+            }
             other => {
                 log!(err "unreachable: {other}");
                 return unreachable_error!(LowerErrors, LowerError, self.module.context);
@@ -2923,6 +3178,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             ast::Expr::PatchDef(defs) => Ok(hir::Expr::PatchDef(self.lower_patch_def(defs)?)),
             ast::Expr::ReDef(redef) => Ok(hir::Expr::ReDef(self.lower_redef(redef)?)),
             ast::Expr::TypeAscription(tasc) => Ok(hir::Expr::TypeAsc(self.lower_decl(tasc)?)),
+            ast::Expr::MacroCall(mac) => {
+                let expr = self.expand_macro(mac)?;
+                self.lower_chunk(expr, expect)
+            }
             other => self.lower_expr(other, expect),
         }
     }
@@ -3027,6 +3286,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         };
         cache.register(path.to_path_buf(), None, hir, ctx, status);
         self.lower_call(inline.import, expect)
+    }
+
+    fn expand_macro(&mut self, mac: ast::MacroCall) -> LowerResult<ast::Expr> {
+        self.macro_ctx.eval_macro(mac)
     }
 
     fn return_incomplete_artifact(&mut self, hir: HIR) -> IncompleteArtifact {

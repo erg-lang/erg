@@ -8,6 +8,7 @@ use erg_common::config::ErgConfig;
 use erg_common::error::Location;
 use erg_common::io::{Input, InputKind};
 use erg_common::set::Set as HashSet;
+use erg_common::dict::Dict as HashMap;
 use erg_common::str::Str;
 use erg_common::traits::{DequeStream, ExitStatus, Locational, New, Runnable, Stream};
 use erg_common::{
@@ -202,6 +203,83 @@ impl ArgsStyle {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum MacroArg {
+    Expr,
+    Name,
+    Block,
+    Keyword(Str),
+}
+
+impl MacroArg {
+    pub fn keyword(name: impl Into<Str>) -> Self {
+        Self::Keyword(name.into())
+    }
+
+    pub fn get_kw(&self) -> Option<Str> {
+        if let Self::Keyword(kw) = self {
+            Some(kw.clone())
+        } else {
+            None
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct MacroInfo {
+    non_defaults: Vec<MacroArg>,
+    #[allow(unused)]
+    var_params: Option<MacroArg>,
+    #[allow(unused)]
+    defaults: HashMap<Str, MacroArg>,
+}
+
+impl MacroInfo {
+    pub fn keywords(&self) -> impl Iterator<Item = Str> + '_ {
+        self.non_defaults.iter().filter_map(|arg| arg.get_kw())
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct MacroContext(HashMap<Str, MacroInfo>);
+
+impl MacroContext {
+    pub fn empty() -> Self {
+        Self(HashMap::default())
+    }
+
+    pub fn new() -> Self {
+        let mut ctx = Self::empty();
+        let for_ = MacroInfo {
+            non_defaults: vec![MacroArg::Name, MacroArg::keyword("in"), MacroArg::Expr, MacroArg::Block],
+            var_params: None,
+            defaults: HashMap::default(),
+        };
+        ctx.insert("for!".into(), for_);
+        let import = MacroInfo {
+            non_defaults: vec![MacroArg::Name],
+            var_params: None,
+            defaults: HashMap::default(),
+        };
+        ctx.insert("import".into(), import);
+        let if_ = MacroInfo {
+            non_defaults: vec![MacroArg::Expr, MacroArg::Block, MacroArg::keyword("else"), MacroArg::Block],
+            var_params: None,
+            defaults: HashMap::default(),
+        };
+        ctx.insert("if".into(), if_);
+        ctx
+    }
+
+    fn insert(&mut self, name: Str, info: MacroInfo) {
+        self.0.insert(name, info);
+    }
+
+    fn get(&self, name: &str) -> Option<&MacroInfo> {
+        self.0.get(name)
+    }
+}
+
 /// Perform recursive descent parsing.
 ///
 /// `level` is raised by 1 by `debug_call_info!` in each analysis method and lowered by 1 when leaving (`.map_err` is called to lower the level).
@@ -214,6 +292,8 @@ pub struct Parser {
     tokens: TokenStream,
     warns: ParseErrors,
     pub(crate) errs: ParseErrors,
+    keywords: Vec<Str>,
+    macros: MacroContext,
 }
 
 impl Parsable for Parser {
@@ -224,13 +304,15 @@ impl Parsable for Parser {
 }
 
 impl Parser {
-    pub const fn new(ts: TokenStream) -> Self {
+    pub fn new(ts: TokenStream) -> Self {
         Self {
             counter: DefId(0),
             level: 0,
             tokens: ts,
             warns: ParseErrors::empty(),
             errs: ParseErrors::empty(),
+            keywords: vec![],
+            macros: MacroContext::new(),
         }
     }
 
@@ -2034,6 +2116,22 @@ impl Parser {
                 .map_err(|_| self.stack_dec(fn_name!()))?,
         ));
         loop {
+            if self.peek().is_some_and(|tok| Some(&tok.content) == self.keywords.first()) {
+                self.keywords.remove(0);
+                match stack.pop() {
+                    Some(ExprOrOp::Expr(expr)) => {
+                        // self.skip();
+                        debug_exit_info!(self);
+                        return Ok(expr);
+                    }
+                    _ => {
+                        let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
+                        self.errs.push(err);
+                        debug_exit_info!(self);
+                        return Err(());
+                    }
+                }
+            }
             match self.peek() {
                 Some(op) if op.category_is(TC::LambdaOp) => {
                     let op = self.lpop();
@@ -2586,6 +2684,11 @@ impl Parser {
     #[inline]
     fn try_reduce_call_or_acc(&mut self, in_type_args: bool) -> ParseResult<Expr> {
         debug_call_info!(self);
+        if let Some(mac) = self.peek().and_then(|tok| self.macros.get(&tok.content).cloned()) {
+            let mac = self.try_reduce_macro_call(mac);
+            debug_exit_info!(self);
+            return mac;
+        }
         let acc = self
             .try_reduce_acc_lhs()
             .map_err(|_| self.stack_dec(fn_name!()))?;
@@ -3683,6 +3786,47 @@ impl Parser {
         }
         debug_exit_info!(self);
         Ok(())
+    }
+
+    fn try_reduce_macro_call(&mut self, mac: MacroInfo) -> ParseResult<Expr> {
+        debug_call_info!(self);
+        let name = VarName::new(self.lpop());
+        self.keywords = [mac.keywords().collect(), mem::take(&mut self.keywords)].concat();
+        let mut args = vec![];
+        for non_default in mac.non_defaults.iter() {
+            match non_default {
+                MacroArg::Expr => {
+                    let expr = self.try_reduce_expr(true, false, false, false)
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                    args.push(crate::ast::MacroArg::Expr(expr));
+                }
+                MacroArg::Block => {
+                    expect_pop!(self, Colon);
+                    let block = self.try_reduce_block().map_err(|_| self.stack_dec(fn_name!()))?;
+                    while self.cur_is(Newline) {
+                        self.skip();
+                    }
+                    args.push(crate::ast::MacroArg::Block(block));
+                }
+                // TODO:
+                MacroArg::Name => {
+                    let name = self.try_reduce_expr(true, false, false, false)
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                    args.push(crate::ast::MacroArg::Expr(name));
+                }
+                MacroArg::Keyword(kw) => {
+                    if self.peek().is_some_and(|tok| &tok.content == kw) {
+                        let kw = self.lpop();
+                        args.push(crate::ast::MacroArg::Token(kw));
+                    } else {
+                        todo!("{kw} / {:?}", self.peek())
+                    }
+                }
+            }
+        }
+        let macro_call = Expr::MacroCall(MacroCall::new(name, args));
+        debug_exit_info!(self);
+        Ok(macro_call)
     }
 }
 
