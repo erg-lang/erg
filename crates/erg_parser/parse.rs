@@ -5,10 +5,10 @@
 use std::mem;
 
 use erg_common::config::ErgConfig;
+use erg_common::dict::Dict as HashMap;
 use erg_common::error::Location;
 use erg_common::io::{Input, InputKind};
 use erg_common::set::Set as HashSet;
-use erg_common::dict::Dict as HashMap;
 use erg_common::str::Str;
 use erg_common::traits::{DequeStream, ExitStatus, Locational, New, Runnable, Stream};
 use erg_common::{
@@ -251,7 +251,12 @@ impl MacroContext {
     pub fn new() -> Self {
         let mut ctx = Self::empty();
         let for_ = MacroInfo {
-            non_defaults: vec![MacroArg::Name, MacroArg::keyword("in"), MacroArg::Expr, MacroArg::Block],
+            non_defaults: vec![
+                MacroArg::Name,
+                MacroArg::keyword("in"),
+                MacroArg::Expr,
+                MacroArg::Block,
+            ],
             var_params: None,
             defaults: HashMap::default(),
         };
@@ -263,7 +268,12 @@ impl MacroContext {
         };
         ctx.insert("import".into(), import);
         let if_ = MacroInfo {
-            non_defaults: vec![MacroArg::Expr, MacroArg::Block, MacroArg::keyword("else"), MacroArg::Block],
+            non_defaults: vec![
+                MacroArg::Expr,
+                MacroArg::Block,
+                MacroArg::keyword("else"),
+                MacroArg::Block,
+            ],
             var_params: None,
             defaults: HashMap::default(),
         };
@@ -2116,7 +2126,10 @@ impl Parser {
                 .map_err(|_| self.stack_dec(fn_name!()))?,
         ));
         loop {
-            if self.peek().is_some_and(|tok| Some(&tok.content) == self.keywords.first()) {
+            if self
+                .peek()
+                .is_some_and(|tok| Some(&tok.content) == self.keywords.first())
+            {
                 self.keywords.remove(0);
                 match stack.pop() {
                     Some(ExprOrOp::Expr(expr)) => {
@@ -2684,7 +2697,10 @@ impl Parser {
     #[inline]
     fn try_reduce_call_or_acc(&mut self, in_type_args: bool) -> ParseResult<Expr> {
         debug_call_info!(self);
-        if let Some(mac) = self.peek().and_then(|tok| self.macros.get(&tok.content).cloned()) {
+        if let Some(mac) = self
+            .peek()
+            .and_then(|tok| self.macros.get(&tok.content).cloned())
+        {
             let mac = self.try_reduce_macro_call(mac);
             debug_exit_info!(self);
             return mac;
@@ -3796,13 +3812,16 @@ impl Parser {
         for non_default in mac.non_defaults.iter() {
             match non_default {
                 MacroArg::Expr => {
-                    let expr = self.try_reduce_expr(true, false, false, false)
+                    let expr = self
+                        .try_reduce_expr(true, false, false, false)
                         .map_err(|_| self.stack_dec(fn_name!()))?;
                     args.push(crate::ast::MacroArg::Expr(expr));
                 }
                 MacroArg::Block => {
                     expect_pop!(self, Colon);
-                    let block = self.try_reduce_block().map_err(|_| self.stack_dec(fn_name!()))?;
+                    let block = self
+                        .try_reduce_block()
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
                     while self.cur_is(Newline) {
                         self.skip();
                     }
@@ -3810,7 +3829,8 @@ impl Parser {
                 }
                 // TODO:
                 MacroArg::Name => {
-                    let name = self.try_reduce_expr(true, false, false, false)
+                    let name = self
+                        .try_reduce_expr(true, false, false, false)
                         .map_err(|_| self.stack_dec(fn_name!()))?;
                     args.push(crate::ast::MacroArg::Expr(name));
                 }

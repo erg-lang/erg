@@ -1962,7 +1962,7 @@ impl DataPack {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Block {
     pub splice_id: Option<Str>,
-    chunks: Vec<Expr>
+    chunks: Vec<Expr>,
 }
 
 impl NestedDisplay for Block {
@@ -1994,10 +1994,16 @@ impl FromIterator<Expr> for Block {
 
 impl Block {
     pub const fn new(chunks: Vec<Expr>) -> Block {
-        Block { chunks, splice_id: None }
+        Block {
+            chunks,
+            splice_id: None,
+        }
     }
     pub const fn placeholder(id: Str) -> Block {
-        Block { chunks: Vec::new(), splice_id: Some(id) }
+        Block {
+            chunks: Vec::new(),
+            splice_id: Some(id),
+        }
     }
     pub const fn empty() -> Block {
         Block::new(Vec::new())
@@ -4155,7 +4161,11 @@ impl Identifier {
     }
 
     pub fn to_str_literal(&self) -> Literal {
-        Literal::new(Token::new_with_loc(TokenKind::StrLit, Str::from(format!("\"{}\"", self.inspect())), self.loc()))
+        Literal::new(Token::new_with_loc(
+            TokenKind::StrLit,
+            Str::from(format!("\"{}\"", self.inspect())),
+            self.loc(),
+        ))
     }
 
     pub fn is_const(&self) -> bool {
@@ -5979,7 +5989,7 @@ impl MacroCall {
 #[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Quote {
-    pub expr: Box<Expr>
+    pub expr: Box<Expr>,
 }
 
 impl NestedDisplay for Quote {
@@ -5995,7 +6005,9 @@ impl_locational!(Quote, expr);
 
 impl Quote {
     pub fn new(expr: Expr) -> Self {
-        Self { expr: Box::new(expr) }
+        Self {
+            expr: Box::new(expr),
+        }
     }
 }
 
@@ -6004,7 +6016,7 @@ impl Quote {
 #[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Splice {
-    pub expr: Box<Expr>
+    pub expr: Box<Expr>,
 }
 
 impl NestedDisplay for Splice {
@@ -6020,7 +6032,9 @@ impl_locational!(Splice, expr);
 
 impl Splice {
     pub fn new(expr: Expr) -> Self {
-        Self { expr: Box::new(expr) }
+        Self {
+            expr: Box::new(expr),
+        }
     }
 }
 

@@ -74,7 +74,10 @@ pub struct MacroInfo {
 
 impl MacroInfo {
     pub fn new(params: Vec<Str>, template: ast::Quote) -> Self {
-        Self { params, quote: template }
+        Self {
+            params,
+            quote: template,
+        }
     }
 }
 
@@ -85,9 +88,7 @@ pub struct MacroFrame {
 
 impl MacroFrame {
     pub fn new() -> Self {
-        Self {
-            params: dict! {},
-        }
+        Self { params: dict! {} }
     }
 
     fn register_params(&mut self, params: Vec<Str>, args: Vec<ast::MacroArg>) {
@@ -130,11 +131,18 @@ impl MacroContext {
             let import_func = ast::Expr::static_local("import");
             let name = ast::Expr::static_local("name");
             let attr = ast::Identifier::public(Str::from("to_str_literal"));
-            let lit = ast::Expr::Splice(ast::Splice::new(ast::Expr::Call(ast::Call::new(name.clone(), Some(attr), ast::Args::empty()))));
+            let lit = ast::Expr::Splice(ast::Splice::new(ast::Expr::Call(ast::Call::new(
+                name.clone(),
+                Some(attr),
+                ast::Args::empty(),
+            ))));
             let args = ast::Args::pos_only(vec![ast::PosArg::new(lit)], None);
             let call = ast::Expr::Call(ast::Call::new(import_func, None, args));
             let body = ast::DefBody::new(Token::DUMMY, ast::Block::new(vec![call]), DefId(0));
-            let sig = ast::Signature::Var(ast::VarSignature::new(ast::VarPattern::Splice(ast::Splice::new(name)), None));
+            let sig = ast::Signature::Var(ast::VarSignature::new(
+                ast::VarPattern::Splice(ast::Splice::new(name)),
+                None,
+            ));
             let template = ast::Expr::Def(ast::Def::new(sig, body));
             MacroInfo::new(vec!["name".into()], ast::Quote::new(template))
         };
@@ -145,16 +153,28 @@ impl MacroContext {
             let i = ast::Expr::static_local("i");
             let iterable = ast::Expr::static_local("iterable");
             let sig = ast::LambdaSignature::new(
-                ast::Params::single(ast::NonDefaultParamSignature::new(ast::ParamPattern::Splice(ast::Splice::new(i)), None)),
+                ast::Params::single(ast::NonDefaultParamSignature::new(
+                    ast::ParamPattern::Splice(ast::Splice::new(i)),
+                    None,
+                )),
                 None,
-                ast::TypeBoundSpecs::empty()
+                ast::TypeBoundSpecs::empty(),
             );
             let body = ast::Block::placeholder("body".into());
             let op = Token::dummy(TokenKind::ProcArrow, "=>");
             let lambda = ast::Expr::Lambda(ast::Lambda::new(sig, op, body, DefId(0)));
-            let args = ast::Args::pos_only(vec![ast::PosArg::new(ast::Expr::Splice(ast::Splice::new(iterable))), ast::PosArg::new(lambda)], None);
+            let args = ast::Args::pos_only(
+                vec![
+                    ast::PosArg::new(ast::Expr::Splice(ast::Splice::new(iterable))),
+                    ast::PosArg::new(lambda),
+                ],
+                None,
+            );
             let call = ast::Expr::Call(ast::Call::new(for_proc, None, args));
-            MacroInfo::new(vec!["i".into(), "_".into(), "iterable".into(), "body".into()], ast::Quote::new(call))
+            MacroInfo::new(
+                vec!["i".into(), "_".into(), "iterable".into(), "body".into()],
+                ast::Quote::new(call),
+            )
         };
         slf.insert(Str::from("for!"), for_);
         slf
@@ -166,14 +186,12 @@ impl MacroContext {
 
     fn eval_splice(&self, splice: ast::Splice) -> LowerResult<ast::Expr> {
         match *splice.expr {
-            ast::Expr::Call(call) => {
-                match call.attr_name.as_ref().map(|i| &i.inspect()[..]) {
-                    Some("to_str_literal") => {
-                        let lit = call.obj.to_str_literal();
-                        Ok(ast::Expr::Literal(lit))
-                    }
-                    _ => Ok(ast::Expr::Call(call)),
+            ast::Expr::Call(call) => match call.attr_name.as_ref().map(|i| &i.inspect()[..]) {
+                Some("to_str_literal") => {
+                    let lit = call.obj.to_str_literal();
+                    Ok(ast::Expr::Literal(lit))
                 }
+                _ => Ok(ast::Expr::Call(call)),
             },
             ast::Expr::Splice(splice) => Ok(*splice.expr),
             other => Ok(other),
@@ -188,42 +206,52 @@ impl MacroContext {
         let var_args = args.var_args.map(|x| *x);
         let kw_args = args.kw_args;
         let kw_var_args = args.kw_var_args.map(|x| *x);
-        Ok(ast::Args::new(pos_args, var_args, kw_args, kw_var_args, args.paren))
+        Ok(ast::Args::new(
+            pos_args,
+            var_args,
+            kw_args,
+            kw_var_args,
+            args.paren,
+        ))
     }
 
     fn eliminate_splices_of_sig(&self, sig: ast::Signature) -> LowerResult<ast::Signature> {
         match sig {
             ast::Signature::Var(var) => {
                 let pat = match var.pat {
-                    ast::VarPattern::Splice(splice) => {
-                        match self.eval_splice(splice)? {
-                            ast::Expr::Accessor(ast::Accessor::Ident(ident)) => ast::VarPattern::Ident(ident),
-                            expr => todo!("{expr}"),
+                    ast::VarPattern::Splice(splice) => match self.eval_splice(splice)? {
+                        ast::Expr::Accessor(ast::Accessor::Ident(ident)) => {
+                            ast::VarPattern::Ident(ident)
                         }
-                    }
+                        expr => todo!("{expr}"),
+                    },
                     _ => var.pat,
                 };
                 Ok(ast::Signature::Var(ast::VarSignature::new(pat, var.t_spec)))
-            },
+            }
             ast::Signature::Subr(subr) => Ok(ast::Signature::Subr(subr)),
         }
     }
 
-    fn eliminate_splice_of_param(&self, param: ast::NonDefaultParamSignature) -> LowerResult<ast::NonDefaultParamSignature> {
+    fn eliminate_splice_of_param(
+        &self,
+        param: ast::NonDefaultParamSignature,
+    ) -> LowerResult<ast::NonDefaultParamSignature> {
         let pat = match param.pat {
-            ast::ParamPattern::Splice(splice) => {
-                match self.eval_splice(splice)? {
-                    ast::Expr::Accessor(ast::Accessor::Ident(ident)) => ast::ParamPattern::VarName(ident.name),
-                    expr => todo!("{expr}"),
+            ast::ParamPattern::Splice(splice) => match self.eval_splice(splice)? {
+                ast::Expr::Accessor(ast::Accessor::Ident(ident)) => {
+                    ast::ParamPattern::VarName(ident.name)
                 }
-            }
+                expr => todo!("{expr}"),
+            },
             _ => param.pat,
         };
         Ok(ast::NonDefaultParamSignature::new(pat, param.t_spec))
     }
 
     fn eliminate_splices_of_params(&self, params: ast::Params) -> LowerResult<ast::Params> {
-        let nd = params.non_defaults
+        let nd = params
+            .non_defaults
             .into_iter()
             .map(|x| self.eliminate_splice_of_param(x))
             .collect::<LowerResult<_>>()?;
@@ -233,9 +261,16 @@ impl MacroContext {
         Ok(ast::Params::new(nd, var, d, kw, params.parens))
     }
 
-    fn eliminate_splices_of_lambda_sig(&self, sig: ast::LambdaSignature) -> LowerResult<ast::LambdaSignature> {
+    fn eliminate_splices_of_lambda_sig(
+        &self,
+        sig: ast::LambdaSignature,
+    ) -> LowerResult<ast::LambdaSignature> {
         let params = self.eliminate_splices_of_params(sig.params)?;
-        Ok(ast::LambdaSignature::new(params, sig.return_t_spec, sig.bounds))
+        Ok(ast::LambdaSignature::new(
+            params,
+            sig.return_t_spec,
+            sig.bounds,
+        ))
     }
 
     fn eliminate_splices_of_block(&self, block: ast::Block) -> LowerResult<ast::Block> {
@@ -257,12 +292,17 @@ impl MacroContext {
             ast::Expr::Def(def) => {
                 let sig = self.eliminate_splices_of_sig(def.sig)?;
                 let block = self.eliminate_splices_of_block(def.body.block)?;
-                Ok(ast::Expr::Def(ast::Def::new(sig, ast::DefBody::new(def.body.op, block, def.body.id))))
+                Ok(ast::Expr::Def(ast::Def::new(
+                    sig,
+                    ast::DefBody::new(def.body.op, block, def.body.id),
+                )))
             }
             ast::Expr::Lambda(lambda) => {
                 let sig = self.eliminate_splices_of_lambda_sig(lambda.sig)?;
                 let block = self.eliminate_splices_of_block(lambda.body)?;
-                Ok(ast::Expr::Lambda(ast::Lambda::new(sig, lambda.op, block, lambda.id)))
+                Ok(ast::Expr::Lambda(ast::Lambda::new(
+                    sig, lambda.op, block, lambda.id,
+                )))
             }
             _ => Ok(expr),
         }
@@ -276,10 +316,19 @@ impl MacroContext {
         let var_args = args.var_args.map(|x| *x);
         let kw_args = args.kw_args;
         let kw_var_args = args.kw_var_args.map(|x| *x);
-        Ok(ast::Args::new(pos_args, var_args, kw_args, kw_var_args, args.paren))
+        Ok(ast::Args::new(
+            pos_args,
+            var_args,
+            kw_args,
+            kw_var_args,
+            args.paren,
+        ))
     }
 
-    fn substitute_splice_param(&self, param: ast::NonDefaultParamSignature) -> LowerResult<ast::NonDefaultParamSignature> {
+    fn substitute_splice_param(
+        &self,
+        param: ast::NonDefaultParamSignature,
+    ) -> LowerResult<ast::NonDefaultParamSignature> {
         let pat = match param.pat {
             ast::ParamPattern::Splice(splice) => {
                 let expr = self.substitute_splice(*splice.expr)?;
@@ -291,7 +340,8 @@ impl MacroContext {
     }
 
     fn substitute_splice_params(&self, params: ast::Params) -> LowerResult<ast::Params> {
-        let nd = params.non_defaults
+        let nd = params
+            .non_defaults
             .into_iter()
             .map(|x| self.substitute_splice_param(x))
             .collect::<LowerResult<_>>()?;
@@ -301,13 +351,24 @@ impl MacroContext {
         Ok(ast::Params::new(nd, var, d, kw, params.parens))
     }
 
-    fn substitute_splice_lambda_sig(&self, sig: ast::LambdaSignature) -> LowerResult<ast::LambdaSignature> {
+    fn substitute_splice_lambda_sig(
+        &self,
+        sig: ast::LambdaSignature,
+    ) -> LowerResult<ast::LambdaSignature> {
         let params = self.substitute_splice_params(sig.params)?;
-        Ok(ast::LambdaSignature::new(params, sig.return_t_spec, sig.bounds))
+        Ok(ast::LambdaSignature::new(
+            params,
+            sig.return_t_spec,
+            sig.bounds,
+        ))
     }
 
     fn substitute_splice_block(&self, block: ast::Block) -> LowerResult<ast::Block> {
-        if let Some(ast::MacroArg::Block(block)) = block.splice_id.as_ref().and_then(|id| self.frame.params.get(id)) {
+        if let Some(ast::MacroArg::Block(block)) = block
+            .splice_id
+            .as_ref()
+            .and_then(|id| self.frame.params.get(id))
+        {
             return Ok(block.clone());
         }
         let mut new_block = vec![];
@@ -338,7 +399,9 @@ impl MacroContext {
             ast::Expr::Lambda(lambda) => {
                 let sig = self.substitute_splice_lambda_sig(lambda.sig)?;
                 let block = self.substitute_splice_block(lambda.body)?;
-                Ok(ast::Expr::Lambda(ast::Lambda::new(sig, lambda.op, block, lambda.id)))
+                Ok(ast::Expr::Lambda(ast::Lambda::new(
+                    sig, lambda.op, block, lambda.id,
+                )))
             }
             _ => Ok(expr),
         }
@@ -360,7 +423,10 @@ impl MacroContext {
         }
     }
 
-    fn substitute_param(&self, param: ast::NonDefaultParamSignature) -> LowerResult<ast::NonDefaultParamSignature> {
+    fn substitute_param(
+        &self,
+        param: ast::NonDefaultParamSignature,
+    ) -> LowerResult<ast::NonDefaultParamSignature> {
         let pat = match param.pat {
             ast::ParamPattern::Splice(splice) => {
                 let expr = self.substitute_splice(*splice.expr)?;
@@ -372,7 +438,8 @@ impl MacroContext {
     }
 
     fn substitute_params(&self, params: ast::Params) -> LowerResult<ast::Params> {
-        let nd = params.non_defaults
+        let nd = params
+            .non_defaults
             .into_iter()
             .map(|x| self.substitute_param(x))
             .collect::<LowerResult<_>>()?;
@@ -382,13 +449,24 @@ impl MacroContext {
         Ok(ast::Params::new(nd, var, d, kw, params.parens))
     }
 
-    fn substitute_lambda_sig(&self, sig: ast::LambdaSignature) -> LowerResult<ast::LambdaSignature> {
+    fn substitute_lambda_sig(
+        &self,
+        sig: ast::LambdaSignature,
+    ) -> LowerResult<ast::LambdaSignature> {
         let params = self.substitute_params(sig.params)?;
-        Ok(ast::LambdaSignature::new(params, sig.return_t_spec, sig.bounds))
+        Ok(ast::LambdaSignature::new(
+            params,
+            sig.return_t_spec,
+            sig.bounds,
+        ))
     }
 
     fn substitute_block(&self, block: ast::Block) -> LowerResult<ast::Block> {
-        if let Some(ast::MacroArg::Block(block)) = block.splice_id.as_ref().and_then(|id| self.frame.params.get(id)) {
+        if let Some(ast::MacroArg::Block(block)) = block
+            .splice_id
+            .as_ref()
+            .and_then(|id| self.frame.params.get(id))
+        {
             return Ok(block.clone());
         }
         let mut new_block = vec![];
@@ -406,7 +484,13 @@ impl MacroContext {
         let var_args = args.var_args.map(|x| *x);
         let kw_args = args.kw_args;
         let kw_var_args = args.kw_var_args.map(|x| *x);
-        Ok(ast::Args::new(pos_args, var_args, kw_args, kw_var_args, args.paren))
+        Ok(ast::Args::new(
+            pos_args,
+            var_args,
+            kw_args,
+            kw_var_args,
+            args.paren,
+        ))
     }
 
     fn substitute(&self, expr: ast::Expr) -> LowerResult<ast::Expr> {
@@ -423,12 +507,17 @@ impl MacroContext {
             ast::Expr::Def(def) => {
                 let sig = self.substitute_sig(def.sig)?;
                 let block = self.substitute_block(def.body.block)?;
-                Ok(ast::Expr::Def(ast::Def::new(sig, ast::DefBody::new(def.body.op, block, def.body.id))))
+                Ok(ast::Expr::Def(ast::Def::new(
+                    sig,
+                    ast::DefBody::new(def.body.op, block, def.body.id),
+                )))
             }
             ast::Expr::Lambda(lambda) => {
                 let sig = self.substitute_lambda_sig(lambda.sig)?;
                 let block = self.substitute_block(lambda.body)?;
-                Ok(ast::Expr::Lambda(ast::Lambda::new(sig, lambda.op, block, lambda.id)))
+                Ok(ast::Expr::Lambda(ast::Lambda::new(
+                    sig, lambda.op, block, lambda.id,
+                )))
             }
             _ => Ok(expr),
         }
@@ -438,8 +527,10 @@ impl MacroContext {
         let Some(mac_info) = self.macros.get(mac.name.inspect()) else {
             todo!("{mac}");
         };
-        self.frame.register_params(mac_info.params.clone(), mac.args);
-        let expr = self.substitute(*mac_info.quote.expr.clone())
+        self.frame
+            .register_params(mac_info.params.clone(), mac.args);
+        let expr = self
+            .substitute(*mac_info.quote.expr.clone())
             .inspect_err(|_| self.frame.clear_params(&mac_info.params))?;
         let result = self.eliminate_splices(expr);
         self.frame.clear_params(&mac_info.params);
