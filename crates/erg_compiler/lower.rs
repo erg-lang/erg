@@ -147,7 +147,7 @@ impl MacroContext {
             MacroInfo::new(vec!["name".into()], ast::Quote::new(template))
         };
         slf.insert(Str::from("import"), import_);
-        // for!: |T|(i: Name[T], _: Symbol["in"], iterable: Expr[Iterable[T]], body: Block[NoneType]) => NoneType
+        // for!: |T|(i: Name[T], iterable: WithPrefix["in", Expr[Iterable[T]]], body: Block[NoneType]) => NoneType
         let for_ = {
             let for_proc = ast::Expr::static_local("for!");
             let i = ast::Expr::static_local("i");
@@ -172,11 +172,41 @@ impl MacroContext {
             );
             let call = ast::Expr::Call(ast::Call::new(for_proc, None, args));
             MacroInfo::new(
-                vec!["i".into(), "_".into(), "iterable".into(), "body".into()],
+                vec!["i".into(), "iterable".into(), "body".into()],
                 ast::Quote::new(call),
             )
         };
         slf.insert(Str::from("for!"), for_);
+        // if!: |T|(cond: Name[Bool], then: Block[T], *elif: WithPrefix["elif", Block[T]], else := WithPrefix["else", Block[U]]) => T or U
+        // if! cond, then, *elif, else := None = ...
+        // a compile error occurs if `else == None and elif != []`
+        let if_ = {
+            let if_proc = ast::Expr::static_local("if!");
+            let cond = ast::Expr::static_local("cond");
+            let then = ast::Block::placeholder("then".into());
+            let _elif = ast::Block::placeholder("elif".into());
+            let _else_ = ast::Block::placeholder("else".into());
+            let sig = ast::LambdaSignature::new(
+                ast::Params::empty(),
+                None,
+                ast::TypeBoundSpecs::empty(),
+            );
+            let op = Token::dummy(TokenKind::ProcArrow, "=>");
+            let then_lambda = ast::Expr::Lambda(ast::Lambda::new(sig, op, then, DefId(0)));
+            let args = ast::Args::pos_only(
+                vec![
+                    ast::PosArg::new(ast::Expr::Splice(ast::Splice::new(cond))),
+                    ast::PosArg::new(then_lambda),
+                ],
+                None,
+            );
+            let call = ast::Expr::Call(ast::Call::new(if_proc, None, args));
+            MacroInfo::new(
+                vec!["cond".into(), "then".into(), "elif".into(), "else".into()],
+                ast::Quote::new(call),
+            )
+        };
+        slf.insert(Str::from("if!"), if_);
         slf
     }
 
@@ -381,7 +411,7 @@ impl MacroContext {
     fn substitute_splice(&self, expr: ast::Expr) -> LowerResult<ast::Expr> {
         match expr {
             ast::Expr::Accessor(ast::Accessor::Ident(ident)) => {
-                if let Some(ast::MacroArg::Expr(expr)) = self.frame.params.get(ident.inspect()) {
+                if let Some(expr) = self.frame.params.get(ident.inspect()).and_then(|arg| arg.get_expr()) {
                     Ok(expr.clone())
                 } else {
                     Ok(ast::Expr::Accessor(ast::Accessor::Ident(ident)))
@@ -528,7 +558,7 @@ impl MacroContext {
             todo!("{mac}");
         };
         self.frame
-            .register_params(mac_info.params.clone(), mac.args);
+            .register_params(mac_info.params.clone(), mac.pos_args);
         let expr = self
             .substitute(*mac_info.quote.expr.clone())
             .inspect_err(|_| self.frame.clear_params(&mac_info.params))?;

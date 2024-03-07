@@ -208,16 +208,16 @@ pub enum MacroArg {
     Expr,
     Name,
     Block,
-    Keyword(Str),
+    WithPrefix(Str, Box<MacroArg>),
 }
 
 impl MacroArg {
-    pub fn keyword(name: impl Into<Str>) -> Self {
-        Self::Keyword(name.into())
+    pub fn with_prefix(name: impl Into<Str>, arg: Self) -> Self {
+        Self::WithPrefix(name.into(), Box::new(arg))
     }
 
-    pub fn get_kw(&self) -> Option<Str> {
-        if let Self::Keyword(kw) = self {
+    pub fn get_prefix(&self) -> Option<Str> {
+        if let Self::WithPrefix(kw, _) = self {
             Some(kw.clone())
         } else {
             None
@@ -231,12 +231,14 @@ pub struct MacroInfo {
     #[allow(unused)]
     var_params: Option<MacroArg>,
     #[allow(unused)]
-    defaults: HashMap<Str, MacroArg>,
+    defaults: Vec<MacroArg>,
 }
 
 impl MacroInfo {
     pub fn keywords(&self) -> impl Iterator<Item = Str> + '_ {
-        self.non_defaults.iter().filter_map(|arg| arg.get_kw())
+        self.non_defaults.iter().filter_map(|arg| arg.get_prefix())
+        .chain(self.var_params.iter().filter_map(|arg| arg.get_prefix()))
+        .chain(self.defaults.iter().filter_map(|arg| arg.get_prefix()))
     }
 }
 
@@ -253,31 +255,30 @@ impl MacroContext {
         let for_ = MacroInfo {
             non_defaults: vec![
                 MacroArg::Name,
-                MacroArg::keyword("in"),
-                MacroArg::Expr,
+                MacroArg::with_prefix("in", MacroArg::Expr),
                 MacroArg::Block,
             ],
             var_params: None,
-            defaults: HashMap::default(),
+            defaults: vec![],
         };
         ctx.insert("for!".into(), for_);
         let import = MacroInfo {
             non_defaults: vec![MacroArg::Name],
             var_params: None,
-            defaults: HashMap::default(),
+            defaults: vec![],
         };
         ctx.insert("import".into(), import);
         let if_ = MacroInfo {
             non_defaults: vec![
                 MacroArg::Expr,
                 MacroArg::Block,
-                MacroArg::keyword("else"),
-                MacroArg::Block,
             ],
-            var_params: None,
-            defaults: HashMap::default(),
+            var_params: Some(MacroArg::with_prefix("elif!", MacroArg::Block)),
+            defaults: vec![
+                MacroArg::with_prefix("else!", MacroArg::Block)
+            ],
         };
-        ctx.insert("if".into(), if_);
+        ctx.insert("if!".into(), if_);
         ctx
     }
 
@@ -3804,47 +3805,73 @@ impl Parser {
         Ok(())
     }
 
+    fn try_reduce_macro_arg(&mut self, arg: &MacroArg) -> ParseResult<crate::ast::MacroArg> {
+        debug_call_info!(self);
+        match arg {
+            MacroArg::Expr => {
+                let expr = self
+                    .try_reduce_expr(true, false, false, false)
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                debug_exit_info!(self);
+                Ok(crate::ast::MacroArg::Expr(expr))
+            }
+            MacroArg::Block => {
+                expect_pop!(self, Colon);
+                let block = self
+                    .try_reduce_block()
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                while self.cur_is(Newline) {
+                    self.skip();
+                }
+                debug_exit_info!(self);
+                Ok(crate::ast::MacroArg::Block(block))
+            }
+            // TODO:
+            MacroArg::Name => {
+                let name = self
+                    .try_reduce_expr(true, false, false, false)
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                debug_exit_info!(self);
+                Ok(crate::ast::MacroArg::Expr(name))
+            }
+            MacroArg::WithPrefix(kw, arg) => {
+                if self.peek().is_some_and(|tok| &tok.content == kw) {
+                    let kw = self.lpop();
+                    let arg = self.try_reduce_macro_arg(arg)
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                    Ok(crate::ast::MacroArg::with_prefix(kw, arg))
+                } else {
+                    todo!("{kw} / {:?}", self.peek())
+                }
+            }
+        }
+    }
+
     fn try_reduce_macro_call(&mut self, mac: MacroInfo) -> ParseResult<Expr> {
         debug_call_info!(self);
         let name = VarName::new(self.lpop());
         self.keywords = [mac.keywords().collect(), mem::take(&mut self.keywords)].concat();
-        let mut args = vec![];
+        let mut pos_args = vec![];
         for non_default in mac.non_defaults.iter() {
-            match non_default {
-                MacroArg::Expr => {
-                    let expr = self
-                        .try_reduce_expr(true, false, false, false)
-                        .map_err(|_| self.stack_dec(fn_name!()))?;
-                    args.push(crate::ast::MacroArg::Expr(expr));
-                }
-                MacroArg::Block => {
-                    expect_pop!(self, Colon);
-                    let block = self
-                        .try_reduce_block()
-                        .map_err(|_| self.stack_dec(fn_name!()))?;
-                    while self.cur_is(Newline) {
-                        self.skip();
-                    }
-                    args.push(crate::ast::MacroArg::Block(block));
-                }
-                // TODO:
-                MacroArg::Name => {
-                    let name = self
-                        .try_reduce_expr(true, false, false, false)
-                        .map_err(|_| self.stack_dec(fn_name!()))?;
-                    args.push(crate::ast::MacroArg::Expr(name));
-                }
-                MacroArg::Keyword(kw) => {
-                    if self.peek().is_some_and(|tok| &tok.content == kw) {
-                        let kw = self.lpop();
-                        args.push(crate::ast::MacroArg::Token(kw));
-                    } else {
-                        todo!("{kw} / {:?}", self.peek())
-                    }
-                }
+            let arg = self.try_reduce_macro_arg(non_default)
+                .map_err(|_| self.stack_dec(fn_name!()))?;
+            pos_args.push(arg);
+        }
+        let mut var_args = vec![];
+        if let Some(var_params) = mac.var_params {
+            while self.peek().map_or(true, |tok| Some(&tok.content) == var_params.get_prefix().as_ref()) {
+                let arg = self.try_reduce_macro_arg(&var_params)
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                var_args.push(arg);
             }
         }
-        let macro_call = Expr::MacroCall(MacroCall::new(name, args));
+        let mut kw_args = vec![];
+        while let Some(default) = self.peek().and_then(|tok| mac.defaults.iter().find(|arg| tok.content == arg.get_prefix().unwrap())) {
+            let arg = self.try_reduce_macro_arg(default)
+                .map_err(|_| self.stack_dec(fn_name!()))?;
+            kw_args.push(arg);
+        }
+        let macro_call = Expr::MacroCall(MacroCall::new(name, pos_args, var_args, kw_args));
         debug_exit_info!(self);
         Ok(macro_call)
     }

@@ -411,15 +411,22 @@ impl Desugarer {
                 Expr::InlineModule(InlineModule::new(inline.input, ast, inline.import))
             }
             Expr::MacroCall(call) => {
-                let args = call
-                    .args
+                let pos_args = call
+                    .pos_args
                     .into_iter()
-                    .map(|arg| match arg {
-                        MacroArg::Expr(expr) => MacroArg::Expr(desugar(expr)),
-                        _ => arg,
-                    })
+                    .map(|arg| Self::perform_desugar_macro_arg(&mut desugar, arg))
                     .collect();
-                Expr::MacroCall(MacroCall::new(call.name, args))
+                let var_args = call
+                    .var_args
+                    .into_iter()
+                    .map(|arg| Self::perform_desugar_macro_arg(&mut desugar, arg))
+                    .collect();
+                let kw_args = call
+                    .kw_args
+                    .into_iter()
+                    .map(|arg| Self::perform_desugar_macro_arg(&mut desugar, arg))
+                    .collect();
+                Expr::MacroCall(MacroCall::new(call.name, pos_args, var_args, kw_args))
             }
             Expr::Quote(quote) => Expr::Quote(Quote::new(desugar(*quote.expr))),
             Expr::Splice(unquote) => Expr::Splice(Splice::new(desugar(*unquote.expr))),
@@ -430,6 +437,22 @@ impl Desugarer {
                     chunks.push(desugar(chunk));
                 }
                 Expr::Dummy(Dummy::new(loc, chunks))
+            }
+        }
+    }
+
+    fn perform_desugar_macro_arg(desugar: &mut impl FnMut(Expr) -> Expr, arg: MacroArg) -> MacroArg {
+        match arg {
+            MacroArg::Expr(expr) => MacroArg::Expr(desugar(expr)),
+            MacroArg::WithPrefix(prefix) => {
+                MacroArg::with_prefix(prefix.token, Self::perform_desugar_macro_arg(desugar, *prefix.arg))
+            }
+            MacroArg::Block(block) => {
+                let mut chunks = vec![];
+                for chunk in block.into_iter() {
+                    chunks.push(desugar(chunk));
+                }
+                MacroArg::Block(Block::new(chunks))
             }
         }
     }
