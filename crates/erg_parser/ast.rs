@@ -123,6 +123,56 @@ macro_rules! impl_py_iter {
             }
         }
     };
+    ($Ty: ident <$inner: ident>, $Iter: ident, $attr: ident) => {
+        #[cfg(feature = "pylib")]
+        #[pyclass]
+        struct $Iter {
+            inner: std::vec::IntoIter<$inner>,
+        }
+
+        #[cfg(feature = "pylib")]
+        #[pymethods]
+        impl $Iter {
+            #[allow(clippy::self_named_constructors)]
+            fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+                slf
+            }
+            fn __next__(mut slf: PyRefMut<'_, Self>) -> Option<$inner> {
+                slf.inner.next()
+            }
+        }
+
+        #[cfg(feature = "pylib")]
+        #[pymethods]
+        impl $Ty {
+            fn __iter__(slf: PyRef<'_, Self>) -> PyResult<Py<$Iter>> {
+                let iter = $Iter {
+                    inner: slf.clone().into_iter(),
+                };
+                Py::new(slf.py(), iter)
+            }
+
+            #[pyo3(name = "pop")]
+            fn _pop(mut slf: PyRefMut<'_, Self>) -> Option<$inner> {
+                slf.$attr.pop()
+            }
+
+            #[pyo3(name = "push")]
+            fn _push(mut slf: PyRefMut<'_, Self>, item: $inner) {
+                slf.$attr.push(item);
+            }
+
+            #[pyo3(name = "remove")]
+            fn _remove(mut slf: PyRefMut<'_, Self>, idx: usize) -> $inner {
+                slf.$attr.remove(idx)
+            }
+
+            #[pyo3(name = "insert")]
+            fn _insert(mut slf: PyRefMut<'_, Self>, idx: usize, item: $inner) {
+                slf.$attr.insert(idx, item);
+            }
+        }
+    };
     ($Ty: ident <$inner: ident>, $Iter: ident) => {
         #[cfg(feature = "pylib")]
         #[pyclass]
@@ -1910,11 +1960,14 @@ impl DataPack {
 
 #[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Block(Vec<Expr>);
+pub struct Block {
+    pub splice_id: Option<Str>,
+    chunks: Vec<Expr>
+}
 
 impl NestedDisplay for Block {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
-        fmt_lines(self.0.iter(), f, level)
+        fmt_lines(self.chunks.iter(), f, level)
     }
 }
 
@@ -1922,16 +1975,38 @@ impl_display_from_nested!(Block);
 
 impl Locational for Block {
     fn loc(&self) -> Location {
-        if self.0.is_empty() {
+        if self.chunks.is_empty() {
             Location::Unknown
         } else {
-            Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+            Location::concat(self.chunks.first().unwrap(), self.chunks.last().unwrap())
         }
     }
 }
 
-impl_stream!(Block, Expr);
-impl_py_iter!(Block<Expr>, BlockIter, 0);
+impl_stream!(Block, Expr, chunks);
+impl_py_iter!(Block<Expr>, BlockIter, chunks);
+
+impl FromIterator<Expr> for Block {
+    fn from_iter<I: IntoIterator<Item = Expr>>(iter: I) -> Self {
+        Block::new(iter.into_iter().collect())
+    }
+}
+
+impl Block {
+    pub const fn new(chunks: Vec<Expr>) -> Block {
+        Block { chunks, splice_id: None }
+    }
+    pub const fn placeholder(id: Str) -> Block {
+        Block { chunks: Vec::new(), splice_id: Some(id) }
+    }
+    pub const fn empty() -> Block {
+        Block::new(Vec::new())
+    }
+    #[inline]
+    pub fn with_capacity(capacity: usize) -> Block {
+        Block::new(Vec::with_capacity(capacity))
+    }
+}
 
 #[pyclass(get_all, set_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -1973,13 +2048,13 @@ impl IntoIterator for Dummy {
 
 impl Stream<Expr> for Dummy {
     fn ref_payload(&self) -> &Vec<Expr> {
-        &self.exprs.0
+        &self.exprs.chunks
     }
     fn ref_mut_payload(&mut self) -> &mut Vec<Expr> {
-        &mut self.exprs.0
+        &mut self.exprs.chunks
     }
     fn payload(self) -> Vec<Expr> {
-        self.exprs.0
+        self.exprs.chunks
     }
 }
 
@@ -1990,7 +2065,7 @@ impl Dummy {
     pub const fn new(loc: Option<Location>, exprs: Vec<Expr>) -> Self {
         Self {
             loc,
-            exprs: Block(exprs),
+            exprs: Block::new(exprs),
         }
     }
 }
@@ -4826,9 +4901,10 @@ pub enum ParamPattern {
     // DataPack(ParamDataPackPattern),
     Ref(VarName),
     RefMut(VarName),
+    Splice(Splice),
 }
 
-impl_into_py_for_enum!(ParamPattern; Discard, VarName, Lit, Array, Tuple, Record, Ref, RefMut);
+impl_into_py_for_enum!(ParamPattern; Discard, VarName, Lit, Array, Tuple, Record, Ref, RefMut, Splice);
 
 impl NestedDisplay for ParamPattern {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
@@ -4841,6 +4917,7 @@ impl NestedDisplay for ParamPattern {
             Self::Record(record) => write!(f, "{record}"),
             Self::Ref(var_name) => write!(f, "ref {var_name}"),
             Self::RefMut(var_name) => write!(f, "ref! {var_name}"),
+            Self::Splice(splice) => write!(f, "{splice}"),
         }
     }
 }
@@ -4856,13 +4933,15 @@ impl TryFrom<&ParamPattern> for Expr {
             ParamPattern::Lit(lit) => Ok(Expr::Literal(lit.clone())),
             ParamPattern::Array(array) => Expr::try_from(array),
             ParamPattern::Tuple(tuple) => Expr::try_from(tuple),
+            // ParamPattern::Record(record) => Expr::try_from(record),
+            ParamPattern::Splice(splice) => Ok(Expr::Splice(splice.clone())),
             _ => Err(()),
         }
     }
 }
 
 impl_display_from_nested!(ParamPattern);
-impl_locational_for_enum!(ParamPattern; Discard, VarName, Lit, Array, Tuple, Record, Ref, RefMut);
+impl_locational_for_enum!(ParamPattern; Discard, VarName, Lit, Array, Tuple, Record, Ref, RefMut, Splice);
 
 impl ParamPattern {
     pub const fn inspect(&self) -> Option<&Str> {

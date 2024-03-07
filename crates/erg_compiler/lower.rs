@@ -125,18 +125,38 @@ impl MacroContext {
 
     pub fn new() -> Self {
         let mut slf = Self::empty();
-        let import_func = ast::Expr::static_local("import");
-        // 1st parameter
-        let name = ast::Expr::static_local("name");
-        let attr = ast::Identifier::public(Str::from("to_str_literal"));
-        let lit = ast::Expr::Splice(ast::Splice::new(ast::Expr::Call(ast::Call::new(name.clone(), Some(attr), ast::Args::empty()))));
-        let args = ast::Args::pos_only(vec![ast::PosArg::new(lit)], None);
-        let call = ast::Expr::Call(ast::Call::new(import_func, None, args));
-        let body = ast::DefBody::new(Token::DUMMY, ast::Block::new(vec![call]), DefId(0));
-        let sig = ast::Signature::Var(ast::VarSignature::new(ast::VarPattern::Splice(ast::Splice::new(name)), None));
-        let template = ast::Expr::Def(ast::Def::new(sig, body));
-        let import_ = MacroInfo::new(vec!["name".into()], ast::Quote::new(template));
+        // import: (name: Name[_]) -> NoneType
+        let import_ = {
+            let import_func = ast::Expr::static_local("import");
+            let name = ast::Expr::static_local("name");
+            let attr = ast::Identifier::public(Str::from("to_str_literal"));
+            let lit = ast::Expr::Splice(ast::Splice::new(ast::Expr::Call(ast::Call::new(name.clone(), Some(attr), ast::Args::empty()))));
+            let args = ast::Args::pos_only(vec![ast::PosArg::new(lit)], None);
+            let call = ast::Expr::Call(ast::Call::new(import_func, None, args));
+            let body = ast::DefBody::new(Token::DUMMY, ast::Block::new(vec![call]), DefId(0));
+            let sig = ast::Signature::Var(ast::VarSignature::new(ast::VarPattern::Splice(ast::Splice::new(name)), None));
+            let template = ast::Expr::Def(ast::Def::new(sig, body));
+            MacroInfo::new(vec!["name".into()], ast::Quote::new(template))
+        };
         slf.insert(Str::from("import"), import_);
+        // for!: |T|(i: Name[T], _: Symbol["in"], iterable: Expr[Iterable[T]], body: Block[NoneType]) => NoneType
+        let for_ = {
+            let for_proc = ast::Expr::static_local("for!");
+            let i = ast::Expr::static_local("i");
+            let iterable = ast::Expr::static_local("iterable");
+            let sig = ast::LambdaSignature::new(
+                ast::Params::single(ast::NonDefaultParamSignature::new(ast::ParamPattern::Splice(ast::Splice::new(i)), None)),
+                None,
+                ast::TypeBoundSpecs::empty()
+            );
+            let body = ast::Block::placeholder("body".into());
+            let op = Token::dummy(TokenKind::ProcArrow, "=>");
+            let lambda = ast::Expr::Lambda(ast::Lambda::new(sig, op, body, DefId(0)));
+            let args = ast::Args::pos_only(vec![ast::PosArg::new(ast::Expr::Splice(ast::Splice::new(iterable))), ast::PosArg::new(lambda)], None);
+            let call = ast::Expr::Call(ast::Call::new(for_proc, None, args));
+            MacroInfo::new(vec!["i".into(), "_".into(), "iterable".into(), "body".into()], ast::Quote::new(call))
+        };
+        slf.insert(Str::from("for!"), for_);
         slf
     }
 
@@ -152,9 +172,10 @@ impl MacroContext {
                         let lit = call.obj.to_str_literal();
                         Ok(ast::Expr::Literal(lit))
                     }
-                    _ => todo!("{call}"),
+                    _ => Ok(ast::Expr::Call(call)),
                 }
             },
+            ast::Expr::Splice(splice) => Ok(*splice.expr),
             other => Ok(other),
         }
     }
@@ -188,6 +209,35 @@ impl MacroContext {
         }
     }
 
+    fn eliminate_splice_of_param(&self, param: ast::NonDefaultParamSignature) -> LowerResult<ast::NonDefaultParamSignature> {
+        let pat = match param.pat {
+            ast::ParamPattern::Splice(splice) => {
+                match self.eval_splice(splice)? {
+                    ast::Expr::Accessor(ast::Accessor::Ident(ident)) => ast::ParamPattern::VarName(ident.name),
+                    expr => todo!("{expr}"),
+                }
+            }
+            _ => param.pat,
+        };
+        Ok(ast::NonDefaultParamSignature::new(pat, param.t_spec))
+    }
+
+    fn eliminate_splices_of_params(&self, params: ast::Params) -> LowerResult<ast::Params> {
+        let nd = params.non_defaults
+            .into_iter()
+            .map(|x| self.eliminate_splice_of_param(x))
+            .collect::<LowerResult<_>>()?;
+        let var = params.var_params.map(|x| *x);
+        let d = params.defaults;
+        let kw = params.kw_var_params.map(|x| *x);
+        Ok(ast::Params::new(nd, var, d, kw, params.parens))
+    }
+
+    fn eliminate_splices_of_lambda_sig(&self, sig: ast::LambdaSignature) -> LowerResult<ast::LambdaSignature> {
+        let params = self.eliminate_splices_of_params(sig.params)?;
+        Ok(ast::LambdaSignature::new(params, sig.return_t_spec, sig.bounds))
+    }
+
     fn eliminate_splices_of_block(&self, block: ast::Block) -> LowerResult<ast::Block> {
         let mut new_block = vec![];
         for chunk in block.into_iter() {
@@ -209,6 +259,11 @@ impl MacroContext {
                 let block = self.eliminate_splices_of_block(def.body.block)?;
                 Ok(ast::Expr::Def(ast::Def::new(sig, ast::DefBody::new(def.body.op, block, def.body.id))))
             }
+            ast::Expr::Lambda(lambda) => {
+                let sig = self.eliminate_splices_of_lambda_sig(lambda.sig)?;
+                let block = self.eliminate_splices_of_block(lambda.body)?;
+                Ok(ast::Expr::Lambda(ast::Lambda::new(sig, lambda.op, block, lambda.id)))
+            }
             _ => Ok(expr),
         }
     }
@@ -222,6 +277,44 @@ impl MacroContext {
         let kw_args = args.kw_args;
         let kw_var_args = args.kw_var_args.map(|x| *x);
         Ok(ast::Args::new(pos_args, var_args, kw_args, kw_var_args, args.paren))
+    }
+
+    fn substitute_splice_param(&self, param: ast::NonDefaultParamSignature) -> LowerResult<ast::NonDefaultParamSignature> {
+        let pat = match param.pat {
+            ast::ParamPattern::Splice(splice) => {
+                let expr = self.substitute_splice(*splice.expr)?;
+                ast::ParamPattern::Splice(ast::Splice::new(expr))
+            }
+            _ => param.pat,
+        };
+        Ok(ast::NonDefaultParamSignature::new(pat, param.t_spec))
+    }
+
+    fn substitute_splice_params(&self, params: ast::Params) -> LowerResult<ast::Params> {
+        let nd = params.non_defaults
+            .into_iter()
+            .map(|x| self.substitute_splice_param(x))
+            .collect::<LowerResult<_>>()?;
+        let var = params.var_params.map(|x| *x);
+        let d = params.defaults;
+        let kw = params.kw_var_params.map(|x| *x);
+        Ok(ast::Params::new(nd, var, d, kw, params.parens))
+    }
+
+    fn substitute_splice_lambda_sig(&self, sig: ast::LambdaSignature) -> LowerResult<ast::LambdaSignature> {
+        let params = self.substitute_splice_params(sig.params)?;
+        Ok(ast::LambdaSignature::new(params, sig.return_t_spec, sig.bounds))
+    }
+
+    fn substitute_splice_block(&self, block: ast::Block) -> LowerResult<ast::Block> {
+        if let Some(ast::MacroArg::Block(block)) = block.splice_id.as_ref().and_then(|id| self.frame.params.get(id)) {
+            return Ok(block.clone());
+        }
+        let mut new_block = vec![];
+        for chunk in block.into_iter() {
+            new_block.push(self.substitute_splice(chunk)?);
+        }
+        Ok(ast::Block::new(new_block))
     }
 
     fn substitute_splice(&self, expr: ast::Expr) -> LowerResult<ast::Expr> {
@@ -241,6 +334,11 @@ impl MacroContext {
                 let obj = self.substitute_splice(*call.obj)?;
                 let args = self.substitute_splice_args(call.args)?;
                 Ok(obj.method_call_expr(call.attr_name, args))
+            }
+            ast::Expr::Lambda(lambda) => {
+                let sig = self.substitute_splice_lambda_sig(lambda.sig)?;
+                let block = self.substitute_splice_block(lambda.body)?;
+                Ok(ast::Expr::Lambda(ast::Lambda::new(sig, lambda.op, block, lambda.id)))
             }
             _ => Ok(expr),
         }
@@ -262,7 +360,37 @@ impl MacroContext {
         }
     }
 
+    fn substitute_param(&self, param: ast::NonDefaultParamSignature) -> LowerResult<ast::NonDefaultParamSignature> {
+        let pat = match param.pat {
+            ast::ParamPattern::Splice(splice) => {
+                let expr = self.substitute_splice(*splice.expr)?;
+                ast::ParamPattern::Splice(ast::Splice::new(expr))
+            }
+            _ => param.pat,
+        };
+        Ok(ast::NonDefaultParamSignature::new(pat, param.t_spec))
+    }
+
+    fn substitute_params(&self, params: ast::Params) -> LowerResult<ast::Params> {
+        let nd = params.non_defaults
+            .into_iter()
+            .map(|x| self.substitute_param(x))
+            .collect::<LowerResult<_>>()?;
+        let var = params.var_params.map(|x| *x);
+        let d = params.defaults;
+        let kw = params.kw_var_params.map(|x| *x);
+        Ok(ast::Params::new(nd, var, d, kw, params.parens))
+    }
+
+    fn substitute_lambda_sig(&self, sig: ast::LambdaSignature) -> LowerResult<ast::LambdaSignature> {
+        let params = self.substitute_params(sig.params)?;
+        Ok(ast::LambdaSignature::new(params, sig.return_t_spec, sig.bounds))
+    }
+
     fn substitute_block(&self, block: ast::Block) -> LowerResult<ast::Block> {
+        if let Some(ast::MacroArg::Block(block)) = block.splice_id.as_ref().and_then(|id| self.frame.params.get(id)) {
+            return Ok(block.clone());
+        }
         let mut new_block = vec![];
         for chunk in block.into_iter() {
             new_block.push(self.substitute(chunk)?);
@@ -296,6 +424,11 @@ impl MacroContext {
                 let sig = self.substitute_sig(def.sig)?;
                 let block = self.substitute_block(def.body.block)?;
                 Ok(ast::Expr::Def(ast::Def::new(sig, ast::DefBody::new(def.body.op, block, def.body.id))))
+            }
+            ast::Expr::Lambda(lambda) => {
+                let sig = self.substitute_lambda_sig(lambda.sig)?;
+                let block = self.substitute_block(lambda.body)?;
+                Ok(ast::Expr::Lambda(ast::Lambda::new(sig, lambda.op, block, lambda.id)))
             }
             _ => Ok(expr),
         }
