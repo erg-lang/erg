@@ -558,12 +558,28 @@ impl LexError {
             vec![SubMessage::only_loc(loc)],
             switch_lang!(
                 "japanese" => format!("重複する要素です: {elem}"),
-                "simplified_chinese" => format!("{elem}"),
-                "traditional_chinese" => format!("{elem}"),
+                "simplified_chinese" => format!("重复元素： {elem}"),
+                "traditional_chinese" => format!("重複元素： {elem}"),
                 "english" => format!("duplicated element: {elem}"),
             ),
             errno,
             SyntaxWarning,
+            loc,
+        ))
+    }
+
+    pub fn duplicate_arg_error(errno: usize, loc: Location, arg: String) -> Self {
+        let arg = StyledString::new(arg, Some(ERR), Some(Attribute::Underline));
+        Self::new(ErrorCore::new(
+            vec![SubMessage::only_loc(loc)],
+            switch_lang!(
+                "japanese" => format!("重複する引数です: {arg}"),
+                "simplified_chinese" => format!("重复参数： {arg}"),
+                "traditional_chinese" => format!("重複參數： {arg}"),
+                "english" => format!("duplicated argument: {arg}"),
+            ),
+            errno,
+            SyntaxError,
             loc,
         ))
     }

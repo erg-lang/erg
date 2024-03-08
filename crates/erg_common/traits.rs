@@ -60,6 +60,11 @@ pub trait DequeStream<T>: Sized {
     }
 
     #[inline]
+    fn iter_mut(&mut self) -> vec_deque::IterMut<'_, T> {
+        self.ref_mut_payload().iter_mut()
+    }
+
+    #[inline]
     fn len(&self) -> usize {
         self.ref_payload().len()
     }
