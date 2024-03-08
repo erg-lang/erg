@@ -1,6 +1,7 @@
 //! implements `ASTLowerer`.
 //!
 //! ASTLowerer(ASTからHIRへの変換器)を実装
+use core::fmt;
 use std::marker::PhantomData;
 use std::mem;
 
@@ -66,14 +67,54 @@ pub fn expr_to_cast_target(expr: &ast::Expr) -> CastTarget {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct MacroParams {
+    pub non_defaults: Vec<Str>,
+    pub var: Option<Str>,
+    pub defaults: Vec<(Str, ast::MacroArg)>,
+}
+
+impl fmt::Display for MacroParams {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.non_defaults.join(", "))?;
+        if let Some(var) = &self.var {
+            write!(f, ", *{var}")?;
+        }
+        if !self.defaults.is_empty() {
+            for (name, default) in &self.defaults {
+                write!(f, ", {name} := {default}")?;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl MacroParams {
+    pub const fn new(
+        non_defaults: Vec<Str>,
+        var: Option<Str>,
+        defaults: Vec<(Str, ast::MacroArg)>,
+    ) -> Self {
+        Self {
+            non_defaults,
+            var,
+            defaults,
+        }
+    }
+
+    pub const fn nd_only(non_defaults: Vec<Str>) -> Self {
+        Self::new(non_defaults, None, vec![])
+    }
+}
+
 #[derive(Debug)]
 pub struct MacroInfo {
-    params: Vec<Str>,
+    params: MacroParams,
     quote: ast::Quote,
 }
 
 impl MacroInfo {
-    pub fn new(params: Vec<Str>, template: ast::Quote) -> Self {
+    pub fn new(params: MacroParams, template: ast::Quote) -> Self {
         Self {
             params,
             quote: template,
@@ -84,22 +125,59 @@ impl MacroInfo {
 #[derive(Debug, Default)]
 pub struct MacroFrame {
     params: Dict<Str, ast::MacroArg>,
+    var_params: Dict<Str, Vec<ast::MacroArg>>,
 }
 
 impl MacroFrame {
     pub fn new() -> Self {
-        Self { params: dict! {} }
-    }
-
-    fn register_params(&mut self, params: Vec<Str>, args: Vec<ast::MacroArg>) {
-        for (param, arg) in params.into_iter().zip(args.into_iter()) {
-            self.params.insert(param, arg);
+        Self {
+            params: dict! {},
+            var_params: dict! {},
         }
     }
 
-    fn clear_params(&mut self, params: &[Str]) {
-        for param in params {
+    fn register_params(&mut self, params: MacroParams, mut args: ast::MacroArgs) {
+        log!(err "{params} / {args}");
+        debug_assert_eq!(params.non_defaults.len(), args.pos_args.len());
+        for (param, arg) in params
+            .non_defaults
+            .into_iter()
+            .zip(args.pos_args.into_iter())
+        {
+            self.params.insert(param, arg);
+        }
+        if let Some(var) = params.var {
+            for arg in args.var_args {
+                self.var_params.entry(var.clone()).or_default().push(arg);
+            }
+            if self.var_params.get(&var).is_none() {
+                self.var_params.insert(var, vec![]);
+            }
+        }
+        for (name, default) in params.defaults {
+            let idx = args
+                .kw_args
+                .iter()
+                .position(|arg| arg.get_prefix().unwrap().content == name);
+            let arg = idx.map_or(default, |idx| args.kw_args.remove(idx));
+            self.params.insert(name, arg);
+        }
+        for arg in args.kw_args {
+            let name = arg.get_prefix().unwrap().content.clone();
+            self.params.insert(name, arg);
+        }
+    }
+
+    fn clear_params(&mut self, params: &MacroParams) {
+        for param in params
+            .non_defaults
+            .iter()
+            .chain(params.defaults.iter().map(|(k, _)| k))
+        {
             self.params.remove(param);
+        }
+        if let Some(var) = &params.var {
+            self.var_params.remove(var);
         }
     }
 }
@@ -144,7 +222,8 @@ impl MacroContext {
                 None,
             ));
             let template = ast::Expr::Def(ast::Def::new(sig, body));
-            MacroInfo::new(vec!["name".into()], ast::Quote::new(template))
+            let params = MacroParams::nd_only(vec!["name".into()]);
+            MacroInfo::new(params, ast::Quote::new(template))
         };
         slf.insert(Str::from("import"), import_);
         // for!: |T|(i: Name[T], iterable: WithPrefix["in", Expr[Iterable[T]]], body: Block[NoneType]) => NoneType
@@ -160,7 +239,7 @@ impl MacroContext {
                 None,
                 ast::TypeBoundSpecs::empty(),
             );
-            let body = ast::Block::placeholder("body".into());
+            let body = ast::Block::placeholder("body!".into());
             let op = Token::dummy(TokenKind::ProcArrow, "=>");
             let lambda = ast::Expr::Lambda(ast::Lambda::new(sig, op, body, DefId(0)));
             let args = ast::Args::pos_only(
@@ -171,10 +250,8 @@ impl MacroContext {
                 None,
             );
             let call = ast::Expr::Call(ast::Call::new(for_proc, None, args));
-            MacroInfo::new(
-                vec!["i".into(), "iterable".into(), "body".into()],
-                ast::Quote::new(call),
-            )
+            let params = MacroParams::nd_only(vec!["i".into(), "iterable".into(), "body!".into()]);
+            MacroInfo::new(params, ast::Quote::new(call))
         };
         slf.insert(Str::from("for!"), for_);
         // if!: |T|(cond: Name[Bool], then: Block[T], *elif: WithPrefix["elif", Block[T]], else := WithPrefix["else", Block[U]]) => T or U
@@ -183,28 +260,34 @@ impl MacroContext {
         let if_ = {
             let if_proc = ast::Expr::static_local("if!");
             let cond = ast::Expr::static_local("cond");
-            let then = ast::Block::placeholder("then".into());
-            let _elif = ast::Block::placeholder("elif".into());
-            let _else_ = ast::Block::placeholder("else".into());
-            let sig = ast::LambdaSignature::new(
-                ast::Params::empty(),
-                None,
-                ast::TypeBoundSpecs::empty(),
-            );
+            let then = ast::Block::placeholder("then!".into());
+            let _elif = ast::Block::placeholder("elif!".into());
+            let else_ = ast::Block::placeholder("else!".into());
+            let sig =
+                ast::LambdaSignature::new(ast::Params::empty(), None, ast::TypeBoundSpecs::empty());
             let op = Token::dummy(TokenKind::ProcArrow, "=>");
-            let then_lambda = ast::Expr::Lambda(ast::Lambda::new(sig, op, then, DefId(0)));
+            let then_lambda =
+                ast::Expr::Lambda(ast::Lambda::new(sig.clone(), op.clone(), then, DefId(0)));
+            let else_lambda = ast::Expr::Lambda(ast::Lambda::new(sig, op, else_, DefId(0)));
             let args = ast::Args::pos_only(
                 vec![
                     ast::PosArg::new(ast::Expr::Splice(ast::Splice::new(cond))),
                     ast::PosArg::new(then_lambda),
+                    ast::PosArg::new(else_lambda),
                 ],
                 None,
             );
             let call = ast::Expr::Call(ast::Call::new(if_proc, None, args));
-            MacroInfo::new(
-                vec!["cond".into(), "then".into(), "elif".into(), "else".into()],
-                ast::Quote::new(call),
-            )
+            let none = ast::Literal::new(Token::dummy(TokenKind::NoneLit, "None"));
+            let params = MacroParams::new(
+                vec!["cond".into(), "then!".into()],
+                Some("elif!".into()),
+                vec![(
+                    "else!".into(),
+                    ast::MacroArg::Block(ast::Block::new(vec![ast::Expr::Literal(none)])),
+                )],
+            );
+            MacroInfo::new(params, ast::Quote::new(call))
         };
         slf.insert(Str::from("if!"), if_);
         slf
@@ -394,10 +477,10 @@ impl MacroContext {
     }
 
     fn substitute_splice_block(&self, block: ast::Block) -> LowerResult<ast::Block> {
-        if let Some(ast::MacroArg::Block(block)) = block
+        if let Some(block) = block
             .splice_id
             .as_ref()
-            .and_then(|id| self.frame.params.get(id))
+            .and_then(|id| self.frame.params.get(id).and_then(|a| a.get_block()))
         {
             return Ok(block.clone());
         }
@@ -411,7 +494,12 @@ impl MacroContext {
     fn substitute_splice(&self, expr: ast::Expr) -> LowerResult<ast::Expr> {
         match expr {
             ast::Expr::Accessor(ast::Accessor::Ident(ident)) => {
-                if let Some(expr) = self.frame.params.get(ident.inspect()).and_then(|arg| arg.get_expr()) {
+                if let Some(expr) = self
+                    .frame
+                    .params
+                    .get(ident.inspect())
+                    .and_then(|arg| arg.get_expr())
+                {
                     Ok(expr.clone())
                 } else {
                     Ok(ast::Expr::Accessor(ast::Accessor::Ident(ident)))
@@ -492,10 +580,10 @@ impl MacroContext {
     }
 
     fn substitute_block(&self, block: ast::Block) -> LowerResult<ast::Block> {
-        if let Some(ast::MacroArg::Block(block)) = block
+        if let Some(block) = block
             .splice_id
             .as_ref()
-            .and_then(|id| self.frame.params.get(id))
+            .and_then(|id| self.frame.params.get(id).and_then(|a| a.get_block()))
         {
             return Ok(block.clone());
         }
@@ -558,7 +646,7 @@ impl MacroContext {
             todo!("{mac}");
         };
         self.frame
-            .register_params(mac_info.params.clone(), mac.pos_args);
+            .register_params(mac_info.params.clone(), mac.args);
         let expr = self
             .substitute(*mac_info.quote.expr.clone())
             .inspect_err(|_| self.frame.clear_params(&mac_info.params))?;
@@ -3543,6 +3631,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
     }
 
     fn expand_macro(&mut self, mac: ast::MacroCall) -> LowerResult<ast::Expr> {
+        log!(info "entered {}", fn_name!());
         self.macro_ctx.eval_macro(mac)
     }
 

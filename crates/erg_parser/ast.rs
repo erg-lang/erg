@@ -5990,20 +5990,84 @@ impl MacroArg {
             _ => None,
         }
     }
+
+    pub fn get_block(&self) -> Option<&Block> {
+        match self {
+            Self::Block(block) => Some(block),
+            Self::WithPrefix(WithPrefix { arg, .. }) => arg.get_block(),
+            _ => None,
+        }
+    }
+
+    pub fn get_prefix(&self) -> Option<&Token> {
+        match self {
+            Self::WithPrefix(WithPrefix { token, .. }) => Some(token),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[pyclass(get_all, set_all)]
+pub struct MacroArgs {
+    pub pos_args: Vec<MacroArg>,
+    pub var_args: Vec<MacroArg>,
+    pub kw_args: Vec<MacroArg>,
+}
+
+impl NestedDisplay for MacroArgs {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "{}", fmt_vec(&self.pos_args))?;
+        if !self.var_args.is_empty() {
+            write!(f, ", *{}", fmt_vec(&self.var_args))?;
+        }
+        if !self.kw_args.is_empty() {
+            write!(f, ", {}", fmt_vec(&self.kw_args))?;
+        }
+        Ok(())
+    }
+}
+
+impl_display_from_nested!(MacroArgs);
+
+impl Locational for MacroArgs {
+    fn loc(&self) -> Location {
+        if let Some(last) = self.kw_args.last() {
+            Location::concat(&self.pos_args, last)
+        } else if let Some(last) = self.var_args.last() {
+            Location::concat(&self.pos_args, last)
+        } else if let Some(last) = self.pos_args.last() {
+            last.loc()
+        } else {
+            Location::Unknown
+        }
+    }
+}
+
+impl MacroArgs {
+    pub const fn new(
+        pos_args: Vec<MacroArg>,
+        var_args: Vec<MacroArg>,
+        kw_args: Vec<MacroArg>,
+    ) -> Self {
+        Self {
+            pos_args,
+            var_args,
+            kw_args,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[pyclass(get_all, set_all)]
 pub struct MacroCall {
     pub name: VarName,
-    pub pos_args: Vec<MacroArg>,
-    pub var_args: Vec<MacroArg>,
-    pub kw_args: Vec<MacroArg>,
+    pub args: MacroArgs,
 }
 
 impl NestedDisplay for MacroCall {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "{} {}", self.name, fmt_vec(&self.pos_args))
+        write!(f, "{} {}", self.name, self.args)
     }
 }
 
@@ -6011,8 +6075,8 @@ impl_display_from_nested!(MacroCall);
 
 impl Locational for MacroCall {
     fn loc(&self) -> Location {
-        if let Some(last) = self.pos_args.last() {
-            Location::concat(&self.name, last)
+        if !self.args.loc().is_unknown() {
+            Location::concat(&self.name, &self.args)
         } else {
             self.name.loc()
         }
@@ -6020,13 +6084,8 @@ impl Locational for MacroCall {
 }
 
 impl MacroCall {
-    pub const fn new(
-        name: VarName,
-        pos_args: Vec<MacroArg>,
-        var_args: Vec<MacroArg>,
-        kw_args: Vec<MacroArg>,
-    ) -> Self {
-        Self { name, pos_args, var_args, kw_args }
+    pub const fn new(name: VarName, args: MacroArgs) -> Self {
+        Self { name, args }
     }
 }
 
@@ -6135,6 +6194,10 @@ impl Expr {
             self,
             Expr::Def(_) | Expr::ClassDef(_) | Expr::PatchDef(_) | Expr::Methods(_)
         )
+    }
+
+    pub const fn is_macro_call(&self) -> bool {
+        matches!(self, Expr::MacroCall(_))
     }
 
     pub const fn name(&self) -> &'static str {

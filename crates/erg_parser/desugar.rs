@@ -15,10 +15,10 @@ use crate::ast::{
     Accessor, Args, Array, ArrayComprehension, ArrayTypeSpec, ArrayWithLength, BinOp, Block, Call,
     ClassAttr, ClassAttrs, ClassDef, Compound, ConstExpr, DataPack, Def, DefBody, DefId,
     DefaultParamSignature, Dict, Dummy, Expr, GuardClause, Identifier, InlineModule, KeyValue,
-    KwArg, Lambda, LambdaSignature, Literal, MacroArg, MacroCall, Methods, MixedRecord, Module,
-    NonDefaultParamSignature, NormalArray, NormalDict, NormalRecord, NormalSet, NormalTuple,
-    ParamPattern, ParamRecordAttr, ParamTuplePattern, Params, PatchDef, PosArg, Quote, ReDef,
-    Record, RecordAttrOrIdent, RecordAttrs, RecordTypeSpec, Set as astSet, SetComprehension,
+    KwArg, Lambda, LambdaSignature, Literal, MacroArg, MacroArgs, MacroCall, Methods, MixedRecord,
+    Module, NonDefaultParamSignature, NormalArray, NormalDict, NormalRecord, NormalSet,
+    NormalTuple, ParamPattern, ParamRecordAttr, ParamTuplePattern, Params, PatchDef, PosArg, Quote,
+    ReDef, Record, RecordAttrOrIdent, RecordAttrs, RecordTypeSpec, Set as astSet, SetComprehension,
     SetWithLength, Signature, Splice, SubrSignature, Tuple, TupleTypeSpec, TypeAppArgs,
     TypeAppArgsKind, TypeBoundSpecs, TypeSpec, TypeSpecWithOp, UnaryOp, VarName, VarPattern,
     VarRecordAttr, VarSignature, VisModifierSpec, AST,
@@ -412,21 +412,25 @@ impl Desugarer {
             }
             Expr::MacroCall(call) => {
                 let pos_args = call
+                    .args
                     .pos_args
                     .into_iter()
                     .map(|arg| Self::perform_desugar_macro_arg(&mut desugar, arg))
                     .collect();
                 let var_args = call
+                    .args
                     .var_args
                     .into_iter()
                     .map(|arg| Self::perform_desugar_macro_arg(&mut desugar, arg))
                     .collect();
                 let kw_args = call
+                    .args
                     .kw_args
                     .into_iter()
                     .map(|arg| Self::perform_desugar_macro_arg(&mut desugar, arg))
                     .collect();
-                Expr::MacroCall(MacroCall::new(call.name, pos_args, var_args, kw_args))
+                let args = MacroArgs::new(pos_args, var_args, kw_args);
+                Expr::MacroCall(MacroCall::new(call.name, args))
             }
             Expr::Quote(quote) => Expr::Quote(Quote::new(desugar(*quote.expr))),
             Expr::Splice(unquote) => Expr::Splice(Splice::new(desugar(*unquote.expr))),
@@ -441,12 +445,16 @@ impl Desugarer {
         }
     }
 
-    fn perform_desugar_macro_arg(desugar: &mut impl FnMut(Expr) -> Expr, arg: MacroArg) -> MacroArg {
+    fn perform_desugar_macro_arg(
+        desugar: &mut impl FnMut(Expr) -> Expr,
+        arg: MacroArg,
+    ) -> MacroArg {
         match arg {
             MacroArg::Expr(expr) => MacroArg::Expr(desugar(expr)),
-            MacroArg::WithPrefix(prefix) => {
-                MacroArg::with_prefix(prefix.token, Self::perform_desugar_macro_arg(desugar, *prefix.arg))
-            }
+            MacroArg::WithPrefix(prefix) => MacroArg::with_prefix(
+                prefix.token,
+                Self::perform_desugar_macro_arg(desugar, *prefix.arg),
+            ),
             MacroArg::Block(block) => {
                 let mut chunks = vec![];
                 for chunk in block.into_iter() {

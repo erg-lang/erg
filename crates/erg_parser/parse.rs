@@ -2,6 +2,7 @@
 //!
 //! パーサーを実装する
 //!
+use std::fmt;
 use std::mem;
 
 use erg_common::config::ErgConfig;
@@ -211,6 +212,17 @@ pub enum MacroArg {
     WithPrefix(Str, Box<MacroArg>),
 }
 
+impl fmt::Display for MacroArg {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Expr => write!(f, "Expr"),
+            Self::Name => write!(f, "Name"),
+            Self::Block => write!(f, "Block"),
+            Self::WithPrefix(kw, arg) => write!(f, "{}: {}", kw, arg),
+        }
+    }
+}
+
 impl MacroArg {
     pub fn with_prefix(name: impl Into<Str>, arg: Self) -> Self {
         Self::WithPrefix(name.into(), Box::new(arg))
@@ -235,10 +247,20 @@ pub struct MacroInfo {
 }
 
 impl MacroInfo {
-    pub fn keywords(&self) -> impl Iterator<Item = Str> + '_ {
-        self.non_defaults.iter().filter_map(|arg| arg.get_prefix())
-        .chain(self.var_params.iter().filter_map(|arg| arg.get_prefix()))
-        .chain(self.defaults.iter().filter_map(|arg| arg.get_prefix()))
+    pub fn keywords(&self) -> impl Iterator<Item = MacroKeyword> + '_ {
+        self.non_defaults
+            .iter()
+            .filter_map(|arg| arg.get_prefix().map(MacroKeyword::NonDefault))
+            .chain(
+                self.var_params
+                    .iter()
+                    .filter_map(|arg| arg.get_prefix().map(MacroKeyword::Var)),
+            )
+            .chain(
+                self.defaults
+                    .iter()
+                    .filter_map(|arg| arg.get_prefix().map(MacroKeyword::Default)),
+            )
     }
 }
 
@@ -269,14 +291,9 @@ impl MacroContext {
         };
         ctx.insert("import".into(), import);
         let if_ = MacroInfo {
-            non_defaults: vec![
-                MacroArg::Expr,
-                MacroArg::Block,
-            ],
+            non_defaults: vec![MacroArg::Expr, MacroArg::Block],
             var_params: Some(MacroArg::with_prefix("elif!", MacroArg::Block)),
-            defaults: vec![
-                MacroArg::with_prefix("else!", MacroArg::Block)
-            ],
+            defaults: vec![MacroArg::with_prefix("else!", MacroArg::Block)],
         };
         ctx.insert("if!".into(), if_);
         ctx
@@ -288,6 +305,25 @@ impl MacroContext {
 
     fn get(&self, name: &str) -> Option<&MacroInfo> {
         self.0.get(name)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum MacroKeyword {
+    NonDefault(Str),
+    Var(Str),
+    Default(Str),
+}
+
+impl MacroKeyword {
+    pub const fn inspect(&self) -> &Str {
+        match self {
+            Self::NonDefault(name) | Self::Var(name) | Self::Default(name) => name,
+        }
+    }
+
+    pub const fn is_non_default(&self) -> bool {
+        matches!(self, Self::NonDefault(_))
     }
 }
 
@@ -303,7 +339,7 @@ pub struct Parser {
     tokens: TokenStream,
     warns: ParseErrors,
     pub(crate) errs: ParseErrors,
-    keywords: Vec<Str>,
+    keywords: Vec<MacroKeyword>,
     macros: MacroContext,
 }
 
@@ -631,7 +667,10 @@ impl Parser {
                 }
                 Some(_) => {
                     if let Ok(expr) = self.try_reduce_chunk(true, false) {
-                        if !self.cur_is(EOF) && !self.cur_category_is(TC::Separator) {
+                        if !expr.is_macro_call()
+                            && !self.cur_is(EOF)
+                            && !self.cur_category_is(TC::Separator)
+                        {
                             let err = self.skip_and_throw_invalid_chunk_err(
                                 caused_by!(),
                                 line!(),
@@ -1777,10 +1816,14 @@ impl Parser {
     fn try_reduce_chunk(&mut self, winding: bool, in_brace: bool) -> ParseResult<Expr> {
         debug_call_info!(self);
         let mut stack = Vec::<ExprOrOp>::new();
-        stack.push(ExprOrOp::Expr(
-            self.try_reduce_bin_lhs(false, in_brace)
-                .map_err(|_| self.stack_dec(fn_name!()))?,
-        ));
+        let lhs = self
+            .try_reduce_bin_lhs(false, in_brace)
+            .map_err(|_| self.stack_dec(fn_name!()))?;
+        if lhs.is_macro_call() {
+            debug_exit_info!(self);
+            return Ok(lhs);
+        }
+        stack.push(ExprOrOp::Expr(lhs));
         loop {
             match self.peek() {
                 Some(arg) if arg.is(Symbol) || arg.category_is(TC::Literal) => {
@@ -2110,6 +2153,23 @@ impl Parser {
         }
     }
 
+    fn try_consume_macro_keyword(&mut self) -> bool {
+        let Some(idx) = self.peek().and_then(|tok| {
+            self.keywords
+                .iter()
+                .position(|kw| kw.inspect() == tok.inspect())
+        }) else {
+            return false;
+        };
+        let found = &self.keywords[idx];
+        if idx > 0 && found.is_non_default() {
+            false
+        } else {
+            self.keywords.drain(0..=idx);
+            true
+        }
+    }
+
     /// chunk = expr + def
     /// winding: true => parse paren-less tuple
     /// in_brace: true => (1: 1) will not be a syntax error (key-value pair)
@@ -2127,11 +2187,7 @@ impl Parser {
                 .map_err(|_| self.stack_dec(fn_name!()))?,
         ));
         loop {
-            if self
-                .peek()
-                .is_some_and(|tok| Some(&tok.content) == self.keywords.first())
-            {
-                self.keywords.remove(0);
+            if self.try_consume_macro_keyword() {
                 match stack.pop() {
                     Some(ExprOrOp::Expr(expr)) => {
                         // self.skip();
@@ -3837,7 +3893,8 @@ impl Parser {
             MacroArg::WithPrefix(kw, arg) => {
                 if self.peek().is_some_and(|tok| &tok.content == kw) {
                     let kw = self.lpop();
-                    let arg = self.try_reduce_macro_arg(arg)
+                    let arg = self
+                        .try_reduce_macro_arg(arg)
                         .map_err(|_| self.stack_dec(fn_name!()))?;
                     Ok(crate::ast::MacroArg::with_prefix(kw, arg))
                 } else {
@@ -3853,25 +3910,35 @@ impl Parser {
         self.keywords = [mac.keywords().collect(), mem::take(&mut self.keywords)].concat();
         let mut pos_args = vec![];
         for non_default in mac.non_defaults.iter() {
-            let arg = self.try_reduce_macro_arg(non_default)
+            let arg = self
+                .try_reduce_macro_arg(non_default)
                 .map_err(|_| self.stack_dec(fn_name!()))?;
             pos_args.push(arg);
         }
         let mut var_args = vec![];
         if let Some(var_params) = mac.var_params {
-            while self.peek().map_or(true, |tok| Some(&tok.content) == var_params.get_prefix().as_ref()) {
-                let arg = self.try_reduce_macro_arg(&var_params)
+            while self.peek().map_or(true, |tok| {
+                Some(&tok.content) == var_params.get_prefix().as_ref()
+            }) {
+                let arg = self
+                    .try_reduce_macro_arg(&var_params)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
                 var_args.push(arg);
             }
         }
         let mut kw_args = vec![];
-        while let Some(default) = self.peek().and_then(|tok| mac.defaults.iter().find(|arg| tok.content == arg.get_prefix().unwrap())) {
-            let arg = self.try_reduce_macro_arg(default)
+        while let Some(default) = self.peek().and_then(|tok| {
+            mac.defaults
+                .iter()
+                .find(|arg| tok.content == arg.get_prefix().unwrap())
+        }) {
+            let arg = self
+                .try_reduce_macro_arg(default)
                 .map_err(|_| self.stack_dec(fn_name!()))?;
             kw_args.push(arg);
         }
-        let macro_call = Expr::MacroCall(MacroCall::new(name, pos_args, var_args, kw_args));
+        let args = MacroArgs::new(pos_args, var_args, kw_args);
+        let macro_call = Expr::MacroCall(MacroCall::new(name, args));
         debug_exit_info!(self);
         Ok(macro_call)
     }
