@@ -17,7 +17,7 @@ def try_(p, exc=lambda _: None, els=lambda: None, fin=lambda: None):
 .try! = unsound.pyeval("try_")
 assert .try! in |T, U|(
     p!: () => T,
-    exc!: (exception: Obj) => U := (exception: Obj) => NoneType,
+    exc!: (exception: BaseException) => U := (exception: BaseException) => NoneType,
     else! := () => NoneType,
     finally! := () => NoneType,
 ) => T or U

@@ -355,7 +355,7 @@ impl Context {
             vec![
                 kw(EXC_TYPE, ClassType),
                 kw(EXC_VALUE, Obj),
-                kw(TRACEBACK, Obj), // TODO:
+                kw(ATTR_TRACEBACK, mono(TRACEBACK)),
             ],
             vec![],
             NoneType,
