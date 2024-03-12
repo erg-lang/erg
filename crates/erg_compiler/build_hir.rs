@@ -218,16 +218,24 @@ impl<ASTBuilder: ASTBuildable> GenericHIRBuilder<ASTBuilder> {
         let mut artifact = self.lowerer.lower(ast, mode)?;
         let ctx = &self.lowerer.get_context().unwrap().context;
         let effect_checker = SideEffectChecker::new(self.cfg().clone(), ctx);
-        let hir = effect_checker
-            .check(artifact.object, self.lowerer.module.context.name.clone())
-            .map_err(|(hir, errs)| {
+        let hir = if self.cfg().effect_check {
+            effect_checker
+                .check(artifact.object, self.lowerer.module.context.name.clone())
+                .map_err(|(hir, errs)| {
+                    self.lowerer.module.context.clear_invalid_vars();
+                    IncompleteArtifact::new(Some(hir), errs, artifact.warns.take_all().into())
+                })?
+        } else {
+            artifact.object
+        };
+        let hir = if self.cfg().ownership_check {
+            self.ownership_checker.check(hir).map_err(|(hir, errs)| {
                 self.lowerer.module.context.clear_invalid_vars();
                 IncompleteArtifact::new(Some(hir), errs, artifact.warns.take_all().into())
-            })?;
-        let hir = self.ownership_checker.check(hir).map_err(|(hir, errs)| {
-            self.lowerer.module.context.clear_invalid_vars();
-            IncompleteArtifact::new(Some(hir), errs, artifact.warns.take_all().into())
-        })?;
+            })?
+        } else {
+            hir
+        };
         Ok(CompleteArtifact::new(hir, artifact.warns))
     }
 

@@ -166,6 +166,8 @@ pub struct ErgConfig {
     pub ps2: &'static str,
     pub runtime_args: Vec<&'static str>,
     pub packages: Vec<Package>,
+    pub effect_check: bool,
+    pub ownership_check: bool,
 }
 
 impl Default for ErgConfig {
@@ -191,6 +193,8 @@ impl Default for ErgConfig {
             ps2: "... ",
             runtime_args: vec![],
             packages: vec![],
+            effect_check: true,
+            ownership_check: true,
         }
     }
 }
