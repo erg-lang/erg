@@ -445,6 +445,41 @@ impl Context {
         num.register_superclass(poly(ADD, vec![]), &add);
         num.register_superclass(poly(SUB, vec![]), &sub);
         num.register_superclass(poly(MUL, vec![]), &mul);
+        /* ToBool */
+        let mut to_bool = Self::builtin_mono_trait(TO_BOOL, 2);
+        let _Slf = mono_q(SELF, subtypeof(mono(TO_BOOL)));
+        let op_t = fn0_met(_Slf.clone(), Bool).quantify();
+        to_bool.register_builtin_erg_decl(FUNDAMENTAL_BOOL, op_t, Visibility::BUILTIN_PUBLIC);
+        /* ToInt */
+        let mut to_int = Self::builtin_mono_trait(TO_INT, 2);
+        let _Slf = mono_q(SELF, subtypeof(mono(TO_INT)));
+        let op_t = fn0_met(_Slf.clone(), Int).quantify();
+        to_int.register_builtin_erg_decl(FUNDAMENTAL_INT, op_t, Visibility::BUILTIN_PUBLIC);
+        /* ToFloat */
+        let mut to_float = Self::builtin_mono_trait(TO_FLOAT, 2);
+        let _Slf = mono_q(SELF, subtypeof(mono(TO_FLOAT)));
+        let op_t = fn0_met(_Slf.clone(), Float).quantify();
+        to_float.register_builtin_erg_decl(FUNDAMENTAL_FLOAT, op_t, Visibility::BUILTIN_PUBLIC);
+        /* Round */
+        let mut round = Self::builtin_mono_trait(ROUND, 2);
+        let _Slf = mono_q(SELF, subtypeof(mono(ROUND)));
+        // TODO: Output <: Integral = Int # (default)
+        let op_t = fn_met(
+            _Slf.clone(),
+            vec![],
+            None,
+            vec![kw_default(KW_NDIGITS, Nat, Nat)],
+            None,
+            Int,
+        )
+        .quantify();
+        round.register_builtin_erg_decl(FUNDAMENTAL_ROUND, op_t, Visibility::BUILTIN_PUBLIC);
+        let op_t = fn0_met(_Slf.clone(), Int).quantify();
+        round.register_builtin_erg_decl(FUNDAMENTAL_TRUNC, op_t, Visibility::BUILTIN_PUBLIC);
+        let op_t = fn0_met(_Slf.clone(), Int).quantify();
+        round.register_builtin_erg_decl(FUNDAMENTAL_FLOOR, op_t, Visibility::BUILTIN_PUBLIC);
+        let op_t = fn0_met(_Slf.clone(), Int).quantify();
+        round.register_builtin_erg_decl(FUNDAMENTAL_CEIL, op_t, Visibility::BUILTIN_PUBLIC);
         self.register_builtin_type(mono(UNPACK), unpack, vis.clone(), Const, None);
         self.register_builtin_type(
             mono(INHERITABLE_TYPE),
@@ -511,6 +546,10 @@ impl Context {
         self.register_builtin_type(mono(PARTIAL_ORD), partial_ord, vis.clone(), Const, None);
         self.register_builtin_type(mono(ORD), ord, vis.clone(), Const, None);
         self.register_builtin_type(mono(NUM), num, vis.clone(), Const, None);
+        self.register_builtin_type(mono(TO_BOOL), to_bool, vis.clone(), Const, None);
+        self.register_builtin_type(mono(TO_INT), to_int, vis.clone(), Const, None);
+        self.register_builtin_type(mono(TO_FLOAT), to_float, vis.clone(), Const, None);
+        self.register_builtin_type(mono(ROUND), round, vis.clone(), Const, None);
         self.register_builtin_type(
             poly(SEQUENCE, vec![ty_tp(T.clone())]),
             sequence,
