@@ -144,6 +144,7 @@ impl Context {
         .quantify();
         let hasattr_t = no_var_func(vec![kw(KW_OBJ, Obj), kw(KW_NAME, Str)], vec![], Bool);
         let t_hash = func1(mono(HASH), Int);
+        let t_hex = nd_func(vec![kw(KW_N, Int)], None, Str);
         let t_if = no_var_func(
             vec![
                 kw(KW_COND, Bool),
@@ -272,6 +273,7 @@ impl Context {
             t_not.clone(),
             None,
         )));
+        let t_object = nd_func(vec![], None, Obj);
         let t_oct = nd_func(vec![kw(KW_X, Int)], None, Str);
         let t_ord = nd_func(vec![kw(KW_C, Str)], None, Nat);
         let t_panic = nd_func(vec![kw(KW_MSG, Str)], None, Never);
@@ -351,6 +353,11 @@ impl Context {
             None,
         )));
         let t_unreachable = d_func(vec![kw(KW_MSG, Obj)], Never);
+        let t_vars = no_var_func(
+            vec![],
+            vec![kw_default(KW_OBJECT, Obj, Obj)],
+            dict! { Str => Obj }.into(),
+        );
         let t_zip = nd_func(
             vec![
                 kw(KW_ITERABLE1, poly(ITERABLE, vec![ty_tp(T.clone())])),
@@ -480,6 +487,7 @@ impl Context {
             Some(FUNC_HASATTR),
         );
         self.register_builtin_py_impl(FUNC_HASH, t_hash, Immutable, vis.clone(), Some(FUNC_HASH));
+        self.register_builtin_py_impl(FUNC_HEX, t_hex, Immutable, vis.clone(), Some(FUNC_HEX));
         self.register_builtin_py_impl(
             FUNC_ISINSTANCE,
             t_isinstance,
@@ -535,6 +543,13 @@ impl Context {
             None,
         );
         self.register_py_builtin_const(FUNC_NOT, vis.clone(), Some(t_not), not, None, None); // `not` is not a function in Python
+        self.register_builtin_py_impl(
+            FUNC_OBJECT,
+            t_object,
+            Immutable,
+            vis.clone(),
+            Some(FUNC_OBJECT),
+        );
         self.register_builtin_py_impl(FUNC_OCT, t_oct, Immutable, vis.clone(), Some(FUNC_OCT));
         self.register_builtin_py_impl(FUNC_ORD, t_ord, Immutable, vis.clone(), Some(FUNC_ORD));
         self.register_builtin_py_impl(FUNC_POW, t_pow, Immutable, vis.clone(), Some(FUNC_POW));
@@ -648,6 +663,7 @@ impl Context {
             Some(FUNC_SUM),
             None,
         );
+        self.register_builtin_py_impl(FUNC_VARS, t_vars, Immutable, vis.clone(), Some(FUNC_VARS));
         self.register_py_builtin_const(
             FUNC_ZIP,
             vis.clone(),
@@ -892,6 +908,20 @@ impl Context {
         self.register_builtin_py_impl(
             FUNC_DELATTR,
             delattr_t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            None,
+        );
+        let T = type_q(TY_T);
+        let list_t = no_var_func(
+            vec![],
+            vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
+            array_t(T, TyParam::erased(Nat)),
+        )
+        .quantify();
+        self.register_builtin_py_impl(
+            FUNC_LIST,
+            list_t,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
             None,
