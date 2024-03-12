@@ -1,0 +1,14 @@
+.Pdb: ClassType
+.Pdb.
+    __call__: (completekey := Str, nosigint := Bool, readrc := Bool) -> .Pdb
+    run!: (self: .Pdb, statement: Str or Code, globals := Mapping(Str, Obj), locals := Mapping(Str, Obj)) => NoneType
+    runeval!: (self: .Pdb, expression: Str or Code, globals := Mapping(Str, Obj), locals := Mapping(Str, Obj)) => Obj
+    runcall!: (self: .Pdb, function: Subroutine, *args: Obj, **kwds: Obj) => Obj
+    set_trace!: (self: .Pdb) => NoneType
+
+.run!: (statement: Str or Code, globals := Mapping(Str, Obj), locals := Mapping(Str, Obj)) => NoneType
+.runeval!: (expression: Str or Code, globals := Mapping(Str, Obj), locals := Mapping(Str, Obj)) => Obj
+.runcall!: (function: Subroutine, *args: Obj, **kwds: Obj) => Obj
+
+.set_trace!: () => NoneType
+.pm!: () => NoneType
