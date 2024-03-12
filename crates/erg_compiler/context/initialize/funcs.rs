@@ -912,20 +912,6 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             None,
         );
-        let T = type_q(TY_T);
-        let list_t = no_var_func(
-            vec![],
-            vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
-            array_t(T, TyParam::erased(Nat)),
-        )
-        .quantify();
-        self.register_builtin_py_impl(
-            FUNC_LIST,
-            list_t,
-            Immutable,
-            Visibility::BUILTIN_PUBLIC,
-            None,
-        );
     }
 
     pub(super) fn init_builtin_operators(&mut self) {

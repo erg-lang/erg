@@ -323,10 +323,10 @@ impl KwArg {
 #[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Args {
-    pos_args: Vec<PosArg>,
-    pub(crate) var_args: Option<Box<PosArg>>,
-    kw_args: Vec<KwArg>,
-    pub(crate) kw_var_args: Option<Box<PosArg>>,
+    pub pos_args: Vec<PosArg>,
+    pub var_args: Option<Box<PosArg>>,
+    pub kw_args: Vec<KwArg>,
+    pub kw_var_args: Option<Box<PosArg>>,
     // these are for ELS
     pub paren: Option<(Token, Token)>,
 }

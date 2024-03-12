@@ -26,7 +26,7 @@ use erg_common::spawn::spawn_new_thread;
 use erg_common::str::Str;
 use erg_common::traits::{ExitStatus, New, Runnable, Stream};
 
-use erg_parser::ast::{Expr, InlineModule, VarName, AST};
+use erg_parser::ast::{ClassAttr, Expr, InlineModule, Record, RecordAttrOrIdent, VarName, AST};
 use erg_parser::build_ast::{ASTBuildable, ASTBuilder as DefaultASTBuilder};
 use erg_parser::parse::SimpleParser;
 
@@ -440,14 +440,110 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
     fn check_import(&mut self, expr: &mut Expr, cfg: &ErgConfig) -> ResolveResult<()> {
         let mut errs = vec![];
         match expr {
-            Expr::Call(call) if call.additional_operation().is_some_and(|op| op.is_import()) => {
-                if let Err(err) = self.register(expr, cfg) {
-                    errs.extend(err);
+            Expr::Call(call) => {
+                for pos in call.args.pos_args.iter_mut() {
+                    if let Err(err) = self.check_import(&mut pos.expr, cfg) {
+                        errs.extend(err);
+                    }
+                }
+                if let Some(var) = call.args.var_args.as_mut() {
+                    if let Err(err) = self.check_import(&mut var.expr, cfg) {
+                        errs.extend(err);
+                    }
+                }
+                for kw in call.args.kw_args.iter_mut() {
+                    if let Err(err) = self.check_import(&mut kw.expr, cfg) {
+                        errs.extend(err);
+                    }
+                }
+                if let Some(kw_var) = call.args.kw_var_args.as_mut() {
+                    if let Err(err) = self.check_import(&mut kw_var.expr, cfg) {
+                        errs.extend(err);
+                    }
+                }
+                if call.additional_operation().is_some_and(|op| op.is_import()) {
+                    if let Err(err) = self.register(expr, cfg) {
+                        errs.extend(err);
+                    }
                 }
             }
             Expr::Def(def) => {
                 for expr in def.body.block.iter_mut() {
                     if let Err(err) = self.check_import(expr, cfg) {
+                        errs.extend(err);
+                    }
+                }
+            }
+            Expr::ClassDef(class_def) => {
+                for expr in class_def.def.body.block.iter_mut() {
+                    if let Err(err) = self.check_import(expr, cfg) {
+                        errs.extend(err);
+                    }
+                }
+                for methods in class_def.methods_list.iter_mut() {
+                    for attr in methods.attrs.iter_mut() {
+                        if let ClassAttr::Def(def) = attr {
+                            for chunk in def.body.block.iter_mut() {
+                                if let Err(err) = self.check_import(chunk, cfg) {
+                                    errs.extend(err);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Expr::Methods(methods) => {
+                for attr in methods.attrs.iter_mut() {
+                    if let ClassAttr::Def(def) = attr {
+                        for chunk in def.body.block.iter_mut() {
+                            if let Err(err) = self.check_import(chunk, cfg) {
+                                errs.extend(err);
+                            }
+                        }
+                    }
+                }
+            }
+            Expr::PatchDef(patch_def) => {
+                for expr in patch_def.def.body.block.iter_mut() {
+                    if let Err(err) = self.check_import(expr, cfg) {
+                        errs.extend(err);
+                    }
+                }
+                for methods in patch_def.methods_list.iter_mut() {
+                    for attr in methods.attrs.iter_mut() {
+                        if let ClassAttr::Def(def) = attr {
+                            for chunk in def.body.block.iter_mut() {
+                                if let Err(err) = self.check_import(chunk, cfg) {
+                                    errs.extend(err);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Expr::Record(Record::Normal(rec)) => {
+                for attr in rec.attrs.iter_mut() {
+                    for chunk in attr.body.block.iter_mut() {
+                        if let Err(err) = self.check_import(chunk, cfg) {
+                            errs.extend(err);
+                        }
+                    }
+                }
+            }
+            Expr::Record(Record::Mixed(rec)) => {
+                for attr in rec.attrs.iter_mut() {
+                    if let RecordAttrOrIdent::Attr(def) = attr {
+                        for chunk in def.body.block.iter_mut() {
+                            if let Err(err) = self.check_import(chunk, cfg) {
+                                errs.extend(err);
+                            }
+                        }
+                    }
+                }
+            }
+            Expr::Lambda(lambda) => {
+                for chunk in lambda.body.iter_mut() {
+                    if let Err(err) = self.check_import(chunk, cfg) {
                         errs.extend(err);
                     }
                 }

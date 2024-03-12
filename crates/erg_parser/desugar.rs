@@ -768,6 +768,32 @@ impl Desugarer {
         }
     }
 
+    fn desugar_pattern_of_methods(&mut self, methods: Methods) -> Methods {
+        let mut new_attrs = Vec::with_capacity(methods.attrs.len());
+        for attr in methods.attrs.into_iter() {
+            match attr {
+                ClassAttr::Def(def) => {
+                    let mut new = vec![];
+                    self.desugar_def_pattern(def, &mut new);
+                    let Expr::Def(def) = new.remove(0) else {
+                        todo!("{new:?}")
+                    };
+                    new_attrs.push(ClassAttr::Def(def));
+                }
+                _ => {
+                    new_attrs.push(attr);
+                }
+            }
+        }
+        Methods::new(
+            methods.id,
+            methods.class,
+            *methods.class_as_expr,
+            methods.vis,
+            ClassAttrs::from(new_attrs),
+        )
+    }
+
     // TODO: nested function pattern
     /// `[i, j] = [1, 2]` -> `i = 1; j = 2`
     /// `[i, j] = l` -> `i = l[0]; j = l[1]`
@@ -784,36 +810,36 @@ impl Desugarer {
                 Expr::Def(def) => {
                     self.desugar_def_pattern(def, &mut new);
                 }
+                Expr::ClassDef(class_def) => {
+                    // self.desugar_def_pattern(class_def.def, &mut new);
+                    let methods = class_def
+                        .methods_list
+                        .into_iter()
+                        .map(|methods| self.desugar_pattern_of_methods(methods))
+                        .collect();
+                    new.push(Expr::ClassDef(ClassDef::new(class_def.def, methods)));
+                }
+                Expr::PatchDef(patch_def) => {
+                    // self.desugar_def_pattern(patch_def.def, &mut new);
+                    let methods = patch_def
+                        .methods_list
+                        .into_iter()
+                        .map(|methods| self.desugar_pattern_of_methods(methods))
+                        .collect();
+                    new.push(Expr::PatchDef(PatchDef::new(patch_def.def, methods)));
+                }
                 Expr::Methods(methods) => {
-                    let mut new_attrs = Vec::with_capacity(methods.attrs.len());
-                    for attr in methods.attrs.into_iter() {
-                        match attr {
-                            ClassAttr::Def(def) => {
-                                let mut new = vec![];
-                                self.desugar_def_pattern(def, &mut new);
-                                let Expr::Def(def) = new.remove(0) else {
-                                    todo!("{new:?}")
-                                };
-                                new_attrs.push(ClassAttr::Def(def));
-                            }
-                            _ => {
-                                new_attrs.push(attr);
-                            }
-                        }
-                    }
-                    let methods = Methods::new(
-                        methods.id,
-                        methods.class,
-                        *methods.class_as_expr,
-                        methods.vis,
-                        ClassAttrs::from(new_attrs),
-                    );
+                    let methods = self.desugar_pattern_of_methods(methods);
                     new.push(Expr::Methods(methods));
                 }
                 Expr::Dummy(dummy) => {
                     let loc = dummy.loc;
                     let new_dummy = self.desugar_pattern(dummy.into_iter());
                     new.push(Expr::Dummy(Dummy::new(loc, new_dummy)));
+                }
+                Expr::Compound(compound) => {
+                    let new_compound = self.desugar_pattern(compound.into_iter());
+                    new.push(Expr::Compound(Compound::new(new_compound)));
                 }
                 other => {
                     new.push(self.rec_desugar_lambda_pattern(other));
