@@ -1,0 +1,49 @@
+.SafeUUID: ClassType
+.SafeUUID.
+    safe: .SafeUUID
+    unsafe: .SafeUUID
+    unknown: .SafeUUID
+
+.UUID: ClassType
+.UUID.
+    __call__: (
+        hex := Str,
+        bytes := Bytes,
+        bytes_le := Bytes,
+        fields := (Nat, Nat, Nat, Nat, Nat, Nat),
+        int := Nat,
+        version := 1..5,
+        is_safe := SafeUUID,
+    ) -> .UUID
+    bytes: .UUID
+    bytes_le: .UUID
+    fields: (Nat, Nat, Nat, Nat, Nat, Nat)
+    time_low: Nat
+    time_mid: Nat
+    time_hi_version: Nat
+    clock_seq_hi_variant: Nat
+    clock_seq_low: Nat
+    node: Nat
+    time: Nat
+    clock_seq: Nat
+    hex: Str
+    int: Nat
+    urn: Str
+    variant: Str
+    version: 1..5 or NoneType
+    is_safe: SafeUUID
+
+.getnode!: () => Nat
+.uuid1!: (node := Nat, clock_seq := Nat) => .UUID
+.uuid3: (namespace: .UUID, name: Str) -> .UUID
+.uuid4!: () => .UUID
+.uuid5: (namespace: .UUID, name: Str) -> .UUID
+
+.NAMESPACE_DNS: .UUID
+.NAMESPACE_URL: .UUID
+.NAMESPACE_OID: .UUID
+.NAMESPACE_X500: .UUID
+.RESERVED_NCS: Str
+.RFC_4122: Str
+.RESERVED_MICROSOFT: Str
+.RESERVED_FUTURE: Str
