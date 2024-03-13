@@ -343,14 +343,14 @@ impl Context {
         );
         let mut context_manager = Self::builtin_mono_trait(CONTEXT_MANAGER, 2);
         let Slf = mono_q(SELF, subtypeof(mono(CONTEXT_MANAGER)));
-        let t = fn0_met(Slf.clone(), NoneType).quantify();
+        let t_enter = fn0_met(Slf.clone(), NoneType).quantify();
         context_manager.register_builtin_decl(
             FUNDAMENTAL_ENTER,
-            t,
+            t_enter,
             Visibility::BUILTIN_PUBLIC,
             Some(FUNDAMENTAL_ENTER),
         );
-        let t = no_var_fn_met(
+        let t_exit = no_var_fn_met(
             Slf,
             vec![
                 kw(EXC_TYPE, ClassType),
@@ -358,12 +358,12 @@ impl Context {
                 kw(ATTR_TRACEBACK, mono(TRACEBACK)),
             ],
             vec![],
-            NoneType,
+            Bool,
         )
         .quantify();
         context_manager.register_builtin_decl(
             FUNDAMENTAL_EXIT,
-            t,
+            t_exit,
             Visibility::BUILTIN_PUBLIC,
             Some(FUNDAMENTAL_EXIT),
         );

@@ -130,9 +130,9 @@ impl Context {
             None,
         )));
         let t_format = no_var_func(vec![kw(KW_VALUE, Obj)], vec![kw(KW_SPEC, Str)], Str);
-        let t_frozenset = nd_func(
+        let t_frozenset = no_var_func(
+            vec![],
             vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
-            None,
             poly(FROZENSET, vec![ty_tp(T.clone())]),
         )
         .quantify();
@@ -471,7 +471,13 @@ impl Context {
             Some(FUNC_FILTER),
             None,
         );
-        self.register_builtin_py_impl(FUNC_FROZENSET, t_frozenset, Immutable, vis.clone(), None);
+        self.register_builtin_py_impl(
+            FUNC_FROZENSET,
+            t_frozenset,
+            Immutable,
+            vis.clone(),
+            Some(FUNC_FROZENSET),
+        );
         self.register_builtin_py_impl(
             FUNC_GETATTR,
             getattr_t,
@@ -1302,9 +1308,13 @@ impl Context {
             bin_op(S, R.clone(), O).quantify()
         };
         self.register_builtin_erg_impl(OP_RSHIFT, op_t, Const, Visibility::BUILTIN_PRIVATE);
-        let T = mono_q(TY_T, instanceof(Type));
-        let C = mono_q(TY_C, subtypeof(poly(CONTAINER, vec![ty_tp(T.clone())])));
-        let op_t = bin_op(C, T, Bool).quantify();
+        let op_t = {
+            let S = Type::from(
+                dict! { Field::public(FUNDAMENTAL_CONTAINS.into()) => fn1_met(Never, R.clone(), Bool) },
+            )
+            .structuralize();
+            bin_op(S, R.clone(), Bool).quantify()
+        };
         self.register_builtin_erg_impl(
             FUNDAMENTAL_CONTAINS,
             op_t.clone(),

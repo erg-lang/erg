@@ -978,7 +978,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             let res = if self.module.context.is_class(sup) {
                 tmp.register_base_class(&self.module.context, sup.clone())
             } else {
-                tmp.register_marker_trait(&self.module.context, sup.clone())
+                tmp.register_trait(&self.module.context, sup.clone())
             };
             res.map_err(|err| {
                 let ctx = self.module.context.rec_get_mut_type(&name).unwrap();

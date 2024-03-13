@@ -1,3 +1,5 @@
+from _erg_result import Error
+
 class Dict(dict):
     @staticmethod
     def try_new(dic):  # -> Result[Dict]

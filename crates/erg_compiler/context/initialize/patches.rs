@@ -43,7 +43,7 @@ impl Context {
             None,
             ValueObj::builtin_class(Type::from(m.clone() + o.clone()..=n.clone() + p.clone())),
         );
-        interval.register_trait(class.clone(), interval_add);
+        interval.register_trait_methods(class.clone(), interval_add);
         let mut interval_sub =
             Self::builtin_methods(Some(poly("Sub", vec![TyParam::from(&o..=&p)])), 2);
         let op_t = fn1_met(
@@ -59,7 +59,7 @@ impl Context {
             None,
             ValueObj::builtin_class(Type::from(m - p..=n - o)),
         );
-        interval.register_trait(class, interval_sub);
+        interval.register_trait_methods(class, interval_sub);
         self.register_builtin_patch("Interval", interval, Visibility::BUILTIN_PRIVATE, Const);
         // eq.register_impl("__ne__", op_t,         Const, Visibility::BUILTIN_PUBLIC);
         // ord.register_impl("__le__", op_t.clone(), Const, Visibility::BUILTIN_PUBLIC);
@@ -74,7 +74,7 @@ impl Context {
         let mut option_eq_impl = Self::builtin_methods(Some(impls), 1);
         let op_t = fn1_met(base.clone(), base.clone(), Bool).quantify();
         option_eq_impl.register_builtin_erg_impl("__eq__", op_t, Const, Visibility::BUILTIN_PUBLIC);
-        option_eq.register_trait(base, option_eq_impl);
+        option_eq.register_trait_methods(base, option_eq_impl);
         self.register_builtin_patch("OptionEq", option_eq, Visibility::BUILTIN_PRIVATE, Const);
         /* SuperSub (U <: T <: Sub(T) ==> U <: Sub(U)) */
         // SuperSub|T <: Sub(T)| U <: T = Patch U

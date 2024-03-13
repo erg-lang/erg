@@ -1445,7 +1445,8 @@ impl Context {
         }
     }
 
-    pub(crate) fn register_trait(&mut self, class: Type, methods: Self) {
+    /// If the trait has super-traits, you should call `register_trait` after calling this method.
+    pub(crate) fn register_trait_methods(&mut self, class: Type, methods: Self) {
         let trait_ = if let ContextKind::MethodDefs(Some(tr)) = &methods.kind {
             tr.clone()
         } else {
@@ -1459,7 +1460,8 @@ impl Context {
         ));
     }
 
-    pub(crate) fn register_marker_trait(&mut self, ctx: &Self, trait_: Type) -> CompileResult<()> {
+    /// Register that a class implements a trait and its super-traits.
+    pub(crate) fn register_trait(&mut self, ctx: &Self, trait_: Type) -> CompileResult<()> {
         let trait_ctx = ctx.get_nominal_type_ctx(&trait_).ok_or_else(|| {
             CompileError::type_not_found(
                 self.cfg.input.clone(),

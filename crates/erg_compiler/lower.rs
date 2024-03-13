@@ -1985,7 +1985,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     ast::VarPattern::Discard(token) => {
                         ast::Identifier::private_from_token(token.clone())
                     }
-                    _ => unreachable!(),
+                    other => {
+                        log!(err "unexpected pattern: {other}");
+                        return unreachable_error!(LowerErrors, LowerError, self.module.context);
+                    }
                 };
                 if let Some(expect_body_t) = expect_body_t {
                     // TODO: expect_body_t is smaller for constants
@@ -2232,16 +2235,18 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     self.module.context.get_similar_name(&class.local_name()),
                 )));
             }
-            let methods_list = &mut self
+            let Some(methods_list) = &mut self
                 .module
                 .context
                 .get_mut_nominal_type_ctx(&class)
-                .unwrap()
-                .methods_list;
+                .map(|ctx| &mut ctx.methods_list)
+            else {
+                return unreachable_error!(LowerErrors, LowerError, self);
+            };
             let methods_idx = methods_list.iter().position(|m| m.id == methods.id);
-            let methods_ctx = methods_idx
-                .map(|idx| methods_list.remove(idx))
-                .unwrap_or_else(|| todo!());
+            let Some(methods_ctx) = methods_idx.map(|idx| methods_list.remove(idx)) else {
+                return unreachable_error!(LowerErrors, LowerError, self);
+            };
             self.module.context.replace(methods_ctx.ctx);
             for attr in methods.attrs.iter() {
                 match attr {

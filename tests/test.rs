@@ -59,6 +59,11 @@ fn exec_coercion() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_context_manager() -> Result<(), ()> {
+    expect_success("tests/should_ok/context_manager.er", 1)
+}
+
+#[test]
 fn exec_collection() -> Result<(), ()> {
     expect_success("tests/should_ok/collection.er", 0)
 }
