@@ -577,13 +577,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             .grow("<record>", ContextKind::Dummy, Private, None);
         for attr in record.attrs.iter() {
             if attr.sig.is_const() {
-                self.module
-                    .context
-                    .register_const_def(attr)
-                    .map_err(|errs| {
-                        self.pop_append_errs();
-                        errs
-                    })?;
+                self.module.context.register_def(attr).map_err(|errs| {
+                    self.pop_append_errs();
+                    errs
+                })?;
             }
         }
         for attr in record.attrs.into_iter() {
@@ -1573,11 +1570,18 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         expect: Option<&SubrType>,
     ) -> LowerResult<hir::Params> {
         log!(info "entered {}({})", fn_name!(), params);
-        let mut tmp_tv_ctx = self
+        let mut errs = LowerErrors::empty();
+        let mut tmp_tv_ctx = match self
             .module
             .context
-            .instantiate_ty_bounds(&bounds, RegistrationMode::Normal)?;
-        let mut errs = LowerErrors::empty();
+            .instantiate_ty_bounds(&bounds, RegistrationMode::Normal)
+        {
+            Ok(tv_ctx) => tv_ctx,
+            Err((tv_ctx, es)) => {
+                errs.extend(es);
+                tv_ctx
+            }
+        };
         let mut hir_non_defaults = vec![];
         for non_default in params.non_defaults.into_iter() {
             match self.lower_non_default_param(non_default) {
@@ -1681,7 +1685,8 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         let tv_cache = self
             .module
             .context
-            .instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)?;
+            .instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)
+            .map_err(|(_, es)| es)?;
         if !in_statement {
             self.module
                 .context
@@ -1937,7 +1942,8 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 let tv_cache = self
                     .module
                     .context
-                    .instantiate_ty_bounds(&sig.bounds, RegistrationMode::Normal)?;
+                    .instantiate_ty_bounds(&sig.bounds, RegistrationMode::Normal)
+                    .map_err(|(_, es)| es)?;
                 self.module.context.grow(&name, kind, vis, Some(tv_cache));
                 self.lower_subr_def(sig, def.body)
             }
@@ -2394,13 +2400,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                                 def.sig.col_begin().unwrap(),
                             ));
                         }
-                        self.module
-                            .context
-                            .register_const_def(def)
-                            .map_err(|errs| {
-                                self.pop_append_errs();
-                                errs
-                            })?;
+                        self.module.context.register_def(def).map_err(|errs| {
+                            self.pop_append_errs();
+                            errs
+                        })?;
                     }
                     ast::ClassAttr::Decl(_) | ast::ClassAttr::Doc(_) => {}
                 }

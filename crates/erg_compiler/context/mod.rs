@@ -555,6 +555,15 @@ pub enum RegistrationMode {
     Normal,
 }
 
+impl RegistrationMode {
+    pub const fn is_preregister(&self) -> bool {
+        matches!(self, Self::PreRegister)
+    }
+    pub const fn is_normal(&self) -> bool {
+        matches!(self, Self::Normal)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ContextInfo {
     mod_id: usize,

@@ -305,6 +305,11 @@ fn exec_pattern() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_poly_type_spec() -> Result<(), ()> {
+    expect_success("tests/should_ok/poly_type_spec.er", 0)
+}
+
+#[test]
 fn exec_pyimport_test() -> Result<(), ()> {
     // HACK: When running the test with Windows, the exit code is 1 (the cause is unknown)
     if cfg!(windows) && env_python_version().unwrap().minor < Some(8) {
@@ -553,6 +558,11 @@ fn exec_iterator() -> Result<(), ()> {
 #[test]
 fn exec_move_check() -> Result<(), ()> {
     expect_failure("examples/move_check.er", 1, 1)
+}
+
+#[test]
+fn exec_poly_type_spec_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/poly_type_spec.er", 0, 3)
 }
 
 #[test]

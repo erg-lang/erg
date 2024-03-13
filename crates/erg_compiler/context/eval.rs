@@ -718,12 +718,19 @@ impl Context {
 
     fn eval_const_def(&mut self, def: &Def) -> EvalResult<ValueObj> {
         if def.is_const() {
+            let mut errs = EvalErrors::empty();
             let __name__ = def.sig.ident().unwrap().inspect();
             let vis = self.instantiate_vis_modifier(def.sig.vis())?;
             let tv_cache = match &def.sig {
                 Signature::Subr(subr) => {
                     let ty_cache =
-                        self.instantiate_ty_bounds(&subr.bounds, RegistrationMode::Normal)?;
+                        match self.instantiate_ty_bounds(&subr.bounds, RegistrationMode::Normal) {
+                            Ok(ty_cache) => ty_cache,
+                            Err((ty_cache, es)) => {
+                                errs.extend(es);
+                                ty_cache
+                            }
+                        };
                     Some(ty_cache)
                 }
                 Signature::Var(_) => None,
@@ -740,7 +747,8 @@ impl Context {
             } else {
                 None
             };
-            let (_ctx, errs) = self.check_decls_and_pop();
+            let (_ctx, es) = self.check_decls_and_pop();
+            errs.extend(es);
             self.register_gen_const(
                 def.sig.ident().unwrap(),
                 obj,
@@ -917,10 +925,16 @@ impl Context {
 
     /// FIXME: grow
     fn eval_const_lambda(&self, lambda: &Lambda) -> EvalResult<ValueObj> {
-        let mut tmp_tv_cache =
-            self.instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)?;
-        let mut non_default_params = Vec::with_capacity(lambda.sig.params.non_defaults.len());
         let mut errs = EvalErrors::empty();
+        let mut tmp_tv_cache =
+            match self.instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal) {
+                Ok(ty_cache) => ty_cache,
+                Err((ty_cache, es)) => {
+                    errs.extend(es);
+                    ty_cache
+                }
+            };
+        let mut non_default_params = Vec::with_capacity(lambda.sig.params.non_defaults.len());
         for sig in lambda.sig.params.non_defaults.iter() {
             match self.instantiate_param_ty(
                 sig,
@@ -2090,6 +2104,7 @@ impl Context {
             TyParam::ProjCall { obj, attr, args } => Ok(proj_call(*obj, attr, args)),
             // TyParam::Erased(_t) => Ok(Type::Obj),
             TyParam::Value(v) => self.convert_value_into_type(v).map_err(TyParam::Value),
+            TyParam::Erased(t) if t.is_type() => Ok(Type::Obj),
             // TODO: Dict, Set
             other => Err(other),
         }

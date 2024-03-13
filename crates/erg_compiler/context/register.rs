@@ -17,7 +17,7 @@ use ast::{
     ConstIdentifier, Decorator, DefId, Identifier, OperationKind, PolyTypeSpec, PreDeclTypeSpec,
     VarName,
 };
-use erg_parser::ast::{self, ClassAttr, TypeSpecWithOp};
+use erg_parser::ast::{self, ClassAttr, RecordAttrOrIdent, TypeSpecWithOp};
 
 use crate::ty::constructors::{
     free_var, func, func0, func1, module, proc, py_module, ref_, ref_mut, str_dict_t, tp_enum,
@@ -1059,7 +1059,7 @@ impl Context {
         for expr in block.iter() {
             match expr {
                 ast::Expr::Def(def) => {
-                    if let Err(errs) = self.register_const_def(def) {
+                    if let Err(errs) = self.register_def(def) {
                         total_errs.extend(errs);
                     }
                     if def.def_kind().is_import() {
@@ -1069,7 +1069,7 @@ impl Context {
                     }
                 }
                 ast::Expr::ClassDef(class_def) => {
-                    if let Err(errs) = self.register_const_def(&class_def.def) {
+                    if let Err(errs) = self.register_def(&class_def.def) {
                         total_errs.extend(errs);
                     }
                     let vis = self
@@ -1092,7 +1092,7 @@ impl Context {
                         self.grow(&class.local_name(), kind, vis.clone(), None);
                         for attr in methods.attrs.iter() {
                             if let ClassAttr::Def(def) = attr {
-                                if let Err(errs) = self.register_const_def(def) {
+                                if let Err(errs) = self.register_def(def) {
                                     total_errs.extend(errs);
                                 }
                             }
@@ -1113,7 +1113,7 @@ impl Context {
                     }
                 }
                 ast::Expr::PatchDef(patch_def) => {
-                    if let Err(errs) = self.register_const_def(&patch_def.def) {
+                    if let Err(errs) = self.register_def(&patch_def.def) {
                         total_errs.extend(errs);
                     }
                 }
@@ -1206,7 +1206,7 @@ impl Context {
         }
     }
 
-    pub(crate) fn register_const_def(&mut self, def: &ast::Def) -> TyCheckResult<()> {
+    pub(crate) fn register_def(&mut self, def: &ast::Def) -> TyCheckResult<()> {
         let id = Some(def.body.id);
         let __name__ = def.sig.ident().map(|i| i.inspect()).unwrap_or(UBAR);
         let call = if let Some(ast::Expr::Call(call)) = &def.body.block.first() {
@@ -1217,7 +1217,9 @@ impl Context {
         match &def.sig {
             ast::Signature::Subr(sig) => {
                 if sig.is_const() {
-                    let tv_cache = self.instantiate_ty_bounds(&sig.bounds, PreRegister)?;
+                    let tv_cache = self
+                        .instantiate_ty_bounds(&sig.bounds, PreRegister)
+                        .map_err(|(_, errs)| errs)?;
                     let vis = self.instantiate_vis_modifier(sig.vis())?;
                     self.grow(__name__, ContextKind::Proc, vis, Some(tv_cache));
                     let (obj, const_t) = match self.eval_const_block(&def.body.block) {
@@ -2515,7 +2517,9 @@ impl Context {
                 false
             }
             // TODO:
-            _ => false,
+            PreDeclTypeSpec::Subscr { namespace: ns, .. } => {
+                self.inc_ref_expr(ns, namespace, tmp_tv_cache)
+            }
         }
     }
 
@@ -2556,6 +2560,9 @@ impl Context {
         for arg in poly.args.kw_args() {
             self.inc_ref_expr(&arg.expr.clone().downgrade(), namespace, tmp_tv_cache);
         }
+        if let Some(arg) = poly.args.kw_var.as_ref() {
+            self.inc_ref_expr(&arg.expr.clone().downgrade(), namespace, tmp_tv_cache);
+        }
         self.inc_ref_acc(&poly.acc.clone().downgrade(), namespace, tmp_tv_cache)
     }
 
@@ -2589,6 +2596,51 @@ impl Context {
     ) -> bool {
         let mut res = false;
         for expr in block.iter() {
+            if self.inc_ref_expr(expr, namespace, tmp_tv_cache) {
+                res = true;
+            }
+        }
+        res
+    }
+
+    fn inc_ref_params(
+        &self,
+        params: &ast::Params,
+        namespace: &Context,
+        tmp_tv_cache: &TyVarCache,
+    ) -> bool {
+        let mut res = false;
+        for param in params.non_defaults.iter() {
+            if let Some(expr) = param.t_spec.as_ref().map(|ts| &ts.t_spec_as_expr) {
+                if self.inc_ref_expr(expr, namespace, tmp_tv_cache) {
+                    res = true;
+                }
+            }
+        }
+        if let Some(expr) = params
+            .var_params
+            .as_ref()
+            .and_then(|p| p.t_spec.as_ref().map(|ts| &ts.t_spec_as_expr))
+        {
+            if self.inc_ref_expr(expr, namespace, tmp_tv_cache) {
+                res = true;
+            }
+        }
+        for param in params.defaults.iter() {
+            if let Some(expr) = param.sig.t_spec.as_ref().map(|ts| &ts.t_spec_as_expr) {
+                if self.inc_ref_expr(expr, namespace, tmp_tv_cache) {
+                    res = true;
+                }
+            }
+            if self.inc_ref_expr(&param.default_val, namespace, tmp_tv_cache) {
+                res = true;
+            }
+        }
+        if let Some(expr) = params
+            .kw_var_params
+            .as_ref()
+            .and_then(|p| p.t_spec.as_ref().map(|ts| &ts.t_spec_as_expr))
+        {
             if self.inc_ref_expr(expr, namespace, tmp_tv_cache) {
                 res = true;
             }
@@ -2634,6 +2686,24 @@ impl Context {
                 for val in rec.attrs.iter() {
                     if self.inc_ref_block(&val.body.block, namespace, tmp_tv_cache) {
                         res = true;
+                    }
+                }
+                res
+            }
+            ast::Expr::Record(ast::Record::Mixed(rec)) => {
+                let mut res = false;
+                for val in rec.attrs.iter() {
+                    match val {
+                        RecordAttrOrIdent::Attr(attr) => {
+                            if self.inc_ref_block(&attr.body.block, namespace, tmp_tv_cache) {
+                                res = true;
+                            }
+                        }
+                        RecordAttrOrIdent::Ident(ident) => {
+                            if self.inc_ref_local(ident, namespace, tmp_tv_cache) {
+                                res = true;
+                            }
+                        }
                     }
                 }
                 res
@@ -2702,6 +2772,29 @@ impl Context {
                     if self.inc_ref_expr(guard, namespace, tmp_tv_cache) {
                         res = true;
                     }
+                }
+                res
+            }
+            ast::Expr::TypeAscription(ascription) => {
+                self.inc_ref_expr(&ascription.expr, namespace, tmp_tv_cache)
+            }
+            ast::Expr::Compound(comp) => {
+                let mut res = false;
+                for expr in comp.exprs.iter() {
+                    if self.inc_ref_expr(expr, namespace, tmp_tv_cache) {
+                        res = true;
+                    }
+                }
+                res
+            }
+            ast::Expr::Lambda(lambda) => {
+                let mut res = false;
+                // FIXME: assign params
+                if self.inc_ref_params(&lambda.sig.params, namespace, tmp_tv_cache) {
+                    res = true;
+                }
+                if self.inc_ref_block(&lambda.body, namespace, tmp_tv_cache) {
+                    res = true;
                 }
                 res
             }

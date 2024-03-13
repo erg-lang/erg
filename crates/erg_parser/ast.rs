@@ -2921,9 +2921,9 @@ impl ConstKwArg {
 #[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstArgs {
-    pos_args: Vec<ConstPosArg>,
+    pub pos_args: Vec<ConstPosArg>,
     pub var_args: Option<Box<ConstPosArg>>,
-    kw_args: Vec<ConstKwArg>,
+    pub kw_args: Vec<ConstKwArg>,
     pub kw_var: Option<Box<ConstPosArg>>,
     paren: Option<(Token, Token)>,
 }
