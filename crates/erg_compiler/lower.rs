@@ -633,27 +633,11 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             let elem = self.lower_expr(elem.expr, expect_elem.as_ref())?;
             union = self.module.context.union(&union, elem.ref_t());
             if ERG_MODE && union.is_union_type() {
-                return Err(LowerErrors::from(LowerError::syntax_error(
+                return Err(LowerErrors::from(LowerError::set_homogeneity_error(
                     self.cfg.input.clone(),
                     line!() as usize,
                     elem.loc(),
-                    String::from(&self.module.context.name[..]),
-                    switch_lang!(
-                        "japanese" => "集合の要素は全て同じ型である必要があります",
-                        "simplified_chinese" => "集合元素必须全部是相同类型",
-                        "traditional_chinese" => "集合元素必須全部是相同類型",
-                        "english" => "all elements of a set must be of the same type",
-                    )
-                    .to_owned(),
-                    Some(
-                        switch_lang!(
-                            "japanese" => "Int or Strなど明示的に型を指定してください",
-                            "simplified_chinese" => "明确指定类型，例如: Int or Str",
-                            "traditional_chinese" => "明確指定類型，例如: Int or Str",
-                            "english" => "please specify the type explicitly, e.g. Int or Str",
-                        )
-                        .to_owned(),
-                    ),
+                    self.module.context.caused_by(),
                 )));
             }
             new_set.push(elem);

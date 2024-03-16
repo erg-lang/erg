@@ -335,7 +335,15 @@ impl NestedDisplay for Args {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
         fmt_lines(self.pos_args.iter(), f, level)?;
         writeln!(f)?;
-        fmt_lines(self.kw_args.iter(), f, level)
+        if let Some(var) = &self.var_args {
+            writeln!(f, "*{var}")?;
+        }
+        fmt_lines(self.kw_args.iter(), f, level)?;
+        if let Some(var) = &self.kw_var_args {
+            writeln!(f)?;
+            write!(f, "**{var}")?;
+        }
+        Ok(())
     }
 }
 
@@ -4566,11 +4574,16 @@ impl VarSignature {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Vars {
     pub(crate) elems: Vec<VarSignature>,
+    pub(crate) starred: Option<Box<VarSignature>>,
 }
 
 impl NestedDisplay for Vars {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "{}", fmt_vec(&self.elems))
+        write!(f, "{}", fmt_vec(&self.elems))?;
+        if let Some(starred) = &self.starred {
+            write!(f, ", *{starred}")?;
+        }
+        Ok(())
     }
 }
 
@@ -4588,12 +4601,15 @@ impl Locational for Vars {
 }
 
 impl Vars {
-    pub const fn new(elems: Vec<VarSignature>) -> Self {
-        Self { elems }
+    pub fn new(elems: Vec<VarSignature>, starred: Option<VarSignature>) -> Self {
+        Self {
+            elems,
+            starred: starred.map(Box::new),
+        }
     }
 
-    pub const fn empty() -> Self {
-        Self::new(vec![])
+    pub fn empty() -> Self {
+        Self::new(vec![], None)
     }
 }
 

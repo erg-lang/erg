@@ -713,6 +713,10 @@ impl Desugarer {
                     for (n, elem) in tup.elems.iter().enumerate() {
                         self.desugar_nested_var_pattern(new, elem, &buf_name, BufIndex::Tuple(n));
                     }
+                    let elems_len = tup.elems.len();
+                    if let Some(var) = tup.elems.starred.as_ref() {
+                        self.desugar_rest_values(new, var, &buf_name, elems_len);
+                    }
                 }
                 VarPattern::Array(arr) => {
                     let (buf_name, buf_sig) = self.gen_buf_name_and_sig(v.loc(), v.t_spec);
@@ -721,6 +725,10 @@ impl Desugarer {
                     new.push(Expr::Def(buf_def));
                     for (n, elem) in arr.elems.iter().enumerate() {
                         self.desugar_nested_var_pattern(new, elem, &buf_name, BufIndex::Array(n));
+                    }
+                    let elems_len = arr.elems.len();
+                    if let Some(var) = arr.elems.starred.as_ref() {
+                        self.desugar_rest_values(new, var, &buf_name, elems_len);
                     }
                 }
                 VarPattern::Record(rec) => {
@@ -959,6 +967,36 @@ impl Desugarer {
                 new_module.push(Expr::Def(def));
             }
         }
+    }
+
+    /// `a, *b = aaa` -> `a = aaa[0]; b = aaa[1..MAX]`
+    fn desugar_rest_values(
+        &mut self,
+        new_module: &mut Vec<Expr>,
+        sig: &VarSignature,
+        buf_name: &str,
+        elems_len: usize,
+    ) {
+        let obj = Expr::local(
+            buf_name,
+            sig.ln_begin().unwrap_or(1),
+            sig.col_begin().unwrap_or(0),
+            sig.col_end().unwrap_or(0),
+        );
+        let op = Token::from_str(TokenKind::Assign, "=");
+        let id = DefId(get_hash(&(&obj, buf_name)));
+        let start = Expr::Literal(Literal::nat(elems_len, sig.ln_begin().unwrap_or(1)));
+        // FIXME: infinity
+        let max = 109521666047; // 102*1024*1024*1024-1 but why is this the limit?
+        let end = Expr::Literal(Literal::nat(max, sig.ln_begin().unwrap_or(1)));
+        let range = Token::new_with_loc(TokenKind::Closed, "..", sig.loc());
+        let acc = obj.subscr(
+            start.bin_op(range, end).into(),
+            Token::new_fake(TokenKind::RBrace, "]", 0, 0, 0),
+        );
+        let body = DefBody::new(op, Block::new(vec![Expr::Accessor(acc)]), id);
+        let starred = Def::new(Signature::Var(sig.clone()), body);
+        new_module.push(Expr::Def(starred));
     }
 
     /// `{x; y}` -> `{x = x; y = y}`

@@ -375,6 +375,11 @@ fn exec_slice() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_star_expr() -> Result<(), ()> {
+    expect_success("tests/should_ok/star_expr.er", 0)
+}
+
+#[test]
 fn exec_structural_example() -> Result<(), ()> {
     expect_success("examples/structural.er", 0)
 }

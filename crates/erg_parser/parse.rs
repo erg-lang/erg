@@ -893,6 +893,15 @@ impl Parser {
                 debug_exit_info!(self);
                 return Ok(ArrayInner::WithLength(elems.remove_pos(0), len));
             }
+            Some(PreStar) => {
+                self.lpop();
+                let rest = self
+                    .try_reduce_expr(false, false, false, false)
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                elems.set_var_args(PosArg::new(rest));
+                debug_exit_info!(self);
+                return Ok(ArrayInner::Normal(elems));
+            }
             Some(Inclusion) => {
                 self.lpop();
                 let Expr::Accessor(Accessor::Ident(sym)) = elems.remove_pos(0).expr else {
@@ -979,6 +988,14 @@ impl Parser {
                             return Err(());
                         }
                         Some(RParen | RSqBr | RBrace | Dedent) => {
+                            break;
+                        }
+                        Some(PreStar) => {
+                            self.lpop();
+                            let rest = self
+                                .try_reduce_expr(false, false, false, false)
+                                .map_err(|_| self.stack_dec(fn_name!()))?;
+                            elems.set_var_args(PosArg::new(rest));
                             break;
                         }
                         _ => {}
@@ -2485,6 +2502,7 @@ impl Parser {
                 debug_exit_info!(self);
                 Ok(call_or_acc)
             }
+            // REVIEW: correct?
             Some(t) if t.is(PreStar) || t.is(PreDblStar) => {
                 let kind = t.kind;
                 let _ = self.lpop();

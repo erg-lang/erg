@@ -101,13 +101,29 @@ impl Parser {
         match array {
             Array::Normal(arr) => {
                 let mut vars = Vars::empty();
-                for elem in arr.elems.into_iters().0 {
+                for elem in arr.elems.pos_args {
                     let pat = self
                         .convert_rhs_to_sig(elem.expr)
                         .map_err(|_| self.stack_dec(fn_name!()))?;
                     match pat {
                         Signature::Var(v) => {
                             vars.push(v);
+                        }
+                        Signature::Subr(subr) => {
+                            let err = ParseError::simple_syntax_error(line!() as usize, subr.loc());
+                            self.errs.push(err);
+                            debug_exit_info!(self);
+                            return Err(());
+                        }
+                    }
+                }
+                if let Some(var) = arr.elems.var_args {
+                    let pat = self
+                        .convert_rhs_to_sig(var.expr)
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                    match pat {
+                        Signature::Var(v) => {
+                            vars.starred = Some(Box::new(v));
                         }
                         Signature::Subr(subr) => {
                             let err = ParseError::simple_syntax_error(line!() as usize, subr.loc());
@@ -215,7 +231,7 @@ impl Parser {
         let mut vars = Vars::empty();
         match tuple {
             Tuple::Normal(tup) => {
-                let (pos_args, _var_args, _kw_args, _kw_var, paren) = tup.elems.deconstruct();
+                let (pos_args, var_args, _kw_args, _kw_var, paren) = tup.elems.deconstruct();
                 for arg in pos_args {
                     let sig = self
                         .convert_rhs_to_sig(arg.expr)
@@ -223,6 +239,23 @@ impl Parser {
                     match sig {
                         Signature::Var(var) => {
                             vars.push(var);
+                        }
+                        other => {
+                            let err =
+                                ParseError::simple_syntax_error(line!() as usize, other.loc());
+                            self.errs.push(err);
+                            debug_exit_info!(self);
+                            return Err(());
+                        }
+                    }
+                }
+                if let Some(var_args) = var_args {
+                    let sig = self
+                        .convert_rhs_to_sig(var_args.expr)
+                        .map_err(|_| self.stack_dec(fn_name!()))?;
+                    match sig {
+                        Signature::Var(var) => {
+                            vars.starred = Some(Box::new(var));
                         }
                         other => {
                             let err =
