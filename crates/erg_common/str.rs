@@ -39,6 +39,13 @@ impl PartialEq for Str {
     }
 }
 
+impl PartialEq<Str> for &mut Str {
+    #[inline]
+    fn eq(&self, other: &Str) -> bool {
+        self[..] == other[..]
+    }
+}
+
 impl PartialEq<str> for Str {
     #[inline]
     fn eq(&self, other: &str) -> bool {

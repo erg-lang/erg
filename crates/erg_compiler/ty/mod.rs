@@ -199,6 +199,13 @@ impl ParamTy {
         }
     }
 
+    pub fn name_mut(&mut self) -> Option<&mut Str> {
+        match self {
+            Self::Pos(_) => None,
+            Self::Kw { name, .. } | Self::KwWithDefault { name, .. } => Some(name),
+        }
+    }
+
     pub const fn typ(&self) -> &Type {
         match self {
             Self::Pos(ty) | Self::Kw { ty, .. } | Self::KwWithDefault { ty, .. } => ty,
@@ -713,6 +720,55 @@ impl SubrType {
             .map(|t| (t.name().cloned(), t.typ().ownership()));
         ArgsOwnership::new(nd_args, var_args, d_args, kw_var_args)
     }
+
+    pub fn _replace(mut self, target: &Type, to: &Type) -> Self {
+        for nd in self.non_default_params.iter_mut() {
+            *nd.typ_mut() = std::mem::take(nd.typ_mut())._replace(target, to);
+        }
+        if let Some(var) = self.var_params.as_mut() {
+            *var.as_mut().typ_mut() = std::mem::take(var.as_mut().typ_mut())._replace(target, to);
+        }
+        for d in self.default_params.iter_mut() {
+            *d.typ_mut() = std::mem::take(d.typ_mut())._replace(target, to);
+        }
+        self.return_t = Box::new(self.return_t._replace(target, to));
+        self
+    }
+
+    pub fn replace_params(mut self, target_and_to: Vec<(Str, Str)>) -> Self {
+        for (target, to) in target_and_to {
+            for nd in self.non_default_params.iter_mut() {
+                if let Some(name) = nd.name_mut() {
+                    if name == target {
+                        *name = to.clone();
+                    }
+                }
+            }
+            if let Some(var) = self.var_params.as_mut() {
+                if let Some(name) = var.name_mut() {
+                    if name == target {
+                        *name = to.clone();
+                    }
+                }
+            }
+            for d in self.default_params.iter_mut() {
+                if let Some(name) = d.name_mut() {
+                    if name == target {
+                        *name = to.clone();
+                    }
+                }
+            }
+            if let Some(kw_var) = self.kw_var_params.as_mut() {
+                if let Some(name) = kw_var.name_mut() {
+                    if name == target {
+                        *name = to.clone();
+                    }
+                }
+            }
+            *self.return_t = self.return_t.replace_param(&target, &to);
+        }
+        self
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -918,7 +974,7 @@ impl ArgsOwnership {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CastTarget {
-    Param {
+    Arg {
         nth: usize,
         name: Str,
         loc: Location,
@@ -934,7 +990,7 @@ pub enum CastTarget {
 impl fmt::Display for CastTarget {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Param { nth, name, .. } => write!(f, "{name}#{nth}"),
+            Self::Arg { name, .. } => write!(f, "{name}"),
             Self::Var { name, .. } => write!(f, "{name}"),
             Self::Expr(expr) => write!(f, "{expr}"),
         }
@@ -944,7 +1000,7 @@ impl fmt::Display for CastTarget {
 impl Locational for CastTarget {
     fn loc(&self) -> Location {
         match self {
-            Self::Param { loc, .. } => *loc,
+            Self::Arg { loc, .. } => *loc,
             Self::Var { loc, .. } => *loc,
             Self::Expr(expr) => expr.loc(),
         }
@@ -952,8 +1008,8 @@ impl Locational for CastTarget {
 }
 
 impl CastTarget {
-    pub const fn param(nth: usize, name: Str, loc: Location) -> Self {
-        Self::Param { nth, name, loc }
+    pub const fn arg(nth: usize, name: Str, loc: Location) -> Self {
+        Self::Arg { nth, name, loc }
     }
 
     pub fn expr(expr: Expr) -> Self {
@@ -966,6 +1022,14 @@ pub struct GuardType {
     pub namespace: Str,
     pub target: CastTarget,
     pub to: Box<Type>,
+}
+
+impl LimitedDisplay for GuardType {
+    fn limited_fmt<W: std::fmt::Write>(&self, f: &mut W, limit: isize) -> fmt::Result {
+        write!(f, "{{{} in ", self.target)?;
+        self.to.limited_fmt(f, limit - 1)?;
+        write!(f, "}}")
+    }
 }
 
 impl fmt::Display for GuardType {
@@ -987,6 +1051,14 @@ impl GuardType {
             target,
             to: Box::new(to),
         }
+    }
+
+    pub fn replace_param(mut self, target: &Str, to: &Str) -> Self {
+        match &mut self.target {
+            CastTarget::Arg { name, .. } if name == target => *name = to.clone(),
+            _ => {}
+        }
+        self
     }
 }
 
@@ -1383,9 +1455,7 @@ impl LimitedDisplay for Type {
                 ty.limited_fmt(f, limit - 1)?;
                 write!(f, ")")
             }
-            Self::Guard(guard) if cfg!(feature = "debug") => {
-                write!(f, "Guard({guard})")
-            }
+            Self::Guard(guard) => guard.limited_fmt(f, limit),
             Self::Bounded { sub, sup } => {
                 if sub.is_union_type() || sub.is_intersection_type() {
                     write!(f, "(")?;
@@ -3614,20 +3684,7 @@ impl Type {
                 }
                 Self::NamedTuple(r)
             }
-            Self::Subr(mut subr) => {
-                for nd in subr.non_default_params.iter_mut() {
-                    *nd.typ_mut() = std::mem::take(nd.typ_mut())._replace(target, to);
-                }
-                if let Some(var) = subr.var_params.as_mut() {
-                    *var.as_mut().typ_mut() =
-                        std::mem::take(var.as_mut().typ_mut())._replace(target, to);
-                }
-                for d in subr.default_params.iter_mut() {
-                    *d.typ_mut() = std::mem::take(d.typ_mut())._replace(target, to);
-                }
-                subr.return_t = Box::new(subr.return_t._replace(target, to));
-                Self::Subr(subr)
-            }
+            Self::Subr(subr) => Self::Subr(subr._replace(target, to)),
             Self::Callable { param_ts, return_t } => {
                 let param_ts = param_ts
                     .into_iter()
@@ -3675,6 +3732,19 @@ impl Type {
                 sup: Box::new(sup._replace(target, to)),
             },
             other => other,
+        }
+    }
+
+    fn replace_param(self, target: &Str, to: &Str) -> Self {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().clone().replace_param(target, to),
+            Self::Refinement(mut refine) => {
+                *refine.t = refine.t.replace_param(target, to);
+                Self::Refinement(refine)
+            }
+            Self::And(l, r) => l.replace_param(target, to) & r.replace_param(target, to),
+            Self::Guard(guard) => Self::Guard(guard.replace_param(target, to)),
+            _ => self,
         }
     }
 

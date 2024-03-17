@@ -60,16 +60,6 @@ use crate::{AccessKind, GenericHIRBuilder};
 
 use VisibilityModifier::*;
 
-pub fn expr_to_cast_target(expr: &ast::Expr) -> CastTarget {
-    match expr {
-        ast::Expr::Accessor(ast::Accessor::Ident(ident)) => CastTarget::Var {
-            name: ident.inspect().clone(),
-            loc: ident.loc(),
-        },
-        _ => CastTarget::expr(expr.clone()),
-    }
-}
-
 /// Checks & infers types of an AST, and convert (lower) it into a HIR
 #[derive(Debug)]
 pub struct GenericASTLowerer<ASTBuilder: ASTBuildable = DefaultASTBuilder> {
@@ -1010,6 +1000,32 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         }
     }
 
+    pub fn expr_to_cast_target(&self, expr: &ast::Expr) -> CastTarget {
+        match expr {
+            ast::Expr::Accessor(ast::Accessor::Ident(ident)) => {
+                if let Some(nth) = self
+                    .module
+                    .context
+                    .params
+                    .iter()
+                    .position(|(name, _)| name.as_ref() == Some(&ident.name))
+                {
+                    CastTarget::Arg {
+                        nth,
+                        name: ident.inspect().clone(),
+                        loc: ident.loc(),
+                    }
+                } else {
+                    CastTarget::Var {
+                        name: ident.inspect().clone(),
+                        loc: ident.loc(),
+                    }
+                }
+            }
+            _ => CastTarget::expr(expr.clone()),
+        }
+    }
+
     fn get_bin_guard_type(&self, op: &Token, lhs: &ast::Expr, rhs: &ast::Expr) -> Option<Type> {
         match op.kind {
             TokenKind::AndOp => {
@@ -1025,9 +1041,9 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             _ => {}
         }
         let target = if op.kind == TokenKind::ContainsOp {
-            expr_to_cast_target(rhs)
+            self.expr_to_cast_target(rhs)
         } else {
-            expr_to_cast_target(lhs)
+            self.expr_to_cast_target(lhs)
         };
         let namespace = self.module.context.name.clone();
         match op.kind {
@@ -1463,7 +1479,15 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 if let Some(Type::Guard(guard)) =
                     call.args.get_left_or_key("test").map(|exp| exp.ref_t())
                 {
-                    self.module.context.cast(guard.clone(), &mut vec![])?;
+                    let test = call.args.get_left_or_key("test").unwrap();
+                    let test_args = if let hir::Expr::Call(call) = test {
+                        Some(&call.args)
+                    } else {
+                        None
+                    };
+                    self.module
+                        .context
+                        .cast(guard.clone(), test_args, &mut vec![])?;
                 }
                 Ok(())
             }
@@ -1692,7 +1716,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 mem::take(&mut self.module.context.get_mut_outer().unwrap().guards)
             };
             for guard in guards.into_iter() {
-                if let Err(errs) = self.module.context.cast(guard, &mut overwritten) {
+                if let Err(errs) = self.module.context.cast(guard, None, &mut overwritten) {
                     self.errs.extend(errs);
                 }
             }

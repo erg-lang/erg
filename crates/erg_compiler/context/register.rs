@@ -2413,6 +2413,7 @@ impl Context {
     pub(crate) fn cast(
         &mut self,
         guard: GuardType,
+        args: Option<&hir::Args>,
         overwritten: &mut Vec<(VarName, VarInfo)>,
     ) -> TyCheckResult<()> {
         match &guard.target {
@@ -2443,15 +2444,57 @@ impl Context {
                         return Err(errs);
                     }
                 }
+                Ok(())
             }
-            CastTarget::Param { .. } => {
-                // TODO:
+            // ```
+            // i: Obj
+            // is_int: (x: Obj) -> {x in Int} # change the 0th arg type to Int
+            // assert is_int i
+            // i: Int
+            // ```
+            CastTarget::Arg { nth, name, loc } => {
+                if let Some(name) = args
+                    .and_then(|args| args.get(*nth))
+                    .and_then(|ex| ex.local_name())
+                {
+                    let vi = if let Some((name, vi)) = self.locals.remove_entry(name) {
+                        overwritten.push((name, vi.clone()));
+                        vi
+                    } else if let Some((n, vi)) = self.get_var_kv(name) {
+                        overwritten.push((n.clone(), vi.clone()));
+                        vi.clone()
+                    } else {
+                        VarInfo::nd_parameter(
+                            *guard.to.clone(),
+                            self.absolutize(().loc()),
+                            self.name.clone(),
+                        )
+                    };
+                    match self.recover_typarams(&vi.t, &guard) {
+                        Ok(t) => {
+                            self.locals
+                                .insert(VarName::from_str(Str::rc(name)), VarInfo { t, ..vi });
+                        }
+                        Err(errs) => {
+                            self.locals.insert(VarName::from_str(Str::rc(name)), vi);
+                            return Err(errs);
+                        }
+                    }
+                    Ok(())
+                } else {
+                    let target = CastTarget::Var {
+                        name: name.clone(),
+                        loc: *loc,
+                    };
+                    let guard = GuardType::new(guard.namespace, target, *guard.to);
+                    self.cast(guard, args, overwritten)
+                }
             }
             CastTarget::Expr(_) => {
                 self.guards.push(guard);
+                Ok(())
             }
         }
-        Ok(())
     }
 
     pub(crate) fn inc_ref<L: Locational>(

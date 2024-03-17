@@ -19,7 +19,9 @@ use erg_parser::Parser;
 use crate::ty::free::{CanbeFree, Constraint, HasLevel};
 use crate::ty::typaram::{IntervalOp, OpKind, TyParam, TyParamLambda, TyParamOrdering};
 use crate::ty::value::ValueObj;
-use crate::ty::{constructors::*, Predicate, RefinementType, VisibilityModifier};
+use crate::ty::{
+    constructors::*, CastTarget, GuardType, Predicate, RefinementType, VisibilityModifier,
+};
 use crate::ty::{Field, HasType, ParamTy, SubrKind, SubrType, Type};
 use crate::type_feature_error;
 use crate::varinfo::{AbsLocation, VarInfo};
@@ -271,7 +273,7 @@ impl Context {
                 }
             }
         }
-        let var_args = if let Some(var_args) = sig.params.var_params.as_ref() {
+        let var_params = if let Some(var_args) = sig.params.var_params.as_ref() {
             let opt_decl_t = opt_decl_sig_t
                 .as_ref()
                 .and_then(|subr| subr.var_params.as_ref().map(|v| v.as_ref()));
@@ -313,7 +315,7 @@ impl Context {
                 }
             }
         }
-        let kw_var_args = if let Some(kw_var_args) = sig.params.kw_var_params.as_ref() {
+        let kw_var_params = if let Some(kw_var_args) = sig.params.kw_var_params.as_ref() {
             let opt_decl_t = opt_decl_sig_t
                 .as_ref()
                 .and_then(|subr| subr.kw_var_params.as_ref().map(|v| v.as_ref()));
@@ -346,7 +348,15 @@ impl Context {
                 mode,
                 false,
             ) {
-                Ok(ty) => ty,
+                Ok(ty) => {
+                    let params = non_defaults
+                        .iter()
+                        .chain(&var_params)
+                        .chain(&defaults)
+                        .chain(&kw_var_params)
+                        .filter_map(|pt| pt.name());
+                    self.recover_guard(ty, params)
+                }
                 Err(es) => {
                     errs.extend(es);
                     Type::Failure
@@ -363,9 +373,21 @@ impl Context {
         };
         // tmp_tv_cache.warn_isolated_vars(self);
         let typ = if sig.ident.is_procedural() {
-            proc(non_defaults, var_args, defaults, kw_var_args, spec_return_t)
+            proc(
+                non_defaults,
+                var_params,
+                defaults,
+                kw_var_params,
+                spec_return_t,
+            )
         } else {
-            func(non_defaults, var_args, defaults, kw_var_args, spec_return_t)
+            func(
+                non_defaults,
+                var_params,
+                defaults,
+                kw_var_params,
+                spec_return_t,
+            )
         };
         if errs.is_empty() {
             Ok(typ)
@@ -1861,6 +1883,29 @@ impl Context {
         }
     }
 
+    #[inline]
+    fn recover_guard<'a>(&self, return_t: Type, mut params: impl Iterator<Item = &'a Str>) -> Type {
+        match return_t {
+            Type::Guard(GuardType {
+                namespace,
+                target: CastTarget::Expr(expr),
+                to,
+            }) => {
+                let target = if let Some(nth) = params.position(|p| Some(p) == expr.get_name()) {
+                    CastTarget::arg(nth, expr.get_name().unwrap().clone(), ().loc())
+                } else {
+                    CastTarget::Expr(expr)
+                };
+                Type::Guard(GuardType {
+                    namespace,
+                    target,
+                    to,
+                })
+            }
+            _ => return_t,
+        }
+    }
+
     // FIXME: opt_decl_t must be disassembled for each polymorphic type
     pub(crate) fn instantiate_typespec_full(
         &self,
@@ -2001,6 +2046,28 @@ impl Context {
             // TODO: エラー処理(リテラルでない)はパーサーにやらせる
             TypeSpec::Enum(set) => {
                 let mut new_set = set! {};
+                // guard type (e.g. {x in Int})
+                if set.pos_args.len() == 1 {
+                    let expr = &set.pos_args().next().unwrap().expr;
+                    match expr {
+                        ConstExpr::BinOp(bin) if bin.op.is(TokenKind::InOp) => {
+                            if let Ok(to) = self.instantiate_const_expr_as_type(
+                                &bin.rhs,
+                                None,
+                                tmp_tv_cache,
+                                not_found_is_qvar,
+                            ) {
+                                let target = CastTarget::expr(bin.lhs.clone().downgrade());
+                                return Ok(Type::Guard(GuardType::new(
+                                    self.name.clone(),
+                                    target,
+                                    to,
+                                )));
+                            }
+                        }
+                        _ => {}
+                    }
+                }
                 for arg in set.pos_args() {
                     new_set.insert(self.instantiate_const_expr(
                         &arg.expr,
@@ -2132,6 +2199,13 @@ impl Context {
                         Type::Failure
                     }
                 };
+                let params = non_defaults
+                    .iter()
+                    .chain(&var_params)
+                    .chain(&defaults)
+                    .chain(&kw_var_params)
+                    .filter_map(|pt| pt.name());
+                let return_t = self.recover_guard(return_t, params);
                 // no quantification at this point (in `generalize_t`)
                 if errs.is_empty() {
                     Ok(subr_t(
