@@ -1784,7 +1784,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             let var_params = var_params.first().map(|(name, vi)| {
                 ParamTy::pos_or_kw(
                     name.as_ref().map(|n| n.inspect().clone()),
-                    vi.t.inner_ts().remove(0),
+                    vi.t.inner_ts().first().map_or(Type::Obj, |t| t.clone()),
                 )
             });
             (var_params, non_default_params.into_iter())
@@ -1797,7 +1797,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             let var_params = var_params.get(0).map(|(name, vi)| {
                 ParamTy::pos_or_kw(
                     name.as_ref().map(|n| n.inspect().clone()),
-                    vi.t.inner_ts().remove(0),
+                    vi.t.inner_ts().first().map_or(Type::Obj, |t| t.clone()),
                 )
             });
             let non_default_params = non_default_params.into_iter().filter(|(name, _)| {
