@@ -1,0 +1,19 @@
+# TODO: Real
+.mean: |T <: Float|(data: Iterable(T)) -> T
+.fmean: (data: Iterable(Float), weights := Iterable(Float)) -> Float
+.geometric_mean: (data: Iterable(Float)) -> Float
+.harmonic_mean: (data: Iterable(Float), weights := Iterable(Float)) -> Float
+.median: (data: Iterable(Float)) -> Float
+.median_low: (data: Iterable(Float)) -> Float
+.median_high: (data: Iterable(Float)) -> Float
+.median_grouped: (data: Iterable(Float), interval: Float) -> Float
+.mode: (data: Iterable(Float)) -> Float
+.multimode: (data: Iterable(Float)) -> Iterable(Float)
+.pstdev: (data: Iterable(Float), mu := Float) -> Float
+.pvariance: (data: Iterable(Float), mu := Float) -> Float
+.stdev: (data: Iterable(Float), xbar := Float) -> Float
+.variance: (data: Iterable(Float), xbar := Float) -> Float
+.quantiles: (data: Iterable(Float), n := Nat, method := Str) -> [Float; _]
+.covariance: (x: Iterable(Float), y: Iterable(Float)) -> Float
+.correlation: (x: Iterable(Float), y: Iterable(Float), method := Str) -> Float
+.linear_regression: (x: Iterable(Float), y: Iterable(Float), proportional := Bool) -> NamedTuple { .slope = Float; intercept = Float }
