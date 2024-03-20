@@ -38,3 +38,6 @@ val!() =
         val!::return x
     "d"
 val = val!()
+
+xs as [Nat or Str; _] = [1, 2, "aa"]
+ys = array filter x -> x in Int, xs

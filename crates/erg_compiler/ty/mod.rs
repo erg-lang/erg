@@ -19,6 +19,7 @@ pub mod vis;
 
 use std::cell::RefMut;
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::ops::{BitAnd, BitOr, Deref, Not, Range, RangeInclusive};
 use std::path::PathBuf;
 
@@ -972,7 +973,7 @@ impl ArgsOwnership {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub enum CastTarget {
     Arg {
         nth: usize,
@@ -985,6 +986,29 @@ pub enum CastTarget {
     },
     // NOTE: `Expr(Expr)` causes a bad memory access error
     Expr(Box<Expr>),
+}
+
+impl PartialEq for CastTarget {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Arg { nth: l, .. }, Self::Arg { nth: r, .. }) => l == r,
+            (Self::Var { name: l, .. }, Self::Var { name: r, .. }) => l == r,
+            (Self::Expr(l), Self::Expr(r)) => l == r,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for CastTarget {}
+
+impl Hash for CastTarget {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Self::Arg { nth, .. } => nth.hash(state),
+            Self::Var { name, .. } => name.hash(state),
+            Self::Expr(expr) => expr.hash(state),
+        }
+    }
 }
 
 impl fmt::Display for CastTarget {
@@ -1053,9 +1077,9 @@ impl GuardType {
         }
     }
 
-    pub fn replace_param(mut self, target: &Str, to: &Str) -> Self {
+    pub fn replace_param(mut self, target: &str, to: &str) -> Self {
         match &mut self.target {
-            CastTarget::Arg { name, .. } if name == target => *name = to.clone(),
+            CastTarget::Arg { name, .. } if name == target => *name = Str::rc(to),
             _ => {}
         }
         self
@@ -2304,6 +2328,15 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_array(),
             Self::Poly { name, .. } => &name[..] == "Array",
             Self::Refinement(refine) => refine.t.is_array(),
+            _ => false,
+        }
+    }
+
+    pub fn is_guard(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_guard(),
+            Self::Guard(_) => true,
+            Self::Refinement(refine) => refine.t.is_guard(),
             _ => false,
         }
     }
@@ -3735,7 +3768,7 @@ impl Type {
         }
     }
 
-    fn replace_param(self, target: &Str, to: &Str) -> Self {
+    fn replace_param(self, target: &str, to: &str) -> Self {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().clone().replace_param(target, to),
             Self::Refinement(mut refine) => {
@@ -3746,6 +3779,17 @@ impl Type {
             Self::Guard(guard) => Self::Guard(guard.replace_param(target, to)),
             _ => self,
         }
+    }
+
+    pub fn replace_params<'l, 'r>(
+        mut self,
+        target: impl Iterator<Item = &'l str>,
+        to: impl Iterator<Item = &'r str>,
+    ) -> Self {
+        for (target, to) in target.zip(to) {
+            self = self.replace_param(target, to);
+        }
+        self
     }
 
     /// TyParam::Value(ValueObj::Type(_)) => TyParam::Type

@@ -1377,6 +1377,9 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             (Structural(sub), Structural(sup)) => {
                 self.sub_unify(sub, sup)?;
             }
+            (Guard(sub), Guard(sup)) => {
+                self.sub_unify(&sub.to, &sup.to)?;
+            }
             (sub, Structural(sup)) => {
                 let sub_fields = self.ctx.fields(sub);
                 for (sup_field, sup_ty) in self.ctx.fields(sup) {

@@ -20,7 +20,7 @@ use erg_parser::desugar::Desugarer;
 use erg_parser::token::{Token, TokenKind};
 
 use crate::ty::constructors::{
-    array_t, bounded, closed_range, dict_t, func, mono, mono_q, named_free_var, poly, proj,
+    array_t, bounded, closed_range, dict_t, func, guard, mono, mono_q, named_free_var, poly, proj,
     proj_call, ref_, ref_mut, refinement, set_t, subr_t, subtypeof, tp_enum, try_v_enum, tuple_t,
     unknown_len_array_t, v_enum,
 };
@@ -171,8 +171,10 @@ impl<'c> Substituter<'c> {
         let mut stps = st.typarams();
         // Or, And are commutative, choose fitting order
         if qt.qual_name() == st.qual_name() && (st.qual_name() == "Or" || st.qual_name() == "And") {
+            // REVIEW: correct condition?
             if ctx.covariant_supertype_of_tp(&qtps[0], &stps[1])
                 && ctx.covariant_supertype_of_tp(&qtps[1], &stps[0])
+                && qt != st
             {
                 stps.swap(0, 1);
             }
@@ -1842,6 +1844,10 @@ impl Context {
                     }
                 };
                 Ok(bounded(sub, sup))
+            }
+            Type::Guard(grd) => {
+                let to = self.eval_t_params(*grd.to, level, t_loc)?;
+                Ok(guard(grd.namespace, grd.target, to))
             }
             other if other.is_monomorphic() => Ok(other),
             other => feature_error!(self, t_loc.loc(), &format!("eval {other}"))

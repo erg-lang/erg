@@ -16,6 +16,7 @@ use crate::ty::constructors::*;
 use crate::ty::free::{Constraint, FreeTyParam, FreeTyVar, HasLevel, GENERIC_LEVEL};
 use crate::ty::typaram::{TyParam, TyParamLambda};
 use crate::ty::ConstSubr;
+use crate::ty::GuardType;
 use crate::ty::ValueObj;
 use crate::ty::{HasType, Predicate, Type};
 use crate::{type_feature_error, unreachable_error};
@@ -918,6 +919,14 @@ impl Context {
             Not(ty) => {
                 let ty = self.instantiate_t_inner(*ty, tmp_tv_cache, loc)?;
                 Ok(self.complement(&ty))
+            }
+            Guard(guard) => {
+                let to = self.instantiate_t_inner(*guard.to, tmp_tv_cache, loc)?;
+                Ok(Type::Guard(GuardType::new(
+                    guard.namespace,
+                    guard.target,
+                    to,
+                )))
             }
             other if other.is_monomorphic() => Ok(other),
             other => type_feature_error!(self, loc.loc(), &format!("instantiating type {other}")),
