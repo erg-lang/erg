@@ -87,7 +87,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     }
 
     pub(crate) fn recheck_file(
-        &mut self,
+        &self,
         uri: NormalizedUrl,
         code: impl Into<String>,
     ) -> ELSResult<()> {
@@ -99,11 +99,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         self.check_file(uri, code)
     }
 
-    pub(crate) fn check_file(
-        &mut self,
-        uri: NormalizedUrl,
-        code: impl Into<String>,
-    ) -> ELSResult<()> {
+    pub(crate) fn check_file(&self, uri: NormalizedUrl, code: impl Into<String>) -> ELSResult<()> {
         _log!(self, "checking {uri}");
         if self.file_cache.editing.borrow().contains(&uri) {
             _log!(self, "skipped: {uri}");
@@ -182,7 +178,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     }
 
     // TODO: reset mutable dependent types
-    pub(crate) fn quick_check_file(&mut self, uri: NormalizedUrl) -> ELSResult<()> {
+    pub(crate) fn quick_check_file(&self, uri: NormalizedUrl) -> ELSResult<()> {
         if self.file_cache.editing.borrow().contains(&uri) {
             _log!(self, "skipped: {uri}");
             return Ok(());
@@ -213,7 +209,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         Ok(())
     }
 
-    fn make_uri_and_diags(&mut self, errors: CompileErrors) -> Vec<(Url, Vec<Diagnostic>)> {
+    fn make_uri_and_diags(&self, errors: CompileErrors) -> Vec<(Url, Vec<Diagnostic>)> {
         let mut uri_and_diags: Vec<(Url, Vec<Diagnostic>)> = vec![];
         for err in errors.into_iter() {
             let loc = err.core.get_loc_with_fallback();
@@ -297,7 +293,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
 
     /// Periodically send diagnostics without a request from the server.
     /// This is necessary to perform reactive error highlighting in editors such as Vim, where no action is taken until the buffer is saved.
-    pub(crate) fn start_auto_diagnostics(&mut self) {
+    pub(crate) fn start_auto_diagnostics(&self) {
         let mut _self = self.clone();
         spawn_new_thread(
             move || {
@@ -357,7 +353,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         uris
     }
 
-    pub(crate) fn start_workspace_diagnostics(&mut self) {
+    pub(crate) fn start_workspace_diagnostics(&self) {
         let mut _self = self.clone();
         spawn_new_thread(
             move || {
