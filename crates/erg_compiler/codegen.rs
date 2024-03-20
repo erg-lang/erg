@@ -220,6 +220,7 @@ pub struct PyCodeGenerator {
     module_type_loaded: bool,
     control_loaded: bool,
     convertors_loaded: bool,
+    traits_loaded: bool,
     operators_loaded: bool,
     union_loaded: bool,
     fake_generic_loaded: bool,
@@ -248,6 +249,7 @@ impl PyCodeGenerator {
             module_type_loaded: false,
             control_loaded: false,
             convertors_loaded: false,
+            traits_loaded: false,
             operators_loaded: false,
             union_loaded: false,
             fake_generic_loaded: false,
@@ -271,6 +273,7 @@ impl PyCodeGenerator {
             module_type_loaded: false,
             control_loaded: false,
             convertors_loaded: false,
+            traits_loaded: false,
             operators_loaded: false,
             union_loaded: false,
             fake_generic_loaded: false,
@@ -298,6 +301,7 @@ impl PyCodeGenerator {
         self.module_type_loaded = false;
         self.control_loaded = false;
         self.convertors_loaded = false;
+        self.traits_loaded = false;
         self.operators_loaded = false;
         self.union_loaded = false;
         self.fake_generic_loaded = false;
@@ -839,6 +843,9 @@ impl PyCodeGenerator {
             | "le" | "gt" | "ge" | "and_" | "or_" | "xor" | "lshift" | "rshift" | "pos" | "neg"
             | "invert" | "is_" | "is_not" | "call" => {
                 self.load_operators();
+            }
+            "Eq" | "Ord" | "Hash" | "Add" | "Sub" | "Mul" | "Div" | "Pos" | "Neg" => {
+                self.load_traits();
             }
             "CodeType" => {
                 self.emit_global_import_items(
@@ -3858,6 +3865,12 @@ impl PyCodeGenerator {
         let mod_name = Identifier::static_public("_erg_convertors");
         self.emit_import_all_instr(mod_name);
         self.convertors_loaded = true;
+    }
+
+    fn load_traits(&mut self) {
+        let mod_name = Identifier::static_public("_erg_traits");
+        self.emit_import_all_instr(mod_name);
+        self.traits_loaded = true;
     }
 
     fn load_operators(&mut self) {

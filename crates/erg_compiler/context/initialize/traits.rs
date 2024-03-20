@@ -539,12 +539,12 @@ impl Context {
             Const,
             None,
         );
-        self.register_builtin_type(mono(EQ), eq, vis.clone(), Const, None);
+        self.register_builtin_type(mono(EQ), eq, vis.clone(), Const, Some(EQ));
         self.register_builtin_type(mono(IRREGULAR_EQ), irregular_eq, vis.clone(), Const, None);
-        self.register_builtin_type(mono(HASH), hash, vis.clone(), Const, None);
+        self.register_builtin_type(mono(HASH), hash, vis.clone(), Const, Some(HASH));
         self.register_builtin_type(mono(EQ_HASH), eq_hash, vis.clone(), Const, None);
         self.register_builtin_type(mono(PARTIAL_ORD), partial_ord, vis.clone(), Const, None);
-        self.register_builtin_type(mono(ORD), ord, vis.clone(), Const, None);
+        self.register_builtin_type(mono(ORD), ord, vis.clone(), Const, Some(ORD));
         self.register_builtin_type(mono(NUM), num, vis.clone(), Const, None);
         self.register_builtin_type(mono(TO_BOOL), to_bool, vis.clone(), Const, None);
         self.register_builtin_type(mono(TO_INT), to_int, vis.clone(), Const, None);
@@ -641,10 +641,34 @@ impl Context {
             Const,
             None,
         );
-        self.register_builtin_type(poly(ADD, ty_params.clone()), add, vis.clone(), Const, None);
-        self.register_builtin_type(poly(SUB, ty_params.clone()), sub, vis.clone(), Const, None);
-        self.register_builtin_type(poly(MUL, ty_params.clone()), mul, vis.clone(), Const, None);
-        self.register_builtin_type(poly(DIV, ty_params.clone()), div, vis.clone(), Const, None);
+        self.register_builtin_type(
+            poly(ADD, ty_params.clone()),
+            add,
+            vis.clone(),
+            Const,
+            Some(ADD),
+        );
+        self.register_builtin_type(
+            poly(SUB, ty_params.clone()),
+            sub,
+            vis.clone(),
+            Const,
+            Some(SUB),
+        );
+        self.register_builtin_type(
+            poly(MUL, ty_params.clone()),
+            mul,
+            vis.clone(),
+            Const,
+            Some(MUL),
+        );
+        self.register_builtin_type(
+            poly(DIV, ty_params.clone()),
+            div,
+            vis.clone(),
+            Const,
+            Some(DIV),
+        );
         self.register_builtin_type(
             poly(FLOOR_DIV, ty_params),
             floor_div,
@@ -652,8 +676,8 @@ impl Context {
             Const,
             None,
         );
-        self.register_builtin_type(mono(POS), pos, vis.clone(), Const, None);
-        self.register_builtin_type(mono(NEG), neg, vis, Const, None);
+        self.register_builtin_type(mono(POS), pos, vis.clone(), Const, Some(POS));
+        self.register_builtin_type(mono(NEG), neg, vis, Const, Some(NEG));
         self.register_const_param_defaults(
             ADD,
             vec![ConstTemplate::Obj(ValueObj::builtin_type(Slf.clone()))],
