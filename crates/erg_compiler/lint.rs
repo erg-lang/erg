@@ -32,8 +32,8 @@ impl<ASTBuilder: ASTBuildable> GenericASTLowerer<ASTBuilder> {
     ) -> SingleLowerResult<()> {
         self.module
             .context
-            .sub_unify(found, expect, loc, Some(name))
-            .map_err(|_| {
+            .sub_unify_with_coercion(found, expect, loc, Some(name))
+            .map_err(|_err| {
                 LowerError::type_mismatch_error(
                     self.cfg().input.clone(),
                     line!() as usize,

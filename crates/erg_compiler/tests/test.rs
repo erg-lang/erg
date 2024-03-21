@@ -90,6 +90,9 @@ fn _test_infer_types() -> Result<(), ()> {
     module
         .context
         .assert_var_type("val", &v_enum(set! { "b".into(), "d".into() }))?;
+    module
+        .context
+        .assert_var_type("ys", &unknown_len_array_t(Nat))?;
     Ok(())
 }
 

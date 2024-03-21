@@ -2166,7 +2166,7 @@ impl Context {
         } else {
             passed_params.insert(Str::from(format!("({} param)", ordinal_num(nth))));
         }
-        self.sub_unify(arg_t, param_t, arg, param.name())
+        self.sub_unify_with_coercion(arg_t, param_t, arg, param.name())
             .map_err(|errs| {
                 log!(err "semi-unification failed with {callee}\n{arg_t} !<: {param_t}");
                 let name = if let Some(attr) = attr_name {
@@ -2217,7 +2217,7 @@ impl Context {
     ) -> TyCheckResult<()> {
         let arg_t = arg.ref_t();
         let param_t = param.typ();
-        self.sub_unify(arg_t, param_t, arg, param.name())
+        self.sub_unify_with_coercion(arg_t, param_t, arg, param.name())
             .map_err(|errs| {
                 log!(err "semi-unification failed with {callee}\n{arg_t} !<: {param_t}");
                 let name = if let Some(attr) = attr_name {
@@ -2277,7 +2277,7 @@ impl Context {
         {
             let param_t = pt.typ();
             passed_params.insert(kw_name.clone());
-            self.sub_unify(arg_t, param_t, arg, Some(kw_name))
+            self.sub_unify_with_coercion(arg_t, param_t, arg, Some(kw_name))
                 .map_err(|errs| {
                     log!(err "semi-unification failed with {callee}\n{arg_t} !<: {}", pt.typ());
                     let name = if let Some(attr) = attr_name {
@@ -2309,7 +2309,7 @@ impl Context {
                     )
                 })?;
         } else if let Some(kw_var) = subr_ty.kw_var_params.as_deref() {
-            self.sub_unify(arg_t, kw_var.typ(), arg, Some(kw_name))?;
+            self.sub_unify_with_coercion(arg_t, kw_var.typ(), arg, Some(kw_name))?;
         } else {
             let similar =
                 levenshtein::get_similar_name(subr_ty.param_names(), arg.keyword.inspect());

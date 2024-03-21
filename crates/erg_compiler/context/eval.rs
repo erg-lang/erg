@@ -20,7 +20,7 @@ use erg_parser::desugar::Desugarer;
 use erg_parser::token::{Token, TokenKind};
 
 use crate::ty::constructors::{
-    array_t, bounded, closed_range, dict_t, func, mono, mono_q, named_free_var, poly, proj,
+    array_t, bounded, closed_range, dict_t, func, guard, mono, mono_q, named_free_var, poly, proj,
     proj_call, ref_, ref_mut, refinement, set_t, subr_t, subtypeof, tp_enum, try_v_enum, tuple_t,
     unknown_len_array_t, v_enum,
 };
@@ -171,8 +171,10 @@ impl<'c> Substituter<'c> {
         let mut stps = st.typarams();
         // Or, And are commutative, choose fitting order
         if qt.qual_name() == st.qual_name() && (st.qual_name() == "Or" || st.qual_name() == "And") {
+            // REVIEW: correct condition?
             if ctx.covariant_supertype_of_tp(&qtps[0], &stps[1])
                 && ctx.covariant_supertype_of_tp(&qtps[1], &stps[0])
+                && qt != st
             {
                 stps.swap(0, 1);
             }
@@ -1843,6 +1845,10 @@ impl Context {
                 };
                 Ok(bounded(sub, sup))
             }
+            Type::Guard(grd) => {
+                let to = self.eval_t_params(*grd.to, level, t_loc)?;
+                Ok(guard(grd.namespace, grd.target, to))
+            }
             other if other.is_monomorphic() => Ok(other),
             other => feature_error!(self, t_loc.loc(), &format!("eval {other}"))
                 .map_err(|errs| (other, errs)),
@@ -2451,7 +2457,7 @@ impl Context {
             // obj: [T; N]|<: Add([T; M])|.Output == ValueObj::Type(<type [T; M+N]>)
             if let ValueObj::Type(quant_projected_t) = obj {
                 let projected_t = quant_projected_t.into_typ();
-                let quant_sub = &self.get_type_ctx(&sub.qual_name()).unwrap().typ;
+                let quant_sub = self.get_type_ctx(&sub.qual_name()).map(|ctx| &ctx.typ);
                 let _sup_subs = if let Some((sup, quant_sup)) = opt_sup.zip(methods.impl_of()) {
                     // T -> Int, M -> 2
                     match Substituter::substitute_typarams(self, &quant_sup, sup) {
@@ -2469,12 +2475,14 @@ impl Context {
                 } else {
                     Substituter::substitute_typarams(self, quant_sub, sub).ok()?
                 };*/
-                let _sub_subs = match Substituter::substitute_typarams(self, quant_sub, sub) {
-                    Ok(sub_subs) => sub_subs,
-                    Err(errs) => {
-                        return Triple::Err(errs);
-                    }
-                };
+                let _sub_subs =
+                    match quant_sub.map(|qsub| Substituter::substitute_typarams(self, qsub, sub)) {
+                        Some(Ok(sub_subs)) => sub_subs,
+                        Some(Err(errs)) => {
+                            return Triple::Err(errs);
+                        }
+                        None => None,
+                    };
                 // [T; M+N] -> [Int; 4+2] -> [Int; 6]
                 let res = self.eval_t_params(projected_t, level, t_loc).ok();
                 if let Some(t) = res {

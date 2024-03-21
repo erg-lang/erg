@@ -5,7 +5,7 @@ use erg_common::log;
 use crate::ty::constructors::*;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
-use crate::ty::{Field, Type, Visibility};
+use crate::ty::{CastTarget, Field, GuardType, Type, Visibility};
 use Type::*;
 
 use crate::context::initialize::*;
@@ -114,15 +114,29 @@ impl Context {
             poly(ENUMERATE, vec![ty_tp(T.clone())]),
         )
         .quantify();
+        let guard = Type::Guard(GuardType::new(
+            "<builtins>".into(),
+            CastTarget::arg(0, "x".into(), Location::Unknown),
+            U.clone(),
+        ));
         let t_filter = nd_func(
             vec![
-                kw(KW_FUNC, nd_func(vec![anon(T.clone())], None, Bool)),
+                kw(KW_FUNC, nd_func(vec![kw("x", T.clone())], None, guard)),
                 kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())])),
             ],
             None,
-            poly(FILTER, vec![ty_tp(T.clone())]),
+            poly(FILTER, vec![ty_tp(T.clone() & U.clone())]),
         )
-        .quantify();
+        .quantify()
+            & nd_func(
+                vec![
+                    kw(KW_FUNC, nd_func(vec![anon(T.clone())], None, Bool)),
+                    kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())])),
+                ],
+                None,
+                poly(FILTER, vec![ty_tp(T.clone())]),
+            )
+            .quantify();
         let filter = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_FILTER,
             filter_func,
