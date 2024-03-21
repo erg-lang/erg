@@ -974,6 +974,10 @@ impl ValueObj {
         ))
     }
 
+    pub const fn is_none(&self) -> bool {
+        matches!(self, Self::None)
+    }
+
     // TODO: add Complex
     pub const fn is_num(&self) -> bool {
         matches!(

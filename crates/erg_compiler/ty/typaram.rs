@@ -1148,6 +1148,29 @@ impl TyParam {
         }
     }
 
+    pub fn coerce(&self, list: Option<&UndoableLinkedList>) {
+        if let Some(list) = list {
+            self.undoable_coerce(list);
+        } else {
+            self.destructive_coerce();
+        }
+    }
+
+    pub fn undoable_coerce(&self, list: &UndoableLinkedList) {
+        match self {
+            TyParam::FreeVar(fv) if fv.is_linked() => {
+                fv.crack().undoable_coerce(list);
+            }
+            TyParam::FreeVar(fv) if fv.is_unbound() => {
+                let typ = fv.get_type().unwrap();
+                typ.undoable_coerce(list);
+            }
+            TyParam::Type(t) => t.undoable_coerce(list),
+            // TODO:
+            _ => {}
+        }
+    }
+
     pub fn destructive_coerce(&self) {
         match self {
             TyParam::FreeVar(fv) if fv.is_linked() => {

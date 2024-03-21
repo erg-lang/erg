@@ -11,7 +11,7 @@ use erg_common::{Str, Triple};
 
 use crate::context::eval::UndoableLinkedList;
 use crate::context::initialize::const_func::sub_tpdict_get;
-use crate::ty::constructors::{self, and, bounded, not, or, poly};
+use crate::ty::constructors::{self, and, bounded, not, or, poly, refinement};
 use crate::ty::free::{Constraint, FreeKind, FreeTyVar};
 use crate::ty::typaram::{TyParam, TyParamOrdering};
 use crate::ty::value::ValueObj;
@@ -543,8 +543,7 @@ impl Context {
             }
             (Bool, Guard { .. }) => true,
             (Guard(lhs), Guard(rhs)) => {
-                !rhs.to.is_refinement() // TODO: refinement guard is unstable
-                && lhs.target == rhs.target && self.supertype_of(&lhs.to, &rhs.to)
+                lhs.target == rhs.target && self.supertype_of(&lhs.to, &rhs.to)
             }
             (Mono(n), NamedTuple(_)) => &n[..] == "GenericNamedTuple" || &n[..] == "GenericTuple",
             (Mono(n), Record(_)) => &n[..] == "Record",
@@ -1644,6 +1643,42 @@ impl Context {
     }
 
     /// ```erg
+    /// narrow_type_by_pred(Int or NoneType, x != None) == Int
+    /// ```
+    #[allow(clippy::only_used_in_recursion)]
+    fn narrow_type_by_pred(&self, t: Type, pred: &Predicate) -> Type {
+        match (t, pred) {
+            (
+                Type::Or(l, r),
+                Predicate::NotEqual {
+                    rhs: TyParam::Value(v),
+                    ..
+                },
+            ) if v.is_none() => {
+                let l = self.narrow_type_by_pred(*l, pred);
+                let r = self.narrow_type_by_pred(*r, pred);
+                if l.is_nonetype() {
+                    r
+                } else if r.is_nonetype() {
+                    l
+                } else {
+                    or(l, r)
+                }
+            }
+            (Type::Refinement(refine), _) => {
+                let t = self.narrow_type_by_pred(*refine.t, pred);
+                refinement(refine.var.clone(), t, *refine.pred)
+            }
+            (other, Predicate::And(l, r)) => {
+                let other = self.narrow_type_by_pred(other, l);
+                self.narrow_type_by_pred(other, r)
+            }
+            // TODO:
+            (other, _) => other,
+        }
+    }
+
+    /// ```erg
     /// {I: Int | I > 0} and {I: Int | I < 10} == {I: Int | I > 0 and I < 10}
     /// {x: Int or NoneType | True} and {x: Obj | x != None} == {x: Int or NoneType | x != None} (== Int)
     /// {x: Nat or None | x == 1 or x == None} and {x: Int | True} == {x: Int | x == 1}
@@ -1657,6 +1692,7 @@ impl Context {
         let name = lhs.var.clone();
         let rhs_pred = rhs.pred.clone().change_subject_name(name);
         let intersection_pred = self.intersection_pred(*lhs.pred.clone(), rhs_pred);
+        let intersec = self.narrow_type_by_pred(intersec, &intersection_pred);
         let Some(pred) =
             self.eliminate_type_mismatched_preds(&lhs.var, &intersec, intersection_pred)
         else {

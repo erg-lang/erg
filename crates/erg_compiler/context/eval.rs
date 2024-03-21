@@ -2457,7 +2457,7 @@ impl Context {
             // obj: [T; N]|<: Add([T; M])|.Output == ValueObj::Type(<type [T; M+N]>)
             if let ValueObj::Type(quant_projected_t) = obj {
                 let projected_t = quant_projected_t.into_typ();
-                let quant_sub = &self.get_type_ctx(&sub.qual_name()).unwrap().typ;
+                let quant_sub = self.get_type_ctx(&sub.qual_name()).map(|ctx| &ctx.typ);
                 let _sup_subs = if let Some((sup, quant_sup)) = opt_sup.zip(methods.impl_of()) {
                     // T -> Int, M -> 2
                     match Substituter::substitute_typarams(self, &quant_sup, sup) {
@@ -2475,12 +2475,14 @@ impl Context {
                 } else {
                     Substituter::substitute_typarams(self, quant_sub, sub).ok()?
                 };*/
-                let _sub_subs = match Substituter::substitute_typarams(self, quant_sub, sub) {
-                    Ok(sub_subs) => sub_subs,
-                    Err(errs) => {
-                        return Triple::Err(errs);
-                    }
-                };
+                let _sub_subs =
+                    match quant_sub.map(|qsub| Substituter::substitute_typarams(self, qsub, sub)) {
+                        Some(Ok(sub_subs)) => sub_subs,
+                        Some(Err(errs)) => {
+                            return Triple::Err(errs);
+                        }
+                        None => None,
+                    };
                 // [T; M+N] -> [Int; 4+2] -> [Int; 6]
                 let res = self.eval_t_params(projected_t, level, t_loc).ok();
                 if let Some(t) = res {

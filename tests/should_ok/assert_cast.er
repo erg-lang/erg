@@ -40,3 +40,8 @@ assert s3 in (Int or NoneType or Str)
 p! as Obj = print!
 assert p! in (*objs: Obj) => NoneType
 p!("OK")
+
+xs: [Nat or NoneType; _] = [1, None, 2]
+ys: [Nat; _] = array filter x -> x != None, xs
+nats _: [Nat; _] = None
+nats ys

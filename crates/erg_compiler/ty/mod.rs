@@ -2173,6 +2173,42 @@ impl Type {
         }
     }
 
+    pub fn is_nonetype(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_nonetype(),
+            Self::NoneType => true,
+            Self::Refinement(refine) => refine.t.is_nonetype(),
+            _ => false,
+        }
+    }
+
+    pub fn is_singleton(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_singleton(),
+            Self::Refinement(refine) => refine.t.is_singleton(),
+            Self::Poly { name, params } => {
+                if &name[..] == "Array" || &name[..] == "Set" {
+                    let elem_t = <&Type>::try_from(params.first().unwrap()).unwrap();
+                    elem_t.is_singleton()
+                } else {
+                    false
+                }
+            }
+            Self::NamedTuple(attrs) => attrs.iter().all(|(_, t)| t.is_singleton()),
+            Self::Record(attrs) => attrs.values().all(|t| t.is_singleton()),
+            Self::Ref(t) => t.is_singleton(),
+            Self::RefMut { before, after } => {
+                before.is_singleton() && after.as_ref().map_or(true, |t| t.is_singleton())
+            }
+            Self::Structural(ty) => ty.is_singleton(),
+            Self::Bounded { sub, sup } => sub.is_singleton() && sup.is_singleton(),
+            Self::NoneType => true,
+            Self::Ellipsis => true,
+            Self::NotImplementedType => true,
+            _ => false,
+        }
+    }
+
     pub fn is_union_type(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_union_type(),

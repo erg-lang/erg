@@ -813,11 +813,11 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
         }
     }
 
-    /// Assuming that `sub` is a subtype of `sup`, fill in the type variable to satisfy the assumption
+    /// Assuming that `sub` is a subtype of `sup`, fill in the type variable to satisfy the assumption.
     ///
-    /// When comparing arguments and parameter, the left side (`sub`) is the argument (found) and the right side (`sup`) is the parameter (expected)
+    /// When comparing arguments and parameter, the left side (`sub`) is the argument (found) and the right side (`sup`) is the parameter (expected).
     ///
-    /// The parameter type must be a supertype of the argument type
+    /// The parameter type must be a supertype of the argument type.
     /// ```python
     /// sub_unify({I: Int | I == 0}, ?T(<: Ord)): (/* OK */)
     /// sub_unify(Int, ?T(:> Nat)): (?T :> Int)
@@ -1626,8 +1626,16 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                         .sub_unify_tp(l_maybe_sub, r_maybe_sup, *variance, false)
                         .is_err()
                     {
-                        log!(err "failed to unify {l_maybe_sub} <: {r_maybe_sup}");
-                        continue 'l;
+                        // retry with coercions
+                        l_maybe_sub.coerce(Some(&list));
+                        r_maybe_sup.coerce(Some(&list));
+                        if unifier
+                            .sub_unify_tp(l_maybe_sub, r_maybe_sup, *variance, false)
+                            .is_err()
+                        {
+                            log!(err "failed to unify {l_maybe_sub} <: {r_maybe_sup}?");
+                            continue 'l;
+                        }
                     }
                 }
                 drop(list);
@@ -1747,6 +1755,28 @@ impl Context {
     ) -> TyCheckResult<()> {
         let unifier = Unifier::new(self, loc, None, false, param_name.cloned());
         unifier.sub_unify(maybe_sub, maybe_sup)
+    }
+
+    pub(crate) fn sub_unify_with_coercion(
+        &self,
+        maybe_sub: &Type,
+        maybe_sup: &Type,
+        loc: &impl Locational,
+        param_name: Option<&Str>,
+    ) -> TyCheckResult<()> {
+        let unifier = Unifier::new(self, loc, None, false, param_name.cloned());
+        unifier.sub_unify(maybe_sub, maybe_sup).or_else(|err| {
+            log!(err "{err}");
+            maybe_sub.coerce(unifier.undoable);
+            maybe_sub.coerce(unifier.undoable);
+            let maybe_sub = self
+                .eval_t_params(maybe_sub.clone(), self.level, loc)
+                .map_err(|(_, errs)| errs)?;
+            let maybe_sup = self
+                .eval_t_params(maybe_sup.clone(), self.level, loc)
+                .map_err(|(_, errs)| errs)?;
+            unifier.sub_unify(&maybe_sub, &maybe_sup)
+        })
     }
 
     /// This will rewrite generalized type variables.
