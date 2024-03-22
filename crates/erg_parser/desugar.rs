@@ -1121,9 +1121,7 @@ impl Desugarer {
             loc.col_end().unwrap_or(0),
         ));
         let name = Expr::from(Identifier::private_from_varname(name));
-        let Some(key) = keys.next() else {
-            return None;
-        };
+        let key = keys.next()?;
         let attr_name = Expr::from(Literal::str(
             format!("\"{}\"", key.inspect().clone()),
             key.ln_begin().unwrap_or(0),
