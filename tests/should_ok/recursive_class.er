@@ -1,0 +1,21 @@
+F = Class((obj: Obj) -> F)
+
+greedy(obj) =
+    log obj
+    F.new greedy
+
+_ = greedy(1)::base(1)::base(1)
+
+Leaf = Class Int
+Leaf|<: Show|.
+    __str__ ref self = "Leaf(\{self::base})"
+Node = Class { left = Tree; right = Tree }
+Node|<: Show|.
+    __str__ ref self = "Node{ left = \{self::left}; right = \{self::right} }"
+Tree = Class Node or Leaf
+Tree|<: Show|.
+    __str__ ref self = match self::base:
+        (l: Leaf) -> l.__str__()
+        (n: Node)-> n.__str__()
+
+print! Node.new { left = Tree.new Leaf.new 1; right = Tree.new Leaf.new 2 }

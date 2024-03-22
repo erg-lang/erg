@@ -2352,9 +2352,11 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         let Some(hir::Expr::Call(call)) = hir_def.body.block.first() else {
             return unreachable_error!(LowerErrors, LowerError, self);
         };
-        if let Some(sup_type) = call.args.get_left_or_key("Super") {
-            if let Err(err) = self.check_inheritable(type_obj, sup_type, &hir_def.sig) {
-                self.errs.extend(err);
+        if hir_def.def_kind().is_inherit() {
+            if let Some(sup_type) = call.args.get_left_or_key("Super") {
+                if let Err(err) = self.check_inheritable(type_obj, sup_type, &hir_def.sig) {
+                    self.errs.extend(err);
+                }
             }
         }
         let Some(constructor) =

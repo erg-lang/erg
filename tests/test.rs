@@ -345,6 +345,11 @@ fn exec_record_err() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_recursive_class() -> Result<(), ()> {
+    expect_success("tests/should_ok/recursive_class.er", 0)
+}
+
+#[test]
 fn exec_refinement() -> Result<(), ()> {
     expect_success("tests/should_ok/refinement.er", 0)
 }

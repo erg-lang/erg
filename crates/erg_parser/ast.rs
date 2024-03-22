@@ -5553,6 +5553,10 @@ impl DefKind {
         matches!(self, Self::Class | Self::Inherit)
     }
 
+    pub const fn is_inherit(&self) -> bool {
+        matches!(self, Self::Inherit)
+    }
+
     pub const fn is_class_or_trait(&self) -> bool {
         self.is_class() || self.is_trait()
     }
