@@ -84,10 +84,16 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_READLINES),
         );
+        /* FileDescriptor */
+        let mut file_descriptor = Self::builtin_mono_trait(FILE_DESCRIPTOR, 2);
+        let Slf = mono_q(SELF, subtypeof(mono(FILE_DESCRIPTOR)));
+        let t = fn0_met(Slf.clone(), Nat).quantify();
+        file_descriptor.register_builtin_erg_decl(FUNC_FILENO, t, Visibility::BUILTIN_PUBLIC);
         /* IO! */
         let mut io = Self::builtin_mono_trait(MUTABLE_IO, 2);
         let Slf = mono(MUTABLE_IO);
         io.register_superclass(mono(MUTABLE_READABLE), &readable);
+        io.register_superclass(mono(FILE_DESCRIPTOR), &file_descriptor);
         io.register_builtin_decl(
             FUNC_MODE,
             fn0_met(Slf.clone(), Str),
@@ -111,12 +117,6 @@ impl Context {
             fn0_met(Slf.clone(), Bool),
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_CLOSED),
-        );
-        io.register_builtin_decl(
-            FUNC_FILENO,
-            fn0_met(Slf.clone(), Nat),
-            Visibility::BUILTIN_PUBLIC,
-            Some(FUNC_FILENO),
         );
         io.register_builtin_decl(
             PROC_FLUSH,
@@ -498,6 +498,13 @@ impl Context {
         self.register_builtin_type(
             mono(MUTABLE_READABLE),
             readable,
+            Visibility::BUILTIN_PRIVATE,
+            Const,
+            None,
+        );
+        self.register_builtin_type(
+            mono(FILE_DESCRIPTOR),
+            file_descriptor,
             Visibility::BUILTIN_PRIVATE,
             Const,
             None,

@@ -71,6 +71,7 @@ const PROC_READLINE: &str = "readline!";
 const FUNC_READLINE: &str = "readline";
 const FUNC_READLINES: &str = "readlines";
 const PROC_READLINES: &str = "readlines!";
+const FILE_DESCRIPTOR: &str = "FileDescriptor";
 const MUTABLE_IO: &str = "IO!";
 const FUNC_MODE: &str = "mode";
 const FUNC_NAME: &str = "name";
