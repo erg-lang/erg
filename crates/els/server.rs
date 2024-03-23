@@ -851,7 +851,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             HEALTH_CHECKER_ID => {
                 self.channels
                     .as_ref()
-                    .unwrap()
+                    .ok_or("channels not found")?
                     .health_check
                     .send(WorkerMessage::Request(0, ()))?;
             }
@@ -982,7 +982,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let mut ctxs = vec![];
         if let Ok(dir) = uri
             .to_file_path()
-            .and_then(|p| p.parent().unwrap().read_dir().map_err(|_| ()))
+            .and_then(|p| p.parent().ok_or(())?.read_dir().map_err(|_| ()))
         {
             for neighbor in dir {
                 let Ok(neighbor) = neighbor else {

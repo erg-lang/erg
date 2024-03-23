@@ -1205,7 +1205,11 @@ impl NestedDisplay for ClassAttrs {
 
 impl Locational for ClassAttrs {
     fn loc(&self) -> Location {
-        Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+        if self.is_empty() {
+            Location::Unknown
+        } else {
+            Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+        }
     }
 }
 
@@ -1231,7 +1235,11 @@ impl NestedDisplay for RecordAttrs {
 
 impl Locational for RecordAttrs {
     fn loc(&self) -> Location {
-        Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+        if self.is_empty() {
+            Location::Unknown
+        } else {
+            Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+        }
     }
 }
 
@@ -6125,7 +6133,11 @@ impl_display_from_nested!(Module);
 
 impl Locational for Module {
     fn loc(&self) -> Location {
-        Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+        if self.is_empty() {
+            Location::Unknown
+        } else {
+            Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+        }
     }
 }
 

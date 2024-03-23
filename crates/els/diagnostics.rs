@@ -160,7 +160,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             }
         };
         let ast = self.build_ast(&uri).ok();
-        let ctx = checker.pop_context().unwrap();
+        let Some(ctx) = checker.pop_context() else {
+            _log!(self, "context not found");
+            return Ok(());
+        };
         if mode == "declare" {
             self.shared
                 .py_mod_cache

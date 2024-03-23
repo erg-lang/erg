@@ -2770,9 +2770,9 @@ impl Type {
             Self::Refinement(refine) => refine.t.namespace(),
             Self::Mono(name) | Self::Poly { name, .. } => {
                 let namespaces = name.split_with(&[".", "::"]);
-                if namespaces.len() > 1 {
+                if let Some(last) = namespaces.last() {
                     Str::rc(
-                        name.trim_end_matches(namespaces.last().unwrap())
+                        name.trim_end_matches(last)
                             .trim_end_matches('.')
                             .trim_end_matches("::"),
                     )

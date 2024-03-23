@@ -208,7 +208,10 @@ macro_rules! impl_sendable {
             ) -> Result<(), mpsc::SendError<WorkerMessage<$Params>>> {
                 self.channels
                     .as_ref()
-                    .unwrap()
+                    .ok_or_else(|| {
+                        erg_common::lsp_log!("channels are closed");
+                        mpsc::SendError(WorkerMessage::Kill)
+                    })?
                     .$receiver
                     .send($crate::channels::WorkerMessage::Request(id, params))
             }

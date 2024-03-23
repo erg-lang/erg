@@ -188,7 +188,13 @@ impl ModuleCache {
     }
 
     pub fn get_similar_name(&self, name: &str) -> Option<Str> {
-        get_similar_name(self.cache.iter().map(|(v, _)| v.to_str().unwrap()), name).map(Str::rc)
+        get_similar_name(
+            self.cache
+                .iter()
+                .map(|(v, _)| v.to_str().unwrap_or_default()),
+            name,
+        )
+        .map(Str::rc)
     }
 
     pub fn rename_path(&mut self, old: &NormalizedPathBuf, new: NormalizedPathBuf) {

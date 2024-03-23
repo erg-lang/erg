@@ -73,7 +73,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                                     )));
                                 }
                             }
-                        } else if let Expr::Accessor(acc) = def.body.block.last().unwrap() {
+                        } else if let Some(Expr::Accessor(acc)) = def.body.block.last() {
                             let vi = acc.var_info();
                             match (&vi.def_loc.module, util::loc_to_range(vi.def_loc.loc)) {
                                 (Some(path), Some(range)) => {

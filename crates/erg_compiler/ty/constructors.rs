@@ -105,7 +105,7 @@ pub fn py_module(path: TyParam) -> Type {
 }
 
 pub fn module_from_path<P: Into<PathBuf>>(path: P) -> Type {
-    let s = ValueObj::Str(Str::rc(path.into().to_str().unwrap()));
+    let s = ValueObj::Str(Str::rc(&path.into().to_string_lossy()));
     module(TyParam::Value(s))
 }
 

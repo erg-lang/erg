@@ -336,7 +336,14 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
     fn fake_lower_signature(&self, sig: ast::Signature) -> LowerResult<hir::Signature> {
         match sig {
             ast::Signature::Var(var) => {
-                let ident = var.ident().unwrap().clone();
+                let Some(ident) = var.ident().cloned() else {
+                    return Err(LowerErrors::from(LowerError::declare_error(
+                        self.cfg().input.clone(),
+                        line!() as usize,
+                        var.loc(),
+                        self.module.context.caused_by(),
+                    )));
+                };
                 let ident = hir::Identifier::bare(ident);
                 let t_spec = if let Some(ts) = var.t_spec {
                     let expr = self.fake_lower_expr(*ts.t_spec_as_expr.clone())?;

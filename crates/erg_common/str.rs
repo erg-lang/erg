@@ -233,6 +233,8 @@ impl Str {
     /// assert_eq!(s.split_with(&[".", "::"]), vec!["a", "b", "c"]);
     /// let s = Str::rc("ああ.いい::うう");
     /// assert_eq!(s.split_with(&[".", "::"]), vec!["ああ", "いい", "うう"]);
+    /// let s = Str::rc("abc");
+    /// assert_eq!(s.split_with(&[".", "::"]), vec!["abc"]);
     /// ```
     pub fn split_with(&self, seps: &[&str]) -> Vec<&str> {
         let mut result = vec![];

@@ -1191,7 +1191,11 @@ impl_stream!(RecordAttrs, Def);
 
 impl Locational for RecordAttrs {
     fn loc(&self) -> Location {
-        Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+        if self.is_empty() {
+            Location::Unknown
+        } else {
+            Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+        }
     }
 }
 
@@ -2319,8 +2323,8 @@ impl Def {
     }
 
     pub fn def_kind(&self) -> DefKind {
-        match self.body.block.first().unwrap() {
-            Expr::Call(call) => match call.obj.show_acc().as_ref().map(|n| &n[..]) {
+        match self.body.block.first() {
+            Some(Expr::Call(call)) => match call.obj.show_acc().as_ref().map(|n| &n[..]) {
                 Some("Class") => DefKind::Class,
                 Some("Inherit") => DefKind::Inherit,
                 Some("Trait") => DefKind::Trait,
@@ -2349,7 +2353,7 @@ impl Def {
     }
 
     pub fn get_base(&self) -> Option<&Record> {
-        match self.body.block.first().unwrap() {
+        match self.body.block.first()? {
             Expr::Call(call) => match call.obj.show_acc().as_ref().map(|n| &n[..]) {
                 Some("Class") | Some("Trait") => {
                     if let Some(Expr::Record(rec)) = call.args.get_left_or_key("Base") {

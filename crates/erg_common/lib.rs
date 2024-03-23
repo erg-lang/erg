@@ -52,7 +52,7 @@ pub fn open_read(filename: &str) -> std::io::Result<String> {
 
 pub fn read_file(mut f: std::fs::File) -> std::io::Result<String> {
     let mut s = "".to_string();
-    std::io::Read::read_to_string(&mut f, &mut s).unwrap();
+    std::io::Read::read_to_string(&mut f, &mut s)?;
     Ok(s)
 }
 
@@ -183,7 +183,7 @@ pub fn unique_in_place<T: Eq + std::hash::Hash + Clone>(v: &mut Vec<T>) {
 
 /// at least, this is necessary for Windows and macOS
 pub fn normalize_path(path: PathBuf) -> PathBuf {
-    let verbatim_replaced = path.to_str().unwrap().replace("\\\\?\\", "");
+    let verbatim_replaced = path.to_string_lossy().replace("\\\\?\\", "");
     let lower = if !CASE_SENSITIVE {
         verbatim_replaced.to_lowercase()
     } else {
