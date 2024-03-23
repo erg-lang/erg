@@ -45,3 +45,8 @@ xs: [Nat or NoneType; _] = [1, None, 2]
 ys: [Nat; _] = array filter x -> x != None, xs
 nats _: [Nat; _] = None
 nats ys
+
+opt_i as Int or NoneType = 1
+rec = { .opt_i; }
+if rec.opt_i != None, do:
+    assert rec.opt_i.abs() == 1

@@ -2952,10 +2952,11 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             }
         };
         if let Some(casted) = casted {
-            if expr.ref_t().is_projection() || self.module.context.subtype_of(&casted, expr.ref_t())
-            {
+            // e.g. casted == {x: Obj | x != None}, expr: Int or NoneType => intersec == Int
+            let intersec = self.module.context.intersection(expr.ref_t(), &casted);
+            if expr.ref_t().is_projection() || intersec != Type::Never {
                 if let Some(ref_mut_t) = expr.ref_mut_t() {
-                    *ref_mut_t = casted;
+                    *ref_mut_t = intersec;
                 }
             }
         }
