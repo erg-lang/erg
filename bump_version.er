@@ -1,0 +1,75 @@
+# usage: erg bump_version.er -- <major|minor|patch|pre|nightly>
+# e.g.
+# erg bump_version.er -- major: 0.1.0 => 1.0.0
+# erg bump_version.er -- minor: 0.1.0 => 0.2.0
+# erg bump_version.er -- patch: 0.1.0 => 0.1.1
+# erg bump_version.er -- patch: 0.1.1-nightly.0 => 0.1.2
+# erg bump_version.er -- pre: 0.1.1-nightly.0 => 0.1.1-nightly.1
+# erg bump_version.er -- nightly: 0.1.1 => 0.1.2-nightly.0
+
+
+re = pyimport "re"
+tomllib = pyimport "tomllib"
+sys = pyimport "sys"
+semver = import "semver"
+
+tomldata = with! open!("Cargo.toml"), f => f.read!()
+els_tomldata = with! open!("crates/els/Cargo.toml"), f => f.read!()
+data = tomllib.loads tomldata
+els_data = tomllib.loads els_tomldata
+ws = data["workspace"]
+assert ws in {Str: Obj}
+package = ws["package"]
+els_package = els_data["package"]
+assert package in {Str: Obj}
+assert els_package in {Str: Obj}
+version = package["version"]
+els_version = els_package["version"]
+assert version in Str
+assert els_version in Str
+ver = semver.SemVer.from_str version
+els_ver = semver.SemVer.from_str els_version
+
+bumps = sys.argv[1]
+new = match bumps:
+    "major" ->
+        semver.SemVer.new ver.major + 1, 0, 0, None
+    "minor" ->
+        semver.SemVer.new ver.major, ver.minor + 1, 0, None
+    "patch" ->
+        semver.SemVer.new ver.major, ver.minor, ver.patch + 1, None
+    "pre" ->
+        assert ver.pre != None, "not a pre-release version: \{ver}"
+        pre = semver.Identifier.new { .name = ver.pre.name; .num = ver.pre.num + 1; }
+        semver.SemVer.new ver.major, ver.minor, ver.patch, pre
+    "nightly" ->
+        assert ver.pre == None, "already a pre-release version: \{ver}"
+        pre = semver.Identifier.new { .name = "nightly"; .num = 0; }
+        semver.SemVer.new ver.major, ver.minor, ver.patch + 1, pre
+    _ -> todo "unknown bump: \{bumps}"
+els_new = match bumps:
+    "major" ->
+        semver.SemVer.new els_ver.major + 1, 0, 0, None
+    "minor" ->
+        semver.SemVer.new els_ver.major, els_ver.minor + 1, 0, None
+    "patch" ->
+        semver.SemVer.new els_ver.major, els_ver.minor, els_ver.patch + 1, None
+    "pre" ->
+        assert els_ver.pre != None, "not a pre-release version: \{els_ver}"
+        pre = semver.Identifier.new { .name = els_ver.pre.name; .num = els_ver.pre.num + 1; }
+        semver.SemVer.new els_ver.major, els_ver.minor, els_ver.patch, pre
+    "nightly" ->
+        assert els_ver.pre == None, "already a pre-release version: \{els_ver}"
+        pre = semver.Identifier.new { .name = "nightly"; .num = 0; }
+        semver.SemVer.new els_ver.major, els_ver.minor, els_ver.patch + 1, pre
+    _ -> todo "unknown bump: \{bumps}"
+
+old_ver = re.compile "version = \"\{version}\""
+els_old_ver = re.compile "version = \"\{els_version}\""
+new_data_ = old_ver.sub "version = \"\{new}\"", tomldata
+new_data = els_old_ver.sub "version = \"\{els_new}\"", new_data_
+els_new_data = els_old_ver.sub "version = \"\{els_new}\"", els_tomldata
+with! open!("Cargo.toml", "w"), f =>
+    discard f.write! new_data
+with! open!("crates/els/Cargo.toml", "w"), f =>
+    discard f.write! els_new_data

@@ -1,5 +1,8 @@
 mod common;
-use common::{expect_end_with, expect_error_location_and_msg, expect_failure, expect_success};
+use common::{
+    expect_compile_success, expect_end_with, expect_error_location_and_msg, expect_failure,
+    expect_success,
+};
 use erg_common::error::Location;
 use erg_common::python_util::env_python_version;
 
@@ -31,6 +34,11 @@ fn exec_assert_cast_ok() -> Result<(), ()> {
 #[test]
 fn exec_associated_types() -> Result<(), ()> {
     expect_success("tests/should_ok/associated_types.er", 0)
+}
+
+#[test]
+fn exec_bump_version() -> Result<(), ()> {
+    expect_compile_success("bump_version.er", 0)
 }
 
 #[test]

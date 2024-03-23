@@ -4,6 +4,7 @@
     __str__ ref self = "\{self.name}.\{self.num}"
 .Identifier|.Identifier <: Eq|.
     __eq__ self, other: .Identifier =
+        hasattr(other, "name") and hasattr(other, "num") and \
         self.name == other.name and self.num == other.num
 .Identifier.
     from_str s: Str =
@@ -29,8 +30,11 @@
         match s.split("."):
             [major, minor, patch] ->
                 .SemVer.new(nat(major), nat(minor), nat(patch))
-            [major, minor, patch, pre] ->
-                .SemVer.new(nat(major), nat(minor), nat(patch), .Identifier.from_str(pre))
+            [major, minor, patch_and_name, pre_num] ->
+                assert "-" in patch_and_name, "invalid semver string: \{s}"
+                [patch, name] = patch_and_name.split("-")
+                pre = .Identifier.new { .name; .num = nat pre_num }
+                .SemVer.new(nat(major), nat(minor), nat(patch), pre)
             _ -> panic "invalid semver string: \{s}"
     @Override
     __repr__ ref self = "SemVer(\{self.__str__()})"
@@ -53,6 +57,7 @@
 ]#
 .SemVer|<: Eq|.
     __eq__ self, other: .SemVer =
+        hasattr(other, "major") and hasattr(other, "minor") and hasattr(other, "patch") and hasattr(other, "pre") and \
         self.major == other.major and self.minor == other.minor and self.patch == other.patch and self.pre == other.pre
 
 .SemVerPrefix = Class { "~", "==", "<", ">", "<=", "<=", }
