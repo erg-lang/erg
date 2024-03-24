@@ -40,7 +40,7 @@ use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{
-    CastTarget, GuardType, HasType, ParamTy, Predicate, SubrType, Type, VisibilityModifier,
+    CastTarget, Field, GuardType, HasType, ParamTy, Predicate, SubrType, Type, VisibilityModifier,
 };
 
 use crate::context::{
@@ -994,7 +994,27 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             &call.args.nth_or_key(0, "object"),
             &call.args.nth_or_key(1, "classinfo"),
         ) {
-            self.get_bin_guard_type(ident.name.token(), lhs, rhs)
+            match &ident.inspect()[..] {
+                "isinstance" | "issubclass" => {
+                    self.get_bin_guard_type(ident.name.token(), lhs, rhs)
+                }
+                "hasattr" => {
+                    let ast::Expr::Literal(lit) = rhs else {
+                        return None;
+                    };
+                    if !lit.is(TokenKind::StrLit) {
+                        return None;
+                    }
+                    let name = lit.token.content.trim_matches('\"');
+                    let target = self.expr_to_cast_target(lhs);
+                    let rec = dict! {
+                        Field::new(VisibilityModifier::Public, Str::rc(name)) => Type::Obj,
+                    };
+                    let to = Type::Record(rec).structuralize();
+                    Some(guard(self.module.context.name.clone(), target, to))
+                }
+                _ => None,
+            }
         } else {
             None
         }

@@ -62,3 +62,11 @@ int_or_strs(rec: { .x = Int } or { .x = Str; .y = Str }): Str =
         do: rec.y
         do: str rec.x
 assert int_or_strs({.x = 1}) == "1"
+
+C = Class { .foo = Int; .bar = Str }
+D = Class { .baz = Str }
+bar x: C or D =
+    if hasattr(x, "foo"):
+        do: x.bar
+        do: "?"
+assert bar(C.new { .foo = 1; .bar = "bar" }) == "bar"
