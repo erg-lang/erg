@@ -2096,7 +2096,10 @@ impl Context {
                 if let Some(Greater) = self.try_cmp(&l, &r) {
                     panic!("{l}..{r} is not a valid interval type (should be lhs <= rhs)")
                 }
-                Ok(int_interval(op, l, r))
+                let l_t = self.get_tp_t(&l).unwrap_or(Obj).derefine();
+                let r_t = self.get_tp_t(&r).unwrap_or(Obj).derefine();
+                let t = self.union(&l_t, &r_t);
+                Ok(interval(op, t, l, r))
             }
             TypeSpec::Subr(subr) => {
                 let mut errs = TyCheckErrors::empty();

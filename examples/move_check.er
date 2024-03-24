@@ -4,3 +4,9 @@ v.push! 1
 w = v
 print! w
 print! v # this should cause a MoveError
+
+push! |T| a: RefMut(Array!(T, _)), value: T =
+    a.push! value
+
+push! w, 2
+print! w # OK
