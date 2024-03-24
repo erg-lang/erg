@@ -50,3 +50,15 @@ opt_i as Int or NoneType = 1
 rec = { .opt_i; }
 if rec.opt_i != None, do:
     assert rec.opt_i.abs() == 1
+
+ints_or_strs(r: {.x = Int; .y = Int} or {.x = Str; .y = Str}): Nat =
+    if r.x in Int:
+        do: r.y.abs()
+        do: 0
+assert ints_or_strs({.x = 1; .y = 2}) == 2
+
+int_or_strs(rec: { .x = Int } or { .x = Str; .y = Str }): Str =
+    if rec.x in Str:
+        do: rec.y
+        do: str rec.x
+assert int_or_strs({.x = 1}) == "1"

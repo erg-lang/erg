@@ -1030,6 +1030,36 @@ impl Context {
                 }
             }
             Type::Structural(t) => self.get_attr_info_from_attributive(t, ident, namespace),
+            // TODO: And
+            Type::Or(l, r) => {
+                let l_info = self.get_attr_info_from_attributive(l, ident, namespace);
+                let r_info = self.get_attr_info_from_attributive(r, ident, namespace);
+                match (l_info, r_info) {
+                    (Triple::Ok(l), Triple::Ok(r)) => {
+                        let res = self.union(&l.t, &r.t);
+                        let vis = if l.vis.is_public() && r.vis.is_public() {
+                            Visibility::DUMMY_PUBLIC
+                        } else {
+                            Visibility::DUMMY_PRIVATE
+                        };
+                        let vi = VarInfo::new(
+                            res,
+                            l.muty,
+                            vis,
+                            l.kind,
+                            l.comptime_decos,
+                            l.ctx,
+                            l.py_name,
+                            l.def_loc,
+                        );
+                        Triple::Ok(vi)
+                    },
+                    (Triple::Ok(_), Triple::Err(e))
+                    | (Triple::Err(e), Triple::Ok(_)) => Triple::Err(e),
+                    (Triple::Err(e1), Triple::Err(_e2)) => Triple::Err(e1),
+                    _ => Triple::None,
+                }
+            }
             _other => Triple::None,
         }
     }

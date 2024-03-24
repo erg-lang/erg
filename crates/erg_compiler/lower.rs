@@ -2954,7 +2954,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         if let Some(casted) = casted {
             // e.g. casted == {x: Obj | x != None}, expr: Int or NoneType => intersec == Int
             let intersec = self.module.context.intersection(expr.ref_t(), &casted);
-            if expr.ref_t().is_projection() || intersec != Type::Never {
+            // bad narrowing: C and Structural { foo = Foo }
+            if expr.ref_t().is_projection()
+                || (intersec != Type::Never && intersec.ands().iter().all(|t| !t.is_structural()))
+            {
                 if let Some(ref_mut_t) = expr.ref_mut_t() {
                     *ref_mut_t = intersec;
                 }

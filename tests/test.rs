@@ -349,7 +349,7 @@ fn exec_record() -> Result<(), ()> {
 
 #[test]
 fn exec_record_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/record.er", 0, 1)
+    expect_failure("tests/should_err/record.er", 0, 2)
 }
 
 #[test]

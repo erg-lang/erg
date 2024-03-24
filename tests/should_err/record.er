@@ -2,3 +2,6 @@ C = Class()
 
 _ = { 1: C.new() }
 _ = { C.new(): 1 } # ERR
+
+ints_or_strs _: {.x = Int; .y = Int} or {.x = Str; .y = Str} = None
+ints_or_strs({.x = 1; .y = "a"}) # ERR

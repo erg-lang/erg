@@ -2405,6 +2405,16 @@ impl Context {
                 if expr == target.as_ref() {
                     return Some(*guard.to.clone());
                 }
+                // { r.x in Int } =>  { r in Structural { .x = Int } }
+                else if let ast::Expr::Accessor(ast::Accessor::Attr(attr)) = target.as_ref() {
+                    if attr.obj.as_ref() == expr {
+                        let mut rec = Dict::new();
+                        let vis = self.instantiate_vis_modifier(&attr.ident.vis).ok()?;
+                        let field = Field::new(vis, attr.ident.inspect().clone());
+                        rec.insert(field, *guard.to.clone());
+                        return Some(Type::Record(rec).structuralize());
+                    }
+                }
             }
         }
         None

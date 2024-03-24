@@ -1304,7 +1304,7 @@ impl Context {
     /// union(Array(Int, 2), Array(Str, 2)) == Array(Int or Str, 2)
     /// union(Array(Int, 2), Array(Str, 3)) == Array(Int, 2) or Array(Int, 3)
     /// union({ .a = Int }, { .a = Str }) == { .a = Int or Str }
-    /// union({ .a = Int }, { .a = Int; .b = Int }) == { .a = Int }
+    /// union({ .a = Int }, { .a = Int; .b = Int }) == { .a = Int } or { .a = Int; .b = Int } # not to lost `b` information
     /// union((A and B) or C) == (A or C) and (B or C)
     /// ```
     pub(crate) fn union(&self, lhs: &Type, rhs: &Type) -> Type {
@@ -1326,7 +1326,7 @@ impl Context {
                     union
                 }
             }
-            (Record(l), Record(r)) => {
+            (Record(l), Record(r)) if l.len() == r.len() && l.len() == 1 => {
                 let mut union = Dict::new();
                 for (l_k, l_v) in l.iter() {
                     if let Some((r_k, r_v)) = r.get_key_value(l_k) {
