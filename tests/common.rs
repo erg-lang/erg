@@ -9,7 +9,7 @@ use erg_common::python_util::PythonVersion;
 use erg_common::spawn::exec_new_thread;
 use erg_common::style::remove_style;
 use erg_common::style::{colors::DEBUG_MAIN, RESET};
-use erg_common::traits::{ExitStatus, Runnable, Stream};
+use erg_common::traits::{ExitStatus, Runnable};
 
 use erg_compiler::error::CompileErrors;
 use erg_compiler::Compiler;

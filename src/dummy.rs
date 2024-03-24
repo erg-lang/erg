@@ -8,7 +8,7 @@ use std::time::Duration;
 use erg_common::config::ErgConfig;
 use erg_common::error::{ErrorDisplay, ErrorKind, MultiErrorDisplay};
 use erg_common::python_util::spawn_py;
-use erg_common::traits::{BlockKind, ExitStatus, New, Runnable, Stream};
+use erg_common::traits::{BlockKind, ExitStatus, New, Runnable};
 
 use erg_compiler::hir::Expr;
 use erg_compiler::ty::HasType;

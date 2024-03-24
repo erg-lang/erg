@@ -646,6 +646,14 @@ impl CompileErrors {
     pub fn take(&mut self) -> Self {
         self.flush()
     }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 }
 
 pub type SingleCompileResult<T> = Result<T, CompileError>;

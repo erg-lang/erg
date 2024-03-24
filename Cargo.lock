@@ -112,6 +112,7 @@ dependencies = [
  "els",
  "erg_common",
  "erg_compiler",
+ "erg_linter",
  "erg_parser",
 ]
 
@@ -134,6 +135,15 @@ dependencies = [
  "erg_common",
  "erg_parser",
  "pyo3",
+]
+
+[[package]]
+name = "erg_linter"
+version = "0.6.33"
+dependencies = [
+ "erg_common",
+ "erg_compiler",
+ "erg_parser",
 ]
 
 [[package]]

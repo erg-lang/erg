@@ -1,0 +1,49 @@
+[package]
+name = "erg_linter"
+description = "the Erg linter"
+documentation = "http://docs.rs/erg_linter"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[features]
+debug = ["erg_common/debug", "erg_parser/debug", "erg_compiler/debug"]
+backtrace = ["erg_common/backtrace"]
+japanese = [
+    "erg_common/japanese",
+    "erg_parser/japanese",
+    "erg_compiler/japanese",
+]
+simplified_chinese = [
+    "erg_common/simplified_chinese",
+    "erg_parser/simplified_chinese",
+    "erg_compiler/simplified_chinese",
+]
+traditional_chinese = [
+    "erg_common/traditional_chinese",
+    "erg_parser/traditional_chinese",
+    "erg_compiler/traditional_chinese",
+]
+unicode = ["erg_common/unicode", "erg_parser/unicode", "erg_compiler/unicode"]
+pretty = ["erg_common/pretty", "erg_parser/pretty", "erg_compiler/pretty"]
+large_thread = [
+    "erg_common/large_thread",
+    "erg_parser/large_thread",
+    "erg_compiler/large_thread",
+]
+py_compat = ["erg_compiler/py_compat"]
+gal = ["erg_common/gal", "erg_compiler/gal"]
+full-repl = ["erg_common/full-repl"]
+full = ["full-repl", "unicode", "pretty"]
+experimental = ["erg_common/experimental", "erg_parser/experimental", "erg_compiler/experimental"]
+
+[dependencies]
+erg_common = { workspace = true }
+erg_parser = { workspace = true }
+erg_compiler ={ workspace = true }
+
+[lib]
+path = "lib.rs"

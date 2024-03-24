@@ -7,6 +7,7 @@ use erg_common::spawn::exec_new_thread;
 use erg_common::traits::{ExitStatus, Runnable};
 
 use erg_compiler::build_package::{PackageBuilder, PackageTypeChecker};
+use erg_linter::Linter;
 use erg_parser::lex::LexerRunner;
 use erg_parser::ParserRunner;
 
@@ -29,6 +30,7 @@ fn run() {
         Execute => DummyVM::run(cfg),
         Read => Deserializer::run(cfg),
         Pack => PackageManagerRunner::run(cfg),
+        Lint => Linter::run(cfg),
         LanguageServer => {
             #[cfg(feature = "els")]
             {

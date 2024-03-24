@@ -15,6 +15,7 @@ homepage.workspace = true
 members = [
     "crates/erg_common",
     "crates/erg_compiler",
+    "crates/erg_linter/",
     "crates/erg_parser",
     "crates/els",
     "crates/erg_proc_macros/",
@@ -30,45 +31,50 @@ homepage = "https://erg-lang.org/"
 
 [features]
 # when "debug" feature is turned on, that of the following crates will also be turned on.
-debug = ["erg_common/debug", "erg_parser/debug", "erg_compiler/debug"] # "els/debug"
+debug = ["erg_common/debug", "erg_parser/debug", "erg_compiler/debug", "erg_linter/debug"] # "els/debug"
 backtrace = ["erg_common/backtrace", "els/backtrace"]
 japanese = [
     "erg_common/japanese",
     "erg_parser/japanese",
     "erg_compiler/japanese",
     "els/japanese",
+    "erg_linter/japanese",
 ]
 simplified_chinese = [
     "erg_common/simplified_chinese",
     "erg_parser/simplified_chinese",
     "erg_compiler/simplified_chinese",
     "els/simplified_chinese",
+    "erg_linter/simplified_chinese",
 ]
 traditional_chinese = [
     "erg_common/traditional_chinese",
     "erg_parser/traditional_chinese",
     "erg_compiler/traditional_chinese",
     "els/traditional_chinese",
+    "erg_linter/traditional_chinese",
 ]
-unicode = ["erg_common/unicode", "erg_parser/unicode", "erg_compiler/unicode", "els/unicode"]
-pretty = ["erg_common/pretty", "erg_parser/pretty", "erg_compiler/pretty", "els/pretty"]
+unicode = ["erg_common/unicode", "erg_parser/unicode", "erg_compiler/unicode", "els/unicode", "erg_linter/unicode"]
+pretty = ["erg_common/pretty", "erg_parser/pretty", "erg_compiler/pretty", "els/pretty", "erg_linter/pretty"]
 large_thread = [
     "erg_common/large_thread",
     "erg_parser/large_thread",
     "erg_compiler/large_thread",
     "els/large_thread",
+    "erg_linter/large_thread",
 ]
 py_compat = ["erg_compiler/py_compat", "els/py_compat"]
 gal = ["erg_common/gal", "erg_compiler/gal"]
 els = ["erg_common/els", "erg_compiler/els", "dep:els"]
 full-repl = ["erg_common/full-repl"]
 full = ["els", "full-repl", "unicode", "pretty"]
-experimental = ["erg_common/experimental", "erg_parser/experimental", "erg_compiler/experimental"]
+experimental = ["erg_common/experimental", "erg_parser/experimental", "erg_compiler/experimental", "erg_linter/experimental"]
 
 [workspace.dependencies]
 erg_common = { version = "0.6.33", path = "./crates/erg_common" }
 erg_parser = { version = "0.6.33", path = "./crates/erg_parser" }
 erg_compiler = { version = "0.6.33", path = "./crates/erg_compiler" }
+erg_linter = { version = "0.6.33", path = "./crates/erg_linter" }
 els = { version = "0.1.45", path = "./crates/els" }
 erg_proc_macros = { version = "0.6.33", path = "./crates/erg_proc_macros" }
 pyo3 = { version = "0.20", features = ["extension-module"] }
@@ -77,6 +83,7 @@ pyo3 = { version = "0.20", features = ["extension-module"] }
 erg_common = { workspace = true }
 erg_parser = { workspace = true }
 erg_compiler = { workspace = true }
+erg_linter = { workspace = true }
 els = { workspace = true, optional = true }
 
 [build-dependencies]

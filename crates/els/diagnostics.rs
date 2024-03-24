@@ -11,7 +11,6 @@ use erg_common::dict::Dict;
 use erg_common::pathutil::{project_entry_file_of, project_root_dir_of};
 use erg_common::spawn::{safe_yield, spawn_new_thread};
 use erg_common::style::*;
-use erg_common::traits::Stream;
 use erg_common::{fn_name, lsp_log};
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::build_package::CheckStatus;
