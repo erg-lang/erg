@@ -8,6 +8,7 @@ use erg_common::{dict, fn_name, get_hash, set};
 #[allow(unused_imports)]
 use erg_common::{fmt_vec, log};
 
+use crate::module::GeneralizationResult;
 use crate::ty::constructors::*;
 use crate::ty::free::{CanbeFree, Constraint, Free, HasLevel};
 use crate::ty::typaram::{TyParam, TyParamLambda};
@@ -772,7 +773,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                             false
                         }
                     };
-                    let res = self.validate_subsup(sub_t, super_t);
+                    let res = self.validate_subsup(sub_t, super_t, &fv);
                     if dummy {
                         fv.undo();
                     } else {
@@ -972,7 +973,12 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
         }
     }
 
-    fn validate_subsup(&mut self, sub_t: Type, super_t: Type) -> TyCheckResult<Type> {
+    fn validate_subsup(
+        &mut self,
+        sub_t: Type,
+        super_t: Type,
+        fv: &Free<Type>,
+    ) -> TyCheckResult<Type> {
         // TODO: Subr, ...
         match (sub_t, super_t) {
             /*(sub_t @ Type::Refinement(_), super_t @ Type::Refinement(_)) => {
@@ -1016,16 +1022,30 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 }
                 Ok(poly(rn, tps))
             }
-            (sub_t, super_t) => self.validate_simple_subsup(sub_t, super_t),
+            (sub_t, super_t) => self.validate_simple_subsup(sub_t, super_t, fv),
         }
     }
 
-    fn validate_simple_subsup(&mut self, sub_t: Type, super_t: Type) -> TyCheckResult<Type> {
-        if self.ctx.is_trait(&super_t) {
+    fn validate_simple_subsup(
+        &mut self,
+        sub_t: Type,
+        super_t: Type,
+        fv: &Free<Type>,
+    ) -> TyCheckResult<Type> {
+        let opt_res = self.ctx.shared().gen_cache.get(fv);
+        if opt_res.is_none() && self.ctx.is_trait(&super_t) {
             self.ctx
                 .check_trait_impl(&sub_t, &super_t, self.qnames, self.loc)?;
         }
-        let is_subtype = self.ctx.subtype_of(&sub_t, &super_t);
+        let is_subtype = opt_res.map(|res| res.is_subtype).unwrap_or_else(|| {
+            let is_subtype = self.ctx.subtype_of(&sub_t, &super_t); // PERF NOTE: bottleneck
+            let res = GeneralizationResult {
+                is_subtype,
+                impl_trait: true,
+            };
+            self.ctx.shared().gen_cache.insert(fv.clone(), res);
+            is_subtype
+        });
         let sub_t = self.deref_tyvar(sub_t)?;
         let super_t = self.deref_tyvar(super_t)?;
         if sub_t == super_t {
