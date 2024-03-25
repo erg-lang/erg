@@ -50,8 +50,9 @@ impl ASTSemanticState {
     }
 
     fn push_current_namespace(&mut self, key: String, typ: SemanticTokenType) {
-        let current = self.namespaces.last_mut().unwrap();
-        current.insert(key, typ);
+        if let Some(current) = self.namespaces.last_mut() {
+            current.insert(key, typ);
+        }
     }
 
     fn enumerate_tokens(&mut self, ast: AST) -> SemanticTokens {

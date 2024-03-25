@@ -42,18 +42,14 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                         ranges.push(def.loc());
                     }
                     _ => {
-                        if !ranges.is_empty() {
-                            let start = ranges.first().unwrap();
-                            let end = ranges.last().unwrap();
+                        if let Some((start, end)) = ranges.first().zip(ranges.last()) {
                             res.extend(imports_range(start, end));
                             ranges.clear();
                         }
                     }
                 }
             }
-            if !ranges.is_empty() {
-                let start = ranges.first().unwrap();
-                let end = ranges.last().unwrap();
+            if let Some((start, end)) = ranges.first().zip(ranges.last()) {
                 res.extend(imports_range(start, end));
             }
         }
