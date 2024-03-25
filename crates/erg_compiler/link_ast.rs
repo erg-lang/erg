@@ -37,8 +37,8 @@ impl ASTLinker {
         for chunk in ast.module.into_iter() {
             match chunk {
                 Expr::Def(def) => {
-                    match def.body.block.first().unwrap() {
-                        Expr::Call(call) => {
+                    match def.body.block.first() {
+                        Some(Expr::Call(call)) => {
                             match call.obj.get_name().map(|s| &s[..]) {
                                 // TODO: decorator
                                 Some("Class" | "Inherit" | "Inheritable") => {

@@ -1161,7 +1161,7 @@ impl TyParam {
             TyParam::FreeVar(fv) if fv.is_linked() => {
                 fv.crack().undoable_coerce(list);
             }
-            TyParam::FreeVar(fv) if fv.is_unbound() => {
+            TyParam::FreeVar(fv) if fv.is_unbound_and_typed() => {
                 let typ = fv.get_type().unwrap();
                 typ.undoable_coerce(list);
             }

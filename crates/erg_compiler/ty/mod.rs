@@ -2146,7 +2146,7 @@ impl Type {
                 if fv.is_linked() {
                     fv.crack().is_mut_type()
                 } else {
-                    fv.unbound_name().unwrap().ends_with('!')
+                    fv.unbound_name().is_some_and(|n| n.ends_with('!'))
                 }
             }
             Self::Mono(name) | Self::Poly { name, .. } | Self::Proj { rhs: name, .. } => {
@@ -2163,7 +2163,9 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_nonelike(),
             Self::NoneType => true,
             Self::Poly { name, params, .. } if &name[..] == "Option" || &name[..] == "Option!" => {
-                let inner_t = enum_unwrap!(params.first().unwrap(), TyParam::Type);
+                let Some(TyParam::Type(inner_t)) = params.first() else {
+                    return false;
+                };
                 inner_t.is_nonelike()
             }
             Self::Poly { name, params, .. } if &name[..] == "Tuple" => params.is_empty(),
@@ -3018,7 +3020,7 @@ impl Type {
             Type::FreeVar(fv) if fv.is_linked() => {
                 fv.crack().destructive_coerce();
             }
-            Type::FreeVar(fv) if fv.is_unbound() => {
+            Type::FreeVar(fv) if fv.is_unbound_and_sandwiched() => {
                 let (sub, _sup) = fv.get_subsup().unwrap();
                 sub.destructive_coerce();
                 self.destructive_link(&sub);
@@ -3044,7 +3046,7 @@ impl Type {
             Type::FreeVar(fv) if fv.is_linked() => {
                 fv.crack().undoable_coerce(list);
             }
-            Type::FreeVar(fv) if fv.is_unbound() => {
+            Type::FreeVar(fv) if fv.is_unbound_and_sandwiched() => {
                 let (sub, _sup) = fv.get_subsup().unwrap();
                 sub.undoable_coerce(list);
                 self.undoable_link(&sub, list);
@@ -3498,7 +3500,7 @@ impl Type {
             // NOTE: Quantified could return a quantified type variable.
             // At least in situations where this function is needed, self cannot be Quantified.
             Self::Quantified(quant) => {
-                if quant.return_t().unwrap().is_generalized() {
+                if quant.return_t()?.is_generalized() {
                     log!(err "quantified return type (recursive function type inference)");
                 }
                 quant.return_t()
@@ -3510,9 +3512,7 @@ impl Type {
 
     pub fn tyvar_mut_return_t(&mut self) -> Option<RefMut<Type>> {
         match self {
-            Self::FreeVar(fv)
-                if fv.is_linked() && fv.get_linked().unwrap().return_t().is_some() =>
-            {
+            Self::FreeVar(fv) if fv.get_linked()?.return_t().is_some() => {
                 Some(RefMut::map(fv.borrow_mut(), |fk| {
                     fk.linked_mut().unwrap().mut_return_t().unwrap()
                 }))
@@ -3528,7 +3528,7 @@ impl Type {
                 Some(return_t)
             }
             Self::Quantified(quant) => {
-                if quant.return_t().unwrap().is_generalized() {
+                if quant.return_t()?.is_generalized() {
                     log!(err "quantified return type (recursive function type inference)");
                 }
                 quant.mut_return_t()

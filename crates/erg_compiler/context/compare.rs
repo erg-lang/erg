@@ -87,7 +87,10 @@ impl Context {
                 }
                 FreeKind::Unbound { constraint, .. }
                 | FreeKind::NamedUnbound { constraint, .. } => {
-                    let t = constraint.get_type().unwrap();
+                    let Some(t) = constraint.get_type() else {
+                        log!(err "Invalid type variable: {fv}");
+                        return false;
+                    };
                     if DEBUG_MODE && t == &Uninited {
                         panic!("Uninited type variable: {fv}");
                     }
@@ -802,8 +805,12 @@ impl Context {
                 }
                 // [Int; 2] :> [Int; 3]
                 if &ln[..] == "Array" || &ln[..] == "Set" {
-                    let lt = self.convert_tp_into_type(lparams[0].clone()).unwrap();
-                    let rt = self.convert_tp_into_type(rparams[0].clone()).unwrap();
+                    let Ok(lt) = self.convert_tp_into_type(lparams[0].clone()) else {
+                        return false;
+                    };
+                    let Ok(rt) = self.convert_tp_into_type(rparams[0].clone()) else {
+                        return false;
+                    };
                     let llen = lparams[1].clone();
                     let rlen = rparams[1].clone();
                     self.supertype_of(&lt, &rt)
@@ -1208,8 +1215,8 @@ impl Context {
                 l @ (TyParam::FreeVar(_) | TyParam::Erased(_)),
                 r @ (TyParam::FreeVar(_) | TyParam::Erased(_)),
             ) /* if v.is_unbound() */ => {
-                let l_t = self.get_tp_t(l).unwrap();
-                let r_t = self.get_tp_t(r).unwrap();
+                let l_t = self.get_tp_t(l).ok()?;
+                let r_t = self.get_tp_t(r).ok()?;
                 if self.supertype_of(&l_t, &r_t) || self.subtype_of(&l_t, &r_t) {
                     Some(Any)
                 } else { Some(NotEqual) }
@@ -1222,8 +1229,8 @@ impl Context {
             // try_cmp((n: ?K), "a") -> Some(Any)
             // try_cmp((n: Int), "a") -> Some(NotEqual)
             (l @ (TyParam::Erased(_) | TyParam::FreeVar(_)), p) => {
-                let lt = self.get_tp_t(l).unwrap();
-                let pt = self.get_tp_t(p).unwrap();
+                let lt = self.get_tp_t(l).ok()?;
+                let pt = self.get_tp_t(p).ok()?;
                 let l_inf = self.inf(&lt);
                 let l_sup = self.sup(&lt);
                 if let (Some(inf), Some(sup)) = (l_inf, l_sup) {

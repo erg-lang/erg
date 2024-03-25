@@ -24,7 +24,7 @@ use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{
     Field, GuardType, HasType, ParamTy, Predicate, RefinementType, SubrKind, SubrType, Type,
-    Visibility,
+    Visibility, VisibilityModifier,
 };
 use Type::*;
 
@@ -744,9 +744,10 @@ impl Context {
             });
             let t = free_var(self.level, constraint);
             if let Some(fv) = obj.ref_t().as_free() {
-                if fv.get_sub().is_some() {
-                    let sup = fv.get_super().unwrap();
-                    let vis = self.instantiate_vis_modifier(&ident.vis).unwrap();
+                if let Some((_sub, sup)) = fv.get_subsup() {
+                    let vis = self
+                        .instantiate_vis_modifier(&ident.vis)
+                        .unwrap_or(VisibilityModifier::Public);
                     let structural = Type::Record(
                         dict! { Field::new(vis, ident.inspect().clone()) => t.clone() },
                     )
@@ -976,7 +977,7 @@ impl Context {
             Type::FreeVar(fv) if fv.is_linked() => {
                 self.get_attr_info_from_attributive(&fv.crack(), ident, namespace)
             }
-            Type::FreeVar(fv) /* if fv.is_unbound() */ => {
+            Type::FreeVar(fv) if fv.get_super().is_some() => {
                 let sup = fv.get_super().unwrap();
                 self.get_attr_info_from_attributive(&sup, ident, namespace)
             }
@@ -1000,7 +1001,9 @@ impl Context {
                         None,
                         AbsLocation::unknown(),
                     );
-                    if let Err(err) = self.validate_visibility(ident, &vi, &self.cfg.input, namespace) {
+                    if let Err(err) =
+                        self.validate_visibility(ident, &vi, &self.cfg.input, namespace)
+                    {
                         return Triple::Err(err);
                     }
                     Triple::Ok(vi)
@@ -1009,7 +1012,9 @@ impl Context {
                 }
             }
             Type::NamedTuple(tuple) => {
-                if let Some((field, attr_t)) = tuple.iter().find(|(f, _)| &f.symbol == ident.inspect()) {
+                if let Some((field, attr_t)) =
+                    tuple.iter().find(|(f, _)| &f.symbol == ident.inspect())
+                {
                     let muty = Mutability::from(&ident.inspect()[..]);
                     let vi = VarInfo::new(
                         attr_t.clone(),
@@ -1021,7 +1026,9 @@ impl Context {
                         None,
                         AbsLocation::unknown(),
                     );
-                    if let Err(err) = self.validate_visibility(ident, &vi, &self.cfg.input, namespace) {
+                    if let Err(err) =
+                        self.validate_visibility(ident, &vi, &self.cfg.input, namespace)
+                    {
                         return Triple::Err(err);
                     }
                     Triple::Ok(vi)
@@ -1053,9 +1060,10 @@ impl Context {
                             l.def_loc,
                         );
                         Triple::Ok(vi)
-                    },
-                    (Triple::Ok(_), Triple::Err(e))
-                    | (Triple::Err(e), Triple::Ok(_)) => Triple::Err(e),
+                    }
+                    (Triple::Ok(_), Triple::Err(e)) | (Triple::Err(e), Triple::Ok(_)) => {
+                        Triple::Err(e)
+                    }
                     (Triple::Err(e1), Triple::Err(_e2)) => Triple::Err(e1),
                     _ => Triple::None,
                 }
@@ -1245,9 +1253,10 @@ impl Context {
             let return_t = free_var(self.level, Constraint::new_type_of(Type));
             let subr_t = fn_met(obj.t(), nd_params, None, d_params, None, return_t);
             if let Some(fv) = obj.ref_t().as_free() {
-                if fv.get_sub().is_some() {
-                    let sup = fv.get_super().unwrap();
-                    let vis = self.instantiate_vis_modifier(&attr_name.vis).unwrap();
+                if let Some((_sub, sup)) = fv.get_subsup() {
+                    let vis = self
+                        .instantiate_vis_modifier(&attr_name.vis)
+                        .unwrap_or(VisibilityModifier::Public);
                     let structural = Type::Record(
                         dict! { Field::new(vis, attr_name.inspect().clone()) => subr_t.clone() },
                     )
@@ -2761,7 +2770,9 @@ impl Context {
             }
             // TODO
             Type::Or(l, r) => match (l.as_ref(), r.as_ref()) {
-                (Type::FreeVar(l), Type::FreeVar(r)) if l.is_unbound() && r.is_unbound() => {
+                (Type::FreeVar(l), Type::FreeVar(r))
+                    if l.is_unbound_and_sandwiched() && r.is_unbound_and_sandwiched() =>
+                {
                     let (_lsub, lsup) = l.get_subsup().unwrap();
                     let (_rsub, rsup) = r.get_subsup().unwrap();
                     self.get_nominal_super_type_ctxs(&self.union(&lsup, &rsup))
@@ -3027,8 +3038,10 @@ impl Context {
                 }
             }
             Type::FreeVar(fv) => {
-                let sup = fv.get_super().unwrap();
-                if let Some(res) = self.get_mut_nominal_type_ctx(&sup) {
+                if let Some(res) = fv
+                    .get_super()
+                    .and_then(|sup| self.get_mut_nominal_type_ctx(&sup))
+                {
                     return Some(res);
                 }
             }

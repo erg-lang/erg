@@ -55,8 +55,7 @@ fn copy_dir(erg_path: &str, path: &str) -> std::io::Result<()> {
             let filename = entry_path
                 .file_name()
                 .expect("this is not a file")
-                .to_str()
-                .unwrap();
+                .to_string_lossy();
             let filename = format!("{full_path}/{filename}");
             fs::copy(&entry_path, filename)?;
         }

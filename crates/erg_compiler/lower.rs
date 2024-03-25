@@ -1462,20 +1462,21 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
     /// importing is done in [preregister](https://github.com/erg-lang/erg/blob/ffd33015d540ff5a0b853b28c01370e46e0fcc52/crates/erg_compiler/context/register.rs#L819)
     fn exec_additional_op(&mut self, call: &mut hir::Call) -> LowerResult<()> {
         match call.additional_operation() {
-            Some(OperationKind::Del) => match call.args.get_left_or_key("obj").unwrap() {
-                hir::Expr::Accessor(hir::Accessor::Ident(ident)) => {
+            Some(OperationKind::Del) => match call.args.get_left_or_key("obj") {
+                Some(hir::Expr::Accessor(hir::Accessor::Ident(ident))) => {
                     self.module.context.del(ident)?;
                     Ok(())
                 }
                 other => {
+                    let expr = other.map_or("nothing", |expr| expr.name());
                     return Err(LowerErrors::from(LowerError::syntax_error(
                         self.input().clone(),
                         line!() as usize,
                         other.loc(),
                         self.module.context.caused_by(),
-                        format!("expected identifier, but found {}", other.name()),
+                        format!("expected identifier, but found {expr}"),
                         None,
-                    )))
+                    )));
                 }
             },
             Some(OperationKind::Return | OperationKind::Yield) => {
@@ -1483,7 +1484,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 let callable_t = call.obj.ref_t();
                 let ret_t = match callable_t {
                     Type::Subr(subr) => *subr.return_t.clone(),
-                    Type::FreeVar(fv) if fv.is_unbound() => {
+                    Type::FreeVar(fv) if fv.get_sub().is_some() => {
                         fv.get_sub().unwrap().return_t().unwrap().clone()
                     }
                     other => {
@@ -1499,8 +1500,8 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 if let Some(Type::Guard(guard)) =
                     call.args.get_left_or_key("test").map(|exp| exp.ref_t())
                 {
-                    let test = call.args.get_left_or_key("test").unwrap();
-                    let test_args = if let hir::Expr::Call(call) = test {
+                    let test = call.args.get_left_or_key("test");
+                    let test_args = if let Some(hir::Expr::Call(call)) = test {
                         Some(&call.args)
                     } else {
                         None
@@ -1537,14 +1538,14 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             VisModifierSpec::Public(Token::new(
                 TokenKind::Dot,
                 Str::ever("."),
-                pack.connector.ln_begin().unwrap(),
-                pack.connector.col_begin().unwrap(),
+                pack.connector.ln_begin().unwrap_or(0),
+                pack.connector.col_begin().unwrap_or(0),
             )),
             ast::VarName::new(Token::new(
                 TokenKind::Symbol,
                 Str::ever("new"),
-                pack.connector.ln_begin().unwrap(),
-                pack.connector.col_begin().unwrap(),
+                pack.connector.ln_begin().unwrap_or(0),
+                pack.connector.col_begin().unwrap_or(0),
             )),
         );
         let vi = match self.module.context.get_call_t(
@@ -2775,7 +2776,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 Some("Class" | "Trait") => call.args.remove_left_or_key("Requirement"),
                 Some("Inherit") => call.args.remove_left_or_key("Super"),
                 Some("Inheritable") => {
-                    Self::get_require_or_sup_or_base(call.args.remove_left_or_key("Class").unwrap())
+                    Self::get_require_or_sup_or_base(call.args.remove_left_or_key("Class")?)
                 }
                 Some("Structural") => call.args.remove_left_or_key("Type"),
                 Some("Patch") => call.args.remove_left_or_key("Base"),
@@ -2932,7 +2933,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             .context
             .get_singular_ctxs_by_ident(&ident, &self.module.context)
             .ok()
-            .map(|ctx| ctx.first().unwrap().name.clone());
+            .and_then(|ctxs| ctxs.first().map(|ctx| ctx.name.clone()));
         let ident = hir::Identifier::new(ident, qual_name, ident_vi);
         let expr = hir::Expr::Accessor(hir::Accessor::Ident(ident));
         let t_spec = self.lower_type_spec_with_op(tasc.t_spec, spec_t)?;

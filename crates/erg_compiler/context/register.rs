@@ -1647,7 +1647,7 @@ impl Context {
             GenTypeObj::Subclass(_) => {
                 let mut errs = CompileErrors::empty();
                 if gen.typ().is_monomorphic() {
-                    let super_classes = vec![gen.base_or_sup().unwrap().typ().clone()];
+                    let super_classes = gen.base_or_sup().map_or(vec![], |t| vec![t.typ().clone()]);
                     // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
                     let mut ctx = Self::mono_class(
                         gen.typ().qual_name(),
@@ -1742,7 +1742,10 @@ impl Context {
                             Err(errs)
                         }
                     } else {
-                        let class_name = gen.base_or_sup().unwrap().typ().local_name();
+                        let class_name = gen
+                            .base_or_sup()
+                            .map(|t| t.typ().local_name())
+                            .unwrap_or(Str::from("?"));
                         Err(CompileErrors::from(CompileError::no_type_error(
                             self.cfg.input.clone(),
                             line!() as usize,
@@ -1794,7 +1797,7 @@ impl Context {
             }
             GenTypeObj::Subtrait(_) => {
                 if gen.typ().is_monomorphic() {
-                    let super_classes = vec![gen.base_or_sup().unwrap().typ().clone()];
+                    let super_classes = gen.base_or_sup().map_or(vec![], |t| vec![t.typ().clone()]);
                     // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
                     let mut ctx = Self::mono_trait(
                         gen.typ().qual_name(),

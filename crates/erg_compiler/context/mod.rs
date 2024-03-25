@@ -35,6 +35,7 @@ use erg_common::{fmt_option, fn_name, get_hash, log};
 use ast::{DefId, DefKind, VarName};
 use erg_parser::ast;
 use erg_parser::ast::Def;
+use erg_parser::ast::Signature;
 use erg_parser::token::Token;
 
 use crate::context::instantiate::TyVarCache;
@@ -456,8 +457,8 @@ impl From<&Def> for ContextKind {
                 Self::Module
             }
             DefKind::Other => {
-                if def.is_subr() {
-                    if def.sig.ident().unwrap().is_procedural() {
+                if let Signature::Subr(subr) = &def.sig {
+                    if subr.ident.is_procedural() {
                         Self::Proc
                     } else {
                         Self::Func

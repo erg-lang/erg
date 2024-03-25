@@ -1875,7 +1875,7 @@ impl Context {
                     .eval_t_params(proj(t, rhs), level, t_loc)
                     .map_err(|(_, errs)| errs);
             }
-            Type::FreeVar(fv) if fv.is_unbound() => {
+            Type::FreeVar(fv) if fv.get_subsup().is_some() => {
                 let (sub, sup) = fv.get_subsup().unwrap();
                 (sub, Some(sup))
             }
@@ -1934,8 +1934,7 @@ impl Context {
                 }
             }
         }
-        if let Some(fv) = lhs.as_free() {
-            let (sub, sup) = fv.get_subsup().unwrap();
+        if let Some((sub, sup)) = lhs.as_free().and_then(|fv| fv.get_subsup()) {
             if self.is_trait(&sup) && !self.trait_impl_exists(&sub, &sup) {
                 // link to `Never..Obj` to prevent double errors from being reported
                 lhs.destructive_link(&bounded(Never, Type::Obj));
@@ -3085,10 +3084,17 @@ impl Context {
     pub(crate) fn shallow_eq_tp(&self, lhs: &TyParam, rhs: &TyParam) -> bool {
         match (lhs, rhs) {
             (TyParam::Type(l), _) if l.is_unbound_var() => {
-                self.subtype_of(&self.get_tp_t(rhs).unwrap(), &Type::Type)
+                let Ok(rhs) = self.get_tp_t(rhs) else {
+                    log!(err "rhs: {rhs}");
+                    return false;
+                };
+                self.subtype_of(&rhs, &Type::Type)
             }
             (_, TyParam::Type(r)) if r.is_unbound_var() => {
-                let lhs = self.get_tp_t(lhs).unwrap();
+                let Ok(lhs) = self.get_tp_t(lhs) else {
+                    log!(err "lhs: {lhs}");
+                    return false;
+                };
                 self.subtype_of(&lhs, &Type::Type)
             }
             (TyParam::Type(l), TyParam::Type(r)) => l == r,
@@ -3119,8 +3125,8 @@ impl Context {
                     true
                 }
             }
-            (TyParam::Erased(t), _) => t.as_ref() == &self.get_tp_t(rhs).unwrap(),
-            (_, TyParam::Erased(t)) => t.as_ref() == &self.get_tp_t(lhs).unwrap(),
+            (TyParam::Erased(t), _) => Some(t.as_ref()) == self.get_tp_t(rhs).ok().as_ref(),
+            (_, TyParam::Erased(t)) => Some(t.as_ref()) == self.get_tp_t(lhs).ok().as_ref(),
             (TyParam::Value(v), _) => {
                 if let Ok(tp) = Self::convert_value_into_tp(v.clone()) {
                     self.shallow_eq_tp(&tp, rhs)

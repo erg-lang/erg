@@ -1091,6 +1091,14 @@ impl<T: CanbeFree + Send + Clone> Free<T> {
         )
     }
 
+    pub fn is_unbound_and_sandwiched(&self) -> bool {
+        self.is_unbound() && self.constraint_is_sandwiched()
+    }
+
+    pub fn is_unbound_and_typed(&self) -> bool {
+        self.is_unbound() && self.constraint_is_typeof()
+    }
+
     pub fn constraint_is_typeof(&self) -> bool {
         self.constraint()
             .map(|c| c.get_type().is_some())
