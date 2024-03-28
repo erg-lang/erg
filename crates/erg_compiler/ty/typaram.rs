@@ -3,6 +3,7 @@ use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Range, RangeInclusive, Sub};
 use std::sync::Arc;
 
+use erg_common::consts::DEBUG_MODE;
 use erg_common::dict::Dict;
 use erg_common::set::Set;
 use erg_common::traits::{LimitedDisplay, StructuralEq};
@@ -1763,7 +1764,12 @@ impl TyParam {
         new_constraint: Constraint,
         list: &UndoableLinkedList,
     ) {
-        let level = self.level().unwrap();
+        let Some(level) = self.level() else {
+            if DEBUG_MODE {
+                todo!();
+            }
+            return;
+        };
         let new = if let Some(name) = self.unbound_name() {
             Self::named_free_var(name, level, new_constraint)
         } else {

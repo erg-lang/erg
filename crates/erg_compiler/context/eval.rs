@@ -687,7 +687,16 @@ impl Context {
                     .into_iter()
                     .zip(user.params.non_defaults.iter())
                 {
-                    let name = VarName::from_str(sig.inspect().unwrap().clone());
+                    let Some(symbol) = sig.inspect() else {
+                        return Err(EvalErrors::from(EvalError::feature_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            loc.loc(),
+                            "_",
+                            self.caused_by(),
+                        )));
+                    };
+                    let name = VarName::from_str(symbol.clone());
                     subr_ctx.consts.insert(name, arg);
                 }
                 for (name, arg) in args.kw_args.into_iter() {
@@ -721,7 +730,16 @@ impl Context {
     fn eval_const_def(&mut self, def: &Def) -> EvalResult<ValueObj> {
         if def.is_const() {
             let mut errs = EvalErrors::empty();
-            let __name__ = def.sig.ident().unwrap().inspect();
+            let Some(ident) = def.sig.ident() else {
+                return Err(EvalErrors::from(EvalError::feature_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    def.sig.loc(),
+                    "complex pattern const-def",
+                    self.caused_by(),
+                )));
+            };
+            let __name__ = ident.inspect();
             let vis = self.instantiate_vis_modifier(def.sig.vis())?;
             let tv_cache = match &def.sig {
                 Signature::Subr(subr) => {
@@ -751,12 +769,7 @@ impl Context {
             };
             let (_ctx, es) = self.check_decls_and_pop();
             errs.extend(es);
-            self.register_gen_const(
-                def.sig.ident().unwrap(),
-                obj,
-                call,
-                def.def_kind().is_other(),
-            )?;
+            self.register_gen_const(ident, obj, call, def.def_kind().is_other())?;
             if errs.is_empty() {
                 Ok(ValueObj::None)
             } else {

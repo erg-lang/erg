@@ -2113,7 +2113,13 @@ impl Type {
             Self::Refinement(refine) => refine.t.is_value_class(),
             Self::Poly { name, params } => {
                 if &name[..] == "Array" || &name[..] == "Set" {
-                    let elem_t = <&Type>::try_from(params.first().unwrap()).unwrap();
+                    let Some(elem_t) = params.first().and_then(|p| <&Type>::try_from(p).ok())
+                    else {
+                        if DEBUG_MODE {
+                            todo!();
+                        }
+                        return false;
+                    };
                     elem_t.is_value_class()
                 } else {
                     false
@@ -2190,7 +2196,13 @@ impl Type {
             Self::Refinement(refine) => refine.t.is_singleton(),
             Self::Poly { name, params } => {
                 if &name[..] == "Array" || &name[..] == "Set" {
-                    let elem_t = <&Type>::try_from(params.first().unwrap()).unwrap();
+                    let Some(elem_t) = params.first().and_then(|p| <&Type>::try_from(p).ok())
+                    else {
+                        if DEBUG_MODE {
+                            todo!();
+                        }
+                        return false;
+                    };
                     elem_t.is_singleton()
                 } else {
                     false
@@ -3981,7 +3993,12 @@ impl Type {
         new_constraint: Constraint,
         list: &UndoableLinkedList,
     ) {
-        let level = self.level().unwrap();
+        let Some(level) = self.level() else {
+            if DEBUG_MODE {
+                todo!();
+            }
+            return;
+        };
         let new = if let Some(name) = self.unbound_name() {
             named_free_var(name, level, new_constraint)
         } else {

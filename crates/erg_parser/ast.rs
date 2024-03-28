@@ -2063,6 +2063,12 @@ impl NestedDisplay for ConstTupleAttribute {
 impl_display_from_nested!(ConstTupleAttribute);
 impl_locational!(ConstTupleAttribute, tup, index);
 
+impl ConstTupleAttribute {
+    pub fn downgrade(self) -> TupleAttribute {
+        TupleAttribute::new(self.tup.downgrade(), self.index)
+    }
+}
+
 #[pymethods]
 impl ConstTupleAttribute {
     #[staticmethod]
@@ -2079,6 +2085,7 @@ impl ConstTupleAttribute {
 pub struct ConstSubscript {
     obj: Box<ConstExpr>,
     index: Box<ConstExpr>,
+    r_sqbr: Token,
 }
 
 impl NestedDisplay for ConstSubscript {
@@ -2092,15 +2099,22 @@ impl NestedDisplay for ConstSubscript {
 }
 
 impl_display_from_nested!(ConstSubscript);
-impl_locational!(ConstSubscript, obj, index);
+impl_locational!(ConstSubscript, obj, r_sqbr);
+
+impl ConstSubscript {
+    pub fn downgrade(self) -> Subscript {
+        Subscript::new(self.obj.downgrade(), self.index.downgrade(), self.r_sqbr)
+    }
+}
 
 #[pymethods]
 impl ConstSubscript {
     #[staticmethod]
-    pub fn new(obj: ConstExpr, index: ConstExpr) -> Self {
+    pub fn new(obj: ConstExpr, index: ConstExpr, r_sqbr: Token) -> Self {
         Self {
             obj: Box::new(obj),
             index: Box::new(index),
+            r_sqbr,
         }
     }
 }
@@ -2131,17 +2145,16 @@ impl ConstAccessor {
         Self::Attr(ConstAttribute::new(obj, name))
     }
 
-    pub fn subscr(obj: ConstExpr, index: ConstExpr) -> Self {
-        Self::Subscr(ConstSubscript::new(obj, index))
+    pub fn subscr(obj: ConstExpr, index: ConstExpr, r_sqbr: Token) -> Self {
+        Self::Subscr(ConstSubscript::new(obj, index, r_sqbr))
     }
 
     pub fn downgrade(self) -> Accessor {
         match self {
             Self::Local(local) => Accessor::Ident(local),
             Self::Attr(attr) => Accessor::Attr(attr.downgrade()),
-            // Self::TupleAttr(attr) => Accessor::TupleAttr(attr.downgrade()),
-            // Self::Subscr(subscr) => Accessor::Subscr(subscr.downgrade()),
-            _ => todo!(),
+            Self::TupleAttr(attr) => Accessor::TupleAttr(attr.downgrade()),
+            Self::Subscr(subscr) => Accessor::Subscr(subscr.downgrade()),
         }
     }
 }

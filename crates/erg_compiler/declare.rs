@@ -3,7 +3,7 @@ use std::mem;
 use erg_common::consts::PYTHON_MODE;
 use erg_common::error::Location;
 use erg_common::traits::{Locational, Runnable, Stream};
-use erg_common::{enum_unwrap, fn_name, log, set, Str, Triple};
+use erg_common::{fn_name, log, set, Str, Triple};
 
 use erg_parser::ast::{self, AscriptionKind, DefId, Identifier, TypeAppArgsKind, VarName, AST};
 use erg_parser::build_ast::ASTBuildable;
@@ -47,9 +47,13 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         };
         let chunk = self.declare_chunk(body.block.remove(0), true)?;
         let py_name = match &chunk {
-            hir::Expr::TypeAsc(tasc) => enum_unwrap!(tasc.expr.as_ref(), hir::Expr::Accessor)
-                .local_name()
-                .map(Str::rc),
+            hir::Expr::TypeAsc(tasc) => {
+                if let hir::Expr::Accessor(acc) = tasc.expr.as_ref() {
+                    acc.local_name().map(Str::rc)
+                } else {
+                    None
+                }
+            }
             hir::Expr::Accessor(hir::Accessor::Ident(ident)) => ident.vi.py_name.clone(),
             _ => sig.escaped(),
         };
