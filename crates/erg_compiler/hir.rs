@@ -243,7 +243,8 @@ impl Locational for Args {
             (Some((l, r)), None, None) => Location::concat(l, r),
             (None, Some(l), Some((_, r))) => Location::concat(l.as_ref(), r),
             (None, None, Some((l, r))) => Location::concat(l, r),
-            _ => Location::Unknown,
+            (None, Some(l), None) => l.loc(),
+            (None, None, None) => Location::Unknown,
         }
     }
 }
@@ -1920,7 +1921,8 @@ impl Locational for Params {
             (Some((l, r)), None, None) => Location::concat(l, r),
             (None, Some(l), Some((_, r))) => Location::concat(l.as_ref(), r),
             (None, None, Some((l, r))) => Location::concat(l, r),
-            _ => Location::Unknown,
+            (None, Some(l), None) => l.loc(),
+            (None, None, None) => Location::Unknown,
         }
     }
 }

@@ -357,11 +357,18 @@ impl Locational for Args {
                 return loc;
             }
         }
-        match (self.pos_args.first(), self.kw_args.last()) {
-            (Some(l), Some(r)) => Location::concat(l, r),
-            (Some(l), None) => Location::concat(l, self.pos_args.last().unwrap()),
-            (None, Some(r)) => Location::concat(self.kw_args.first().unwrap(), r),
-            _ => Location::Unknown,
+        match (
+            self.pos_args.first().zip(self.pos_args.last()),
+            self.var_args.as_ref(),
+            self.kw_args.first().zip(self.kw_args.last()),
+        ) {
+            (Some((l, _)), _, Some((_, r))) => Location::concat(l, r),
+            (Some((l, _)), Some(r), None) => Location::concat(l, r.as_ref()),
+            (Some((l, r)), None, None) => Location::concat(l, r),
+            (None, Some(l), Some((_, r))) => Location::concat(l.as_ref(), r),
+            (None, None, Some((l, r))) => Location::concat(l, r),
+            (None, Some(l), None) => l.loc(),
+            (None, None, None) => Location::Unknown,
         }
     }
 }
@@ -5082,17 +5089,17 @@ impl Locational for Params {
             }
         }
         match (
-            self.non_defaults.first(),
+            self.non_defaults.first().zip(self.non_defaults.last()),
             self.var_params.as_ref(),
-            self.defaults.last(),
+            self.defaults.first().zip(self.defaults.last()),
         ) {
-            (Some(l), _, Some(r)) => Location::concat(l, r),
-            (Some(l), Some(r), None) => Location::concat(l, r.as_ref()),
-            (None, Some(l), Some(r)) => Location::concat(l.as_ref(), r),
-            (Some(l), None, None) => Location::concat(l, self.non_defaults.last().unwrap()),
-            (None, Some(var), None) => var.loc(),
-            (None, None, Some(r)) => Location::concat(self.defaults.first().unwrap(), r),
-            _ => Location::Unknown,
+            (Some((l, _)), _, Some((_, r))) => Location::concat(l, r),
+            (Some((l, _)), Some(r), None) => Location::concat(l, r.as_ref()),
+            (Some((l, r)), None, None) => Location::concat(l, r),
+            (None, Some(l), Some((_, r))) => Location::concat(l.as_ref(), r),
+            (None, None, Some((l, r))) => Location::concat(l, r),
+            (None, Some(l), None) => l.loc(),
+            (None, None, None) => Location::Unknown,
         }
     }
 }

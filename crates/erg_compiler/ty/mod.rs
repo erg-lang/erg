@@ -2418,6 +2418,15 @@ impl Type {
         }
     }
 
+    pub fn is_named_tuple(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_named_tuple(),
+            Self::NamedTuple(_) => true,
+            Self::Refinement(refine) => refine.t.is_named_tuple(),
+            _ => false,
+        }
+    }
+
     pub fn is_set(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_set(),

@@ -2,6 +2,7 @@
 
 .MINYEAR: {1}
 .MAXYEAR: {9999}
+.UTC: .TimeZone
 
 .TimeDelta = 'timedelta': ClassType
 .TimeDelta <: Eq
@@ -73,9 +74,7 @@
     replace: (self: .Time, hour := 0..23, minute := 0..59, second := 0..59, microsecond := Nat, tzinfo := .TZInfo or NoneType) -> .Time
     isoformat: (self: .Time, timespec := Str) -> Str
 .DateTime = 'datetime': ClassType
-.DateTime <: Eq
-.DateTime <: Hash
-.DateTime <: Ord
+.DateTime <: .Date
 .DateTime.
     __call__: (year: 0..9999, month: 1..12, day: 1..31, hour := 0..23, minute := 0..59, second := 0..59, microsecond := Nat, tzinfo := .TZInfo or NoneType) -> .DateTime
     __eq__: (self: .DateTime, other: .DateTime) -> Bool
@@ -102,10 +101,9 @@
     replace: (self: .DateTime, year := 0..9999, month := 1..12, day := 1..31, hour := 0..23, minute := 0..59, second := 0..59, microsecond := Nat, tzinfo := .TZInfo or NoneType) -> .DateTime
     utcoffset: (self: .DateTime) -> .TimeDelta or NoneType
 .TimeZone = 'timezone': ClassType
-.TimeZone <: Eq
-.TimeZone <: Hash
-.TimeZone <: Ord
+.TimeZone <: .TZInfo
 .TimeZone.
+    utc: .TimeZone
     __eq__: (self: .TimeZone, other: .TimeZone) -> Bool
     __ne__: (self: .TimeZone, other: .TimeZone) -> Bool
     __lt__: (self: .TimeZone, other: .TimeZone) -> Bool

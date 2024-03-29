@@ -45,7 +45,8 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         } else {
             None
         };
-        let chunk = self.declare_chunk(body.block.remove(0), true)?;
+        let rhs = body.block.remove(0);
+        let chunk = self.declare_chunk(rhs, true)?;
         let py_name = match &chunk {
             hir::Expr::TypeAsc(tasc) => {
                 if let hir::Expr::Accessor(acc) = tasc.expr.as_ref() {

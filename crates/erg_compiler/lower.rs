@@ -2427,8 +2427,8 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                             def.sig.ident_mut().unwrap().vis = VisModifierSpec::Public(Token::new(
                                 TokenKind::Dot,
                                 ".",
-                                def.sig.ln_begin().unwrap(),
-                                def.sig.col_begin().unwrap(),
+                                def.sig.ln_begin().unwrap_or(0),
+                                def.sig.col_begin().unwrap_or(0),
                             ));
                         }
                         self.module.context.register_def(def).map_err(|errs| {
