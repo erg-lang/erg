@@ -235,6 +235,140 @@ impl Context {
             Some(FUNDAMENTAL_ITER),
         );
         iterable.register_builtin_erg_decl(ITER, Type, Visibility::BUILTIN_PUBLIC);
+        let Slf = poly(ITERABLE, vec![ty_tp(T.clone())]);
+        let U = type_q(TY_U);
+        let t_map = fn1_met(
+            Slf.clone(),
+            func1(T.clone(), U.clone()),
+            poly(MAP, vec![ty_tp(U.clone())]),
+        )
+        .quantify();
+        iterable.register_builtin_decl(
+            FUNC_MAP,
+            t_map,
+            Visibility::BUILTIN_PUBLIC,
+            Some("Function::iterable_map"),
+        );
+        let t_filter = fn1_met(
+            Slf.clone(),
+            func1(T.clone(), Bool),
+            poly(FILTER, vec![ty_tp(T.clone())]),
+        )
+        .quantify();
+        iterable.register_builtin_decl(
+            FUNC_FILTER,
+            t_filter,
+            Visibility::BUILTIN_PUBLIC,
+            Some("Function::iterable_filter"),
+        );
+        let ret_t = poly(
+            TUPLE,
+            vec![TyParam::Array(vec![ty_tp(Nat), ty_tp(T.clone())])],
+        );
+        let t_enumerate = fn0_met(Slf.clone(), poly(ITERATOR, vec![ty_tp(ret_t)])).quantify();
+        iterable.register_builtin_decl(
+            FUNC_ENUMERATE,
+            t_enumerate,
+            Visibility::BUILTIN_PUBLIC,
+            Some("Function::enumerate"),
+        );
+        let t_zip = fn1_met(
+            Slf.clone(),
+            poly(ITERABLE, vec![ty_tp(U.clone())]),
+            poly(ZIP, vec![ty_tp(T.clone()), ty_tp(U.clone())]),
+        )
+        .quantify();
+        iterable.register_builtin_decl(
+            FUNC_ZIP,
+            t_zip,
+            Visibility::BUILTIN_PUBLIC,
+            Some("Function::zip"),
+        );
+        let t_reduce = fn2_met(
+            Slf.clone(),
+            T.clone(),
+            func2(T.clone(), T.clone(), T.clone()),
+            T.clone(),
+        )
+        .quantify();
+        iterable.register_builtin_decl(
+            FUNC_REDUCE,
+            t_reduce,
+            Visibility::BUILTIN_PUBLIC,
+            Some("Function::iterable_reduce"),
+        );
+        let t_nth = fn1_met(Slf.clone(), Nat, T.clone()).quantify();
+        iterable.register_builtin_decl(
+            FUNC_NTH,
+            t_nth,
+            Visibility::BUILTIN_PUBLIC,
+            Some("Function::iterable_nth"),
+        );
+        let t_skip = fn1_met(Slf.clone(), Nat, poly(ITERATOR, vec![ty_tp(T.clone())])).quantify();
+        iterable.register_builtin_decl(
+            FUNC_SKIP,
+            t_skip,
+            Visibility::BUILTIN_PUBLIC,
+            Some("Function::iterable_skip"),
+        );
+        let t_all = fn1_met(Slf.clone(), func1(T.clone(), Bool), Bool).quantify();
+        iterable.register_builtin_decl(
+            FUNC_ALL,
+            t_all,
+            Visibility::BUILTIN_PUBLIC,
+            Some("Function::iterable_all"),
+        );
+        let t_any = fn1_met(Slf.clone(), func1(T.clone(), Bool), Bool).quantify();
+        iterable.register_builtin_decl(
+            FUNC_ANY,
+            t_any,
+            Visibility::BUILTIN_PUBLIC,
+            Some("Function::iterable_any"),
+        );
+        let t_reversed = fn0_met(Slf.clone(), poly(ITERATOR, vec![ty_tp(T.clone())])).quantify();
+        iterable.register_builtin_decl(
+            FUNC_REVERSED,
+            t_reversed,
+            Visibility::BUILTIN_PUBLIC,
+            Some("Function::reversed"),
+        );
+        let t_position = fn1_met(Slf.clone(), func1(T.clone(), Bool), or(Nat, NoneType)).quantify();
+        iterable.register_builtin_decl(
+            FUNC_POSITION,
+            t_position,
+            Visibility::BUILTIN_PUBLIC,
+            Some("Function::iterable_position"),
+        );
+        let t_find =
+            fn1_met(Slf.clone(), func1(T.clone(), Bool), or(T.clone(), NoneType)).quantify();
+        iterable.register_builtin_decl(
+            FUNC_FIND,
+            t_find,
+            Visibility::BUILTIN_PUBLIC,
+            Some("Function::iterable_find"),
+        );
+        let t_chain = fn_met(
+            Slf.clone(),
+            vec![],
+            Some(kw(KW_ITERABLES, poly(ITERABLE, vec![ty_tp(T.clone())]))),
+            vec![],
+            None,
+            poly(ITERATOR, vec![ty_tp(T.clone())]),
+        )
+        .quantify();
+        iterable.register_builtin_decl(
+            FUNC_CHAIN,
+            t_chain,
+            Visibility::BUILTIN_PUBLIC,
+            Some("Function::iterable_chain"),
+        );
+        let t_into_array = fn0_met(Slf.clone(), unknown_len_array_t(T.clone())).quantify();
+        iterable.register_builtin_decl(
+            FUNC_INTO_ARRAY,
+            t_into_array,
+            Visibility::BUILTIN_PUBLIC,
+            Some("Function::list"),
+        );
         /* Iterator */
         let mut iterator = Self::builtin_poly_trait(ITERATOR, vec![PS::t_nd(TY_T)], 2);
         iterator.register_superclass(poly(ITERABLE, vec![ty_tp(T.clone())]), &iterable);

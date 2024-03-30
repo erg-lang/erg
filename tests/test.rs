@@ -228,6 +228,16 @@ fn exec_interpolation() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_iterator() -> Result<(), ()> {
+    expect_success("examples/iterator.er", 0)
+}
+
+#[test]
+fn exec_iterator_test() -> Result<(), ()> {
+    expect_success("tests/should_ok/iterator.er", 0)
+}
+
+#[test]
 fn exec_list() -> Result<(), ()> {
     expect_success("examples/list.er", 0)
 }
@@ -566,11 +576,6 @@ fn exec_invalid_interpol() -> Result<(), ()> {
 #[test]
 fn exec_invalid_param() -> Result<(), ()> {
     expect_failure("tests/should_err/invalid_param.er", 0, 3)
-}
-
-#[test]
-fn exec_iterator() -> Result<(), ()> {
-    expect_success("tests/should_ok/iterator.er", 0)
 }
 
 #[test]
