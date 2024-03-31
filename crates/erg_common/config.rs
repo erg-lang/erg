@@ -14,6 +14,7 @@ use crate::levenshtein::get_similar_name;
 use crate::normalize_path;
 use crate::python_util::{detect_magic_number, get_python_version, PythonVersion};
 use crate::serialize::{get_magic_num_from_bytes, get_ver_from_magic_num};
+use crate::ArcArray;
 
 #[cfg(not(feature = "pylib"))]
 use erg_proc_macros::{new, pyclass, pymethods};
@@ -167,8 +168,8 @@ pub struct ErgConfig {
     /// needed for `jupyter-erg`
     pub ps1: &'static str,
     pub ps2: &'static str,
-    pub runtime_args: Vec<&'static str>,
-    pub packages: Vec<Package>,
+    pub runtime_args: ArcArray<&'static str>,
+    pub packages: ArcArray<Package>,
     pub effect_check: bool,
     pub ownership_check: bool,
 }
@@ -194,8 +195,8 @@ impl Default for ErgConfig {
             verbose: 1,
             ps1: ">>> ",
             ps2: "... ",
-            runtime_args: vec![],
-            packages: vec![],
+            runtime_args: ArcArray::from([]),
+            packages: ArcArray::from([]),
             effect_check: true,
             ownership_check: true,
         }
@@ -269,13 +270,15 @@ impl ErgConfig {
         let mut args = env::args();
         args.next(); // "ergc"
         let mut cfg = Self::default();
+        let mut runtime_args: Vec<&'static str> = vec![];
+        let mut packages = vec![];
         // not `for` because we need to consume the next argument
         while let Some(arg) = args.next() {
             match &arg[..] {
                 /* Options */
                 "--" => {
                     for arg in args {
-                        cfg.runtime_args.push(Box::leak(arg.into_boxed_str()));
+                        runtime_args.push(Box::leak(arg.into_boxed_str()));
                     }
                     break;
                 }
@@ -332,7 +335,7 @@ impl ErgConfig {
                         .next()
                         .expect("`version` of `--use-package` is not passed")
                         .into_boxed_str();
-                    cfg.packages.push(Package::new(
+                    packages.push(Package::new(
                         Box::leak(name),
                         Box::leak(as_name),
                         Box::leak(version),
@@ -356,7 +359,7 @@ impl ErgConfig {
                         .next()
                         .expect("`path` of `--use-package` is not passed")
                         .into_boxed_str();
-                    cfg.packages.push(Package::new(
+                    packages.push(Package::new(
                         Box::leak(name),
                         Box::leak(as_name),
                         Box::leak(version),
@@ -505,7 +508,7 @@ USAGE:
                         cfg.mode = mode;
                         if cfg.mode == ErgMode::Pack {
                             for arg in args {
-                                cfg.runtime_args.push(Box::leak(arg.into_boxed_str()));
+                                runtime_args.push(Box::leak(arg.into_boxed_str()));
                             }
                             break;
                         }
@@ -517,7 +520,7 @@ USAGE:
                         match args.next().as_ref().map(|s| &s[..]) {
                             Some("--") => {
                                 for arg in args {
-                                    cfg.runtime_args.push(Box::leak(arg.into_boxed_str()));
+                                    runtime_args.push(Box::leak(arg.into_boxed_str()));
                                 }
                             }
                             Some(some) => {
@@ -543,6 +546,8 @@ USAGE:
             };
             cfg.input = input;
         }
+        cfg.runtime_args = ArcArray::from(runtime_args);
+        cfg.packages = ArcArray::from(packages);
         cfg
     }
 }

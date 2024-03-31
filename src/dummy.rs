@@ -448,7 +448,7 @@ impl PackageManagerRunner {
             .stdin(Stdio::inherit())
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
-            .args(&cfg.runtime_args)
+            .args(cfg.runtime_args.as_ref())
             .output()
         {
             Ok(out) => ExitStatus::new(out.status.code().unwrap_or(0), 0, 0),
