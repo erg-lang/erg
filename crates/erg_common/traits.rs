@@ -10,7 +10,7 @@ use std::process;
 use std::slice::{Iter, IterMut};
 
 use crate::config::ErgConfig;
-use crate::consts::{BUILD_DATE, GIT_HASH_SHORT, SEMVER};
+use crate::consts::{build_date, GIT_HASH_SHORT, SEMVER};
 use crate::error::{ErrorDisplay, ErrorKind, Location, MultiErrorDisplay};
 use crate::io::{Input, InputKind};
 use crate::{addr_eq, chomp, log, switch_unreachable};
@@ -726,11 +726,16 @@ pub trait Runnable: Sized + Default + New {
     }
     fn start_message(&self) -> String {
         if GIT_HASH_SHORT.is_empty() {
-            format!("{} {SEMVER} ({BUILD_DATE}) on {ARCH}/{OS}\n", Self::NAME)
+            format!(
+                "{} {SEMVER} ({}) on {ARCH}/{OS}\n",
+                Self::NAME,
+                build_date()
+            )
         } else {
             format!(
-                "{} {SEMVER} ({GIT_HASH_SHORT}, {BUILD_DATE}) on {ARCH}/{OS}\n",
-                Self::NAME
+                "{} {SEMVER} ({GIT_HASH_SHORT}, {}) on {ARCH}/{OS}\n",
+                Self::NAME,
+                build_date(),
             )
         }
     }
