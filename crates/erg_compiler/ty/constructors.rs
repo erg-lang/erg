@@ -105,7 +105,7 @@ pub fn py_module(path: TyParam) -> Type {
 }
 
 pub fn module_from_path<P: Into<PathBuf>>(path: P) -> Type {
-    let s = ValueObj::Str(Str::rc(path.into().to_str().unwrap()));
+    let s = ValueObj::Str(Str::rc(&path.into().to_string_lossy()));
     module(TyParam::Value(s))
 }
 
@@ -401,6 +401,17 @@ pub fn fn1_met(self_t: Type, input_t: Type, return_t: Type) -> Type {
 
 pub fn fn1_kw_met(self_t: Type, input: ParamTy, return_t: Type) -> Type {
     fn_met(self_t, vec![input], None, vec![], None, return_t)
+}
+
+pub fn fn2_met(self_t: Type, l: Type, r: Type, return_t: Type) -> Type {
+    fn_met(
+        self_t,
+        vec![ParamTy::Pos(l), ParamTy::Pos(r)],
+        None,
+        vec![],
+        None,
+        return_t,
+    )
 }
 
 pub fn pr_met(

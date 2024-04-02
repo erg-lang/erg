@@ -20,7 +20,7 @@ use erg_parser::desugar::Desugarer;
 use erg_parser::token::{Token, TokenKind};
 
 use crate::ty::constructors::{
-    array_t, bounded, closed_range, dict_t, func, mono, mono_q, named_free_var, poly, proj,
+    array_t, bounded, closed_range, dict_t, func, guard, mono, mono_q, named_free_var, poly, proj,
     proj_call, ref_, ref_mut, refinement, set_t, subr_t, subtypeof, tp_enum, try_v_enum, tuple_t,
     unknown_len_array_t, v_enum,
 };
@@ -171,8 +171,10 @@ impl<'c> Substituter<'c> {
         let mut stps = st.typarams();
         // Or, And are commutative, choose fitting order
         if qt.qual_name() == st.qual_name() && (st.qual_name() == "Or" || st.qual_name() == "And") {
+            // REVIEW: correct condition?
             if ctx.covariant_supertype_of_tp(&qtps[0], &stps[1])
                 && ctx.covariant_supertype_of_tp(&qtps[1], &stps[0])
+                && qt != st
             {
                 stps.swap(0, 1);
             }
@@ -685,7 +687,16 @@ impl Context {
                     .into_iter()
                     .zip(user.params.non_defaults.iter())
                 {
-                    let name = VarName::from_str(sig.inspect().unwrap().clone());
+                    let Some(symbol) = sig.inspect() else {
+                        return Err(EvalErrors::from(EvalError::feature_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            loc.loc(),
+                            "_",
+                            self.caused_by(),
+                        )));
+                    };
+                    let name = VarName::from_str(symbol.clone());
                     subr_ctx.consts.insert(name, arg);
                 }
                 for (name, arg) in args.kw_args.into_iter() {
@@ -718,12 +729,28 @@ impl Context {
 
     fn eval_const_def(&mut self, def: &Def) -> EvalResult<ValueObj> {
         if def.is_const() {
-            let __name__ = def.sig.ident().unwrap().inspect();
+            let mut errs = EvalErrors::empty();
+            let Some(ident) = def.sig.ident() else {
+                return Err(EvalErrors::from(EvalError::feature_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    def.sig.loc(),
+                    "complex pattern const-def",
+                    self.caused_by(),
+                )));
+            };
+            let __name__ = ident.inspect();
             let vis = self.instantiate_vis_modifier(def.sig.vis())?;
             let tv_cache = match &def.sig {
                 Signature::Subr(subr) => {
                     let ty_cache =
-                        self.instantiate_ty_bounds(&subr.bounds, RegistrationMode::Normal)?;
+                        match self.instantiate_ty_bounds(&subr.bounds, RegistrationMode::Normal) {
+                            Ok(ty_cache) => ty_cache,
+                            Err((ty_cache, es)) => {
+                                errs.extend(es);
+                                ty_cache
+                            }
+                        };
                     Some(ty_cache)
                 }
                 Signature::Var(_) => None,
@@ -740,13 +767,9 @@ impl Context {
             } else {
                 None
             };
-            let (_ctx, errs) = self.check_decls_and_pop();
-            self.register_gen_const(
-                def.sig.ident().unwrap(),
-                obj,
-                call,
-                def.def_kind().is_other(),
-            )?;
+            let (_ctx, es) = self.check_decls_and_pop();
+            errs.extend(es);
+            self.register_gen_const(ident, obj, call, def.def_kind().is_other())?;
             if errs.is_empty() {
                 Ok(ValueObj::None)
             } else {
@@ -917,10 +940,16 @@ impl Context {
 
     /// FIXME: grow
     fn eval_const_lambda(&self, lambda: &Lambda) -> EvalResult<ValueObj> {
-        let mut tmp_tv_cache =
-            self.instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)?;
-        let mut non_default_params = Vec::with_capacity(lambda.sig.params.non_defaults.len());
         let mut errs = EvalErrors::empty();
+        let mut tmp_tv_cache =
+            match self.instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal) {
+                Ok(ty_cache) => ty_cache,
+                Err((ty_cache, es)) => {
+                    errs.extend(es);
+                    ty_cache
+                }
+            };
+        let mut non_default_params = Vec::with_capacity(lambda.sig.params.non_defaults.len());
         for sig in lambda.sig.params.non_defaults.iter() {
             match self.instantiate_param_ty(
                 sig,
@@ -1829,6 +1858,10 @@ impl Context {
                 };
                 Ok(bounded(sub, sup))
             }
+            Type::Guard(grd) => {
+                let to = self.eval_t_params(*grd.to, level, t_loc)?;
+                Ok(guard(grd.namespace, grd.target, to))
+            }
             other if other.is_monomorphic() => Ok(other),
             other => feature_error!(self, t_loc.loc(), &format!("eval {other}"))
                 .map_err(|errs| (other, errs)),
@@ -1855,7 +1888,7 @@ impl Context {
                     .eval_t_params(proj(t, rhs), level, t_loc)
                     .map_err(|(_, errs)| errs);
             }
-            Type::FreeVar(fv) if fv.is_unbound() => {
+            Type::FreeVar(fv) if fv.get_subsup().is_some() => {
                 let (sub, sup) = fv.get_subsup().unwrap();
                 (sub, Some(sup))
             }
@@ -1914,8 +1947,7 @@ impl Context {
                 }
             }
         }
-        if let Some(fv) = lhs.as_free() {
-            let (sub, sup) = fv.get_subsup().unwrap();
+        if let Some((sub, sup)) = lhs.as_free().and_then(|fv| fv.get_subsup()) {
             if self.is_trait(&sup) && !self.trait_impl_exists(&sub, &sup) {
                 // link to `Never..Obj` to prevent double errors from being reported
                 lhs.destructive_link(&bounded(Never, Type::Obj));
@@ -2090,6 +2122,7 @@ impl Context {
             TyParam::ProjCall { obj, attr, args } => Ok(proj_call(*obj, attr, args)),
             // TyParam::Erased(_t) => Ok(Type::Obj),
             TyParam::Value(v) => self.convert_value_into_type(v).map_err(TyParam::Value),
+            TyParam::Erased(t) if t.is_type() => Ok(Type::Obj),
             // TODO: Dict, Set
             other => Err(other),
         }
@@ -2436,7 +2469,7 @@ impl Context {
             // obj: [T; N]|<: Add([T; M])|.Output == ValueObj::Type(<type [T; M+N]>)
             if let ValueObj::Type(quant_projected_t) = obj {
                 let projected_t = quant_projected_t.into_typ();
-                let quant_sub = &self.get_type_ctx(&sub.qual_name()).unwrap().typ;
+                let quant_sub = self.get_type_ctx(&sub.qual_name()).map(|ctx| &ctx.typ);
                 let _sup_subs = if let Some((sup, quant_sup)) = opt_sup.zip(methods.impl_of()) {
                     // T -> Int, M -> 2
                     match Substituter::substitute_typarams(self, &quant_sup, sup) {
@@ -2454,12 +2487,14 @@ impl Context {
                 } else {
                     Substituter::substitute_typarams(self, quant_sub, sub).ok()?
                 };*/
-                let _sub_subs = match Substituter::substitute_typarams(self, quant_sub, sub) {
-                    Ok(sub_subs) => sub_subs,
-                    Err(errs) => {
-                        return Triple::Err(errs);
-                    }
-                };
+                let _sub_subs =
+                    match quant_sub.map(|qsub| Substituter::substitute_typarams(self, qsub, sub)) {
+                        Some(Ok(sub_subs)) => sub_subs,
+                        Some(Err(errs)) => {
+                            return Triple::Err(errs);
+                        }
+                        None => None,
+                    };
                 // [T; M+N] -> [Int; 4+2] -> [Int; 6]
                 let res = self.eval_t_params(projected_t, level, t_loc).ok();
                 if let Some(t) = res {
@@ -3062,10 +3097,17 @@ impl Context {
     pub(crate) fn shallow_eq_tp(&self, lhs: &TyParam, rhs: &TyParam) -> bool {
         match (lhs, rhs) {
             (TyParam::Type(l), _) if l.is_unbound_var() => {
-                self.subtype_of(&self.get_tp_t(rhs).unwrap(), &Type::Type)
+                let Ok(rhs) = self.get_tp_t(rhs) else {
+                    log!(err "rhs: {rhs}");
+                    return false;
+                };
+                self.subtype_of(&rhs, &Type::Type)
             }
             (_, TyParam::Type(r)) if r.is_unbound_var() => {
-                let lhs = self.get_tp_t(lhs).unwrap();
+                let Ok(lhs) = self.get_tp_t(lhs) else {
+                    log!(err "lhs: {lhs}");
+                    return false;
+                };
                 self.subtype_of(&lhs, &Type::Type)
             }
             (TyParam::Type(l), TyParam::Type(r)) => l == r,
@@ -3096,8 +3138,8 @@ impl Context {
                     true
                 }
             }
-            (TyParam::Erased(t), _) => t.as_ref() == &self.get_tp_t(rhs).unwrap(),
-            (_, TyParam::Erased(t)) => t.as_ref() == &self.get_tp_t(lhs).unwrap(),
+            (TyParam::Erased(t), _) => Some(t.as_ref()) == self.get_tp_t(rhs).ok().as_ref(),
+            (_, TyParam::Erased(t)) => Some(t.as_ref()) == self.get_tp_t(lhs).ok().as_ref(),
             (TyParam::Value(v), _) => {
                 if let Ok(tp) = Self::convert_value_into_tp(v.clone()) {
                     self.shallow_eq_tp(&tp, rhs)

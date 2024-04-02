@@ -1,5 +1,8 @@
 mod common;
-use common::{expect_end_with, expect_error_location_and_msg, expect_failure, expect_success};
+use common::{
+    expect_compile_success, expect_end_with, expect_error_location_and_msg, expect_failure,
+    expect_success,
+};
 use erg_common::error::Location;
 use erg_common::python_util::env_python_version;
 
@@ -34,6 +37,11 @@ fn exec_associated_types() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_bump_version() -> Result<(), ()> {
+    expect_compile_success("bump_version.er", 0)
+}
+
+#[test]
 fn exec_class() -> Result<(), ()> {
     expect_success("examples/class.er", 0)
 }
@@ -56,6 +64,11 @@ fn exec_closure() -> Result<(), ()> {
 #[test]
 fn exec_coercion() -> Result<(), ()> {
     expect_success("tests/should_ok/coercion.er", 0)
+}
+
+#[test]
+fn exec_context_manager() -> Result<(), ()> {
+    expect_success("tests/should_ok/context_manager.er", 1)
 }
 
 #[test]
@@ -215,6 +228,16 @@ fn exec_interpolation() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_iterator() -> Result<(), ()> {
+    expect_success("examples/iterator.er", 0)
+}
+
+#[test]
+fn exec_iterator_test() -> Result<(), ()> {
+    expect_success("tests/should_ok/iterator.er", 0)
+}
+
+#[test]
 fn exec_list() -> Result<(), ()> {
     expect_success("examples/list.er", 0)
 }
@@ -300,6 +323,11 @@ fn exec_pattern() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_poly_type_spec() -> Result<(), ()> {
+    expect_success("tests/should_ok/poly_type_spec.er", 0)
+}
+
+#[test]
 fn exec_pyimport_test() -> Result<(), ()> {
     // HACK: When running the test with Windows, the exit code is 1 (the cause is unknown)
     if cfg!(windows) && env_python_version().unwrap().minor < Some(8) {
@@ -331,7 +359,12 @@ fn exec_record() -> Result<(), ()> {
 
 #[test]
 fn exec_record_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/record.er", 0, 1)
+    expect_failure("tests/should_err/record.er", 0, 2)
+}
+
+#[test]
+fn exec_recursive_class() -> Result<(), ()> {
+    expect_success("tests/should_ok/recursive_class.er", 0)
 }
 
 #[test]
@@ -362,6 +395,11 @@ fn exec_self_type() -> Result<(), ()> {
 #[test]
 fn exec_slice() -> Result<(), ()> {
     expect_success("tests/should_ok/slice.er", 0)
+}
+
+#[test]
+fn exec_star_expr() -> Result<(), ()> {
+    expect_success("tests/should_ok/star_expr.er", 0)
 }
 
 #[test]
@@ -541,13 +579,13 @@ fn exec_invalid_param() -> Result<(), ()> {
 }
 
 #[test]
-fn exec_iterator() -> Result<(), ()> {
-    expect_success("tests/should_ok/iterator.er", 0)
+fn exec_move_check() -> Result<(), ()> {
+    expect_failure("examples/move_check.er", 1, 1)
 }
 
 #[test]
-fn exec_move_check() -> Result<(), ()> {
-    expect_failure("examples/move_check.er", 1, 1)
+fn exec_poly_type_spec_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/poly_type_spec.er", 0, 3)
 }
 
 #[test]

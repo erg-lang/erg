@@ -353,11 +353,8 @@ impl Input {
                 .map(|s| s.to_string())
                 .collect(),
             InputKind::REPL => {
-                if ln_begin == ln_end {
-                    vec![GLOBAL_STDIN.reread()]
-                } else {
-                    GLOBAL_STDIN.reread_lines(ln_begin, ln_end)
-                }
+                let block_begin = self.block_begin().saturating_sub(1);
+                GLOBAL_STDIN.reread_lines(ln_begin + block_begin, ln_end + block_begin)
             }
             InputKind::DummyREPL(dummy) => dummy.reread_lines(ln_begin, ln_end),
             InputKind::Dummy => panic!("cannot read lines from a dummy file"),

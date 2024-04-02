@@ -108,3 +108,6 @@ class StrMut(MutType):  # Inherits Str
 
     def insert(self, idx: int, s: str):
         self.value = self.value[:idx] + s + self.value[idx:]
+
+    def copy(self):
+        return StrMut(self.value)

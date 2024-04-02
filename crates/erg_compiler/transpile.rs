@@ -1,17 +1,18 @@
 use std::fs::File;
 use std::io::Write;
 
-use erg_common::config::{ErgConfig, TranspileTarget};
-use erg_common::dict;
-use erg_common::dict::Dict as HashMap;
-use erg_common::error::MultiErrorDisplay;
+use erg_common::error::{ErrorDisplay, ErrorKind, MultiErrorDisplay};
 use erg_common::log;
 use erg_common::set::Set as HashSet;
+use erg_common::traits::BlockKind;
 use erg_common::traits::{ExitStatus, Locational, New, Runnable, Stream};
 use erg_common::Str;
+use erg_common::{config::ErgConfig, dict};
+use erg_common::{config::TranspileTarget, dict::Dict as HashMap};
 
 use erg_parser::ast::{ParamPattern, TypeSpec, VarName, AST};
 use erg_parser::token::TokenKind;
+use erg_parser::ParserRunner;
 
 use crate::artifact::{
     BuildRunnable, Buildable, CompleteArtifact, ErrorArtifact, IncompleteArtifact,
@@ -241,6 +242,39 @@ impl Runnable for Transpiler {
         })?;
         artifact.warns.write_all_stderr();
         Ok(artifact.object.into_code())
+    }
+
+    fn expect_block(&self, src: &str) -> BlockKind {
+        let mut parser = ParserRunner::new(self.cfg().clone());
+        match parser.eval(src.to_string()) {
+            Err(errs) => {
+                let kind = errs
+                    .iter()
+                    .filter(|e| e.core().kind == ErrorKind::ExpectNextLine)
+                    .map(|e| {
+                        let msg = e.core().sub_messages.last().unwrap();
+                        // ExpectNextLine error must have msg otherwise it's a bug
+                        msg.get_msg().first().unwrap().to_owned()
+                    })
+                    .next();
+                if let Some(kind) = kind {
+                    return BlockKind::from(kind.as_str());
+                }
+                if errs
+                    .iter()
+                    .any(|err| err.core.main_message.contains("\"\"\""))
+                {
+                    return BlockKind::MultiLineStr;
+                }
+                BlockKind::Error
+            }
+            Ok(_) => {
+                if src.contains("Class") {
+                    return BlockKind::ClassDef;
+                }
+                BlockKind::None
+            }
+        }
     }
 }
 
@@ -1157,7 +1191,7 @@ impl PyScriptGenerator {
             "{}def __init__(self, param__):\n",
             "    ".repeat(self.level + 1)
         );
-        match classdef.__new__.non_default_params().unwrap()[0].typ() {
+        match classdef.constructor.non_default_params().unwrap()[0].typ() {
             Type::Record(rec) => {
                 for field in rec.keys() {
                     let vis = if field.vis.is_private() { "__" } else { "" };

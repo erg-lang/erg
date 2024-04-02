@@ -521,7 +521,9 @@ impl StyledStrings {
     /// ```
     pub fn push_str(&mut self, s: &str) {
         if self.color_is(Color::Gray) {
-            self.texts.last_mut().unwrap().text.push_str(s);
+            if let Some(ss) = self.texts.last_mut() {
+                ss.text.push_str(s)
+            }
         } else {
             self.texts.push(StyledString::new(s, None, None));
         }

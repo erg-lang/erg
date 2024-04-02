@@ -115,7 +115,7 @@ add|A <: SAdd| x, y: A = x.`_+_` y
 
 C = Class {i = Int}
 C.
-    new i = Self.__new__ {i;}
+    new i = Self {i;}
     # C|<: Add(C)|で明示的に実装したわけでないことに注意
     `_+_` self, other: Self = Self.new {i = self::i + other::i}
 
@@ -134,7 +134,7 @@ add|A <: Add| x, y: A = x.`_+_` y
 
 C = Class {i = Int}
 C.
-    new i = Self.__new__ {i;}
+    new i = Self {i;}
     `_+_` self, other: Self = Self.new {i = self::i + other::i}
 
 add C.new(1), C.new(2) # TypeError: C is not subclass of Add

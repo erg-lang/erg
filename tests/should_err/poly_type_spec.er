@@ -1,0 +1,5 @@
+f _: Array!() = None # ERR
+g _: Array!(Int, M := 1) = None # ERR
+h _: Array!(Int, N := 1, N := 2) = None # ERR
+
+_ = f, g, h

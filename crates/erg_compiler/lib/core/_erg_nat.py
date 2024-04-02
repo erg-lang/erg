@@ -146,3 +146,6 @@ class NatMut(IntMut):  # and Nat
     def times(self, f):
         for _ in range(self.value):
             f()
+
+    def copy(self):
+        return NatMut(self.value)

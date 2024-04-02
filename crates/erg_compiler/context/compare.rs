@@ -11,7 +11,7 @@ use erg_common::{Str, Triple};
 
 use crate::context::eval::UndoableLinkedList;
 use crate::context::initialize::const_func::sub_tpdict_get;
-use crate::ty::constructors::{self, and, bounded, not, or, poly};
+use crate::ty::constructors::{self, and, bounded, not, or, poly, refinement};
 use crate::ty::free::{Constraint, FreeKind, FreeTyVar};
 use crate::ty::typaram::{TyParam, TyParamOrdering};
 use crate::ty::value::ValueObj;
@@ -87,7 +87,10 @@ impl Context {
                 }
                 FreeKind::Unbound { constraint, .. }
                 | FreeKind::NamedUnbound { constraint, .. } => {
-                    let t = constraint.get_type().unwrap();
+                    let Some(t) = constraint.get_type() else {
+                        log!(err "Invalid type variable: {fv}");
+                        return false;
+                    };
                     if DEBUG_MODE && t == &Uninited {
                         panic!("Uninited type variable: {fv}");
                     }
@@ -377,7 +380,11 @@ impl Context {
                 let same_params_len = ls.non_default_params.len() == rs.non_default_params.len()
                     || rs.var_params.is_some();
                 // && ls.default_params.len() <= rs.default_params.len();
-                let return_t_judge = self.supertype_of(&ls.return_t, &rs.return_t); // covariant
+                let rhs_ret = rs
+                    .return_t
+                    .clone()
+                    .replace_params(rs.param_names(), ls.param_names());
+                let return_t_judge = self.supertype_of(&ls.return_t, &rhs_ret); // covariant
                 let non_defaults_judge = ls
                     .non_default_params
                     .iter()
@@ -538,6 +545,9 @@ impl Context {
                 true
             }
             (Bool, Guard { .. }) => true,
+            (Guard(lhs), Guard(rhs)) => {
+                lhs.target == rhs.target && self.supertype_of(&lhs.to, &rhs.to)
+            }
             (Mono(n), NamedTuple(_)) => &n[..] == "GenericNamedTuple" || &n[..] == "GenericTuple",
             (Mono(n), Record(_)) => &n[..] == "Record",
             (ty @ (Type | ClassType | TraitType), Record(rec)) => {
@@ -795,8 +805,12 @@ impl Context {
                 }
                 // [Int; 2] :> [Int; 3]
                 if &ln[..] == "Array" || &ln[..] == "Set" {
-                    let lt = self.convert_tp_into_type(lparams[0].clone()).unwrap();
-                    let rt = self.convert_tp_into_type(rparams[0].clone()).unwrap();
+                    let Ok(lt) = self.convert_tp_into_type(lparams[0].clone()) else {
+                        return false;
+                    };
+                    let Ok(rt) = self.convert_tp_into_type(rparams[0].clone()) else {
+                        return false;
+                    };
                     let llen = lparams[1].clone();
                     let rlen = rparams[1].clone();
                     self.supertype_of(&lt, &rt)
@@ -1201,8 +1215,8 @@ impl Context {
                 l @ (TyParam::FreeVar(_) | TyParam::Erased(_)),
                 r @ (TyParam::FreeVar(_) | TyParam::Erased(_)),
             ) /* if v.is_unbound() */ => {
-                let l_t = self.get_tp_t(l).unwrap();
-                let r_t = self.get_tp_t(r).unwrap();
+                let l_t = self.get_tp_t(l).ok()?;
+                let r_t = self.get_tp_t(r).ok()?;
                 if self.supertype_of(&l_t, &r_t) || self.subtype_of(&l_t, &r_t) {
                     Some(Any)
                 } else { Some(NotEqual) }
@@ -1215,8 +1229,8 @@ impl Context {
             // try_cmp((n: ?K), "a") -> Some(Any)
             // try_cmp((n: Int), "a") -> Some(NotEqual)
             (l @ (TyParam::Erased(_) | TyParam::FreeVar(_)), p) => {
-                let lt = self.get_tp_t(l).unwrap();
-                let pt = self.get_tp_t(p).unwrap();
+                let lt = self.get_tp_t(l).ok()?;
+                let pt = self.get_tp_t(p).ok()?;
                 let l_inf = self.inf(&lt);
                 let l_sup = self.sup(&lt);
                 if let (Some(inf), Some(sup)) = (l_inf, l_sup) {
@@ -1297,7 +1311,7 @@ impl Context {
     /// union(Array(Int, 2), Array(Str, 2)) == Array(Int or Str, 2)
     /// union(Array(Int, 2), Array(Str, 3)) == Array(Int, 2) or Array(Int, 3)
     /// union({ .a = Int }, { .a = Str }) == { .a = Int or Str }
-    /// union({ .a = Int }, { .a = Int; .b = Int }) == { .a = Int }
+    /// union({ .a = Int }, { .a = Int; .b = Int }) == { .a = Int } or { .a = Int; .b = Int } # not to lost `b` information
     /// union((A and B) or C) == (A or C) and (B or C)
     /// ```
     pub(crate) fn union(&self, lhs: &Type, rhs: &Type) -> Type {
@@ -1319,7 +1333,7 @@ impl Context {
                     union
                 }
             }
-            (Record(l), Record(r)) => {
+            (Record(l), Record(r)) if l.len() == r.len() && l.len() == 1 => {
                 let mut union = Dict::new();
                 for (l_k, l_v) in l.iter() {
                     if let Some((r_k, r_v)) = r.get_key_value(l_k) {
@@ -1500,6 +1514,30 @@ impl Context {
         }
     }
 
+    pub(crate) fn union_pred(&self, lhs: Predicate, rhs: Predicate) -> Predicate {
+        match (
+            self.is_super_pred_of(&lhs, &rhs),
+            self.is_sub_pred_of(&lhs, &rhs),
+        ) {
+            (true, true) => lhs,  // lhs = rhs
+            (true, false) => lhs, // lhs :> rhs
+            (false, true) => rhs,
+            (false, false) => lhs | rhs,
+        }
+    }
+
+    pub(crate) fn intersection_pred(&self, lhs: Predicate, rhs: Predicate) -> Predicate {
+        match (
+            self.is_super_pred_of(&lhs, &rhs),
+            self.is_sub_pred_of(&lhs, &rhs),
+        ) {
+            (true, true) => lhs,
+            (true, false) => rhs,
+            (false, true) => lhs,
+            (false, false) => lhs & rhs,
+        }
+    }
+
     pub(crate) fn union_refinement(
         &self,
         lhs: &RefinementType,
@@ -1509,8 +1547,8 @@ impl Context {
         let union = self.union(&lhs.t, &rhs.t);
         let name = lhs.var.clone();
         let rhs_pred = rhs.pred.clone().change_subject_name(name);
-        // FIXME: predの包含関係も考慮する
-        RefinementType::new(lhs.var.clone(), union, *lhs.pred.clone() | rhs_pred)
+        let union_pred = self.union_pred(*lhs.pred.clone(), rhs_pred);
+        RefinementType::new(lhs.var.clone(), union, union_pred)
     }
 
     /// Returns intersection of two types (`A and B`).
@@ -1612,8 +1650,45 @@ impl Context {
     }
 
     /// ```erg
+    /// narrow_type_by_pred(Int or NoneType, x != None) == Int
+    /// ```
+    #[allow(clippy::only_used_in_recursion)]
+    fn narrow_type_by_pred(&self, t: Type, pred: &Predicate) -> Type {
+        match (t, pred) {
+            (
+                Type::Or(l, r),
+                Predicate::NotEqual {
+                    rhs: TyParam::Value(v),
+                    ..
+                },
+            ) if v.is_none() => {
+                let l = self.narrow_type_by_pred(*l, pred);
+                let r = self.narrow_type_by_pred(*r, pred);
+                if l.is_nonetype() {
+                    r
+                } else if r.is_nonetype() {
+                    l
+                } else {
+                    or(l, r)
+                }
+            }
+            (Type::Refinement(refine), _) => {
+                let t = self.narrow_type_by_pred(*refine.t, pred);
+                refinement(refine.var.clone(), t, *refine.pred)
+            }
+            (other, Predicate::And(l, r)) => {
+                let other = self.narrow_type_by_pred(other, l);
+                self.narrow_type_by_pred(other, r)
+            }
+            // TODO:
+            (other, _) => other,
+        }
+    }
+
+    /// ```erg
     /// {I: Int | I > 0} and {I: Int | I < 10} == {I: Int | I > 0 and I < 10}
     /// {x: Int or NoneType | True} and {x: Obj | x != None} == {x: Int or NoneType | x != None} (== Int)
+    /// {x: Nat or None | x == 1 or x == None} and {x: Int | True} == {x: Int | x == 1}
     /// ```
     fn intersection_refinement(
         &self,
@@ -1623,7 +1698,14 @@ impl Context {
         let intersec = self.intersection(&lhs.t, &rhs.t);
         let name = lhs.var.clone();
         let rhs_pred = rhs.pred.clone().change_subject_name(name);
-        RefinementType::new(lhs.var.clone(), intersec, *lhs.pred.clone() & rhs_pred)
+        let intersection_pred = self.intersection_pred(*lhs.pred.clone(), rhs_pred);
+        let intersec = self.narrow_type_by_pred(intersec, &intersection_pred);
+        let Some(pred) =
+            self.eliminate_type_mismatched_preds(&lhs.var, &intersec, intersection_pred)
+        else {
+            return RefinementType::new(lhs.var.clone(), intersec, Predicate::TRUE);
+        };
+        RefinementType::new(lhs.var.clone(), intersec, pred)
     }
 
     /// ```erg
@@ -1782,6 +1864,50 @@ impl Context {
             }
         }
         reduced
+    }
+
+    fn eliminate_type_mismatched_preds(
+        &self,
+        var: &str,
+        t: &Type,
+        pred: Predicate,
+    ) -> Option<Predicate> {
+        match pred {
+            Predicate::Equal { ref lhs, ref rhs }
+            | Predicate::NotEqual { ref lhs, ref rhs }
+            | Predicate::GreaterEqual { ref lhs, ref rhs }
+            | Predicate::LessEqual { ref lhs, ref rhs }
+                if lhs == var =>
+            {
+                let rhs_t = self.get_tp_t(rhs).unwrap_or(Obj);
+                if !self.subtype_of(&rhs_t, t) {
+                    None
+                } else {
+                    Some(pred)
+                }
+            }
+            Predicate::And(l, r) => {
+                let l = self.eliminate_type_mismatched_preds(var, t, *l);
+                let r = self.eliminate_type_mismatched_preds(var, t, *r);
+                match (l, r) {
+                    (Some(l), Some(r)) => Some(l & r),
+                    (Some(l), None) => Some(l),
+                    (None, Some(r)) => Some(r),
+                    (None, None) => None,
+                }
+            }
+            Predicate::Or(l, r) => {
+                let l = self.eliminate_type_mismatched_preds(var, t, *l);
+                let r = self.eliminate_type_mismatched_preds(var, t, *r);
+                match (l, r) {
+                    (Some(l), Some(r)) => Some(l | r),
+                    (Some(l), None) => Some(l),
+                    (None, Some(r)) => Some(r),
+                    (None, None) => None,
+                }
+            }
+            _ => Some(pred),
+        }
     }
 
     /// see doc/LANG/compiler/refinement_subtyping.md

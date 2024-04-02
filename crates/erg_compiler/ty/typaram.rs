@@ -3,6 +3,7 @@ use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Range, RangeInclusive, Sub};
 use std::sync::Arc;
 
+use erg_common::consts::DEBUG_MODE;
 use erg_common::dict::Dict;
 use erg_common::set::Set;
 use erg_common::traits::{LimitedDisplay, StructuralEq};
@@ -1148,6 +1149,29 @@ impl TyParam {
         }
     }
 
+    pub fn coerce(&self, list: Option<&UndoableLinkedList>) {
+        if let Some(list) = list {
+            self.undoable_coerce(list);
+        } else {
+            self.destructive_coerce();
+        }
+    }
+
+    pub fn undoable_coerce(&self, list: &UndoableLinkedList) {
+        match self {
+            TyParam::FreeVar(fv) if fv.is_linked() => {
+                fv.crack().undoable_coerce(list);
+            }
+            TyParam::FreeVar(fv) if fv.is_unbound_and_typed() => {
+                let typ = fv.get_type().unwrap();
+                typ.undoable_coerce(list);
+            }
+            TyParam::Type(t) => t.undoable_coerce(list),
+            // TODO:
+            _ => {}
+        }
+    }
+
     pub fn destructive_coerce(&self) {
         match self {
             TyParam::FreeVar(fv) if fv.is_linked() => {
@@ -1740,7 +1764,12 @@ impl TyParam {
         new_constraint: Constraint,
         list: &UndoableLinkedList,
     ) {
-        let level = self.level().unwrap();
+        let Some(level) = self.level() else {
+            if DEBUG_MODE {
+                todo!();
+            }
+            return;
+        };
         let new = if let Some(name) = self.unbound_name() {
             Self::named_free_var(name, level, new_constraint)
         } else {

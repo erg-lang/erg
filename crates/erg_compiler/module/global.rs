@@ -5,7 +5,7 @@ use erg_common::spawn::safe_yield;
 
 use crate::context::{Context, ModuleContext};
 
-use super::cache::{ModuleEntry, SharedModuleCache};
+use super::cache::{ModuleEntry, SharedGeneralizationCache, SharedModuleCache};
 use super::errors::{SharedCompileErrors, SharedCompileWarnings};
 use super::graph::SharedModuleGraph;
 use super::impls::SharedTraitImpls;
@@ -25,6 +25,7 @@ pub struct SharedCompilerResource {
     pub promises: SharedPromises,
     pub errors: SharedCompileErrors,
     pub warns: SharedCompileWarnings,
+    pub gen_cache: SharedGeneralizationCache,
 }
 
 impl SharedCompilerResource {
@@ -41,6 +42,7 @@ impl SharedCompilerResource {
             promises: SharedPromises::new(graph, NormalizedPathBuf::from(cfg.input.path())),
             errors: SharedCompileErrors::new(),
             warns: SharedCompileWarnings::new(),
+            gen_cache: SharedGeneralizationCache::new(),
         };
         Context::init_builtins(cfg, self_.clone());
         self_

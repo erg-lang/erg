@@ -1,10 +1,10 @@
 use std::option::Option; // conflicting to Type::Option
 
+use erg_common::levenshtein::get_similar_name;
 #[allow(unused)]
 use erg_common::log;
 use erg_common::traits::{Locational, Stream};
-use erg_common::Str;
-use erg_common::{assume_unreachable, dict, set, try_map_mut};
+use erg_common::{assume_unreachable, dict, failable_map_mut, set, Str};
 
 use ast::{
     NonDefaultParamSignature, ParamTySpec, PreDeclTypeSpec, TypeBoundSpec, TypeBoundSpecs, TypeSpec,
@@ -19,7 +19,9 @@ use erg_parser::Parser;
 use crate::ty::free::{CanbeFree, Constraint, HasLevel};
 use crate::ty::typaram::{IntervalOp, OpKind, TyParam, TyParamLambda, TyParamOrdering};
 use crate::ty::value::ValueObj;
-use crate::ty::{constructors::*, Predicate, RefinementType, VisibilityModifier};
+use crate::ty::{
+    constructors::*, CastTarget, GuardType, Predicate, RefinementType, VisibilityModifier,
+};
 use crate::ty::{Field, HasType, ParamTy, SubrKind, SubrType, Type};
 use crate::type_feature_error;
 use crate::varinfo::{AbsLocation, VarInfo};
@@ -166,36 +168,43 @@ impl Context {
         &self,
         bounds: &TypeBoundSpecs,
         mode: RegistrationMode,
-    ) -> TyCheckResult<TyVarCache> {
+    ) -> Failable<TyVarCache> {
+        let mut errs = TyCheckErrors::empty();
         let mut tv_cache = TyVarCache::new(self.level, self);
         for bound in bounds.iter() {
-            self.instantiate_ty_bound(bound, &mut tv_cache, mode)?;
+            if let Err(es) = self.instantiate_ty_bound(bound, &mut tv_cache, mode) {
+                errs.extend(es);
+            }
         }
         for tv in tv_cache.tyvar_instances.values() {
             if tv.constraint().map(|c| c.is_uninited()).unwrap_or(false) {
-                return Err(TyCheckErrors::from(TyCheckError::no_var_error(
+                errs.push(TyCheckError::no_var_error(
                     self.cfg.input.clone(),
                     line!() as usize,
                     bounds.loc(),
                     self.caused_by(),
                     &tv.local_name(),
                     self.get_similar_name(&tv.local_name()),
-                )));
+                ));
             }
         }
         for tp in tv_cache.typaram_instances.values() {
             if tp.constraint().map(|c| c.is_uninited()).unwrap_or(false) {
-                return Err(TyCheckErrors::from(TyCheckError::no_var_error(
+                errs.push(TyCheckError::no_var_error(
                     self.cfg.input.clone(),
                     line!() as usize,
                     bounds.loc(),
                     self.caused_by(),
                     &tp.to_string(),
                     self.get_similar_name(&tp.to_string()),
-                )));
+                ));
             }
         }
-        Ok(tv_cache)
+        if errs.is_empty() {
+            Ok(tv_cache)
+        } else {
+            Err((tv_cache, errs))
+        }
     }
 
     pub(crate) fn instantiate_var_sig_t(
@@ -237,9 +246,13 @@ impl Context {
             }
             None => None,
         };
-        let mut tmp_tv_cache = self
-            .instantiate_ty_bounds(&sig.bounds, PreRegister)
-            .map_err(|errs| (Type::Failure, errs))?;
+        let mut tmp_tv_cache = match self.instantiate_ty_bounds(&sig.bounds, PreRegister) {
+            Ok(tv_cache) => tv_cache,
+            Err((tv_cache, es)) => {
+                errs.extend(es);
+                tv_cache
+            }
+        };
         let mut non_defaults = vec![];
         for (n, param) in sig.params.non_defaults.iter().enumerate() {
             let opt_decl_t = opt_decl_sig_t
@@ -260,7 +273,7 @@ impl Context {
                 }
             }
         }
-        let var_args = if let Some(var_args) = sig.params.var_params.as_ref() {
+        let var_params = if let Some(var_args) = sig.params.var_params.as_ref() {
             let opt_decl_t = opt_decl_sig_t
                 .as_ref()
                 .and_then(|subr| subr.var_params.as_ref().map(|v| v.as_ref()));
@@ -302,7 +315,7 @@ impl Context {
                 }
             }
         }
-        let kw_var_args = if let Some(kw_var_args) = sig.params.kw_var_params.as_ref() {
+        let kw_var_params = if let Some(kw_var_args) = sig.params.kw_var_params.as_ref() {
             let opt_decl_t = opt_decl_sig_t
                 .as_ref()
                 .and_then(|subr| subr.kw_var_params.as_ref().map(|v| v.as_ref()));
@@ -335,7 +348,15 @@ impl Context {
                 mode,
                 false,
             ) {
-                Ok(ty) => ty,
+                Ok(ty) => {
+                    let params = non_defaults
+                        .iter()
+                        .chain(&var_params)
+                        .chain(&defaults)
+                        .chain(&kw_var_params)
+                        .filter_map(|pt| pt.name());
+                    self.recover_guard(ty, params)
+                }
                 Err(es) => {
                     errs.extend(es);
                     Type::Failure
@@ -343,7 +364,7 @@ impl Context {
             }
         } else {
             // preregisterならouter scopeで型宣言(see inference.md)
-            let level = if mode == PreRegister {
+            let level = if mode.is_preregister() {
                 self.level
             } else {
                 self.level + 1
@@ -352,9 +373,21 @@ impl Context {
         };
         // tmp_tv_cache.warn_isolated_vars(self);
         let typ = if sig.ident.is_procedural() {
-            proc(non_defaults, var_args, defaults, kw_var_args, spec_return_t)
+            proc(
+                non_defaults,
+                var_params,
+                defaults,
+                kw_var_params,
+                spec_return_t,
+            )
         } else {
-            func(non_defaults, var_args, defaults, kw_var_args, spec_return_t)
+            func(
+                non_defaults,
+                var_params,
+                defaults,
+                kw_var_params,
+                spec_return_t,
+            )
         };
         if errs.is_empty() {
             Ok(typ)
@@ -374,7 +407,7 @@ impl Context {
         not_found_is_qvar: bool,
     ) -> Failable<Type> {
         let gen_free_t = || {
-            let level = if mode == PreRegister {
+            let level = if mode.is_preregister() {
                 self.level
             } else {
                 self.level + 1
@@ -392,7 +425,12 @@ impl Context {
             .map_err(|errs| {
                 (
                     opt_decl_t.map_or(Type::Failure, |pt| pt.typ().clone()),
-                    errs,
+                    // Ignore errors if `mode == Normal`, because the errors have already been collected.
+                    if mode.is_normal() {
+                        TyCheckErrors::empty()
+                    } else {
+                        errs
+                    },
                 )
             })?
         } else {
@@ -870,60 +908,120 @@ impl Context {
                     ));
                 };
                 let mut errs = TyCheckErrors::empty();
-                // FIXME: kw args
                 let mut new_params = vec![];
                 for ((i, arg), (name, param_vi)) in
                     args.pos_args().enumerate().zip(ctx.params.iter())
                 {
-                    let param = self.instantiate_const_expr(
+                    match self.instantiate_arg(
                         &arg.expr,
-                        Some((ctx, i)),
+                        param_vi,
+                        name.as_ref(),
+                        ctx,
+                        i,
                         tmp_tv_cache,
                         not_found_is_qvar,
-                    );
-                    let param = param
-                        .or_else(|e| {
-                            if not_found_is_qvar {
-                                let name = arg.expr.to_string();
-                                // FIXME: handle `::` as a right way
-                                let name = Str::rc(name.trim_start_matches("::"));
-                                let tp = TyParam::named_free_var(
-                                    name.clone(),
-                                    self.level,
-                                    Constraint::Uninited,
-                                );
-                                let varname = VarName::from_str(name);
-                                tmp_tv_cache.push_or_init_typaram(&varname, &tp, self)?;
-                                Ok(tp)
-                            } else {
-                                Err(e)
-                            }
-                        })
-                        .map_err(|err| (Type::Failure, err))?;
-                    let arg_t = self
-                        .get_tp_t(&param)
-                        .map_err(|err| {
-                            log!(err "{param}: {err}");
-                            err
-                        })
-                        .unwrap_or(Obj);
-                    if self.subtype_of(&arg_t, &param_vi.t) {
-                        new_params.push(param);
-                    } else {
-                        new_params.push(TyParam::erased(param_vi.t.clone()));
-                        errs.push(TyCheckError::type_mismatch_error(
-                            self.cfg.input.clone(),
-                            line!() as usize,
-                            arg.expr.loc(),
-                            self.caused_by(),
-                            name.as_ref().map_or("", |n| &n.inspect()[..]),
-                            Some(i),
-                            &param_vi.t,
-                            &arg_t,
-                            None,
-                            None,
-                        ));
+                    ) {
+                        Ok(tp) => new_params.push(tp),
+                        Err((tp, es)) => {
+                            errs.extend(es);
+                            new_params.push(tp);
+                        }
                     }
+                }
+                let mut missing_args = vec![];
+                // Fill kw params
+                for (_, param_vi) in ctx.params.iter().skip(args.pos_args.len()) {
+                    new_params.push(TyParam::erased(param_vi.t.clone()));
+                }
+                let mut passed_kw_args = set! {};
+                for (i, (name, param_vi)) in ctx.params.iter().skip(args.pos_args.len()).enumerate()
+                {
+                    if let Some(idx) = name.as_ref().and_then(|name| {
+                        args.kw_args
+                            .iter()
+                            .position(|arg| arg.keyword.inspect() == name.inspect())
+                    }) {
+                        let kw_arg = &args.kw_args[idx];
+                        let already_passed =
+                            !passed_kw_args.insert(kw_arg.keyword.inspect().clone());
+                        if already_passed {
+                            errs.push(TyCheckError::multiple_args_error(
+                                self.cfg.input.clone(),
+                                line!() as usize,
+                                kw_arg.loc(),
+                                other,
+                                self.caused_by(),
+                                name.as_ref().map_or("_", |n| &n.inspect()[..]),
+                            ));
+                        }
+                        let tp = match self.instantiate_arg(
+                            &kw_arg.expr,
+                            param_vi,
+                            name.as_ref(),
+                            ctx,
+                            i,
+                            tmp_tv_cache,
+                            not_found_is_qvar,
+                        ) {
+                            Ok(tp) => tp,
+                            Err((tp, es)) => {
+                                errs.extend(es);
+                                tp
+                            }
+                        };
+                        if let Some(old) = new_params.get_mut(args.pos_args.len() + idx) {
+                            *old = tp;
+                        } else {
+                            log!(err "{tp} / {} / {idx}", args.pos_args.len());
+                            // TODO: too many kw args
+                        }
+                    } else if !param_vi.kind.has_default() {
+                        missing_args
+                            .push(name.as_ref().map_or("_".into(), |n| n.inspect().clone()));
+                    }
+                }
+                if !missing_args.is_empty() {
+                    errs.push(TyCheckError::args_missing_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        args.loc(),
+                        other,
+                        self.caused_by(),
+                        missing_args,
+                    ));
+                }
+                if ctx.params.len() < args.pos_args.len() + args.kw_args.len() {
+                    errs.push(TyCheckError::too_many_args_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        args.loc(),
+                        other,
+                        self.caused_by(),
+                        ctx.params.len(),
+                        args.pos_args.len(),
+                        args.kw_args.len(),
+                    ));
+                }
+                let param_names = ctx
+                    .params
+                    .iter()
+                    .filter_map(|(n, _)| n.as_ref().map(|n| &n.inspect()[..]))
+                    .collect::<Vec<_>>();
+                for unexpected in args
+                    .kw_args
+                    .iter()
+                    .filter(|kw| !passed_kw_args.contains(&kw.keyword.inspect()[..]))
+                {
+                    let kw = unexpected.keyword.inspect();
+                    errs.push(TyCheckError::unexpected_kw_arg_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        unexpected.loc(),
+                        other,
+                        self.caused_by(),
+                        unexpected.keyword.inspect(),
+                        get_similar_name(param_names.iter(), kw).copied(),
+                    ));
                 }
                 // FIXME: non-builtin
                 let t = poly(ctx.typ.qual_name(), new_params);
@@ -933,6 +1031,63 @@ impl Context {
                     Err((t, errs))
                 }
             }
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn instantiate_arg(
+        &self,
+        arg: &ConstExpr,
+        param_vi: &VarInfo,
+        name: Option<&VarName>,
+        ctx: &Context,
+        i: usize,
+        tmp_tv_cache: &mut TyVarCache,
+        not_found_is_qvar: bool,
+    ) -> Failable<TyParam> {
+        let param =
+            self.instantiate_const_expr(arg, Some((ctx, i)), tmp_tv_cache, not_found_is_qvar);
+        let param = param
+            .or_else(|e| {
+                if not_found_is_qvar {
+                    let name = arg.to_string();
+                    // FIXME: handle `::` as a right way
+                    let name = Str::rc(name.trim_start_matches("::"));
+                    let tp =
+                        TyParam::named_free_var(name.clone(), self.level, Constraint::Uninited);
+                    let varname = VarName::from_str(name);
+                    tmp_tv_cache.push_or_init_typaram(&varname, &tp, self)?;
+                    Ok(tp)
+                } else {
+                    Err(e)
+                }
+            })
+            .map_err(|err| (TyParam::Failure, err))?;
+        let arg_t = self
+            .get_tp_t(&param)
+            .map_err(|err| {
+                log!(err "{param}: {err}");
+                err
+            })
+            .unwrap_or(Obj);
+        if self.subtype_of(&arg_t, &param_vi.t) {
+            Ok(param)
+        } else {
+            let tp = TyParam::erased(param_vi.t.clone());
+            let errs = TyCheckError::type_mismatch_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                arg.loc(),
+                self.caused_by(),
+                name.as_ref().map_or("", |n| &n.inspect()[..]),
+                Some(i),
+                &param_vi.t,
+                &arg_t,
+                None,
+                None,
+            )
+            .into();
+            Err((tp, errs))
         }
     }
 
@@ -1232,37 +1387,52 @@ impl Context {
                 Ok(TyParam::Record(tp_rec))
             }
             ast::ConstExpr::Lambda(lambda) => {
-                let _tmp_tv_cache =
-                    self.instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)?;
+                let mut errs = TyCheckErrors::empty();
+                let _tmp_tv_cache = match self
+                    .instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)
+                {
+                    Ok(tv_cache) => tv_cache,
+                    Err((tv_cache, es)) => {
+                        errs.extend(es);
+                        tv_cache
+                    }
+                };
                 // Since there are type variables and other variables that can be constrained within closures,
                 // they are `merge`d once and then `purge`d of type variables that are only used internally after instantiation.
                 tmp_tv_cache.merge(&_tmp_tv_cache);
                 let mut nd_params = Vec::with_capacity(lambda.sig.params.non_defaults.len());
                 for sig in lambda.sig.params.non_defaults.iter() {
-                    let pt = self
-                        .instantiate_param_ty(
-                            sig,
-                            None,
-                            tmp_tv_cache,
-                            RegistrationMode::Normal,
-                            ParamKind::NonDefault,
-                            not_found_is_qvar,
-                        )
-                        // TODO: continue
-                        .map_err(|(_, errs)| errs)?;
+                    let pt = match self.instantiate_param_ty(
+                        sig,
+                        None,
+                        tmp_tv_cache,
+                        RegistrationMode::Normal,
+                        ParamKind::NonDefault,
+                        not_found_is_qvar,
+                    ) {
+                        Ok(pt) => pt,
+                        Err((pt, es)) => {
+                            errs.extend(es);
+                            pt
+                        }
+                    };
                     nd_params.push(pt);
                 }
                 let var_params = if let Some(p) = lambda.sig.params.var_params.as_ref() {
-                    let pt = self
-                        .instantiate_param_ty(
-                            p,
-                            None,
-                            tmp_tv_cache,
-                            RegistrationMode::Normal,
-                            ParamKind::VarParams,
-                            not_found_is_qvar,
-                        )
-                        .map_err(|(_, errs)| errs)?;
+                    let pt = match self.instantiate_param_ty(
+                        p,
+                        None,
+                        tmp_tv_cache,
+                        RegistrationMode::Normal,
+                        ParamKind::VarParams,
+                        not_found_is_qvar,
+                    ) {
+                        Ok(pt) => pt,
+                        Err((pt, es)) => {
+                            errs.extend(es);
+                            pt
+                        }
+                    };
                     Some(pt)
                 } else {
                     None
@@ -1270,29 +1440,37 @@ impl Context {
                 let mut d_params = Vec::with_capacity(lambda.sig.params.defaults.len());
                 for sig in lambda.sig.params.defaults.iter() {
                     let expr = self.eval_const_expr(&sig.default_val)?;
-                    let pt = self
-                        .instantiate_param_ty(
-                            &sig.sig,
-                            None,
-                            tmp_tv_cache,
-                            RegistrationMode::Normal,
-                            ParamKind::Default(expr.t()),
-                            not_found_is_qvar,
-                        )
-                        .map_err(|(_, errs)| errs)?;
+                    let pt = match self.instantiate_param_ty(
+                        &sig.sig,
+                        None,
+                        tmp_tv_cache,
+                        RegistrationMode::Normal,
+                        ParamKind::Default(expr.t()),
+                        not_found_is_qvar,
+                    ) {
+                        Ok(pt) => pt,
+                        Err((pt, es)) => {
+                            errs.extend(es);
+                            pt
+                        }
+                    };
                     d_params.push(pt);
                 }
                 let kw_var_params = if let Some(p) = lambda.sig.params.kw_var_params.as_ref() {
-                    let pt = self
-                        .instantiate_param_ty(
-                            p,
-                            None,
-                            tmp_tv_cache,
-                            RegistrationMode::Normal,
-                            ParamKind::KwVarParams,
-                            not_found_is_qvar,
-                        )
-                        .map_err(|(_, errs)| errs)?;
+                    let pt = match self.instantiate_param_ty(
+                        p,
+                        None,
+                        tmp_tv_cache,
+                        RegistrationMode::Normal,
+                        ParamKind::KwVarParams,
+                        not_found_is_qvar,
+                    ) {
+                        Ok(pt) => pt,
+                        Err((pt, es)) => {
+                            errs.extend(es);
+                            pt
+                        }
+                    };
                     Some(pt)
                 } else {
                     None
@@ -1344,14 +1522,18 @@ impl Context {
                     body.push(param);
                 }
                 tmp_tv_cache.purge(&_tmp_tv_cache);
-                Ok(TyParam::Lambda(TyParamLambda::new(
-                    lambda.clone(),
-                    nd_params,
-                    var_params,
-                    d_params,
-                    kw_var_params,
-                    body,
-                )))
+                if errs.is_empty() {
+                    Ok(TyParam::Lambda(TyParamLambda::new(
+                        lambda.clone(),
+                        nd_params,
+                        var_params,
+                        d_params,
+                        kw_var_params,
+                        body,
+                    )))
+                } else {
+                    Err(errs)
+                }
             }
             ast::ConstExpr::BinOp(bin) => {
                 let Some(op) = token_kind_to_op_kind(bin.op.kind) else {
@@ -1535,31 +1717,43 @@ impl Context {
         tmp_tv_cache: &mut TyVarCache,
         mode: RegistrationMode,
         not_found_is_qvar: bool,
-    ) -> TyCheckResult<ParamTy> {
-        let t = self.instantiate_typespec_full(
+    ) -> Failable<ParamTy> {
+        let mut errs = TyCheckErrors::empty();
+        let t = match self.instantiate_typespec_full(
             &p.ty,
             opt_decl_t,
             tmp_tv_cache,
             mode,
             not_found_is_qvar,
-        )?;
-        if let Some(default_t) = default_t {
-            Ok(ParamTy::kw_default(
-                p.name.as_ref().unwrap().inspect().to_owned(),
-                t,
-                self.instantiate_typespec_full(
-                    default_t,
-                    opt_decl_t,
-                    tmp_tv_cache,
-                    mode,
-                    not_found_is_qvar,
-                )?,
-            ))
+        ) {
+            Ok(t) => t,
+            Err(es) => {
+                errs.extend(es);
+                Type::Failure
+            }
+        };
+        let pt = if let Some(default_t) = default_t {
+            let default = match self.instantiate_typespec_full(
+                default_t,
+                opt_decl_t,
+                tmp_tv_cache,
+                mode,
+                not_found_is_qvar,
+            ) {
+                Ok(t) => t,
+                Err(es) => {
+                    errs.extend(es);
+                    Type::Failure
+                }
+            };
+            ParamTy::kw_default(p.name.as_ref().unwrap().inspect().to_owned(), t, default)
         } else {
-            Ok(ParamTy::pos_or_kw(
-                p.name.as_ref().map(|t| t.inspect().to_owned()),
-                t,
-            ))
+            ParamTy::pos_or_kw(p.name.as_ref().map(|t| t.inspect().to_owned()), t)
+        };
+        if errs.is_empty() {
+            Ok(pt)
+        } else {
+            Err((pt, errs))
         }
     }
 
@@ -1686,6 +1880,29 @@ impl Context {
                 expr.loc(),
                 &format!("instantiating predicate `{expr}`")
             ),
+        }
+    }
+
+    #[inline]
+    fn recover_guard<'a>(&self, return_t: Type, mut params: impl Iterator<Item = &'a Str>) -> Type {
+        match return_t {
+            Type::Guard(GuardType {
+                namespace,
+                target: CastTarget::Expr(expr),
+                to,
+            }) => {
+                let target = if let Some(nth) = params.position(|p| Some(p) == expr.get_name()) {
+                    CastTarget::arg(nth, expr.get_name().unwrap().clone(), ().loc())
+                } else {
+                    CastTarget::Expr(expr)
+                };
+                Type::Guard(GuardType {
+                    namespace,
+                    target,
+                    to,
+                })
+            }
+            _ => return_t,
         }
     }
 
@@ -1829,6 +2046,28 @@ impl Context {
             // TODO: エラー処理(リテラルでない)はパーサーにやらせる
             TypeSpec::Enum(set) => {
                 let mut new_set = set! {};
+                // guard type (e.g. {x in Int})
+                if set.pos_args.len() == 1 {
+                    let expr = &set.pos_args().next().unwrap().expr;
+                    match expr {
+                        ConstExpr::BinOp(bin) if bin.op.is(TokenKind::InOp) => {
+                            if let Ok(to) = self.instantiate_const_expr_as_type(
+                                &bin.rhs,
+                                None,
+                                tmp_tv_cache,
+                                not_found_is_qvar,
+                            ) {
+                                let target = CastTarget::expr(bin.lhs.clone().downgrade());
+                                return Ok(Type::Guard(GuardType::new(
+                                    self.name.clone(),
+                                    target,
+                                    to,
+                                )));
+                            }
+                        }
+                        _ => {}
+                    }
+                }
                 for arg in set.pos_args() {
                     new_set.insert(self.instantiate_const_expr(
                         &arg.expr,
@@ -1857,11 +2096,21 @@ impl Context {
                 if let Some(Greater) = self.try_cmp(&l, &r) {
                     panic!("{l}..{r} is not a valid interval type (should be lhs <= rhs)")
                 }
-                Ok(int_interval(op, l, r))
+                let l_t = self.get_tp_t(&l).unwrap_or(Obj).derefine();
+                let r_t = self.get_tp_t(&r).unwrap_or(Obj).derefine();
+                let t = self.union(&l_t, &r_t);
+                Ok(interval(op, t, l, r))
             }
             TypeSpec::Subr(subr) => {
+                let mut errs = TyCheckErrors::empty();
                 let mut inner_tv_ctx = if !subr.bounds.is_empty() {
-                    let tv_cache = self.instantiate_ty_bounds(&subr.bounds, mode)?;
+                    let tv_cache = match self.instantiate_ty_bounds(&subr.bounds, mode) {
+                        Ok(tv_cache) => tv_cache,
+                        Err((tv_cache, es)) => {
+                            errs.extend(es);
+                            tv_cache
+                        }
+                    };
                     Some(tv_cache)
                 } else {
                     None
@@ -1874,7 +2123,7 @@ impl Context {
                 } else {
                     tmp_tv_cache
                 };
-                let non_defaults = try_map_mut(subr.non_defaults.iter(), |p| {
+                let non_defaults = match failable_map_mut(subr.non_defaults.iter(), |p| {
                     self.instantiate_func_param_spec(
                         p,
                         opt_decl_t,
@@ -1883,7 +2132,15 @@ impl Context {
                         mode,
                         not_found_is_qvar,
                     )
-                })?;
+                }) {
+                    Ok(v) => v,
+                    Err((v, es)) => {
+                        for e in es {
+                            errs.extend(e);
+                        }
+                        v
+                    }
+                };
                 let var_params = subr
                     .var_params
                     .as_ref()
@@ -1896,9 +2153,10 @@ impl Context {
                             mode,
                             not_found_is_qvar,
                         )
+                        .map_err(|(_, es)| es)
                     })
                     .transpose()?;
-                let defaults = try_map_mut(subr.defaults.iter(), |p| {
+                let defaults = failable_map_mut(subr.defaults.iter(), |p| {
                     self.instantiate_func_param_spec(
                         &p.param,
                         opt_decl_t,
@@ -1907,7 +2165,13 @@ impl Context {
                         mode,
                         not_found_is_qvar,
                     )
-                })?
+                })
+                .unwrap_or_else(|(pts, es)| {
+                    for e in es {
+                        errs.extend(e);
+                    }
+                    pts
+                })
                 .into_iter()
                 .collect();
                 let kw_var_params = subr
@@ -1922,24 +2186,42 @@ impl Context {
                             mode,
                             not_found_is_qvar,
                         )
+                        .map_err(|(_, es)| es)
                     })
                     .transpose()?;
-                let return_t = self.instantiate_typespec_full(
+                let return_t = match self.instantiate_typespec_full(
                     &subr.return_t,
                     opt_decl_t,
                     tmp_tv_ctx,
                     mode,
                     not_found_is_qvar,
-                )?;
+                ) {
+                    Ok(t) => t,
+                    Err(es) => {
+                        errs.extend(es);
+                        Type::Failure
+                    }
+                };
+                let params = non_defaults
+                    .iter()
+                    .chain(&var_params)
+                    .chain(&defaults)
+                    .chain(&kw_var_params)
+                    .filter_map(|pt| pt.name());
+                let return_t = self.recover_guard(return_t, params);
                 // no quantification at this point (in `generalize_t`)
-                Ok(subr_t(
-                    SubrKind::from(subr.arrow.kind),
-                    non_defaults,
-                    var_params,
-                    defaults,
-                    kw_var_params,
-                    return_t,
-                ))
+                if errs.is_empty() {
+                    Ok(subr_t(
+                        SubrKind::from(subr.arrow.kind),
+                        non_defaults,
+                        var_params,
+                        defaults,
+                        kw_var_params,
+                        return_t,
+                    ))
+                } else {
+                    Err(errs)
+                }
             }
             TypeSpec::TypeApp { spec, args } => {
                 type_feature_error!(
@@ -1960,9 +2242,9 @@ impl Context {
                 tmp_tv_cache.push_refine_var(&name, t.clone(), self);
                 let pred = self
                     .instantiate_pred_from_expr(&refine.pred, tmp_tv_cache)
-                    .map_err(|err| {
+                    .map_err(|errs| {
                         tmp_tv_cache.remove(name.inspect());
-                        err
+                        errs
                     })?;
                 tmp_tv_cache.remove(name.inspect());
                 let refine =

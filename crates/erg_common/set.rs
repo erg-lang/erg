@@ -186,6 +186,7 @@ impl<T: Hash + Eq> Set<T> {
         self.elems.contains(value)
     }
 
+    /// newly inserted: true, already present: false
     #[inline]
     pub fn insert(&mut self, value: T) -> bool {
         self.elems.insert(value)

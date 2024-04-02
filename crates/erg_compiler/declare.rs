@@ -3,7 +3,7 @@ use std::mem;
 use erg_common::consts::PYTHON_MODE;
 use erg_common::error::Location;
 use erg_common::traits::{Locational, Runnable, Stream};
-use erg_common::{enum_unwrap, fn_name, log, set, Str, Triple};
+use erg_common::{fn_name, log, set, Str, Triple};
 
 use erg_parser::ast::{self, AscriptionKind, DefId, Identifier, TypeAppArgsKind, VarName, AST};
 use erg_parser::build_ast::ASTBuildable;
@@ -45,11 +45,16 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         } else {
             None
         };
-        let chunk = self.declare_chunk(body.block.remove(0), true)?;
+        let rhs = body.block.remove(0);
+        let chunk = self.declare_chunk(rhs, true)?;
         let py_name = match &chunk {
-            hir::Expr::TypeAsc(tasc) => enum_unwrap!(tasc.expr.as_ref(), hir::Expr::Accessor)
-                .local_name()
-                .map(Str::rc),
+            hir::Expr::TypeAsc(tasc) => {
+                if let hir::Expr::Accessor(acc) = tasc.expr.as_ref() {
+                    acc.local_name().map(Str::rc)
+                } else {
+                    None
+                }
+            }
             hir::Expr::Accessor(hir::Accessor::Ident(ident)) => ident.vi.py_name.clone(),
             _ => sig.escaped(),
         };
@@ -336,7 +341,14 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
     fn fake_lower_signature(&self, sig: ast::Signature) -> LowerResult<hir::Signature> {
         match sig {
             ast::Signature::Var(var) => {
-                let ident = var.ident().unwrap().clone();
+                let Some(ident) = var.ident().cloned() else {
+                    return Err(LowerErrors::from(LowerError::declare_error(
+                        self.cfg().input.clone(),
+                        line!() as usize,
+                        var.loc(),
+                        self.module.context.caused_by(),
+                    )));
+                };
                 let ident = hir::Identifier::bare(ident);
                 let t_spec = if let Some(ts) = var.t_spec {
                     let expr = self.fake_lower_expr(*ts.t_spec_as_expr.clone())?;
@@ -978,7 +990,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             let res = if self.module.context.is_class(sup) {
                 tmp.register_base_class(&self.module.context, sup.clone())
             } else {
-                tmp.register_marker_trait(&self.module.context, sup.clone())
+                tmp.register_trait(&self.module.context, sup.clone())
             };
             res.map_err(|err| {
                 let ctx = self.module.context.rec_get_mut_type(&name).unwrap();

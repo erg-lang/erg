@@ -1,11 +1,13 @@
 use erg_common::config::ErgConfig;
 use erg_common::dict::Dict;
-use erg_common::error::MultiErrorDisplay;
+use erg_common::error::{ErrorDisplay, ErrorKind, MultiErrorDisplay};
+use erg_common::traits::BlockKind;
 use erg_common::traits::{ExitStatus, New, Runnable, Stream};
 use erg_common::Str;
 
 use erg_parser::ast::{VarName, AST};
 use erg_parser::build_ast::{ASTBuildable, ASTBuilder as DefaultASTBuilder};
+use erg_parser::ParserRunner;
 
 use crate::artifact::{BuildRunnable, Buildable, CompleteArtifact, IncompleteArtifact};
 use crate::context::{Context, ContextKind, ContextProvider, ModuleContext};
@@ -96,6 +98,39 @@ impl<ASTBuilder: ASTBuildable> Runnable for GenericHIRBuilder<ASTBuilder> {
         artifact.warns.write_all_stderr();
         Ok(artifact.object.to_string())
     }
+
+    fn expect_block(&self, src: &str) -> BlockKind {
+        let mut parser = ParserRunner::new(self.cfg().clone());
+        match parser.eval(src.to_string()) {
+            Err(errs) => {
+                let kind = errs
+                    .iter()
+                    .filter(|e| e.core().kind == ErrorKind::ExpectNextLine)
+                    .map(|e| {
+                        let msg = e.core().sub_messages.last().unwrap();
+                        // ExpectNextLine error must have msg otherwise it's a bug
+                        msg.get_msg().first().unwrap().to_owned()
+                    })
+                    .next();
+                if let Some(kind) = kind {
+                    return BlockKind::from(kind.as_str());
+                }
+                if errs
+                    .iter()
+                    .any(|err| err.core.main_message.contains("\"\"\""))
+                {
+                    return BlockKind::MultiLineStr;
+                }
+                BlockKind::Error
+            }
+            Ok(_) => {
+                if src.contains("Class") {
+                    return BlockKind::ClassDef;
+                }
+                BlockKind::None
+            }
+        }
+    }
 }
 
 impl<ASTBuilder: ASTBuildable> Buildable for GenericHIRBuilder<ASTBuilder> {
@@ -183,16 +218,24 @@ impl<ASTBuilder: ASTBuildable> GenericHIRBuilder<ASTBuilder> {
         let mut artifact = self.lowerer.lower(ast, mode)?;
         let ctx = &self.lowerer.get_context().unwrap().context;
         let effect_checker = SideEffectChecker::new(self.cfg().clone(), ctx);
-        let hir = effect_checker
-            .check(artifact.object, self.lowerer.module.context.name.clone())
-            .map_err(|(hir, errs)| {
+        let hir = if self.cfg().effect_check {
+            effect_checker
+                .check(artifact.object, self.lowerer.module.context.name.clone())
+                .map_err(|(hir, errs)| {
+                    self.lowerer.module.context.clear_invalid_vars();
+                    IncompleteArtifact::new(Some(hir), errs, artifact.warns.take_all().into())
+                })?
+        } else {
+            artifact.object
+        };
+        let hir = if self.cfg().ownership_check {
+            self.ownership_checker.check(hir).map_err(|(hir, errs)| {
                 self.lowerer.module.context.clear_invalid_vars();
                 IncompleteArtifact::new(Some(hir), errs, artifact.warns.take_all().into())
-            })?;
-        let hir = self.ownership_checker.check(hir).map_err(|(hir, errs)| {
-            self.lowerer.module.context.clear_invalid_vars();
-            IncompleteArtifact::new(Some(hir), errs, artifact.warns.take_all().into())
-        })?;
+            })?
+        } else {
+            hir
+        };
         Ok(CompleteArtifact::new(hir, artifact.warns))
     }
 

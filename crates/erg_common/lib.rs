@@ -52,7 +52,7 @@ pub fn open_read(filename: &str) -> std::io::Result<String> {
 
 pub fn read_file(mut f: std::fs::File) -> std::io::Result<String> {
     let mut s = "".to_string();
-    std::io::Read::read_to_string(&mut f, &mut s).unwrap();
+    std::io::Read::read_to_string(&mut f, &mut s)?;
     Ok(s)
 }
 
@@ -151,6 +151,31 @@ where
     Ok(v)
 }
 
+pub fn failable_map_mut<T, U, E, F, I>(i: I, mut f: F) -> Result<Vec<U>, (Vec<U>, Vec<E>)>
+where
+    F: FnMut(T) -> Result<U, (U, E)>,
+    I: Iterator<Item = T>,
+{
+    let mut v = vec![];
+    let mut errs = vec![];
+    for x in i {
+        match f(x) {
+            Ok(y) => {
+                v.push(y);
+            }
+            Err((y, e)) => {
+                v.push(y);
+                errs.push(e);
+            }
+        }
+    }
+    if errs.is_empty() {
+        Ok(v)
+    } else {
+        Err((v, errs))
+    }
+}
+
 pub fn unique_in_place<T: Eq + std::hash::Hash + Clone>(v: &mut Vec<T>) {
     let mut uniques = Set::new();
     v.retain(|e| uniques.insert(e.clone()));
@@ -158,7 +183,7 @@ pub fn unique_in_place<T: Eq + std::hash::Hash + Clone>(v: &mut Vec<T>) {
 
 /// at least, this is necessary for Windows and macOS
 pub fn normalize_path(path: PathBuf) -> PathBuf {
-    let verbatim_replaced = path.to_str().unwrap().replace("\\\\?\\", "");
+    let verbatim_replaced = path.to_string_lossy().replace("\\\\?\\", "");
     let lower = if !CASE_SENSITIVE {
         verbatim_replaced.to_lowercase()
     } else {

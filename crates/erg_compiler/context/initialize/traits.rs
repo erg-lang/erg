@@ -32,6 +32,10 @@ impl Context {
         let mut sized = Self::builtin_mono_trait(SIZED, 2);
         let t = fn0_met(mono(SIZED), Nat).quantify();
         sized.register_builtin_erg_decl(FUNDAMENTAL_LEN, t, Visibility::BUILTIN_PUBLIC);
+        let mut copy = Self::builtin_mono_trait(COPY, 2);
+        let Slf = mono_q(SELF, subtypeof(mono(COPY)));
+        let t = fn0_met(Slf.clone(), Slf).quantify();
+        copy.register_builtin_erg_decl(FUNC_COPY, t, Visibility::BUILTIN_PUBLIC);
         let mut mutable = Self::builtin_mono_trait(MUTABLE, 2);
         let Slf = mono_q(SELF, subtypeof(mono(IMMUTIZABLE)));
         let immut_t = proj(Slf.clone(), IMMUT_TYPE);
@@ -80,10 +84,16 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_READLINES),
         );
+        /* FileDescriptor */
+        let mut file_descriptor = Self::builtin_mono_trait(FILE_DESCRIPTOR, 2);
+        let Slf = mono_q(SELF, subtypeof(mono(FILE_DESCRIPTOR)));
+        let t = fn0_met(Slf.clone(), Nat).quantify();
+        file_descriptor.register_builtin_erg_decl(FUNC_FILENO, t, Visibility::BUILTIN_PUBLIC);
         /* IO! */
         let mut io = Self::builtin_mono_trait(MUTABLE_IO, 2);
         let Slf = mono(MUTABLE_IO);
         io.register_superclass(mono(MUTABLE_READABLE), &readable);
+        io.register_superclass(mono(FILE_DESCRIPTOR), &file_descriptor);
         io.register_builtin_decl(
             FUNC_MODE,
             fn0_met(Slf.clone(), Str),
@@ -107,12 +117,6 @@ impl Context {
             fn0_met(Slf.clone(), Bool),
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_CLOSED),
-        );
-        io.register_builtin_decl(
-            FUNC_FILENO,
-            fn0_met(Slf.clone(), Nat),
-            Visibility::BUILTIN_PUBLIC,
-            Some(FUNC_FILENO),
         );
         io.register_builtin_decl(
             PROC_FLUSH,
@@ -231,6 +235,140 @@ impl Context {
             Some(FUNDAMENTAL_ITER),
         );
         iterable.register_builtin_erg_decl(ITER, Type, Visibility::BUILTIN_PUBLIC);
+        let Slf = poly(ITERABLE, vec![ty_tp(T.clone())]);
+        let U = type_q(TY_U);
+        let t_map = fn1_met(
+            Slf.clone(),
+            func1(T.clone(), U.clone()),
+            poly(MAP, vec![ty_tp(U.clone())]),
+        )
+        .quantify();
+        iterable.register_builtin_decl(
+            FUNC_MAP,
+            t_map,
+            Visibility::BUILTIN_PUBLIC,
+            Some("Function::iterable_map"),
+        );
+        let t_filter = fn1_met(
+            Slf.clone(),
+            func1(T.clone(), Bool),
+            poly(FILTER, vec![ty_tp(T.clone())]),
+        )
+        .quantify();
+        iterable.register_builtin_decl(
+            FUNC_FILTER,
+            t_filter,
+            Visibility::BUILTIN_PUBLIC,
+            Some("Function::iterable_filter"),
+        );
+        let ret_t = poly(
+            TUPLE,
+            vec![TyParam::Array(vec![ty_tp(Nat), ty_tp(T.clone())])],
+        );
+        let t_enumerate = fn0_met(Slf.clone(), poly(ITERATOR, vec![ty_tp(ret_t)])).quantify();
+        iterable.register_builtin_decl(
+            FUNC_ENUMERATE,
+            t_enumerate,
+            Visibility::BUILTIN_PUBLIC,
+            Some("Function::enumerate"),
+        );
+        let t_zip = fn1_met(
+            Slf.clone(),
+            poly(ITERABLE, vec![ty_tp(U.clone())]),
+            poly(ZIP, vec![ty_tp(T.clone()), ty_tp(U.clone())]),
+        )
+        .quantify();
+        iterable.register_builtin_decl(
+            FUNC_ZIP,
+            t_zip,
+            Visibility::BUILTIN_PUBLIC,
+            Some("Function::zip"),
+        );
+        let t_reduce = fn2_met(
+            Slf.clone(),
+            T.clone(),
+            func2(T.clone(), T.clone(), T.clone()),
+            T.clone(),
+        )
+        .quantify();
+        iterable.register_builtin_decl(
+            FUNC_REDUCE,
+            t_reduce,
+            Visibility::BUILTIN_PUBLIC,
+            Some("Function::iterable_reduce"),
+        );
+        let t_nth = fn1_met(Slf.clone(), Nat, T.clone()).quantify();
+        iterable.register_builtin_decl(
+            FUNC_NTH,
+            t_nth,
+            Visibility::BUILTIN_PUBLIC,
+            Some("Function::iterable_nth"),
+        );
+        let t_skip = fn1_met(Slf.clone(), Nat, poly(ITERATOR, vec![ty_tp(T.clone())])).quantify();
+        iterable.register_builtin_decl(
+            FUNC_SKIP,
+            t_skip,
+            Visibility::BUILTIN_PUBLIC,
+            Some("Function::iterable_skip"),
+        );
+        let t_all = fn1_met(Slf.clone(), func1(T.clone(), Bool), Bool).quantify();
+        iterable.register_builtin_decl(
+            FUNC_ALL,
+            t_all,
+            Visibility::BUILTIN_PUBLIC,
+            Some("Function::iterable_all"),
+        );
+        let t_any = fn1_met(Slf.clone(), func1(T.clone(), Bool), Bool).quantify();
+        iterable.register_builtin_decl(
+            FUNC_ANY,
+            t_any,
+            Visibility::BUILTIN_PUBLIC,
+            Some("Function::iterable_any"),
+        );
+        let t_reversed = fn0_met(Slf.clone(), poly(ITERATOR, vec![ty_tp(T.clone())])).quantify();
+        iterable.register_builtin_decl(
+            FUNC_REVERSED,
+            t_reversed,
+            Visibility::BUILTIN_PUBLIC,
+            Some("Function::reversed"),
+        );
+        let t_position = fn1_met(Slf.clone(), func1(T.clone(), Bool), or(Nat, NoneType)).quantify();
+        iterable.register_builtin_decl(
+            FUNC_POSITION,
+            t_position,
+            Visibility::BUILTIN_PUBLIC,
+            Some("Function::iterable_position"),
+        );
+        let t_find =
+            fn1_met(Slf.clone(), func1(T.clone(), Bool), or(T.clone(), NoneType)).quantify();
+        iterable.register_builtin_decl(
+            FUNC_FIND,
+            t_find,
+            Visibility::BUILTIN_PUBLIC,
+            Some("Function::iterable_find"),
+        );
+        let t_chain = fn_met(
+            Slf.clone(),
+            vec![],
+            Some(kw(KW_ITERABLES, poly(ITERABLE, vec![ty_tp(T.clone())]))),
+            vec![],
+            None,
+            poly(ITERATOR, vec![ty_tp(T.clone())]),
+        )
+        .quantify();
+        iterable.register_builtin_decl(
+            FUNC_CHAIN,
+            t_chain,
+            Visibility::BUILTIN_PUBLIC,
+            Some("Function::iterable_chain"),
+        );
+        let t_into_array = fn0_met(Slf.clone(), unknown_len_array_t(T.clone())).quantify();
+        iterable.register_builtin_decl(
+            FUNC_INTO_ARRAY,
+            t_into_array,
+            Visibility::BUILTIN_PUBLIC,
+            Some("Function::list"),
+        );
         /* Iterator */
         let mut iterator = Self::builtin_poly_trait(ITERATOR, vec![PS::t_nd(TY_T)], 2);
         iterator.register_superclass(poly(ITERABLE, vec![ty_tp(T.clone())]), &iterable);
@@ -339,27 +477,27 @@ impl Context {
         );
         let mut context_manager = Self::builtin_mono_trait(CONTEXT_MANAGER, 2);
         let Slf = mono_q(SELF, subtypeof(mono(CONTEXT_MANAGER)));
-        let t = fn0_met(Slf.clone(), NoneType).quantify();
+        let t_enter = fn0_met(Slf.clone(), NoneType).quantify();
         context_manager.register_builtin_decl(
             FUNDAMENTAL_ENTER,
-            t,
+            t_enter,
             Visibility::BUILTIN_PUBLIC,
             Some(FUNDAMENTAL_ENTER),
         );
-        let t = no_var_fn_met(
+        let t_exit = no_var_fn_met(
             Slf,
             vec![
                 kw(EXC_TYPE, ClassType),
                 kw(EXC_VALUE, Obj),
-                kw(TRACEBACK, Obj), // TODO:
+                kw(ATTR_TRACEBACK, mono(TRACEBACK)),
             ],
             vec![],
-            NoneType,
+            Bool,
         )
         .quantify();
         context_manager.register_builtin_decl(
             FUNDAMENTAL_EXIT,
-            t,
+            t_exit,
             Visibility::BUILTIN_PUBLIC,
             Some(FUNDAMENTAL_EXIT),
         );
@@ -441,6 +579,41 @@ impl Context {
         num.register_superclass(poly(ADD, vec![]), &add);
         num.register_superclass(poly(SUB, vec![]), &sub);
         num.register_superclass(poly(MUL, vec![]), &mul);
+        /* ToBool */
+        let mut to_bool = Self::builtin_mono_trait(TO_BOOL, 2);
+        let _Slf = mono_q(SELF, subtypeof(mono(TO_BOOL)));
+        let op_t = fn0_met(_Slf.clone(), Bool).quantify();
+        to_bool.register_builtin_erg_decl(FUNDAMENTAL_BOOL, op_t, Visibility::BUILTIN_PUBLIC);
+        /* ToInt */
+        let mut to_int = Self::builtin_mono_trait(TO_INT, 2);
+        let _Slf = mono_q(SELF, subtypeof(mono(TO_INT)));
+        let op_t = fn0_met(_Slf.clone(), Int).quantify();
+        to_int.register_builtin_erg_decl(FUNDAMENTAL_INT, op_t, Visibility::BUILTIN_PUBLIC);
+        /* ToFloat */
+        let mut to_float = Self::builtin_mono_trait(TO_FLOAT, 2);
+        let _Slf = mono_q(SELF, subtypeof(mono(TO_FLOAT)));
+        let op_t = fn0_met(_Slf.clone(), Float).quantify();
+        to_float.register_builtin_erg_decl(FUNDAMENTAL_FLOAT, op_t, Visibility::BUILTIN_PUBLIC);
+        /* Round */
+        let mut round = Self::builtin_mono_trait(ROUND, 2);
+        let _Slf = mono_q(SELF, subtypeof(mono(ROUND)));
+        // TODO: Output <: Integral = Int # (default)
+        let op_t = fn_met(
+            _Slf.clone(),
+            vec![],
+            None,
+            vec![kw_default(KW_NDIGITS, Nat, Nat)],
+            None,
+            Int,
+        )
+        .quantify();
+        round.register_builtin_erg_decl(FUNDAMENTAL_ROUND, op_t, Visibility::BUILTIN_PUBLIC);
+        let op_t = fn0_met(_Slf.clone(), Int).quantify();
+        round.register_builtin_erg_decl(FUNDAMENTAL_TRUNC, op_t, Visibility::BUILTIN_PUBLIC);
+        let op_t = fn0_met(_Slf.clone(), Int).quantify();
+        round.register_builtin_erg_decl(FUNDAMENTAL_FLOOR, op_t, Visibility::BUILTIN_PUBLIC);
+        let op_t = fn0_met(_Slf.clone(), Int).quantify();
+        round.register_builtin_erg_decl(FUNDAMENTAL_CEIL, op_t, Visibility::BUILTIN_PUBLIC);
         self.register_builtin_type(mono(UNPACK), unpack, vis.clone(), Const, None);
         self.register_builtin_type(
             mono(INHERITABLE_TYPE),
@@ -451,6 +624,7 @@ impl Context {
         );
         self.register_builtin_type(mono(NAMED), named, vis.clone(), Const, None);
         self.register_builtin_type(mono(SIZED), sized, vis.clone(), Const, None);
+        self.register_builtin_type(mono(COPY), copy, vis.clone(), Const, None);
         self.register_builtin_type(mono(MUTABLE), mutable, vis.clone(), Const, None);
         self.register_builtin_type(mono(IMMUTIZABLE), immutizable, vis.clone(), Const, None);
         self.register_builtin_type(mono(MUTIZABLE), mutizable, vis.clone(), Const, None);
@@ -458,6 +632,13 @@ impl Context {
         self.register_builtin_type(
             mono(MUTABLE_READABLE),
             readable,
+            Visibility::BUILTIN_PRIVATE,
+            Const,
+            None,
+        );
+        self.register_builtin_type(
+            mono(FILE_DESCRIPTOR),
+            file_descriptor,
             Visibility::BUILTIN_PRIVATE,
             Const,
             None,
@@ -499,13 +680,17 @@ impl Context {
             Const,
             None,
         );
-        self.register_builtin_type(mono(EQ), eq, vis.clone(), Const, None);
+        self.register_builtin_type(mono(EQ), eq, vis.clone(), Const, Some(EQ));
         self.register_builtin_type(mono(IRREGULAR_EQ), irregular_eq, vis.clone(), Const, None);
-        self.register_builtin_type(mono(HASH), hash, vis.clone(), Const, None);
+        self.register_builtin_type(mono(HASH), hash, vis.clone(), Const, Some(HASH));
         self.register_builtin_type(mono(EQ_HASH), eq_hash, vis.clone(), Const, None);
         self.register_builtin_type(mono(PARTIAL_ORD), partial_ord, vis.clone(), Const, None);
-        self.register_builtin_type(mono(ORD), ord, vis.clone(), Const, None);
+        self.register_builtin_type(mono(ORD), ord, vis.clone(), Const, Some(ORD));
         self.register_builtin_type(mono(NUM), num, vis.clone(), Const, None);
+        self.register_builtin_type(mono(TO_BOOL), to_bool, vis.clone(), Const, None);
+        self.register_builtin_type(mono(TO_INT), to_int, vis.clone(), Const, None);
+        self.register_builtin_type(mono(TO_FLOAT), to_float, vis.clone(), Const, None);
+        self.register_builtin_type(mono(ROUND), round, vis.clone(), Const, None);
         self.register_builtin_type(
             poly(SEQUENCE, vec![ty_tp(T.clone())]),
             sequence,
@@ -597,10 +782,34 @@ impl Context {
             Const,
             None,
         );
-        self.register_builtin_type(poly(ADD, ty_params.clone()), add, vis.clone(), Const, None);
-        self.register_builtin_type(poly(SUB, ty_params.clone()), sub, vis.clone(), Const, None);
-        self.register_builtin_type(poly(MUL, ty_params.clone()), mul, vis.clone(), Const, None);
-        self.register_builtin_type(poly(DIV, ty_params.clone()), div, vis.clone(), Const, None);
+        self.register_builtin_type(
+            poly(ADD, ty_params.clone()),
+            add,
+            vis.clone(),
+            Const,
+            Some(ADD),
+        );
+        self.register_builtin_type(
+            poly(SUB, ty_params.clone()),
+            sub,
+            vis.clone(),
+            Const,
+            Some(SUB),
+        );
+        self.register_builtin_type(
+            poly(MUL, ty_params.clone()),
+            mul,
+            vis.clone(),
+            Const,
+            Some(MUL),
+        );
+        self.register_builtin_type(
+            poly(DIV, ty_params.clone()),
+            div,
+            vis.clone(),
+            Const,
+            Some(DIV),
+        );
         self.register_builtin_type(
             poly(FLOOR_DIV, ty_params),
             floor_div,
@@ -608,8 +817,8 @@ impl Context {
             Const,
             None,
         );
-        self.register_builtin_type(mono(POS), pos, vis.clone(), Const, None);
-        self.register_builtin_type(mono(NEG), neg, vis, Const, None);
+        self.register_builtin_type(mono(POS), pos, vis.clone(), Const, Some(POS));
+        self.register_builtin_type(mono(NEG), neg, vis, Const, Some(NEG));
         self.register_const_param_defaults(
             ADD,
             vec![ConstTemplate::Obj(ValueObj::builtin_type(Slf.clone()))],

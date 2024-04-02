@@ -109,7 +109,7 @@
     # 副作用を多用するコードは自然と冗長になるため、自然と純粋なコードを書くように動機づけられます
     Counter! = Inherit Int!
     Counter!.
-        new i: Int = Self!::__new__ !i
+        new i: Int = Counter! !i
         inc! ref! self =
             self.update! old -> old + 1
 

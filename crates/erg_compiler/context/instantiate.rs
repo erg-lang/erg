@@ -16,6 +16,7 @@ use crate::ty::constructors::*;
 use crate::ty::free::{Constraint, FreeTyParam, FreeTyVar, HasLevel, GENERIC_LEVEL};
 use crate::ty::typaram::{TyParam, TyParamLambda};
 use crate::ty::ConstSubr;
+use crate::ty::GuardType;
 use crate::ty::ValueObj;
 use crate::ty::{HasType, Predicate, Type};
 use crate::{type_feature_error, unreachable_error};
@@ -105,8 +106,11 @@ impl TyVarCache {
     /// TODO: This warning is currently disabled because it raises a false warning in cases like `|T|(x: T) -> (y: T) -> (x, y)`.
     pub fn warn_isolated_vars(&self, ctx: &Context) {
         for (name, vi) in self.var_infos.iter() {
-            let refs = &ctx.index().get_refs(&vi.def_loc).unwrap().referrers;
-            if refs.len() == 1 {
+            let Some(val) = ctx.index().get_refs(&vi.def_loc) else {
+                log!(err "no referrers for {name}");
+                continue;
+            };
+            if val.referrers.len() == 1 {
                 let warn = TyCheckError::unnecessary_tyvar_warning(
                     ctx.cfg.input.clone(),
                     line!() as usize,
@@ -227,14 +231,24 @@ impl TyVarCache {
             // inst: ?T(:> Str)
             // tv: ?T(:> Nat)
             // => ?T(:> Nat or Str)
-            let (old_sub, old_sup) = free_inst.get_subsup().unwrap();
+            let Some((old_sub, old_sup)) = free_inst.get_subsup() else {
+                if DEBUG_MODE {
+                    todo!("{free_inst}");
+                }
+                return;
+            };
             let Ok(tv) = <&FreeTyVar>::try_from(tv) else {
                 if DEBUG_MODE {
                     todo!("{tv}");
                 }
                 return;
             };
-            let (new_sub, new_sup) = tv.get_subsup().unwrap();
+            let Some((new_sub, new_sup)) = tv.get_subsup() else {
+                if DEBUG_MODE {
+                    todo!("{tv}");
+                }
+                return;
+            };
             let new_constraint = Constraint::new_sandwiched(
                 ctx.union(&old_sub, &new_sub),
                 ctx.intersection(&old_sup, &new_sup),
@@ -335,14 +349,24 @@ impl TyVarCache {
         if free_inst.constraint_is_uninited() {
             inst.destructive_link(tp);
         } else {
-            let old_type = free_inst.get_type().unwrap();
+            let Some(old_type) = free_inst.get_type() else {
+                if DEBUG_MODE {
+                    todo!("{free_inst}");
+                }
+                return;
+            };
             let Ok(tv) = <&FreeTyParam>::try_from(tp) else {
                 if DEBUG_MODE {
                     todo!("{tp}");
                 }
                 return;
             };
-            let new_type = tv.get_type().unwrap();
+            let Some(new_type) = tv.get_type() else {
+                if DEBUG_MODE {
+                    todo!("{tv}");
+                }
+                return;
+            };
             let new_constraint = Constraint::new_type_of(ctx.intersection(&old_type, &new_type));
             free_inst.update_constraint(new_constraint, true);
         }
@@ -450,6 +474,10 @@ impl Context {
                     .map(|v| self.instantiate_tp(v, tmp_tv_cache, loc))
                     .collect::<TyCheckResult<_>>()?;
                 Ok(TyParam::Array(arr))
+            }
+            TyParam::UnsizedArray(elem) => {
+                let elem = self.instantiate_tp(*elem, tmp_tv_cache, loc)?;
+                Ok(TyParam::UnsizedArray(Box::new(elem)))
             }
             TyParam::Set(set) => {
                 let set = set
@@ -918,6 +946,14 @@ impl Context {
             Not(ty) => {
                 let ty = self.instantiate_t_inner(*ty, tmp_tv_cache, loc)?;
                 Ok(self.complement(&ty))
+            }
+            Guard(guard) => {
+                let to = self.instantiate_t_inner(*guard.to, tmp_tv_cache, loc)?;
+                Ok(Type::Guard(GuardType::new(
+                    guard.namespace,
+                    guard.target,
+                    to,
+                )))
             }
             other if other.is_monomorphic() => Ok(other),
             other => type_feature_error!(self, loc.loc(), &format!("instantiating type {other}")),

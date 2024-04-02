@@ -18,6 +18,13 @@ impl Context {
         } else {
             Visibility::BUILTIN_PRIVATE
         };
+        let t_breakpoint = proc(
+            vec![],
+            Some(kw(KW_ARGS, Obj)),
+            vec![],
+            Some(kw(KW_KWARGS, Obj)),
+            NoneType,
+        );
         let T = mono_q("T", instanceof(Type));
         let U = mono_q("U", instanceof(Type));
         let t_dir = no_var_proc(
@@ -116,6 +123,13 @@ impl Context {
             U,
         )
         .quantify();
+        self.register_builtin_py_impl(
+            "breakpoint!",
+            t_breakpoint,
+            Immutable,
+            vis.clone(),
+            Some("breakpoint"),
+        );
         self.register_builtin_py_impl("dir!", t_dir, Immutable, vis.clone(), Some("dir"));
         self.register_py_builtin("print!", t_print, Some("print"), 81);
         self.register_builtin_py_impl("id!", t_id, Immutable, vis.clone(), Some("id"));

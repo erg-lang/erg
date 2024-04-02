@@ -5,7 +5,7 @@ use erg_common::log;
 use crate::ty::constructors::*;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
-use crate::ty::{Field, Type, Visibility};
+use crate::ty::{CastTarget, Field, GuardType, Type, Visibility};
 use Type::*;
 
 use crate::context::initialize::*;
@@ -114,15 +114,29 @@ impl Context {
             poly(ENUMERATE, vec![ty_tp(T.clone())]),
         )
         .quantify();
+        let guard = Type::Guard(GuardType::new(
+            "<builtins>".into(),
+            CastTarget::arg(0, "x".into(), Location::Unknown),
+            U.clone(),
+        ));
         let t_filter = nd_func(
             vec![
-                kw(KW_FUNC, nd_func(vec![anon(T.clone())], None, Bool)),
+                kw(KW_FUNC, nd_func(vec![kw("x", T.clone())], None, guard)),
                 kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())])),
             ],
             None,
-            poly(FILTER, vec![ty_tp(T.clone())]),
+            poly(FILTER, vec![ty_tp(T.clone() & U.clone())]),
         )
-        .quantify();
+        .quantify()
+            & nd_func(
+                vec![
+                    kw(KW_FUNC, nd_func(vec![anon(T.clone())], None, Bool)),
+                    kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())])),
+                ],
+                None,
+                poly(FILTER, vec![ty_tp(T.clone())]),
+            )
+            .quantify();
         let filter = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_FILTER,
             filter_func,
@@ -130,9 +144,9 @@ impl Context {
             None,
         )));
         let t_format = no_var_func(vec![kw(KW_VALUE, Obj)], vec![kw(KW_SPEC, Str)], Str);
-        let t_frozenset = nd_func(
+        let t_frozenset = no_var_func(
+            vec![],
             vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
-            None,
             poly(FROZENSET, vec![ty_tp(T.clone())]),
         )
         .quantify();
@@ -144,6 +158,7 @@ impl Context {
         .quantify();
         let hasattr_t = no_var_func(vec![kw(KW_OBJ, Obj), kw(KW_NAME, Str)], vec![], Bool);
         let t_hash = func1(mono(HASH), Int);
+        let t_hex = nd_func(vec![kw(KW_N, Int)], None, Str);
         let t_if = no_var_func(
             vec![
                 kw(KW_COND, Bool),
@@ -272,6 +287,7 @@ impl Context {
             t_not.clone(),
             None,
         )));
+        let t_object = nd_func(vec![], None, Obj);
         let t_oct = nd_func(vec![kw(KW_X, Int)], None, Str);
         let t_ord = nd_func(vec![kw(KW_C, Str)], None, Nat);
         let t_panic = nd_func(vec![kw(KW_MSG, Str)], None, Never);
@@ -351,6 +367,11 @@ impl Context {
             None,
         )));
         let t_unreachable = d_func(vec![kw(KW_MSG, Obj)], Never);
+        let t_vars = no_var_func(
+            vec![],
+            vec![kw_default(KW_OBJECT, Obj, Obj)],
+            dict! { Str => Obj }.into(),
+        );
         let t_zip = nd_func(
             vec![
                 kw(KW_ITERABLE1, poly(ITERABLE, vec![ty_tp(T.clone())])),
@@ -464,7 +485,13 @@ impl Context {
             Some(FUNC_FILTER),
             None,
         );
-        self.register_builtin_py_impl(FUNC_FROZENSET, t_frozenset, Immutable, vis.clone(), None);
+        self.register_builtin_py_impl(
+            FUNC_FROZENSET,
+            t_frozenset,
+            Immutable,
+            vis.clone(),
+            Some(FUNC_FROZENSET),
+        );
         self.register_builtin_py_impl(
             FUNC_GETATTR,
             getattr_t,
@@ -480,6 +507,7 @@ impl Context {
             Some(FUNC_HASATTR),
         );
         self.register_builtin_py_impl(FUNC_HASH, t_hash, Immutable, vis.clone(), Some(FUNC_HASH));
+        self.register_builtin_py_impl(FUNC_HEX, t_hex, Immutable, vis.clone(), Some(FUNC_HEX));
         self.register_builtin_py_impl(
             FUNC_ISINSTANCE,
             t_isinstance,
@@ -535,6 +563,13 @@ impl Context {
             None,
         );
         self.register_py_builtin_const(FUNC_NOT, vis.clone(), Some(t_not), not, None, None); // `not` is not a function in Python
+        self.register_builtin_py_impl(
+            FUNC_OBJECT,
+            t_object,
+            Immutable,
+            vis.clone(),
+            Some(FUNC_OBJECT),
+        );
         self.register_builtin_py_impl(FUNC_OCT, t_oct, Immutable, vis.clone(), Some(FUNC_OCT));
         self.register_builtin_py_impl(FUNC_ORD, t_ord, Immutable, vis.clone(), Some(FUNC_ORD));
         self.register_builtin_py_impl(FUNC_POW, t_pow, Immutable, vis.clone(), Some(FUNC_POW));
@@ -648,6 +683,7 @@ impl Context {
             Some(FUNC_SUM),
             None,
         );
+        self.register_builtin_py_impl(FUNC_VARS, t_vars, Immutable, vis.clone(), Some(FUNC_VARS));
         self.register_py_builtin_const(
             FUNC_ZIP,
             vis.clone(),
@@ -1286,9 +1322,13 @@ impl Context {
             bin_op(S, R.clone(), O).quantify()
         };
         self.register_builtin_erg_impl(OP_RSHIFT, op_t, Const, Visibility::BUILTIN_PRIVATE);
-        let T = mono_q(TY_T, instanceof(Type));
-        let C = mono_q(TY_C, subtypeof(poly(CONTAINER, vec![ty_tp(T.clone())])));
-        let op_t = bin_op(C, T, Bool).quantify();
+        let op_t = {
+            let S = Type::from(
+                dict! { Field::public(FUNDAMENTAL_CONTAINS.into()) => fn1_met(Never, R.clone(), Bool) },
+            )
+            .structuralize();
+            bin_op(S, R.clone(), Bool).quantify()
+        };
         self.register_builtin_erg_impl(
             FUNDAMENTAL_CONTAINS,
             op_t.clone(),

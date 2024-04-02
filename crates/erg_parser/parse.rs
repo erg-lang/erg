@@ -835,6 +835,12 @@ impl Parser {
             .opt_reduce_decorator()
             .map_err(|_| self.stack_dec(fn_name!()))?
         {
+            if self.cur_is(EOF) {
+                let err =
+                    ParseError::expect_next_line_error(line!() as usize, deco.0.loc(), "AtMark");
+                self.errs.push(err);
+                return Err(());
+            }
             decs.insert(deco);
             expect_pop!(self, fail_next Newline);
         }
@@ -982,6 +988,12 @@ impl Parser {
 
     fn try_reduce_array_elems(&mut self) -> ParseResult<ArrayInner> {
         debug_call_info!(self);
+        if self.cur_is(EOF) {
+            let tk = self.tokens.last().unwrap();
+            let err = ParseError::expect_next_line_error(line!() as usize, tk.loc(), "Collections");
+            self.errs.push(err);
+            return Err(());
+        }
         if self.cur_category_is(TC::REnclosure) {
             let args = Args::empty();
             debug_exit_info!(self);
@@ -1009,6 +1021,15 @@ impl Parser {
                     })?;
                 debug_exit_info!(self);
                 return Ok(ArrayInner::WithLength(elems.remove_pos(0), len));
+            }
+            Some(PreStar) => {
+                self.lpop();
+                let rest = self
+                    .try_reduce_expr(false, false, false, false)
+                    .map_err(|_| self.stack_dec(fn_name!()))?;
+                elems.set_var_args(PosArg::new(rest));
+                debug_exit_info!(self);
+                return Ok(ArrayInner::Normal(elems));
             }
             Some(Inclusion) => {
                 self.lpop();
@@ -1098,6 +1119,14 @@ impl Parser {
                         Some(RParen | RSqBr | RBrace | Dedent) => {
                             break;
                         }
+                        Some(PreStar) => {
+                            self.lpop();
+                            let rest = self
+                                .try_reduce_expr(false, false, false, false)
+                                .map_err(|_| self.stack_dec(fn_name!()))?;
+                            elems.set_var_args(PosArg::new(rest));
+                            break;
+                        }
                         _ => {}
                     }
                     elems.push_pos(
@@ -1166,7 +1195,8 @@ impl Parser {
             Some(t)
                 if (t.is(Dot) || t.is(DblColon))
                     && !self.nth_is(1, Newline)
-                    && !self.nth_is(1, LBrace) =>
+                    && !self.nth_is(1, LBrace)
+                    && !self.nth_is(1, LSqBr) =>
             {
                 Some(self.try_reduce_args(in_type_args))
             }
@@ -1783,6 +1813,11 @@ impl Parser {
         };
         if self.cur_is(Colon) {
             self.lpop();
+            if self.cur_is(EOF) {
+                let err = ParseError::expect_next_line_error(line!() as usize, op.loc(), "Lambda");
+                self.errs.push(err);
+                return Err(());
+            }
             let body = self
                 .try_reduce_block()
                 .map_err(|_| self.stack_dec(fn_name!()))?;
@@ -1832,6 +1867,15 @@ impl Parser {
                 }
                 Some(op) if op.category_is(TC::DefOp) => {
                     let op = self.lpop();
+                    if self.cur_is(EOF) {
+                        let err = ParseError::expect_next_line_error(
+                            line!() as usize,
+                            op.loc(),
+                            "Assignment",
+                        );
+                        self.errs.push(err);
+                        return Err(());
+                    }
                     let is_multiline_block = self.cur_is(Newline);
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let sig = self
@@ -1864,6 +1908,15 @@ impl Parser {
                 }
                 Some(op) if op.category_is(TC::LambdaOp) => {
                     let op = self.lpop();
+                    if self.cur_is(EOF) {
+                        let err = ParseError::expect_next_line_error(
+                            line!() as usize,
+                            op.loc(),
+                            "Lambda",
+                        );
+                        self.errs.push(err);
+                        return Err(());
+                    }
                     let is_multiline_block = self.cur_is(Newline);
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let sig = self
@@ -1955,9 +2008,10 @@ impl Parser {
                     ));
                 }
                 Some(t) if t.is(DblColon) => {
-                    let vis = VisModifierSpec::ExplicitPrivate(self.lpop());
-                    match self.lpop() {
-                        symbol if symbol.is(Symbol) => {
+                    let dcolon = self.lpop();
+                    let token = self.lpop();
+                    match token.kind {
+                        Symbol => {
                             let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
                                 let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
                                 self.errs.push(err);
@@ -1970,16 +2024,17 @@ impl Parser {
                                 .map_err(|_| self.stack_dec(fn_name!()))?
                             {
                                 let ident =
-                                    Identifier::new(VisModifierSpec::Private, VarName::new(symbol));
+                                    Identifier::new(VisModifierSpec::Private, VarName::new(token));
                                 let call = Call::new(obj, Some(ident), args);
                                 stack.push(ExprOrOp::Expr(Expr::Call(call)));
                             } else {
                                 let ident =
-                                    Identifier::new(VisModifierSpec::Private, VarName::new(symbol));
+                                    Identifier::new(VisModifierSpec::Private, VarName::new(token));
                                 stack.push(ExprOrOp::Expr(obj.attr_expr(ident)));
                             }
                         }
-                        line_break if line_break.is(Newline) => {
+                        Newline => {
+                            let vis = VisModifierSpec::ExplicitPrivate(dcolon);
                             let maybe_class = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                             let defs = self
                                 .try_reduce_class_attr_defs(maybe_class, vis)
@@ -1989,9 +2044,26 @@ impl Parser {
                             debug_exit_info!(self);
                             return Ok(expr);
                         }
-                        l_brace if l_brace.is(LBrace) => {
+                        LSqBr => {
+                            self.restore(token);
+                            let restriction = self
+                                .try_reduce_restriction()
+                                .map_err(|_| self.stack_dec(fn_name!()))?;
+                            let vis = VisModifierSpec::Restricted(restriction);
+                            expect_pop!(self, Newline);
                             let maybe_class = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
-                            self.restore(l_brace);
+                            let defs = self
+                                .try_reduce_class_attr_defs(maybe_class, vis)
+                                .map_err(|_| self.stack_dec(fn_name!()))?;
+                            let expr = Expr::Methods(defs);
+                            assert_eq!(stack.len(), 0);
+                            debug_exit_info!(self);
+                            return Ok(expr);
+                        }
+                        LBrace => {
+                            let vis = VisModifierSpec::ExplicitPrivate(dcolon);
+                            let maybe_class = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
+                            self.restore(token);
                             let container = self
                                 .try_reduce_brace_container()
                                 .map_err(|_| self.stack_dec(fn_name!()))?;
@@ -2012,8 +2084,8 @@ impl Parser {
                                 }
                             }
                         }
-                        other => {
-                            self.restore(other);
+                        _ => {
+                            self.restore(token);
                             let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
                             self.errs.push(err);
                             debug_exit_info!(self);
@@ -2023,8 +2095,9 @@ impl Parser {
                 }
                 Some(t) if t.is(Dot) => {
                     let dot = self.lpop();
-                    match self.lpop() {
-                        symbol if symbol.is(Symbol) => {
+                    let token = self.lpop();
+                    match token.kind {
+                        Symbol => {
                             let Some(ExprOrOp::Expr(obj)) = stack.pop() else {
                                 let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
                                 self.errs.push(err);
@@ -2036,15 +2109,15 @@ impl Parser {
                                 .transpose()
                                 .map_err(|_| self.stack_dec(fn_name!()))?
                             {
-                                let ident = Identifier::public_from_token(dot, symbol);
+                                let ident = Identifier::public_from_token(dot, token);
                                 let call = Expr::Call(Call::new(obj, Some(ident), args));
                                 stack.push(ExprOrOp::Expr(call));
                             } else {
-                                let ident = Identifier::public_from_token(dot, symbol);
+                                let ident = Identifier::public_from_token(dot, token);
                                 stack.push(ExprOrOp::Expr(obj.attr_expr(ident)));
                             }
                         }
-                        line_break if line_break.is(Newline) => {
+                        Newline => {
                             let vis = VisModifierSpec::Public(dot);
                             let maybe_class = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                             let defs = self
@@ -2053,8 +2126,8 @@ impl Parser {
                             debug_exit_info!(self);
                             return Ok(Expr::Methods(defs));
                         }
-                        other => {
-                            self.restore(other);
+                        _ => {
+                            self.restore(token);
                             let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
                             self.errs.push(err);
                             debug_exit_info!(self);
@@ -2208,6 +2281,15 @@ impl Parser {
                         .convert_rhs_to_lambda_sig(lhs)
                         .map_err(|_| self.stack_dec(fn_name!()))?;
                     self.counter.inc();
+                    if self.cur_is(EOF) {
+                        let err = ParseError::expect_next_line_error(
+                            line!() as usize,
+                            op.loc(),
+                            "Lambda",
+                        );
+                        self.errs.push(err);
+                        return Err(());
+                    }
                     let block = if is_multiline_block {
                         self.try_reduce_block()
                             .map_err(|_| self.stack_dec(fn_name!()))?
@@ -2234,6 +2316,15 @@ impl Parser {
                         break;
                     }
                     let op = self.lpop();
+                    if self.cur_is(EOF) {
+                        let err = ParseError::expect_next_line_error(
+                            line!() as usize,
+                            op.loc(),
+                            "Lambda",
+                        );
+                        self.errs.push(err);
+                        return Err(());
+                    }
                     let lhs = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                     let t_spec_as_expr = self
                         .try_reduce_expr(false, in_type_args, in_brace, false)
@@ -2576,6 +2667,7 @@ impl Parser {
                 debug_exit_info!(self);
                 Ok(call_or_acc)
             }
+            // REVIEW: correct?
             Some(t) if t.is(PreStar) || t.is(PreDblStar) => {
                 let kind = t.kind;
                 let _ = self.lpop();
@@ -2817,6 +2909,17 @@ impl Parser {
                             self.restore(vis);
                             break;
                         }
+                        EOF => {
+                            let err = ParseError::expect_next_line_error(
+                                line!() as usize,
+                                token.loc(),
+                                "ClassPub",
+                            );
+                            self.errs.push(err);
+                            self.restore(token);
+                            self.level -= 1;
+                            return Err(());
+                        }
                         _ => {
                             let err = ParseError::invalid_acc_chain(
                                 line!() as usize,
@@ -2871,10 +2974,21 @@ impl Parser {
                             }
                         }
                         // MethodDefs
-                        Newline => {
+                        Newline | LSqBr => {
                             self.restore(token);
                             self.restore(vis);
                             break;
+                        }
+                        EOF => {
+                            let err = ParseError::expect_next_line_error(
+                                line!() as usize,
+                                token.loc(),
+                                "ClassPriv",
+                            );
+                            self.errs.push(err);
+                            self.restore(token);
+                            self.level -= 1;
+                            return Err(());
                         }
                         _ => {
                             self.restore(token);
@@ -2976,7 +3090,12 @@ impl Parser {
     fn try_reduce_brace_container(&mut self) -> ParseResult<BraceContainer> {
         debug_call_info!(self);
         let l_brace = expect_pop!(self, fail_next LBrace);
-
+        if self.cur_is(EOF) {
+            let err =
+                ParseError::expect_next_line_error(line!() as usize, l_brace.loc(), "Collections");
+            self.errs.push(err);
+            return Err(());
+        }
         // Empty brace literals
         match self.peek_kind() {
             Some(RBrace) => {
@@ -3904,7 +4023,10 @@ impl Parser {
         while self.cur_is(Newline) {
             newlines.push(self.lpop());
         }
-        if !self.peek().is_some_and(|tok| possible_keys.contains(tok.inspect())) {
+        if !self
+            .peek()
+            .is_some_and(|tok| possible_keys.contains(tok.inspect()))
+        {
             for newline in newlines {
                 self.tokens.push_front(newline);
             }

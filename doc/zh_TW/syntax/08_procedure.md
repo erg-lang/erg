@@ -34,34 +34,40 @@ func(x: Int) = y => print! x, y # NG
 ```
 
 ## 綁定
+
 過程可以操作范圍外的變量。
+
 ```python
-x = ! 0
-proc! () =
- x.inc! ()
-proc! ()
+x = !0
+proc!() =
+    x.inc!()
+proc!()
 assert x == 1
 ```
+
 此時，“proc！” 具有以下類型：
+
 ```python
 proc!: {| x: Int! |} () => ()
 ```
-`{| x: Int! |} '部分稱為綁定列，表示過程操作的變量及其類型。
+
+`{| x: Int! |}`部分稱為綁定列，表示過程操作的變量及其類型。
 綁定列是自動派生的，因此無需顯式編寫。
 請注意，常規過程只能操作預先確定的外部變量。 這意味著不能重寫傳遞給參數的變量。
 如果要執行此操作，則必須使用過程方法。 過程方法可以重寫“自”。
+
 ```python
 C! N = Class {arr = [Int; N]!}
 C!.
- new() = Self! (0)::__new__ {arr = ![]}
-C! (N).
-    # push!: {|self: C!( N) ~> C! (N+1)|} (self: RefMut(C!( N)), x: Int) => NoneType
- push! ref! self, x = self.arr.push! (x)
-    # pop!: {|self: C!( N) ~> C! (N-1)|} (self: RefMut(C!( N))) => Int
- pop! ref! self = self.arr.pop! ()
-c = C!. new()
-c.push! (1)
-assert c.pop! () ==  1
+    new() = Self!(0) {arr = ![]}
+C!(N).
+    # push!: {|self: C!(N) ~> C!(N+1)|} (self: RefMut(C!(N)), x: Int) => NoneType
+    push! ref! self, x = self.arr.push!(x)
+    # pop!: {|self: C!(N) ~> C!(N-1)|} (self: RefMut(C!(N))) => Int
+    pop! ref! self = self.arr.pop!()
+c = C!.new()
+c.push!(1)
+assert c.pop!() ==  1
 ```
 
 <p align='center'>

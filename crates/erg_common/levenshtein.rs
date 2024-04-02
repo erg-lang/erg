@@ -51,7 +51,7 @@ where
     let most_similar_name =
         candidates.min_by_key(|v| levenshtein(v.borrow(), name, limit).unwrap_or(usize::MAX))?;
     let dist = levenshtein(most_similar_name.borrow(), name, limit);
-    if dist.is_none() || dist.unwrap() >= limit {
+    if dist.map_or(true, |d| d >= limit) {
         None
     } else {
         Some(most_similar_name)
@@ -69,7 +69,7 @@ where
     let most_similar_name_and_some = candidates
         .min_by_key(|(_, v)| levenshtein(v.borrow(), name, limit).unwrap_or(usize::MAX))?;
     let dist = levenshtein(most_similar_name_and_some.1.borrow(), name, limit);
-    if dist.is_none() || dist.unwrap() >= limit {
+    if dist.map_or(true, |d| d >= limit) {
         None
     } else {
         Some(most_similar_name_and_some)

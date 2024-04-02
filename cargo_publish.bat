@@ -1,12 +1,11 @@
 @echo off
 
 if %~dp0 == C:%homepath%\GitHub\erg\ (
-    cd crates/erg_common
-    echo publish erg_common ...
-    cargo publish
-    rem from cargo 1.66 timeout is not needed
     echo publish erg_proc_macros ...
-    cd ../erg_proc_macros
+    cd crates/erg_proc_macros
+    cargo publish
+    echo publish erg_common ...
+    cd ../erg_common
     cargo publish
     cd ../erg_parser
     echo publish erg_parser ...

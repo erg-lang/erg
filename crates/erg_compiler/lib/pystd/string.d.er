@@ -7,4 +7,21 @@
 .punctuation: Str
 .printable: Str
 .whitespace: Str
+
+.capwords: (s: Str, sep := Str) -> Str
+
+.Template: ClassType
+
+FormatterIterator = 'formatteriterator': ClassType
+FormatterIterator <: Iterable [Str; _]
+
 .Formatter: ClassType
+.Formatter <: InheritableType
+.Formatter.
+    __call__: () -> .Formatter
+    format: (self: .Formatter, format_string: Str, *args: Obj, **kwargs: Obj) -> Str
+    vformat: (self: .Formatter, format_string: Str, args: [Obj; _], kwargs: {Str: Obj}) -> Str
+    parse: (self: .Formatter, format_string: Str) -> FormatterIterator
+    get_field: |T, U|(self: .Formatter, field_name: Str, args: [T; _], kwargs: {Str: U}) -> (T or U, Str or Int)
+    get_value: (|T|(self: .Formatter, key: Str, args: [Obj; _], kwargs: {Str: T}) -> T) \
+        and (|T|(self: .Formatter, key: Nat, args: [T; _], kwargs: {Str: Obj}) -> T)

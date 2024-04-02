@@ -220,6 +220,7 @@ pub struct PyCodeGenerator {
     module_type_loaded: bool,
     control_loaded: bool,
     convertors_loaded: bool,
+    traits_loaded: bool,
     operators_loaded: bool,
     union_loaded: bool,
     fake_generic_loaded: bool,
@@ -248,6 +249,7 @@ impl PyCodeGenerator {
             module_type_loaded: false,
             control_loaded: false,
             convertors_loaded: false,
+            traits_loaded: false,
             operators_loaded: false,
             union_loaded: false,
             fake_generic_loaded: false,
@@ -271,6 +273,7 @@ impl PyCodeGenerator {
             module_type_loaded: false,
             control_loaded: false,
             convertors_loaded: false,
+            traits_loaded: false,
             operators_loaded: false,
             union_loaded: false,
             fake_generic_loaded: false,
@@ -298,6 +301,7 @@ impl PyCodeGenerator {
         self.module_type_loaded = false;
         self.control_loaded = false;
         self.convertors_loaded = false;
+        self.traits_loaded = false;
         self.operators_loaded = false;
         self.union_loaded = false;
         self.fake_generic_loaded = false;
@@ -839,6 +843,9 @@ impl PyCodeGenerator {
             | "le" | "gt" | "ge" | "and_" | "or_" | "xor" | "lshift" | "rshift" | "pos" | "neg"
             | "invert" | "is_" | "is_not" | "call" => {
                 self.load_operators();
+            }
+            "Eq" | "Ord" | "Hash" | "Add" | "Sub" | "Mul" | "Div" | "Pos" | "Neg" => {
+                self.load_traits();
             }
             "CodeType" => {
                 self.emit_global_import_items(
@@ -3473,11 +3480,12 @@ impl PyCodeGenerator {
         self.emit_store_instr(Identifier::static_public("__qualname__"), Name);
         let mut methods = ClassDef::take_all_methods(class.methods_list);
         let __init__ = methods
-            .remove_def("__init__")
-            .or_else(|| methods.remove_def("__init__!"));
-        self.emit_init_method(&class.sig, __init__, class.__new__.clone());
+            .get_def("__init__")
+            .or_else(|| methods.get_def("__init__!"))
+            .cloned();
+        self.emit_init_method(&class.sig, __init__, class.constructor.clone());
         if class.need_to_gen_new {
-            self.emit_new_func(&class.sig, class.__new__);
+            self.emit_new_func(&class.sig, class.constructor);
         }
         let __del__ = methods
             .remove_def("__del__")
@@ -3525,16 +3533,16 @@ impl PyCodeGenerator {
         unit.codeobj
     }
 
-    fn emit_init_method(&mut self, sig: &Signature, __init__: Option<Def>, __new__: Type) {
+    fn emit_init_method(&mut self, sig: &Signature, __init__: Option<Def>, constructor: Type) {
         log!(info "entered {}", fn_name!());
-        let new_first_param = __new__.non_default_params().unwrap().first();
+        let new_first_param = constructor.non_default_params().unwrap().first();
         let line = sig.ln_begin().unwrap_or(0);
         let class_name = sig.ident().inspect();
         let mut ident = Identifier::public_with_line(DOT, Str::ever("__init__"), line);
-        ident.vi.t = __new__.clone();
+        ident.vi.t = constructor.clone();
         let self_param = VarName::from_str_and_line(Str::ever("self"), line);
         let vi = VarInfo::nd_parameter(
-            __new__.return_t().unwrap().clone(),
+            constructor.return_t().unwrap().clone(),
             ident.vi.def_loc.clone(),
             "?".into(),
         );
@@ -3570,9 +3578,6 @@ impl PyCodeGenerator {
             vec![],
         );
         let mut attrs = vec![];
-        if let Some(__init__) = __init__ {
-            attrs.extend(__init__.body.block.clone());
-        }
         match new_first_param.map(|pt| pt.typ()) {
             // namedtupleは仕様上::xなどの名前を使えない
             // {x = Int; y = Int}
@@ -3612,6 +3617,9 @@ impl PyCodeGenerator {
             }
             None => {}
         }
+        if let Some(__init__) = __init__ {
+            attrs.extend(__init__.body.block.clone());
+        }
         let none = Token::new_fake(TokenKind::NoneLit, "None", line, 0, 0);
         attrs.push(Expr::Literal(Literal::new(ValueObj::None, none)));
         let block = Block::new(attrs);
@@ -3621,16 +3629,16 @@ impl PyCodeGenerator {
 
     /// ```python
     /// class C:
-    ///     # __new__ => C
+    ///     # constructor => C
     ///     def new(x): return C(x)
     /// ```
-    fn emit_new_func(&mut self, sig: &Signature, __new__: Type) {
+    fn emit_new_func(&mut self, sig: &Signature, constructor: Type) {
         log!(info "entered {}", fn_name!());
         let class_ident = sig.ident();
         let line = sig.ln_begin().unwrap_or(0);
         let mut ident = Identifier::public_with_line(DOT, Str::ever("new"), line);
         let class = Expr::Accessor(Accessor::Ident(class_ident.clone()));
-        ident.vi.t = __new__;
+        ident.vi.t = constructor;
         if let Some(new_first_param) = ident.vi.t.non_default_params().unwrap().first() {
             let param_name = new_first_param
                 .name()
@@ -3857,6 +3865,12 @@ impl PyCodeGenerator {
         let mod_name = Identifier::static_public("_erg_convertors");
         self.emit_import_all_instr(mod_name);
         self.convertors_loaded = true;
+    }
+
+    fn load_traits(&mut self) {
+        let mod_name = Identifier::static_public("_erg_traits");
+        self.emit_import_all_instr(mod_name);
+        self.traits_loaded = true;
     }
 
     fn load_operators(&mut self) {

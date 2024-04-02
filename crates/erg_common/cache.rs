@@ -1,7 +1,6 @@
 use std::borrow::{Borrow, ToOwned};
 use std::hash::Hash;
 use std::sync::Arc;
-use std::thread::LocalKey;
 
 use crate::dict::Dict;
 use crate::set::Set;
@@ -72,6 +71,30 @@ impl<T: Hash + Eq> CacheSet<T> {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct CacheDict<K, V: ?Sized>(Shared<Dict<K, Arc<V>>>);
 
-pub struct GlobalCacheDict<K: 'static, V: ?Sized + 'static>(LocalKey<Shared<CacheDict<K, V>>>);
+impl<K: Hash + Eq, V: ?Sized> Default for CacheDict<K, V> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<K: Hash + Eq, V: ?Sized> CacheDict<K, V> {
+    pub fn new() -> Self {
+        Self(Shared::new(Dict::new()))
+    }
+}
+
+impl<K: Hash + Eq, V> CacheDict<K, V> {
+    pub fn get<Q: ?Sized + Hash + Eq>(&self, k: &Q) -> Option<Arc<V>>
+    where
+        K: Borrow<Q>,
+    {
+        self.0.borrow().get(k).cloned()
+    }
+
+    pub fn insert(&self, k: K, v: V) {
+        self.0.borrow_mut().insert(k, Arc::new(v));
+    }
+}

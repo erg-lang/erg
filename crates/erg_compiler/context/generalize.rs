@@ -8,6 +8,7 @@ use erg_common::{dict, fn_name, get_hash, set};
 #[allow(unused_imports)]
 use erg_common::{fmt_vec, log};
 
+use crate::module::GeneralizationResult;
 use crate::ty::constructors::*;
 use crate::ty::free::{CanbeFree, Constraint, Free, HasLevel};
 use crate::ty::typaram::{TyParam, TyParamLambda};
@@ -297,6 +298,10 @@ impl Generalizer {
                     self.structural_inner = false;
                     res
                 }
+            }
+            Guard(grd) => {
+                let to = self.generalize_t(*grd.to, uninit);
+                guard(grd.namespace, grd.target, to)
             }
             // REVIEW: その他何でもそのまま通していいのか?
             other => other,
@@ -730,11 +735,11 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
     // ```
     pub(crate) fn deref_tyvar(&mut self, t: Type) -> TyCheckResult<Type> {
         match t {
-            Type::FreeVar(fv) if fv.is_linked() => {
+            FreeVar(fv) if fv.is_linked() => {
                 let t = fv.unwrap_linked();
                 self.deref_tyvar(t)
             }
-            Type::FreeVar(mut fv)
+            FreeVar(mut fv)
                 if fv.is_generalized() && self.qnames.contains(&fv.unbound_name().unwrap()) =>
             {
                 fv.update_init();
@@ -745,7 +750,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
             // ?T(<: Int, :> Add(?T)) ==> Int
             // ?T(:> Nat, <: Sub(Str)) ==> Error!
             // ?T(:> {1, "a"}, <: Eq(?T(:> {1, "a"}, ...)) ==> Error!
-            Type::FreeVar(fv) if fv.constraint_is_sandwiched() => {
+            FreeVar(fv) if fv.constraint_is_sandwiched() => {
                 let (sub_t, super_t) = fv.get_subsup().unwrap();
                 if self.level <= fv.level().unwrap() {
                     // we need to force linking to avoid infinite loop
@@ -768,7 +773,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                             false
                         }
                     };
-                    let res = self.validate_subsup(sub_t, super_t);
+                    let res = self.validate_subsup(sub_t, super_t, &fv);
                     if dummy {
                         fv.undo();
                     } else {
@@ -792,7 +797,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                     Ok(Type::FreeVar(fv))
                 }
             }
-            Type::FreeVar(fv) if fv.is_unbound() => {
+            FreeVar(fv) if fv.is_unbound() => {
                 if self.level == 0 {
                     match &*fv.crack_constraint() {
                         Constraint::TypeOf(t) if !t.is_type() => {
@@ -812,7 +817,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                     Ok(Type::FreeVar(fv))
                 }
             }
-            Type::Poly { name, mut params } => {
+            Poly { name, mut params } => {
                 let typ = poly(&name, params.clone());
                 let ctx = self.ctx.get_nominal_type_ctx(&typ).ok_or_else(|| {
                     TyCheckError::type_not_found(
@@ -834,7 +839,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 }
                 Ok(Type::Poly { name, params })
             }
-            Type::Subr(mut subr) => {
+            Subr(mut subr) => {
                 for param in subr.non_default_params.iter_mut() {
                     self.push_variance(Contravariant);
                     *param.typ_mut() =
@@ -874,7 +879,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 self.pop_variance();
                 Ok(Type::Subr(subr))
             }
-            Type::Callable {
+            Callable {
                 mut param_ts,
                 return_t,
             } => {
@@ -884,12 +889,12 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 let return_t = self.deref_tyvar(*return_t)?;
                 Ok(callable(param_ts, return_t))
             }
-            Type::Quantified(subr) => self.eliminate_needless_quant(*subr),
-            Type::Ref(t) => {
+            Quantified(subr) => self.eliminate_needless_quant(*subr),
+            Ref(t) => {
                 let t = self.deref_tyvar(*t)?;
                 Ok(ref_(t))
             }
-            Type::RefMut { before, after } => {
+            RefMut { before, after } => {
                 let before = self.deref_tyvar(*before)?;
                 let after = if let Some(after) = after {
                     Some(self.deref_tyvar(*after)?)
@@ -898,38 +903,38 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 };
                 Ok(ref_mut(before, after))
             }
-            Type::Record(mut rec) => {
+            Record(mut rec) => {
                 for (_, field) in rec.iter_mut() {
                     *field = self.deref_tyvar(mem::take(field))?;
                 }
                 Ok(Type::Record(rec))
             }
-            Type::NamedTuple(mut rec) => {
+            NamedTuple(mut rec) => {
                 for (_, t) in rec.iter_mut() {
                     *t = self.deref_tyvar(mem::take(t))?;
                 }
                 Ok(Type::NamedTuple(rec))
             }
-            Type::Refinement(refine) => {
+            Refinement(refine) => {
                 let t = self.deref_tyvar(*refine.t)?;
                 let pred = self.deref_pred(*refine.pred)?;
                 Ok(refinement(refine.var, t, pred))
             }
-            Type::And(l, r) => {
+            And(l, r) => {
                 let l = self.deref_tyvar(*l)?;
                 let r = self.deref_tyvar(*r)?;
                 Ok(self.ctx.intersection(&l, &r))
             }
-            Type::Or(l, r) => {
+            Or(l, r) => {
                 let l = self.deref_tyvar(*l)?;
                 let r = self.deref_tyvar(*r)?;
                 Ok(self.ctx.union(&l, &r))
             }
-            Type::Not(ty) => {
+            Not(ty) => {
                 let ty = self.deref_tyvar(*ty)?;
                 Ok(self.ctx.complement(&ty))
             }
-            Type::Proj { lhs, rhs } => {
+            Proj { lhs, rhs } => {
                 let proj = self
                     .ctx
                     .eval_proj(*lhs.clone(), rhs.clone(), self.level, self.loc)
@@ -940,7 +945,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                     .unwrap_or(Failure);
                 Ok(proj)
             }
-            Type::ProjCall {
+            ProjCall {
                 lhs,
                 attr_name,
                 args,
@@ -956,15 +961,24 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                     .unwrap_or(Failure);
                 Ok(proj)
             }
-            Type::Structural(inner) => {
+            Structural(inner) => {
                 let inner = self.deref_tyvar(*inner)?;
                 Ok(inner.structuralize())
+            }
+            Guard(grd) => {
+                let to = self.deref_tyvar(*grd.to)?;
+                Ok(guard(grd.namespace, grd.target, to))
             }
             t => Ok(t),
         }
     }
 
-    fn validate_subsup(&mut self, sub_t: Type, super_t: Type) -> TyCheckResult<Type> {
+    fn validate_subsup(
+        &mut self,
+        sub_t: Type,
+        super_t: Type,
+        fv: &Free<Type>,
+    ) -> TyCheckResult<Type> {
         // TODO: Subr, ...
         match (sub_t, super_t) {
             /*(sub_t @ Type::Refinement(_), super_t @ Type::Refinement(_)) => {
@@ -975,11 +989,11 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
             }*/
             // See tests\should_err\subtyping.er:8~13
             (
-                Type::Poly {
+                Poly {
                     name: ln,
                     params: lps,
                 },
-                Type::Poly {
+                Poly {
                     name: rn,
                     params: rps,
                 },
@@ -1008,16 +1022,30 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 }
                 Ok(poly(rn, tps))
             }
-            (sub_t, super_t) => self.validate_simple_subsup(sub_t, super_t),
+            (sub_t, super_t) => self.validate_simple_subsup(sub_t, super_t, fv),
         }
     }
 
-    fn validate_simple_subsup(&mut self, sub_t: Type, super_t: Type) -> TyCheckResult<Type> {
-        if self.ctx.is_trait(&super_t) {
+    fn validate_simple_subsup(
+        &mut self,
+        sub_t: Type,
+        super_t: Type,
+        fv: &Free<Type>,
+    ) -> TyCheckResult<Type> {
+        let opt_res = self.ctx.shared().gen_cache.get(fv);
+        if opt_res.is_none() && self.ctx.is_trait(&super_t) {
             self.ctx
                 .check_trait_impl(&sub_t, &super_t, self.qnames, self.loc)?;
         }
-        let is_subtype = self.ctx.subtype_of(&sub_t, &super_t);
+        let is_subtype = opt_res.map(|res| res.is_subtype).unwrap_or_else(|| {
+            let is_subtype = self.ctx.subtype_of(&sub_t, &super_t); // PERF NOTE: bottleneck
+            let res = GeneralizationResult {
+                is_subtype,
+                impl_trait: true,
+            };
+            self.ctx.shared().gen_cache.insert(fv.clone(), res);
+            is_subtype
+        });
         let sub_t = self.deref_tyvar(sub_t)?;
         let super_t = self.deref_tyvar(super_t)?;
         if sub_t == super_t {
@@ -1565,7 +1593,7 @@ impl Context {
     /// ```
     pub(crate) fn squash_tyvar(&self, typ: Type) -> Type {
         match typ {
-            Type::Or(l, r) => {
+            Or(l, r) => {
                 let l = self.squash_tyvar(*l);
                 let r = self.squash_tyvar(*r);
                 // REVIEW:
@@ -1582,7 +1610,7 @@ impl Context {
                 }
                 self.union(&l, &r)
             }
-            Type::FreeVar(ref fv) if fv.constraint_is_sandwiched() => {
+            FreeVar(ref fv) if fv.constraint_is_sandwiched() => {
                 let (sub_t, super_t) = fv.get_subsup().unwrap();
                 let sub_t = self.squash_tyvar(sub_t);
                 let super_t = self.squash_tyvar(super_t);

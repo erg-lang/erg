@@ -385,7 +385,15 @@ impl NestedDisplay for Args {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
         fmt_lines(self.pos_args.iter(), f, level)?;
         writeln!(f)?;
-        fmt_lines(self.kw_args.iter(), f, level)
+        if let Some(var) = &self.var_args {
+            writeln!(f, "*{var}")?;
+        }
+        fmt_lines(self.kw_args.iter(), f, level)?;
+        if let Some(var) = &self.kw_var_args {
+            writeln!(f)?;
+            write!(f, "**{var}")?;
+        }
+        Ok(())
     }
 }
 
@@ -399,11 +407,18 @@ impl Locational for Args {
                 return loc;
             }
         }
-        match (self.pos_args.first(), self.kw_args.last()) {
-            (Some(l), Some(r)) => Location::concat(l, r),
-            (Some(l), None) => Location::concat(l, self.pos_args.last().unwrap()),
-            (None, Some(r)) => Location::concat(self.kw_args.first().unwrap(), r),
-            _ => Location::Unknown,
+        match (
+            self.pos_args.first().zip(self.pos_args.last()),
+            self.var_args.as_ref(),
+            self.kw_args.first().zip(self.kw_args.last()),
+        ) {
+            (Some((l, _)), _, Some((_, r))) => Location::concat(l, r),
+            (Some((l, _)), Some(r), None) => Location::concat(l, r.as_ref()),
+            (Some((l, r)), None, None) => Location::concat(l, r),
+            (None, Some(l), Some((_, r))) => Location::concat(l.as_ref(), r),
+            (None, None, Some((l, r))) => Location::concat(l, r),
+            (None, Some(l), None) => l.loc(),
+            (None, None, None) => Location::Unknown,
         }
     }
 }
@@ -1254,7 +1269,11 @@ impl NestedDisplay for ClassAttrs {
 
 impl Locational for ClassAttrs {
     fn loc(&self) -> Location {
-        Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+        if self.is_empty() {
+            Location::Unknown
+        } else {
+            Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+        }
     }
 }
 
@@ -1280,7 +1299,11 @@ impl NestedDisplay for RecordAttrs {
 
 impl Locational for RecordAttrs {
     fn loc(&self) -> Location {
-        Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+        if self.is_empty() {
+            Location::Unknown
+        } else {
+            Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+        }
     }
 }
 
@@ -2135,6 +2158,12 @@ impl NestedDisplay for ConstTupleAttribute {
 impl_display_from_nested!(ConstTupleAttribute);
 impl_locational!(ConstTupleAttribute, tup, index);
 
+impl ConstTupleAttribute {
+    pub fn downgrade(self) -> TupleAttribute {
+        TupleAttribute::new(self.tup.downgrade(), self.index)
+    }
+}
+
 #[pymethods]
 impl ConstTupleAttribute {
     #[staticmethod]
@@ -2151,6 +2180,7 @@ impl ConstTupleAttribute {
 pub struct ConstSubscript {
     obj: Box<ConstExpr>,
     index: Box<ConstExpr>,
+    r_sqbr: Token,
 }
 
 impl NestedDisplay for ConstSubscript {
@@ -2164,15 +2194,22 @@ impl NestedDisplay for ConstSubscript {
 }
 
 impl_display_from_nested!(ConstSubscript);
-impl_locational!(ConstSubscript, obj, index);
+impl_locational!(ConstSubscript, obj, r_sqbr);
+
+impl ConstSubscript {
+    pub fn downgrade(self) -> Subscript {
+        Subscript::new(self.obj.downgrade(), self.index.downgrade(), self.r_sqbr)
+    }
+}
 
 #[pymethods]
 impl ConstSubscript {
     #[staticmethod]
-    pub fn new(obj: ConstExpr, index: ConstExpr) -> Self {
+    pub fn new(obj: ConstExpr, index: ConstExpr, r_sqbr: Token) -> Self {
         Self {
             obj: Box::new(obj),
             index: Box::new(index),
+            r_sqbr,
         }
     }
 }
@@ -2203,17 +2240,16 @@ impl ConstAccessor {
         Self::Attr(ConstAttribute::new(obj, name))
     }
 
-    pub fn subscr(obj: ConstExpr, index: ConstExpr) -> Self {
-        Self::Subscr(ConstSubscript::new(obj, index))
+    pub fn subscr(obj: ConstExpr, index: ConstExpr, r_sqbr: Token) -> Self {
+        Self::Subscr(ConstSubscript::new(obj, index, r_sqbr))
     }
 
     pub fn downgrade(self) -> Accessor {
         match self {
             Self::Local(local) => Accessor::Ident(local),
             Self::Attr(attr) => Accessor::Attr(attr.downgrade()),
-            // Self::TupleAttr(attr) => Accessor::TupleAttr(attr.downgrade()),
-            // Self::Subscr(subscr) => Accessor::Subscr(subscr.downgrade()),
-            _ => todo!(),
+            Self::TupleAttr(attr) => Accessor::TupleAttr(attr.downgrade()),
+            Self::Subscr(subscr) => Accessor::Subscr(subscr.downgrade()),
         }
     }
 }
@@ -3009,9 +3045,9 @@ impl ConstKwArg {
 #[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstArgs {
-    pos_args: Vec<ConstPosArg>,
+    pub pos_args: Vec<ConstPosArg>,
     pub var_args: Option<Box<ConstPosArg>>,
-    kw_args: Vec<ConstKwArg>,
+    pub kw_args: Vec<ConstKwArg>,
     pub kw_var: Option<Box<ConstPosArg>>,
     paren: Option<(Token, Token)>,
 }
@@ -4664,11 +4700,16 @@ impl VarSignature {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Vars {
     pub(crate) elems: Vec<VarSignature>,
+    pub(crate) starred: Option<Box<VarSignature>>,
 }
 
 impl NestedDisplay for Vars {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
-        write!(f, "{}", fmt_vec(&self.elems))
+        write!(f, "{}", fmt_vec(&self.elems))?;
+        if let Some(starred) = &self.starred {
+            write!(f, ", *{starred}")?;
+        }
+        Ok(())
     }
 }
 
@@ -4686,12 +4727,15 @@ impl Locational for Vars {
 }
 
 impl Vars {
-    pub const fn new(elems: Vec<VarSignature>) -> Self {
-        Self { elems }
+    pub fn new(elems: Vec<VarSignature>, starred: Option<VarSignature>) -> Self {
+        Self {
+            elems,
+            starred: starred.map(Box::new),
+        }
     }
 
-    pub const fn empty() -> Self {
-        Self::new(vec![])
+    pub fn empty() -> Self {
+        Self::new(vec![], None)
     }
 }
 
@@ -5147,17 +5191,17 @@ impl Locational for Params {
             }
         }
         match (
-            self.non_defaults.first(),
+            self.non_defaults.first().zip(self.non_defaults.last()),
             self.var_params.as_ref(),
-            self.defaults.last(),
+            self.defaults.first().zip(self.defaults.last()),
         ) {
-            (Some(l), _, Some(r)) => Location::concat(l, r),
-            (Some(l), Some(r), None) => Location::concat(l, r.as_ref()),
-            (None, Some(l), Some(r)) => Location::concat(l.as_ref(), r),
-            (Some(l), None, None) => Location::concat(l, self.non_defaults.last().unwrap()),
-            (None, Some(var), None) => var.loc(),
-            (None, None, Some(r)) => Location::concat(self.defaults.first().unwrap(), r),
-            _ => Location::Unknown,
+            (Some((l, _)), _, Some((_, r))) => Location::concat(l, r),
+            (Some((l, _)), Some(r), None) => Location::concat(l, r.as_ref()),
+            (Some((l, r)), None, None) => Location::concat(l, r),
+            (None, Some(l), Some((_, r))) => Location::concat(l.as_ref(), r),
+            (None, None, Some((l, r))) => Location::concat(l, r),
+            (None, Some(l), None) => l.loc(),
+            (None, None, None) => Location::Unknown,
         }
     }
 }
@@ -5637,6 +5681,10 @@ impl DefKind {
 
     pub const fn is_class(&self) -> bool {
         matches!(self, Self::Class | Self::Inherit)
+    }
+
+    pub const fn is_inherit(&self) -> bool {
+        matches!(self, Self::Inherit)
     }
 
     pub const fn is_class_or_trait(&self) -> bool {
@@ -6432,7 +6480,11 @@ impl_display_from_nested!(Module);
 
 impl Locational for Module {
     fn loc(&self) -> Location {
-        Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+        if self.is_empty() {
+            Location::Unknown
+        } else {
+            Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+        }
     }
 }
 

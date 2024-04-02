@@ -59,3 +59,6 @@ class BoolMut(NatMut):
 
     def invert(self):
         self.value = self.value.invert()
+
+    def copy(self):
+        return BoolMut(self.value)

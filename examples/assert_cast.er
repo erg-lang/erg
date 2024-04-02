@@ -20,3 +20,8 @@ s = "{ \"key\": \"value\" }"
 jdata = json.loads(s)
 assert jdata in {Str: Str}
 assert jdata["key"] == "value"
+
+is_int(x: Obj) = x in Int
+y as Obj = 1
+assert is_int y
+y: Int

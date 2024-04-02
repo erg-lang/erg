@@ -125,7 +125,7 @@ fn exec_invalid_class_inheritable() -> Result<(), ()> {
             "Point3d.",
             "@Override",
             "new(x, y, z) =",
-            "Point3d::__new__{x; y; z}",
+            "Point3d {x; y; z}",
             "",
             "norm self = self::x**2 + self::y**2 + self::z**2",
             "",

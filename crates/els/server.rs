@@ -276,29 +276,30 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             lsp_log!("packages must be an array: {pkgs}");
             return cfg;
         };
+        let mut packages = vec![];
         for rec in arr.iter() {
             let ast::Expr::Record(rec) = rec else {
                 lsp_log!("packages must be records: {rec}");
-                return cfg;
+                break;
             };
             let Some(ast::Expr::Literal(name)) =
                 rec.get("name").and_then(|name| name.body.block.first())
             else {
-                return cfg;
+                break;
             };
             let name = name.token.content.replace('\"', "");
             let Some(ast::Expr::Literal(as_name)) = rec
                 .get("as_name")
                 .and_then(|as_name| as_name.body.block.first())
             else {
-                return cfg;
+                break;
             };
             let as_name = as_name.token.content.replace('\"', "");
             let Some(ast::Expr::Literal(version)) = rec
                 .get("version")
                 .and_then(|version| version.body.block.first())
             else {
-                return cfg;
+                break;
             };
             let version = version.token.content.replace('\"', "");
             let path = rec.get("path").and_then(|path| {
@@ -314,8 +315,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 version.leak(),
                 path.map(|p| &*p.leak()),
             );
-            cfg.packages.push(package);
+            packages.push(package);
         }
+        cfg.packages = Arc::from(packages);
         cfg
     }
 
@@ -851,7 +853,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             HEALTH_CHECKER_ID => {
                 self.channels
                     .as_ref()
-                    .unwrap()
+                    .ok_or("channels not found")?
                     .health_check
                     .send(WorkerMessage::Request(0, ()))?;
             }
@@ -982,7 +984,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let mut ctxs = vec![];
         if let Ok(dir) = uri
             .to_file_path()
-            .and_then(|p| p.parent().unwrap().read_dir().map_err(|_| ()))
+            .and_then(|p| p.parent().ok_or(())?.read_dir().map_err(|_| ()))
         {
             for neighbor in dir {
                 let Ok(neighbor) = neighbor else {

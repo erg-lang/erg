@@ -35,6 +35,7 @@ use erg_common::{fmt_option, fn_name, get_hash, log};
 use ast::{DefId, DefKind, VarName};
 use erg_parser::ast;
 use erg_parser::ast::Def;
+use erg_parser::ast::Signature;
 use erg_parser::token::Token;
 
 use crate::context::instantiate::TyVarCache;
@@ -264,6 +265,22 @@ impl TypeContext {
     pub const fn new(typ: Type, ctx: Context) -> Self {
         Self { typ, ctx }
     }
+
+    pub(crate) fn get_class_attr<'c>(
+        &'c self,
+        name: &VarName,
+        ctx: &'c Context,
+    ) -> Option<&'c VarInfo> {
+        self.get_current_scope_attr(name).or_else(|| {
+            let sups = ctx.get_nominal_super_type_ctxs(&self.typ)?;
+            for sup in sups {
+                if let Some(vi) = sup.get_current_scope_attr(name) {
+                    return Some(vi);
+                }
+            }
+            None
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -440,8 +457,8 @@ impl From<&Def> for ContextKind {
                 Self::Module
             }
             DefKind::Other => {
-                if def.is_subr() {
-                    if def.sig.ident().unwrap().is_procedural() {
+                if let Signature::Subr(subr) = &def.sig {
+                    if subr.ident.is_procedural() {
                         Self::Proc
                     } else {
                         Self::Func
@@ -537,6 +554,15 @@ impl ContextKind {
 pub enum RegistrationMode {
     PreRegister,
     Normal,
+}
+
+impl RegistrationMode {
+    pub const fn is_preregister(&self) -> bool {
+        matches!(self, Self::PreRegister)
+    }
+    pub const fn is_normal(&self) -> bool {
+        matches!(self, Self::Normal)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

@@ -21,7 +21,7 @@ UserId = Class {id = Nat}
 UserId.
     new id: Nat =
         assert id.dights().len() == 8, else: "UserId 必须是长度为 8 的正数"
-        UserId::__new__ {id;}
+        UserId {id;}
 
 i = UserId.new(10000000)
 print! i # <__main__.UserId object>

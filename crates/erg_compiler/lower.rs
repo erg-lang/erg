@@ -9,13 +9,16 @@ use erg_common::config::{ErgConfig, ErgMode};
 use erg_common::consts::{ELS, ERG_MODE, PYTHON_MODE};
 use erg_common::dict;
 use erg_common::dict::Dict;
+use erg_common::error::{ErrorDisplay, ErrorKind};
 use erg_common::error::{Location, MultiErrorDisplay};
 use erg_common::fresh::FreshNameGenerator;
 use erg_common::pathutil::{mod_name, NormalizedPathBuf};
 use erg_common::set;
 use erg_common::set::Set;
+use erg_common::traits::BlockKind;
+use erg_common::traits::New;
+use erg_common::traits::OptionalTranspose;
 use erg_common::traits::{ExitStatus, Locational, NoTypeDisplay, Runnable, Stream};
-use erg_common::traits::{New, OptionalTranspose};
 use erg_common::triple::Triple;
 use erg_common::{fmt_option, fn_name, log, switch_lang, Str};
 
@@ -25,6 +28,7 @@ use erg_parser::build_ast::{ASTBuildable, ASTBuilder as DefaultASTBuilder};
 use erg_parser::desugar::Desugarer;
 use erg_parser::token::{Token, TokenKind};
 use erg_parser::Parser;
+use erg_parser::ParserRunner;
 
 use crate::artifact::{BuildRunnable, Buildable, CompleteArtifact, IncompleteArtifact};
 use crate::build_package::CheckStatus;
@@ -37,7 +41,7 @@ use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{
-    CastTarget, GuardType, HasType, ParamTy, Predicate, SubrType, Type, VisibilityModifier,
+    CastTarget, Field, GuardType, HasType, ParamTy, Predicate, SubrType, Type, VisibilityModifier,
 };
 
 use crate::context::{
@@ -745,6 +749,39 @@ impl<ASTBuilder: ASTBuildable> Runnable for GenericASTLowerer<ASTBuilder> {
         artifact.warns.write_all_stderr();
         Ok(format!("{}", artifact.object))
     }
+
+    fn expect_block(&self, src: &str) -> BlockKind {
+        let mut parser = ParserRunner::new(self.cfg().clone());
+        match parser.eval(src.to_string()) {
+            Err(errs) => {
+                let kind = errs
+                    .iter()
+                    .filter(|e| e.core().kind == ErrorKind::ExpectNextLine)
+                    .map(|e| {
+                        let msg = e.core().sub_messages.last().unwrap();
+                        // ExpectNextLine error must have msg otherwise it's a bug
+                        msg.get_msg().first().unwrap().to_owned()
+                    })
+                    .next();
+                if let Some(kind) = kind {
+                    return BlockKind::from(kind.as_str());
+                }
+                if errs
+                    .iter()
+                    .any(|err| err.core.main_message.contains("\"\"\""))
+                {
+                    return BlockKind::MultiLineStr;
+                }
+                BlockKind::Error
+            }
+            Ok(_) => {
+                if src.contains("Class") {
+                    return BlockKind::ClassDef;
+                }
+                BlockKind::None
+            }
+        }
+    }
 }
 
 impl<A: ASTBuildable> ContextProvider for GenericASTLowerer<A> {
@@ -1133,13 +1170,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             .grow("<record>", ContextKind::Dummy, Private, None);
         for attr in record.attrs.iter() {
             if attr.sig.is_const() {
-                self.module
-                    .context
-                    .register_const_def(attr)
-                    .map_err(|errs| {
-                        self.pop_append_errs();
-                        errs
-                    })?;
+                self.module.context.register_def(attr).map_err(|errs| {
+                    self.pop_append_errs();
+                    errs
+                })?;
             }
         }
         for attr in record.attrs.into_iter() {
@@ -1192,27 +1226,11 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             let elem = self.lower_expr(elem.expr, expect_elem.as_ref())?;
             union = self.module.context.union(&union, elem.ref_t());
             if ERG_MODE && union.is_union_type() {
-                return Err(LowerErrors::from(LowerError::syntax_error(
+                return Err(LowerErrors::from(LowerError::set_homogeneity_error(
                     self.cfg.input.clone(),
                     line!() as usize,
                     elem.loc(),
-                    String::from(&self.module.context.name[..]),
-                    switch_lang!(
-                        "japanese" => "集合の要素は全て同じ型である必要があります",
-                        "simplified_chinese" => "集合元素必须全部是相同类型",
-                        "traditional_chinese" => "集合元素必須全部是相同類型",
-                        "english" => "all elements of a set must be of the same type",
-                    )
-                    .to_owned(),
-                    Some(
-                        switch_lang!(
-                            "japanese" => "Int or Strなど明示的に型を指定してください",
-                            "simplified_chinese" => "明确指定类型，例如: Int or Str",
-                            "traditional_chinese" => "明確指定類型，例如: Int or Str",
-                            "english" => "please specify the type explicitly, e.g. Int or Str",
-                        )
-                        .to_owned(),
-                    ),
+                    self.module.context.caused_by(),
                 )));
             }
             new_set.push(elem);
@@ -1579,9 +1597,55 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             &call.args.nth_or_key(0, "object"),
             &call.args.nth_or_key(1, "classinfo"),
         ) {
-            self.get_bin_guard_type(ident.name.token(), lhs, rhs)
+            match &ident.inspect()[..] {
+                "isinstance" | "issubclass" => {
+                    self.get_bin_guard_type(ident.name.token(), lhs, rhs)
+                }
+                "hasattr" => {
+                    let ast::Expr::Literal(lit) = rhs else {
+                        return None;
+                    };
+                    if !lit.is(TokenKind::StrLit) {
+                        return None;
+                    }
+                    let name = lit.token.content.trim_matches('\"');
+                    let target = self.expr_to_cast_target(lhs);
+                    let rec = dict! {
+                        Field::new(VisibilityModifier::Public, Str::rc(name)) => Type::Obj,
+                    };
+                    let to = Type::Record(rec).structuralize();
+                    Some(guard(self.module.context.name.clone(), target, to))
+                }
+                _ => None,
+            }
         } else {
             None
+        }
+    }
+
+    pub fn expr_to_cast_target(&self, expr: &ast::Expr) -> CastTarget {
+        match expr {
+            ast::Expr::Accessor(ast::Accessor::Ident(ident)) => {
+                if let Some(nth) = self
+                    .module
+                    .context
+                    .params
+                    .iter()
+                    .position(|(name, _)| name.as_ref() == Some(&ident.name))
+                {
+                    CastTarget::Arg {
+                        nth,
+                        name: ident.inspect().clone(),
+                        loc: ident.loc(),
+                    }
+                } else {
+                    CastTarget::Var {
+                        name: ident.inspect().clone(),
+                        loc: ident.loc(),
+                    }
+                }
+            }
+            _ => CastTarget::expr(expr.clone()),
         }
     }
 
@@ -1600,9 +1664,9 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             _ => {}
         }
         let target = if op.kind == TokenKind::ContainsOp {
-            expr_to_cast_target(rhs)
+            self.expr_to_cast_target(rhs)
         } else {
-            expr_to_cast_target(lhs)
+            self.expr_to_cast_target(lhs)
         };
         let namespace = self.module.context.name.clone();
         match op.kind {
@@ -2001,20 +2065,21 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
     /// importing is done in [preregister](https://github.com/erg-lang/erg/blob/ffd33015d540ff5a0b853b28c01370e46e0fcc52/crates/erg_compiler/context/register.rs#L819)
     fn exec_additional_op(&mut self, call: &mut hir::Call) -> LowerResult<()> {
         match call.additional_operation() {
-            Some(OperationKind::Del) => match call.args.get_left_or_key("obj").unwrap() {
-                hir::Expr::Accessor(hir::Accessor::Ident(ident)) => {
+            Some(OperationKind::Del) => match call.args.get_left_or_key("obj") {
+                Some(hir::Expr::Accessor(hir::Accessor::Ident(ident))) => {
                     self.module.context.del(ident)?;
                     Ok(())
                 }
                 other => {
+                    let expr = other.map_or("nothing", |expr| expr.name());
                     return Err(LowerErrors::from(LowerError::syntax_error(
                         self.input().clone(),
                         line!() as usize,
                         other.loc(),
                         self.module.context.caused_by(),
-                        format!("expected identifier, but found {}", other.name()),
+                        format!("expected identifier, but found {expr}"),
                         None,
-                    )))
+                    )));
                 }
             },
             Some(OperationKind::Return | OperationKind::Yield) => {
@@ -2022,7 +2087,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 let callable_t = call.obj.ref_t();
                 let ret_t = match callable_t {
                     Type::Subr(subr) => *subr.return_t.clone(),
-                    Type::FreeVar(fv) if fv.is_unbound() => {
+                    Type::FreeVar(fv) if fv.get_sub().is_some() => {
                         fv.get_sub().unwrap().return_t().unwrap().clone()
                     }
                     other => {
@@ -2038,7 +2103,15 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 if let Some(Type::Guard(guard)) =
                     call.args.get_left_or_key("test").map(|exp| exp.ref_t())
                 {
-                    self.module.context.cast(guard.clone(), &mut vec![])?;
+                    let test = call.args.get_left_or_key("test");
+                    let test_args = if let Some(hir::Expr::Call(call)) = test {
+                        Some(&call.args)
+                    } else {
+                        None
+                    };
+                    self.module
+                        .context
+                        .cast(guard.clone(), test_args, &mut vec![])?;
                 }
                 Ok(())
             }
@@ -2068,14 +2141,14 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             VisModifierSpec::Public(Token::new(
                 TokenKind::Dot,
                 Str::ever("."),
-                pack.connector.ln_begin().unwrap(),
-                pack.connector.col_begin().unwrap(),
+                pack.connector.ln_begin().unwrap_or(0),
+                pack.connector.col_begin().unwrap_or(0),
             )),
             ast::VarName::new(Token::new(
                 TokenKind::Symbol,
                 Str::ever("new"),
-                pack.connector.ln_begin().unwrap(),
-                pack.connector.col_begin().unwrap(),
+                pack.connector.ln_begin().unwrap_or(0),
+                pack.connector.col_begin().unwrap_or(0),
             )),
         );
         let vi = match self.module.context.get_call_t(
@@ -2129,11 +2202,18 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         expect: Option<&SubrType>,
     ) -> LowerResult<hir::Params> {
         log!(info "entered {}({})", fn_name!(), params);
-        let mut tmp_tv_ctx = self
+        let mut errs = LowerErrors::empty();
+        let mut tmp_tv_ctx = match self
             .module
             .context
-            .instantiate_ty_bounds(&bounds, RegistrationMode::Normal)?;
-        let mut errs = LowerErrors::empty();
+            .instantiate_ty_bounds(&bounds, RegistrationMode::Normal)
+        {
+            Ok(tv_ctx) => tv_ctx,
+            Err((tv_ctx, es)) => {
+                errs.extend(es);
+                tv_ctx
+            }
+        };
         let mut hir_non_defaults = vec![];
         for non_default in params.non_defaults.into_iter() {
             match self.lower_non_default_param(non_default) {
@@ -2237,7 +2317,8 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         let tv_cache = self
             .module
             .context
-            .instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)?;
+            .instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal)
+            .map_err(|(_, es)| es)?;
         if !in_statement {
             self.module
                 .context
@@ -2259,7 +2340,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 mem::take(&mut self.module.context.get_mut_outer().unwrap().guards)
             };
             for guard in guards.into_iter() {
-                if let Err(errs) = self.module.context.cast(guard, &mut overwritten) {
+                if let Err(errs) = self.module.context.cast(guard, None, &mut overwritten) {
                     self.errs.extend(errs);
                 }
             }
@@ -2327,7 +2408,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             let var_params = var_params.first().map(|(name, vi)| {
                 ParamTy::pos_or_kw(
                     name.as_ref().map(|n| n.inspect().clone()),
-                    vi.t.inner_ts().remove(0),
+                    vi.t.inner_ts().first().map_or(Type::Obj, |t| t.clone()),
                 )
             });
             (var_params, non_default_params.into_iter())
@@ -2340,7 +2421,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             let var_params = var_params.get(0).map(|(name, vi)| {
                 ParamTy::pos_or_kw(
                     name.as_ref().map(|n| n.inspect().clone()),
-                    vi.t.inner_ts().remove(0),
+                    vi.t.inner_ts().first().map_or(Type::Obj, |t| t.clone()),
                 )
             });
             let non_default_params = non_default_params.into_iter().filter(|(name, _)| {
@@ -2493,7 +2574,8 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 let tv_cache = self
                     .module
                     .context
-                    .instantiate_ty_bounds(&sig.bounds, RegistrationMode::Normal)?;
+                    .instantiate_ty_bounds(&sig.bounds, RegistrationMode::Normal)
+                    .map_err(|(_, es)| es)?;
                 self.module.context.grow(&name, kind, vis, Some(tv_cache));
                 self.lower_subr_def(sig, def.body)
             }
@@ -2541,7 +2623,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     ast::VarPattern::Discard(token) => {
                         ast::Identifier::private_from_token(token.clone())
                     }
-                    _ => unreachable!(),
+                    other => {
+                        log!(err "unexpected pattern: {other}");
+                        return unreachable_error!(LowerErrors, LowerError, self.module.context);
+                    }
                 };
                 if let Some(expect_body_t) = expect_body_t {
                     // TODO: expect_body_t is smaller for constants
@@ -2788,16 +2873,18 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     self.module.context.get_similar_name(&class.local_name()),
                 )));
             }
-            let methods_list = &mut self
+            let Some(methods_list) = &mut self
                 .module
                 .context
                 .get_mut_nominal_type_ctx(&class)
-                .unwrap()
-                .methods_list;
+                .map(|ctx| &mut ctx.methods_list)
+            else {
+                return unreachable_error!(LowerErrors, LowerError, self);
+            };
             let methods_idx = methods_list.iter().position(|m| m.id == methods.id);
-            let methods_ctx = methods_idx
-                .map(|idx| methods_list.remove(idx))
-                .unwrap_or_else(|| todo!());
+            let Some(methods_ctx) = methods_idx.map(|idx| methods_list.remove(idx)) else {
+                return unreachable_error!(LowerErrors, LowerError, self);
+            };
             self.module.context.replace(methods_ctx.ctx);
             for attr in methods.attrs.iter() {
                 match attr {
@@ -2889,14 +2976,15 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         let Some(hir::Expr::Call(call)) = hir_def.body.block.first() else {
             return unreachable_error!(LowerErrors, LowerError, self);
         };
-        if let Some(sup_type) = call.args.get_left_or_key("Super") {
-            if let Err(err) = self.check_inheritable(type_obj, sup_type, &hir_def.sig) {
-                self.errs.extend(err);
+        if hir_def.def_kind().is_inherit() {
+            if let Some(sup_type) = call.args.get_left_or_key("Super") {
+                if let Err(err) = self.check_inheritable(type_obj, sup_type, &hir_def.sig) {
+                    self.errs.extend(err);
+                }
             }
         }
-        let Some(__new__) = class_ctx
-            .get_current_scope_var(&VarName::from_static("__new__"))
-            .or(class_ctx.get_current_scope_var(&VarName::from_static("__call__")))
+        let Some(constructor) =
+            class_ctx.get_class_attr(&VarName::from_static("__call__"), &self.module.context)
         else {
             return unreachable_error!(LowerErrors, LowerError, self);
         };
@@ -2909,7 +2997,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             hir_def.sig,
             require_or_sup,
             need_to_gen_new,
-            __new__.t.clone(),
+            constructor.t.clone(),
             hir_methods_list,
         ))
     }
@@ -2942,17 +3030,14 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                             def.sig.ident_mut().unwrap().vis = VisModifierSpec::Public(Token::new(
                                 TokenKind::Dot,
                                 ".",
-                                def.sig.ln_begin().unwrap(),
-                                def.sig.col_begin().unwrap(),
+                                def.sig.ln_begin().unwrap_or(0),
+                                def.sig.col_begin().unwrap_or(0),
                             ));
                         }
-                        self.module
-                            .context
-                            .register_const_def(def)
-                            .map_err(|errs| {
-                                self.pop_append_errs();
-                                errs
-                            })?;
+                        self.module.context.register_def(def).map_err(|errs| {
+                            self.pop_append_errs();
+                            errs
+                        })?;
                     }
                     ast::ClassAttr::Decl(_) | ast::ClassAttr::Doc(_) => {}
                 }
@@ -3294,7 +3379,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 Some("Class" | "Trait") => call.args.remove_left_or_key("Requirement"),
                 Some("Inherit") => call.args.remove_left_or_key("Super"),
                 Some("Inheritable") => {
-                    Self::get_require_or_sup_or_base(call.args.remove_left_or_key("Class").unwrap())
+                    Self::get_require_or_sup_or_base(call.args.remove_left_or_key("Class")?)
                 }
                 Some("Structural") => call.args.remove_left_or_key("Type"),
                 Some("Patch") => call.args.remove_left_or_key("Base"),
@@ -3451,7 +3536,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             .context
             .get_singular_ctxs_by_ident(&ident, &self.module.context)
             .ok()
-            .map(|ctx| ctx.first().unwrap().name.clone());
+            .and_then(|ctxs| ctxs.first().map(|ctx| ctx.name.clone()));
         let ident = hir::Identifier::new(ident, qual_name, ident_vi);
         let expr = hir::Expr::Accessor(hir::Accessor::Ident(ident));
         let t_spec = self.lower_type_spec_with_op(tasc.t_spec, spec_t)?;
@@ -3495,10 +3580,14 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             }
         };
         if let Some(casted) = casted {
-            if expr.ref_t().is_projection() || self.module.context.subtype_of(&casted, expr.ref_t())
+            // e.g. casted == {x: Obj | x != None}, expr: Int or NoneType => intersec == Int
+            let intersec = self.module.context.intersection(expr.ref_t(), &casted);
+            // bad narrowing: C and Structural { foo = Foo }
+            if expr.ref_t().is_projection()
+                || (intersec != Type::Never && intersec.ands().iter().all(|t| !t.is_structural()))
             {
                 if let Some(ref_mut_t) = expr.ref_mut_t() {
-                    *ref_mut_t = casted;
+                    *ref_mut_t = intersec;
                 }
             }
         }

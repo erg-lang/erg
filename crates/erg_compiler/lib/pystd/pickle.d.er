@@ -1,5 +1,97 @@
+.bytes_types: (Type, Type)
+.format_version: Nat
+.compatible_formats: [Nat; _]
+
 .HIGHEST_PROTOCOL: Nat
 .DEFAULT_PROTOCOL: Nat
+
+.MARK: Bytes
+.STOP: Bytes
+.POP: Bytes
+.POP_MARK: Bytes
+.DUP: Bytes
+.FLOAT: Bytes
+.INT: Bytes
+.BININT: Bytes
+.BININT1: Bytes
+.LONG: Bytes
+.BININT2: Bytes
+.NONE: Bytes
+.PERSID: Bytes
+.BINPERSID: Bytes
+.REDUCE: Bytes
+.STRING: Bytes
+.BINSTRING: Bytes
+.SHORT_BINSTRING: Bytes
+.UNICODE: Bytes
+.BINUNICODE: Bytes
+.APPEND: Bytes
+.BUILD: Bytes
+.GLOBAL: Bytes
+.DICT: Bytes
+.EMPTY_DICT: Bytes
+.APPENDS: Bytes
+.GET: Bytes
+.BINGET: Bytes
+.INST: Bytes
+.LONG_BINGET: Bytes
+.LIST: Bytes
+.EMPTY_LIST: Bytes
+.OBJ: Bytes
+.PUT: Bytes
+.BINPUT: Bytes
+.LONG_BINPUT: Bytes
+.SETITEM: Bytes
+.TUPLE: Bytes
+.EMPTY_TUPLE: Bytes
+.SETITEMS: Bytes
+.BINFLOAT: Bytes
+
+.TRUE: Bytes
+.FALSE: Bytes
+
+.PROTO: Bytes
+.NEWOBJ: Bytes
+.EXT1: Bytes
+.EXT2: Bytes
+.EXT4: Bytes
+.TUPLE1: Bytes
+.TUPLE2: Bytes
+.TUPLE3: Bytes
+.NEWTRUE: Bytes
+.NEWFALSE: Bytes
+.LONG1: Bytes
+.LONG4: Bytes
+
+.BINBYTES: Bytes
+.SHORT_BINBYTES: Bytes
+
+.SHORT_BINUNICODE: Bytes
+.BINUNICODE8: Bytes
+.BINBYTES8: Bytes
+.EMPTY_SET: Bytes
+.ADDITEMS: Bytes
+.FROZENSET: Bytes
+.NEWOBJ_EX: Bytes
+.STACK_GLOBAL: Bytes
+.MEMOIZE: Bytes
+.FRAME: Bytes
+
+.BYTEARRAY8: Bytes
+.NEXT_BUFFER: Bytes
+.READONLY_BUFFER: Bytes
+
+.PickleError: ClassType
+.PickleError <: InheritableType
+.PickleError <: Exception
+
+.PicklingError: ClassType
+.PicklingError <: InheritableType
+.PicklingError <: .PickleError
+
+.UnpicklingError: ClassType
+.UnpicklingError <: InheritableType
+.UnpicklingError <: .PickleError
 
 .dump!: (obj: Obj, file: PathLike, protocol := Nat) => NoneType
 .dumps: (obj: Obj, protocol := Nat) -> Bytes

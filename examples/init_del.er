@@ -1,12 +1,13 @@
 i = !0
 
+@Inheritable
 C = Class()
-C.
+C::[<: Self]
     __init__! self =
-        print! "initialize:", self
+        print! "initialize C:", self
         i.inc!()
     __del__! self =
-        print! "delete:", self
+        print! "delete C:", self
         i.dec!()
 
 p!() =
@@ -16,3 +17,12 @@ p!() =
 
 p!()
 assert i == 0
+
+D = Inherit C, Additional := { x = Int }
+D::[<: Self]
+    @Override
+    __init__! self =
+        C::__init__! self
+        print! "initialize D:", self, self::x
+
+_ = D.new { x = 1 }

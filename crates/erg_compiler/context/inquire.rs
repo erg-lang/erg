@@ -24,7 +24,7 @@ use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{
     Field, GuardType, HasType, ParamTy, Predicate, RefinementType, SubrKind, SubrType, Type,
-    Visibility,
+    Visibility, VisibilityModifier,
 };
 use Type::*;
 
@@ -164,6 +164,27 @@ impl Context {
                 self.tv_cache
                     .as_ref()
                     .and_then(|tv_cache| tv_cache.var_infos.get(search_name))
+            })
+    }
+
+    pub(crate) fn get_current_scope_attr(&self, name: &VarName) -> Option<&VarInfo> {
+        #[cfg(feature = "py_compat")]
+        let search_name = self
+            .erg_to_py_names
+            .get(name.inspect())
+            .unwrap_or(name.inspect());
+        #[cfg(not(feature = "py_compat"))]
+        let search_name = name.inspect();
+        self.locals
+            .get(search_name)
+            .or_else(|| self.decls.get(search_name))
+            .or_else(|| {
+                for methods in self.methods_list.iter() {
+                    if let Some(vi) = methods.get_current_scope_attr(name) {
+                        return Some(vi);
+                    }
+                }
+                None
             })
     }
 
@@ -723,9 +744,10 @@ impl Context {
             });
             let t = free_var(self.level, constraint);
             if let Some(fv) = obj.ref_t().as_free() {
-                if fv.get_sub().is_some() {
-                    let sup = fv.get_super().unwrap();
-                    let vis = self.instantiate_vis_modifier(&ident.vis).unwrap();
+                if let Some((_sub, sup)) = fv.get_subsup() {
+                    let vis = self
+                        .instantiate_vis_modifier(&ident.vis)
+                        .unwrap_or(VisibilityModifier::Public);
                     let structural = Type::Record(
                         dict! { Field::new(vis, ident.inspect().clone()) => t.clone() },
                     )
@@ -955,7 +977,7 @@ impl Context {
             Type::FreeVar(fv) if fv.is_linked() => {
                 self.get_attr_info_from_attributive(&fv.crack(), ident, namespace)
             }
-            Type::FreeVar(fv) /* if fv.is_unbound() */ => {
+            Type::FreeVar(fv) if fv.get_super().is_some() => {
                 let sup = fv.get_super().unwrap();
                 self.get_attr_info_from_attributive(&sup, ident, namespace)
             }
@@ -979,7 +1001,9 @@ impl Context {
                         None,
                         AbsLocation::unknown(),
                     );
-                    if let Err(err) = self.validate_visibility(ident, &vi, &self.cfg.input, namespace) {
+                    if let Err(err) =
+                        self.validate_visibility(ident, &vi, &self.cfg.input, namespace)
+                    {
                         return Triple::Err(err);
                     }
                     Triple::Ok(vi)
@@ -988,7 +1012,9 @@ impl Context {
                 }
             }
             Type::NamedTuple(tuple) => {
-                if let Some((field, attr_t)) = tuple.iter().find(|(f, _)| &f.symbol == ident.inspect()) {
+                if let Some((field, attr_t)) =
+                    tuple.iter().find(|(f, _)| &f.symbol == ident.inspect())
+                {
                     let muty = Mutability::from(&ident.inspect()[..]);
                     let vi = VarInfo::new(
                         attr_t.clone(),
@@ -1000,7 +1026,9 @@ impl Context {
                         None,
                         AbsLocation::unknown(),
                     );
-                    if let Err(err) = self.validate_visibility(ident, &vi, &self.cfg.input, namespace) {
+                    if let Err(err) =
+                        self.validate_visibility(ident, &vi, &self.cfg.input, namespace)
+                    {
                         return Triple::Err(err);
                     }
                     Triple::Ok(vi)
@@ -1009,6 +1037,37 @@ impl Context {
                 }
             }
             Type::Structural(t) => self.get_attr_info_from_attributive(t, ident, namespace),
+            // TODO: And
+            Type::Or(l, r) => {
+                let l_info = self.get_attr_info_from_attributive(l, ident, namespace);
+                let r_info = self.get_attr_info_from_attributive(r, ident, namespace);
+                match (l_info, r_info) {
+                    (Triple::Ok(l), Triple::Ok(r)) => {
+                        let res = self.union(&l.t, &r.t);
+                        let vis = if l.vis.is_public() && r.vis.is_public() {
+                            Visibility::DUMMY_PUBLIC
+                        } else {
+                            Visibility::DUMMY_PRIVATE
+                        };
+                        let vi = VarInfo::new(
+                            res,
+                            l.muty,
+                            vis,
+                            l.kind,
+                            l.comptime_decos,
+                            l.ctx,
+                            l.py_name,
+                            l.def_loc,
+                        );
+                        Triple::Ok(vi)
+                    }
+                    (Triple::Ok(_), Triple::Err(e)) | (Triple::Err(e), Triple::Ok(_)) => {
+                        Triple::Err(e)
+                    }
+                    (Triple::Err(e1), Triple::Err(_e2)) => Triple::Err(e1),
+                    _ => Triple::None,
+                }
+            }
             _other => Triple::None,
         }
     }
@@ -1194,9 +1253,10 @@ impl Context {
             let return_t = free_var(self.level, Constraint::new_type_of(Type));
             let subr_t = fn_met(obj.t(), nd_params, None, d_params, None, return_t);
             if let Some(fv) = obj.ref_t().as_free() {
-                if fv.get_sub().is_some() {
-                    let sup = fv.get_super().unwrap();
-                    let vis = self.instantiate_vis_modifier(&attr_name.vis).unwrap();
+                if let Some((_sub, sup)) = fv.get_subsup() {
+                    let vis = self
+                        .instantiate_vis_modifier(&attr_name.vis)
+                        .unwrap_or(VisibilityModifier::Public);
                     let structural = Type::Record(
                         dict! { Field::new(vis, attr_name.inspect().clone()) => subr_t.clone() },
                     )
@@ -2145,7 +2205,7 @@ impl Context {
         } else {
             passed_params.insert(Str::from(format!("({} param)", ordinal_num(nth))));
         }
-        self.sub_unify(arg_t, param_t, arg, param.name())
+        self.sub_unify_with_coercion(arg_t, param_t, arg, param.name())
             .map_err(|errs| {
                 log!(err "semi-unification failed with {callee}\n{arg_t} !<: {param_t}");
                 let name = if let Some(attr) = attr_name {
@@ -2196,7 +2256,7 @@ impl Context {
     ) -> TyCheckResult<()> {
         let arg_t = arg.ref_t();
         let param_t = param.typ();
-        self.sub_unify(arg_t, param_t, arg, param.name())
+        self.sub_unify_with_coercion(arg_t, param_t, arg, param.name())
             .map_err(|errs| {
                 log!(err "semi-unification failed with {callee}\n{arg_t} !<: {param_t}");
                 let name = if let Some(attr) = attr_name {
@@ -2256,7 +2316,7 @@ impl Context {
         {
             let param_t = pt.typ();
             passed_params.insert(kw_name.clone());
-            self.sub_unify(arg_t, param_t, arg, Some(kw_name))
+            self.sub_unify_with_coercion(arg_t, param_t, arg, Some(kw_name))
                 .map_err(|errs| {
                     log!(err "semi-unification failed with {callee}\n{arg_t} !<: {}", pt.typ());
                     let name = if let Some(attr) = attr_name {
@@ -2288,7 +2348,7 @@ impl Context {
                     )
                 })?;
         } else if let Some(kw_var) = subr_ty.kw_var_params.as_deref() {
-            self.sub_unify(arg_t, kw_var.typ(), arg, Some(kw_name))?;
+            self.sub_unify_with_coercion(arg_t, kw_var.typ(), arg, Some(kw_name))?;
         } else {
             let similar =
                 levenshtein::get_similar_name(subr_ty.param_names(), arg.keyword.inspect());
@@ -2710,7 +2770,9 @@ impl Context {
             }
             // TODO
             Type::Or(l, r) => match (l.as_ref(), r.as_ref()) {
-                (Type::FreeVar(l), Type::FreeVar(r)) if l.is_unbound() && r.is_unbound() => {
+                (Type::FreeVar(l), Type::FreeVar(r))
+                    if l.is_unbound_and_sandwiched() && r.is_unbound_and_sandwiched() =>
+                {
                     let (_lsub, lsup) = l.get_subsup().unwrap();
                     let (_rsub, rsup) = r.get_subsup().unwrap();
                     self.get_nominal_super_type_ctxs(&self.union(&lsup, &rsup))
@@ -2976,8 +3038,10 @@ impl Context {
                 }
             }
             Type::FreeVar(fv) => {
-                let sup = fv.get_super().unwrap();
-                if let Some(res) = self.get_mut_nominal_type_ctx(&sup) {
+                if let Some(res) = fv
+                    .get_super()
+                    .and_then(|sup| self.get_mut_nominal_type_ctx(&sup))
+                {
                     return Some(res);
                 }
             }
@@ -3015,6 +3079,26 @@ impl Context {
             Type::Bounded { sup, .. } => {
                 if let Some(res) = self.get_mut_nominal_type_ctx(sup) {
                     return Some(res);
+                }
+            }
+            Type::Proj { lhs, rhs } => {
+                if let Ok(typ) = self.eval_proj(*lhs.clone(), rhs.clone(), self.level, &()) {
+                    return self.get_mut_nominal_type_ctx(&typ);
+                }
+            }
+            Type::ProjCall {
+                lhs,
+                attr_name,
+                args,
+            } => {
+                if let Ok(typ) = self.eval_proj_call_t(
+                    *lhs.clone(),
+                    attr_name.clone(),
+                    args.clone(),
+                    self.level,
+                    &(),
+                ) {
+                    return self.get_mut_nominal_type_ctx(&typ);
                 }
             }
             other => {

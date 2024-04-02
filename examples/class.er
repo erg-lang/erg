@@ -2,11 +2,28 @@ Empty = Class()
 empty = Empty.new()
 print! empty
 
+MyInt = Class {value = Int}
+MyInt.
+    # You cannot access private instance attribute `value` outside of the class
+    get_value self = self::value
+i = MyInt.new {value = 1}
+print! i.get_value()
+
+MyStr = Class {.value = Str}
+s = MyStr.new {.value = "aaa"}
+print! s.value
+
 # Inheritance is prohibited by default. Remove this decorator and check for errors.
+# [<: Self] means that the attribute is public within the class and its subclasses
 @Inheritable
 Point2D = Class {::[<: Self]x = Int; ::[<: Self]y = Int}
+# Private variables & methods
 Point2D::
     one = 1
+# Restricted variables & methods
+Point2D::[<: Self]
+    two = 2
+# Public variables & methods
 Point2D.
     zero = Point2D::one - 1
     '''erg
@@ -24,7 +41,7 @@ Point3D.
     @Override
     norm self = self::x**2 + self::y**2 + self::z**2
 
-# `Point2D::__new__` is private, use `Point2D.new` instead
+# the constructor of `Point2D` is private, use `Point2D.new` instead
 p = Point2D.new {x = 1; y = 2}
 print! p, p.norm()
 print! Point2D.zero

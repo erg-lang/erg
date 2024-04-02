@@ -5,9 +5,8 @@ Here is an example of a simple class.
 
 ```python
 Person = Class {.name = Str; .age = Nat}
-# If `.new` is not defined, then Erg will create `Person.new = Person::__new__`
 Person.
-    new name, age = Self::__new__ {.name = name; .age = age}
+    new name, age = Self {.name = name; .age = age}
 
 john = Person.new "John Smith", 25
 print! john # <Person object>
@@ -15,8 +14,8 @@ print! classof(john) # Person
 ```
 
 The type given to `Class` (normally a record type) is called the requirement type (in this case `{.name = Str; .age = Nat}`).
-Instances can be created with `<Class name>::__new__ {<attribute name> = <value>; ...}` can be created with.
-`{.name = "John Smith"; .age = 25}` is just a record, but it is converted to a `Person` instance by passing `Person.new`.
+Instances can be created with `<Class name> {<attribute name> = <value>; ...}`.
+`{.name = "John Smith"; .age = 25}` is just a record, but it is converted to a `Person` instance by passing it to the constructor / `Person.new`.
 The subroutine that creates such an instance is called a constructor.
 In the class above, the `.new` method is defined so that field names, etc. can be omitted.
 
@@ -30,7 +29,7 @@ Person.new name, age = ... # SyntaxError: cannot define attributes directly on a
 
 You can define a class `C` by `C = Class T` for a non-record type `T`. This is a short-hand notation, which is equivalent to `C = Class {base = T}`.
 This is to simplify the definition of the so-called "new type pattern".
-Also, the constructor `__new__`/`new` can be passed directly to a `T` type object without wrapping it in a record.
+Also, the constructor/`new` can be passed directly to a `T` type object without wrapping it in a record.
 
 ```python
 Id = Class {base = Int}

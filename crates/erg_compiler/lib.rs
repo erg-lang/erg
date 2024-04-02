@@ -57,7 +57,7 @@ impl _Compiler {
     #[new]
     fn new(deps: Vec<Package>) -> Self {
         let cfg = ErgConfig {
-            packages: deps,
+            packages: erg_common::ArcArray::from(deps),
             ..ErgConfig::default()
         };
         Self {

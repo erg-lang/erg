@@ -1,0 +1,21 @@
+unsound = import "unsound"
+
+x = !0
+
+C = Class()
+C|<: ContextManager|.
+    __enter__ self =
+        unsound.perform do!:
+            print! "C: enter"
+            x.inc!()
+        self
+    __exit__ self, _, _, _ =
+        unsound.perform do!:
+            print! "C: exit"
+            x.dec!()
+        False
+
+with! C.new(), c =>
+    assert x == 1
+    print! c
+assert x == 0

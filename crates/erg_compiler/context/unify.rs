@@ -188,15 +188,13 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                         self.ctx.caused_by(),
                     )))
                 } else {
-                    if sub.constraint_is_sandwiched() {
-                        let (sub_t, sup_t) = sub.get_subsup().unwrap();
+                    if let Some((sub_t, sup_t)) = sub.get_subsup() {
                         sub.do_avoiding_recursion(|| {
                             self.occur_inner(&sub_t, maybe_sup)?;
                             self.occur_inner(&sup_t, maybe_sup)
                         })?;
                     }
-                    if sup.constraint_is_sandwiched() {
-                        let (sub_t, sup_t) = sup.get_subsup().unwrap();
+                    if let Some((sub_t, sup_t)) = sup.get_subsup() {
                         sup.do_avoiding_recursion(|| {
                             self.occur_inner(maybe_sub, &sub_t)?;
                             self.occur_inner(maybe_sub, &sup_t)
@@ -341,7 +339,16 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     }
                     FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {}
                 } // &fv is dropped
-                let fv_t = sub_fv.constraint().unwrap().get_type().unwrap().clone(); // lfvを参照しないよいにcloneする(あとでborrow_mutするため)
+                  // sub_fvを参照しないようcloneする(あとでborrow_mutするため)
+                let Some(fv_t) = sub_fv.constraint().unwrap().get_type().cloned() else {
+                    return Err(TyCheckErrors::from(TyCheckError::feature_error(
+                        self.ctx.cfg.input.clone(),
+                        line!() as usize,
+                        self.loc.loc(),
+                        &format!("unifying {sub_fv} and {sup_tp}"),
+                        self.ctx.caused_by(),
+                    )));
+                };
                 let tp_t = self.ctx.get_tp_t(sup_tp)?;
                 if self.ctx.supertype_of(&fv_t, &tp_t) {
                     // 外部未連携型変数の場合、linkしないで制約を弱めるだけにする(see compiler/inference.md)
@@ -387,7 +394,16 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     }
                     FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {}
                 } // &fv is dropped
-                let fv_t = sup_fv.constraint().unwrap().get_type().unwrap().clone(); // fvを参照しないよいにcloneする(あとでborrow_mutするため)
+                  // fvを参照しないようにcloneする(あとでborrow_mutするため)
+                let Some(fv_t) = sup_fv.constraint().unwrap().get_type().cloned() else {
+                    return Err(TyCheckErrors::from(TyCheckError::feature_error(
+                        self.ctx.cfg.input.clone(),
+                        line!() as usize,
+                        self.loc.loc(),
+                        &format!("unifying {sub_tp} and {sup_fv}"),
+                        self.ctx.caused_by(),
+                    )));
+                };
                 let tp_t = self.ctx.get_tp_t(sub_tp)?;
                 if self.ctx.supertype_of(&fv_t, &tp_t) {
                     // 外部未連携型変数の場合、linkしないで制約を弱めるだけにする(see compiler/inference.md)
@@ -813,11 +829,11 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
         }
     }
 
-    /// Assuming that `sub` is a subtype of `sup`, fill in the type variable to satisfy the assumption
+    /// Assuming that `sub` is a subtype of `sup`, fill in the type variable to satisfy the assumption.
     ///
-    /// When comparing arguments and parameter, the left side (`sub`) is the argument (found) and the right side (`sup`) is the parameter (expected)
+    /// When comparing arguments and parameter, the left side (`sub`) is the argument (found) and the right side (`sup`) is the parameter (expected).
     ///
-    /// The parameter type must be a supertype of the argument type
+    /// The parameter type must be a supertype of the argument type.
     /// ```python
     /// sub_unify({I: Int | I == 0}, ?T(<: Ord)): (/* OK */)
     /// sub_unify(Int, ?T(:> Nat)): (?T :> Int)
@@ -1145,6 +1161,10 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 }
             }
             (FreeVar(sub_fv), Structural(sup)) if sub_fv.is_unbound() => {
+                if sub_fv.get_sub().is_none() {
+                    log!(err "{sub_fv} is not a type variable");
+                    return Ok(());
+                }
                 let sub_fields = self.ctx.fields(maybe_sub);
                 for (sup_field, sup_ty) in self.ctx.fields(sup) {
                     if let Some((_, sub_ty)) = sub_fields.get_key_value(&sup_field) {
@@ -1376,6 +1396,9 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             }
             (Structural(sub), Structural(sup)) => {
                 self.sub_unify(sub, sup)?;
+            }
+            (Guard(sub), Guard(sup)) => {
+                self.sub_unify(&sub.to, &sup.to)?;
             }
             (sub, Structural(sup)) => {
                 let sub_fields = self.ctx.fields(sub);
@@ -1623,8 +1646,16 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                         .sub_unify_tp(l_maybe_sub, r_maybe_sup, *variance, false)
                         .is_err()
                     {
-                        log!(err "failed to unify {l_maybe_sub} <: {r_maybe_sup}");
-                        continue 'l;
+                        // retry with coercions
+                        l_maybe_sub.coerce(Some(&list));
+                        r_maybe_sup.coerce(Some(&list));
+                        if unifier
+                            .sub_unify_tp(l_maybe_sub, r_maybe_sup, *variance, false)
+                            .is_err()
+                        {
+                            log!(err "failed to unify {l_maybe_sub} <: {r_maybe_sup}?");
+                            continue 'l;
+                        }
                     }
                 }
                 drop(list);
@@ -1744,6 +1775,28 @@ impl Context {
     ) -> TyCheckResult<()> {
         let unifier = Unifier::new(self, loc, None, false, param_name.cloned());
         unifier.sub_unify(maybe_sub, maybe_sup)
+    }
+
+    pub(crate) fn sub_unify_with_coercion(
+        &self,
+        maybe_sub: &Type,
+        maybe_sup: &Type,
+        loc: &impl Locational,
+        param_name: Option<&Str>,
+    ) -> TyCheckResult<()> {
+        let unifier = Unifier::new(self, loc, None, false, param_name.cloned());
+        unifier.sub_unify(maybe_sub, maybe_sup).or_else(|err| {
+            log!(err "{err}");
+            maybe_sub.coerce(unifier.undoable);
+            maybe_sub.coerce(unifier.undoable);
+            let maybe_sub = self
+                .eval_t_params(maybe_sub.clone(), self.level, loc)
+                .map_err(|(_, errs)| errs)?;
+            let maybe_sup = self
+                .eval_t_params(maybe_sup.clone(), self.level, loc)
+                .map_err(|(_, errs)| errs)?;
+            unifier.sub_unify(&maybe_sub, &maybe_sup)
+        })
     }
 
     /// This will rewrite generalized type variables.

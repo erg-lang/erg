@@ -112,6 +112,30 @@ impl Context {
         /* Float */
         let mut float = Self::builtin_mono_class(FLOAT, 2);
         float.register_superclass(Complex, &complex);
+        let mut float_to_int = Self::builtin_methods(Some(mono(TO_INT)), 1);
+        float_to_int.register_builtin_erg_impl(
+            FUNDAMENTAL_INT,
+            fn0_met(Float, Int),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        float.register_trait_methods(Float, float_to_int);
+        let mut float_to_float = Self::builtin_methods(Some(mono(TO_FLOAT)), 1);
+        float_to_float.register_builtin_erg_impl(
+            FUNDAMENTAL_FLOAT,
+            fn0_met(Float, Float),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        float.register_trait_methods(Float, float_to_float);
+        let mut float_to_bool = Self::builtin_methods(Some(mono(TO_BOOL)), 1);
+        float_to_bool.register_builtin_erg_impl(
+            FUNDAMENTAL_BOOL,
+            fn0_met(Float, Bool),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        float.register_trait_methods(Float, float_to_bool);
         float.register_py_builtin(
             FUNC_AS_INTEGER_RATIO,
             fn0_met(Float, tuple_t(vec![Int, Int])),
@@ -168,7 +192,7 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
-        float.register_marker_trait(self, mono(NUM)).unwrap();
+        float.register_trait(self, mono(NUM)).unwrap();
         let mut float_partial_ord = Self::builtin_methods(Some(mono(PARTIAL_ORD)), 2);
         float_partial_ord.register_builtin_erg_impl(
             OP_CMP,
@@ -176,7 +200,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        float.register_trait(Float, float_partial_ord);
+        float.register_trait_methods(Float, float_partial_ord);
         // Float doesn't have an `Eq` implementation
         let op_t = fn1_met(Float, Float, Float);
         let mut float_add = Self::builtin_methods(Some(poly(ADD, vec![ty_tp(Float)])), 2);
@@ -192,7 +216,7 @@ impl Context {
             None,
             ValueObj::builtin_class(Float),
         );
-        float.register_trait(Float, float_add);
+        float.register_trait_methods(Float, float_add);
         let mut float_sub = Self::builtin_methods(Some(poly(SUB, vec![ty_tp(Float)])), 2);
         float_sub.register_builtin_erg_impl(
             OP_SUB,
@@ -206,7 +230,7 @@ impl Context {
             None,
             ValueObj::builtin_class(Float),
         );
-        float.register_trait(Float, float_sub);
+        float.register_trait_methods(Float, float_sub);
         let mut float_mul = Self::builtin_methods(Some(poly(MUL, vec![ty_tp(Float)])), 2);
         float_mul.register_builtin_erg_impl(
             OP_MUL,
@@ -226,7 +250,7 @@ impl Context {
             None,
             ValueObj::builtin_class(Float),
         );
-        float.register_trait(Float, float_mul);
+        float.register_trait_methods(Float, float_mul);
         let mut float_div = Self::builtin_methods(Some(poly(DIV, vec![ty_tp(Float)])), 2);
         float_div.register_builtin_erg_impl(
             OP_DIV,
@@ -246,7 +270,7 @@ impl Context {
             None,
             ValueObj::builtin_class(Float),
         );
-        float.register_trait(Float, float_div);
+        float.register_trait_methods(Float, float_div);
         let mut float_floordiv =
             Self::builtin_methods(Some(poly(FLOOR_DIV, vec![ty_tp(Float)])), 2);
         float_floordiv.register_builtin_erg_impl(
@@ -261,7 +285,7 @@ impl Context {
             None,
             ValueObj::builtin_class(Float),
         );
-        float.register_trait(Float, float_floordiv);
+        float.register_trait_methods(Float, float_floordiv);
         let mut float_pos = Self::builtin_methods(Some(mono(POS)), 2);
         float_pos.register_builtin_const(
             OUTPUT,
@@ -275,7 +299,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        float.register_trait(Float, float_pos);
+        float.register_trait_methods(Float, float_pos);
         let mut float_neg = Self::builtin_methods(Some(mono(NEG)), 2);
         float_neg.register_builtin_const(
             OUTPUT,
@@ -289,7 +313,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        float.register_trait(Float, float_neg);
+        float.register_trait_methods(Float, float_neg);
         let mut float_mutizable = Self::builtin_methods(Some(mono(MUTIZABLE)), 2);
         float_mutizable.register_builtin_const(
             MUTABLE_MUT_TYPE,
@@ -297,7 +321,7 @@ impl Context {
             None,
             ValueObj::builtin_class(mono(MUT_FLOAT)),
         );
-        float.register_trait(Float, float_mutizable);
+        float.register_trait_methods(Float, float_mutizable);
         let mut float_show = Self::builtin_methods(Some(mono(SHOW)), 1);
         let t = fn0_met(Float, Str);
         float_show.register_builtin_py_impl(
@@ -307,7 +331,7 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNDAMENTAL_STR),
         );
-        float.register_trait(Float, float_show);
+        float.register_trait_methods(Float, float_show);
 
         /* Ratio */
         // TODO: Int, Nat, Boolの継承元をRatioにする(今はFloat)
@@ -315,8 +339,8 @@ impl Context {
         ratio.register_superclass(Obj, &obj);
         ratio.register_builtin_py_impl(REAL, Ratio, Const, Visibility::BUILTIN_PUBLIC, Some(REAL));
         ratio.register_builtin_py_impl(IMAG, Ratio, Const, Visibility::BUILTIN_PUBLIC, Some(IMAG));
-        ratio.register_marker_trait(self, mono(NUM)).unwrap();
-        ratio.register_marker_trait(self, mono(ORD)).unwrap();
+        ratio.register_trait(self, mono(NUM)).unwrap();
+        ratio.register_trait(self, mono(ORD)).unwrap();
         let mut ratio_ord = Self::builtin_methods(Some(mono(ORD)), 2);
         ratio_ord.register_builtin_erg_impl(
             OP_CMP,
@@ -324,7 +348,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        ratio.register_trait(Ratio, ratio_ord);
+        ratio.register_trait_methods(Ratio, ratio_ord);
         let mut ratio_eq = Self::builtin_methods(Some(mono(EQ)), 2);
         ratio_eq.register_builtin_erg_impl(
             OP_EQ,
@@ -332,7 +356,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        ratio.register_trait(Ratio, ratio_eq);
+        ratio.register_trait_methods(Ratio, ratio_eq);
         let mut ratio_hash = Self::builtin_methods(Some(mono(HASH)), 1);
         ratio_hash.register_builtin_erg_impl(
             OP_HASH,
@@ -340,8 +364,8 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        ratio.register_trait(Ratio, ratio_hash);
-        ratio.register_marker_trait(self, mono(EQ_HASH)).unwrap();
+        ratio.register_trait_methods(Ratio, ratio_hash);
+        ratio.register_trait(self, mono(EQ_HASH)).unwrap();
         let op_t = fn1_met(Ratio, Ratio, Ratio);
         let mut ratio_add = Self::builtin_methods(Some(poly(ADD, vec![ty_tp(Ratio)])), 2);
         ratio_add.register_builtin_erg_impl(
@@ -356,7 +380,7 @@ impl Context {
             None,
             ValueObj::builtin_class(Ratio),
         );
-        ratio.register_trait(Ratio, ratio_add);
+        ratio.register_trait_methods(Ratio, ratio_add);
         let mut ratio_sub = Self::builtin_methods(Some(poly(SUB, vec![ty_tp(Ratio)])), 2);
         ratio_sub.register_builtin_erg_impl(
             OP_SUB,
@@ -370,7 +394,7 @@ impl Context {
             None,
             ValueObj::builtin_class(Ratio),
         );
-        ratio.register_trait(Ratio, ratio_sub);
+        ratio.register_trait_methods(Ratio, ratio_sub);
         let mut ratio_mul = Self::builtin_methods(Some(poly(MUL, vec![ty_tp(Ratio)])), 2);
         ratio_mul.register_builtin_erg_impl(
             OP_MUL,
@@ -390,7 +414,7 @@ impl Context {
             None,
             ValueObj::builtin_class(Ratio),
         );
-        ratio.register_trait(Ratio, ratio_mul);
+        ratio.register_trait_methods(Ratio, ratio_mul);
         let mut ratio_div = Self::builtin_methods(Some(poly(DIV, vec![ty_tp(Ratio)])), 2);
         ratio_div.register_builtin_erg_impl(
             OP_DIV,
@@ -410,7 +434,7 @@ impl Context {
             None,
             ValueObj::builtin_class(Ratio),
         );
-        ratio.register_trait(Ratio, ratio_div);
+        ratio.register_trait_methods(Ratio, ratio_div);
         let mut ratio_floordiv =
             Self::builtin_methods(Some(poly(FLOOR_DIV, vec![ty_tp(Ratio)])), 2);
         ratio_floordiv.register_builtin_erg_impl(
@@ -425,7 +449,7 @@ impl Context {
             None,
             ValueObj::builtin_class(Ratio),
         );
-        ratio.register_trait(Ratio, ratio_floordiv);
+        ratio.register_trait_methods(Ratio, ratio_floordiv);
         let mut ratio_mutizable = Self::builtin_methods(Some(mono(MUTIZABLE)), 2);
         ratio_mutizable.register_builtin_const(
             MUTABLE_MUT_TYPE,
@@ -433,7 +457,7 @@ impl Context {
             None,
             ValueObj::builtin_class(mono(MUT_RATIO)),
         );
-        ratio.register_trait(Ratio, ratio_mutizable);
+        ratio.register_trait_methods(Ratio, ratio_mutizable);
         let mut ratio_show = Self::builtin_methods(Some(mono(SHOW)), 1);
         let t = fn0_met(Ratio, Str);
         ratio_show.register_builtin_erg_impl(
@@ -442,12 +466,12 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
-        ratio.register_trait(Ratio, ratio_show);
+        ratio.register_trait_methods(Ratio, ratio_show);
 
         /* Int */
         let mut int = Self::builtin_mono_class(INT, 2);
         int.register_superclass(Float, &float); // TODO: Float -> Ratio
-        int.register_marker_trait(self, mono(NUM)).unwrap();
+        int.register_trait(self, mono(NUM)).unwrap();
         // class("Rational"),
         // class("Integral"),
         int.register_py_builtin(FUNC_ABS, fn0_met(Int, Nat), Some(OP_ABS), 11);
@@ -505,7 +529,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        int.register_trait(Int, int_ord);
+        int.register_trait_methods(Int, int_ord);
         let mut int_eq = Self::builtin_methods(Some(mono(EQ)), 2);
         int_eq.register_builtin_erg_impl(
             OP_EQ,
@@ -513,7 +537,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        int.register_trait(Int, int_eq);
+        int.register_trait_methods(Int, int_eq);
         let mut int_hash = Self::builtin_methods(Some(mono(HASH)), 1);
         int_hash.register_builtin_erg_impl(
             OP_HASH,
@@ -521,8 +545,8 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        int.register_trait(Int, int_hash);
-        int.register_marker_trait(self, mono(EQ_HASH)).unwrap();
+        int.register_trait_methods(Int, int_hash);
+        int.register_trait(self, mono(EQ_HASH)).unwrap();
         // __div__ is not included in Int (cast to Ratio)
         let op_t = fn1_met(Int, Int, Int);
         let mut int_add = Self::builtin_methods(Some(poly(ADD, vec![ty_tp(Int)])), 2);
@@ -533,7 +557,7 @@ impl Context {
             None,
             ValueObj::builtin_class(Int),
         );
-        int.register_trait(Int, int_add);
+        int.register_trait_methods(Int, int_add);
         let mut int_sub = Self::builtin_methods(Some(poly(SUB, vec![ty_tp(Int)])), 2);
         int_sub.register_builtin_erg_impl(OP_SUB, op_t.clone(), Const, Visibility::BUILTIN_PUBLIC);
         int_sub.register_builtin_const(
@@ -542,7 +566,7 @@ impl Context {
             None,
             ValueObj::builtin_class(Int),
         );
-        int.register_trait(Int, int_sub);
+        int.register_trait_methods(Int, int_sub);
         let mut int_mul = Self::builtin_methods(Some(poly(MUL, vec![ty_tp(Int)])), 2);
         int_mul.register_builtin_erg_impl(OP_MUL, op_t.clone(), Const, Visibility::BUILTIN_PUBLIC);
         int_mul.register_builtin_const(
@@ -557,7 +581,7 @@ impl Context {
             None,
             ValueObj::builtin_class(Nat),
         );
-        int.register_trait(Int, int_mul);
+        int.register_trait_methods(Int, int_mul);
         let mut int_floordiv = Self::builtin_methods(Some(poly(FLOOR_DIV, vec![ty_tp(Int)])), 2);
         int_floordiv.register_builtin_erg_impl(
             OP_FLOOR_DIV,
@@ -571,7 +595,7 @@ impl Context {
             None,
             ValueObj::builtin_class(Int),
         );
-        int.register_trait(Int, int_floordiv);
+        int.register_trait_methods(Int, int_floordiv);
         // needed for implementing `%` operator
         let mut int_div = Self::builtin_methods(Some(poly(DIV, vec![ty_tp(Int)])), 2);
         int_div.register_builtin_erg_impl(
@@ -592,7 +616,7 @@ impl Context {
             None,
             ValueObj::builtin_class(Int),
         );
-        int.register_trait(Int, int_div);
+        int.register_trait_methods(Int, int_div);
         let mut int_pos = Self::builtin_methods(Some(mono(POS)), 2);
         int_pos.register_builtin_const(
             OUTPUT,
@@ -606,7 +630,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        int.register_trait(Int, int_pos);
+        int.register_trait_methods(Int, int_pos);
         let mut int_neg = Self::builtin_methods(Some(mono(NEG)), 2);
         int_neg.register_builtin_const(
             OUTPUT,
@@ -620,7 +644,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        int.register_trait(Int, int_neg);
+        int.register_trait_methods(Int, int_neg);
         let mut int_mutizable = Self::builtin_methods(Some(mono(MUTIZABLE)), 2);
         int_mutizable.register_builtin_const(
             MUTABLE_MUT_TYPE,
@@ -628,7 +652,7 @@ impl Context {
             None,
             ValueObj::builtin_class(mono(MUT_INT)),
         );
-        int.register_trait(Int, int_mutizable);
+        int.register_trait_methods(Int, int_mutizable);
         let mut int_show = Self::builtin_methods(Some(mono(SHOW)), 1);
         let t = fn0_met(Int, Str);
         int_show.register_builtin_py_impl(
@@ -638,7 +662,7 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNDAMENTAL_STR),
         );
-        int.register_trait(Int, int_show);
+        int.register_trait_methods(Int, int_show);
         int.register_builtin_py_impl(REAL, Int, Const, Visibility::BUILTIN_PUBLIC, Some(REAL));
         int.register_builtin_py_impl(IMAG, Int, Const, Visibility::BUILTIN_PUBLIC, Some(IMAG));
 
@@ -666,7 +690,7 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
-        nat.register_marker_trait(self, mono(NUM)).unwrap();
+        nat.register_trait(self, mono(NUM)).unwrap();
         let mut nat_eq = Self::builtin_methods(Some(mono(EQ)), 2);
         nat_eq.register_builtin_erg_impl(
             OP_EQ,
@@ -674,7 +698,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        nat.register_trait(Nat, nat_eq);
+        nat.register_trait_methods(Nat, nat_eq);
         let mut nat_ord = Self::builtin_methods(Some(mono(ORD)), 2);
         nat_ord.register_builtin_erg_impl(
             OP_CMP,
@@ -682,7 +706,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        nat.register_trait(Nat, nat_ord);
+        nat.register_trait_methods(Nat, nat_ord);
         // __sub__, __div__ is not included in Nat (cast to Int/ Ratio)
         let op_t = fn1_met(Nat, Nat, Nat);
         let mut nat_add = Self::builtin_methods(Some(poly(ADD, vec![ty_tp(Nat)])), 2);
@@ -693,7 +717,7 @@ impl Context {
             None,
             ValueObj::builtin_class(Nat),
         );
-        nat.register_trait(Nat, nat_add);
+        nat.register_trait_methods(Nat, nat_add);
         /*
         Since `Int <: Sub(Int)`, the fact that `Nat <: Sub(Nat)` is not inherently necessary.
         However, if there were a constraint `T <: Sub(T)`, we would not be able to let `T = Nat`, so we temporarily insert this trait implementation.
@@ -708,7 +732,7 @@ impl Context {
             None,
             ValueObj::builtin_class(Int),
         );
-        nat.register_trait(Nat, nat_sub);
+        nat.register_trait_methods(Nat, nat_sub);
         let mut nat_mul = Self::builtin_methods(Some(poly(MUL, vec![ty_tp(Nat)])), 2);
         nat_mul.register_builtin_erg_impl(OP_MUL, op_t.clone(), Const, Visibility::BUILTIN_PUBLIC);
         nat_mul.register_builtin_const(
@@ -717,7 +741,7 @@ impl Context {
             None,
             ValueObj::builtin_class(Nat),
         );
-        nat.register_trait(Nat, nat_mul);
+        nat.register_trait_methods(Nat, nat_mul);
         let mut nat_floordiv = Self::builtin_methods(Some(poly(FLOOR_DIV, vec![ty_tp(Nat)])), 2);
         nat_floordiv.register_builtin_erg_impl(
             OP_FLOOR_DIV,
@@ -731,7 +755,7 @@ impl Context {
             None,
             ValueObj::builtin_class(Nat),
         );
-        nat.register_trait(Nat, nat_floordiv);
+        nat.register_trait_methods(Nat, nat_floordiv);
         // needed for implementing `%` operator
         let mut nat_div = Self::builtin_methods(Some(poly(DIV, vec![ty_tp(Nat)])), 2);
         nat_div.register_builtin_erg_impl(
@@ -752,7 +776,7 @@ impl Context {
             None,
             ValueObj::builtin_class(Nat),
         );
-        nat.register_trait(Nat, nat_div);
+        nat.register_trait_methods(Nat, nat_div);
         let mut nat_mutizable = Self::builtin_methods(Some(mono(MUTIZABLE)), 2);
         nat_mutizable.register_builtin_const(
             MUTABLE_MUT_TYPE,
@@ -760,7 +784,7 @@ impl Context {
             None,
             ValueObj::builtin_class(mono(MUT_NAT)),
         );
-        nat.register_trait(Nat, nat_mutizable);
+        nat.register_trait_methods(Nat, nat_mutizable);
         nat.register_builtin_erg_impl(REAL, Nat, Const, Visibility::BUILTIN_PUBLIC);
         nat.register_builtin_erg_impl(IMAG, Nat, Const, Visibility::BUILTIN_PUBLIC);
 
@@ -788,7 +812,7 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
-        bool_.register_marker_trait(self, mono(NUM)).unwrap();
+        bool_.register_trait(self, mono(NUM)).unwrap();
         let mut bool_ord = Self::builtin_methods(Some(mono(ORD)), 2);
         bool_ord.register_builtin_erg_impl(
             OP_CMP,
@@ -796,7 +820,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        bool_.register_trait(Bool, bool_ord);
+        bool_.register_trait_methods(Bool, bool_ord);
         let mut bool_eq = Self::builtin_methods(Some(mono(EQ)), 2);
         bool_eq.register_builtin_erg_impl(
             OP_EQ,
@@ -804,7 +828,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        bool_.register_trait(Bool, bool_eq);
+        bool_.register_trait_methods(Bool, bool_eq);
         let mut bool_mutizable = Self::builtin_methods(Some(mono(MUTIZABLE)), 2);
         bool_mutizable.register_builtin_const(
             MUTABLE_MUT_TYPE,
@@ -812,7 +836,7 @@ impl Context {
             None,
             ValueObj::builtin_class(mono(MUT_BOOL)),
         );
-        bool_.register_trait(Bool, bool_mutizable);
+        bool_.register_trait_methods(Bool, bool_mutizable);
         let mut bool_show = Self::builtin_methods(Some(mono(SHOW)), 1);
         bool_show.register_builtin_erg_impl(
             FUNDAMENTAL_STR,
@@ -820,14 +844,14 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
-        bool_.register_trait(Bool, bool_show);
+        bool_.register_trait_methods(Bool, bool_show);
         let t = fn0_met(Bool, Bool);
         bool_.register_py_builtin(FUNC_INVERT, t, Some(FUNC_INVERT), 9);
         /* Str */
         let mut str_ = Self::builtin_mono_class(STR, 10);
         str_.register_superclass(Obj, &obj);
-        str_.register_marker_trait(self, mono(ORD)).unwrap();
-        str_.register_marker_trait(self, mono(PATH_LIKE)).unwrap();
+        str_.register_trait(self, mono(ORD)).unwrap();
+        str_.register_trait(self, mono(PATH_LIKE)).unwrap();
         let t_s_replace = fn_met(
             Str,
             vec![kw(KW_PAT, Str), kw(KW_INTO, Str)],
@@ -1196,7 +1220,7 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
-        str_.register_marker_trait(self, poly(INDEXABLE, vec![ty_tp(Nat), ty_tp(Str)]))
+        str_.register_trait(self, poly(INDEXABLE, vec![ty_tp(Nat), ty_tp(Str)]))
             .unwrap();
         let t_call = func(vec![], None, vec![kw(KW_OBJECT, Obj)], None, Str);
         str_.register_builtin_erg_impl(
@@ -1212,7 +1236,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        str_.register_trait(Str, str_eq);
+        str_.register_trait_methods(Str, str_eq);
         let mut str_hash = Self::builtin_methods(Some(mono(HASH)), 1);
         str_hash.register_builtin_erg_impl(
             OP_HASH,
@@ -1220,8 +1244,8 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        str_.register_trait(Str, str_hash);
-        str_.register_marker_trait(self, mono(EQ_HASH)).unwrap();
+        str_.register_trait_methods(Str, str_hash);
+        str_.register_trait(self, mono(EQ_HASH)).unwrap();
         let mut str_seq = Self::builtin_methods(Some(poly(SEQUENCE, vec![ty_tp(Str)])), 2);
         str_seq.register_builtin_erg_impl(
             FUNDAMENTAL_LEN,
@@ -1229,7 +1253,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        str_.register_trait(Str, str_seq);
+        str_.register_trait_methods(Str, str_seq);
         let mut str_add = Self::builtin_methods(Some(poly(ADD, vec![ty_tp(Str)])), 2);
         str_add.register_builtin_erg_impl(
             OP_ADD,
@@ -1243,7 +1267,7 @@ impl Context {
             None,
             ValueObj::builtin_class(Str),
         );
-        str_.register_trait(Str, str_add);
+        str_.register_trait_methods(Str, str_add);
         let mut str_mul = Self::builtin_methods(Some(poly(MUL, vec![ty_tp(Nat)])), 2);
         str_mul.register_builtin_erg_impl(
             OP_MUL,
@@ -1257,7 +1281,7 @@ impl Context {
             None,
             ValueObj::builtin_class(Str),
         );
-        str_.register_trait(Str, str_mul);
+        str_.register_trait_methods(Str, str_mul);
         let mut str_mutizable = Self::builtin_methods(Some(mono(MUTIZABLE)), 2);
         str_mutizable.register_builtin_const(
             MUTABLE_MUT_TYPE,
@@ -1265,7 +1289,7 @@ impl Context {
             None,
             ValueObj::builtin_class(mono(MUT_STR)),
         );
-        str_.register_trait(Str, str_mutizable);
+        str_.register_trait_methods(Str, str_mutizable);
         let mut str_show = Self::builtin_methods(Some(mono(SHOW)), 1);
         str_show.register_builtin_erg_impl(
             FUNDAMENTAL_STR,
@@ -1273,7 +1297,7 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
-        str_.register_trait(Str, str_show);
+        str_.register_trait_methods(Str, str_show);
         let mut str_iterable = Self::builtin_methods(Some(poly(ITERABLE, vec![ty_tp(Str)])), 2);
         str_iterable.register_builtin_py_impl(
             FUNC_ITER,
@@ -1288,7 +1312,17 @@ impl Context {
             None,
             ValueObj::builtin_class(mono(STR_ITERATOR)),
         );
-        str_.register_trait(Str, str_iterable);
+        str_.register_trait_methods(Str, str_iterable);
+        let mut str_collection = Self::builtin_methods(Some(poly(COLLECTION, vec![ty_tp(Str)])), 4);
+        str_collection.register_builtin_erg_impl(
+            FUNDAMENTAL_CONTAINS,
+            fn1_met(Str, Str, Bool),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        str_.register_trait_methods(Str, str_collection);
+        str_.register_trait(self, poly(COLLECTION, vec![ty_tp(Str)]))
+            .unwrap();
         /* NoneType */
         let mut nonetype = Self::builtin_mono_class(NONE_TYPE, 10);
         nonetype.register_superclass(Obj, &obj);
@@ -1299,7 +1333,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        nonetype.register_trait(NoneType, nonetype_eq);
+        nonetype.register_trait_methods(NoneType, nonetype_eq);
         let mut nonetype_hash = Self::builtin_methods(Some(mono(HASH)), 1);
         nonetype_hash.register_builtin_erg_impl(
             OP_HASH,
@@ -1307,8 +1341,8 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        nonetype.register_trait(NoneType, nonetype_hash);
-        nonetype.register_marker_trait(self, mono(EQ_HASH)).unwrap();
+        nonetype.register_trait_methods(NoneType, nonetype_hash);
+        nonetype.register_trait(self, mono(EQ_HASH)).unwrap();
         let mut nonetype_show = Self::builtin_methods(Some(mono(SHOW)), 1);
         nonetype_show.register_builtin_erg_impl(
             FUNDAMENTAL_STR,
@@ -1316,7 +1350,7 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
-        nonetype.register_trait(NoneType, nonetype_show);
+        nonetype.register_trait_methods(NoneType, nonetype_show);
         /* Type */
         let mut type_ = Self::builtin_mono_class(TYPE, 2);
         type_.register_superclass(Obj, &obj);
@@ -1333,7 +1367,7 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
-        type_.register_marker_trait(self, mono(NAMED)).unwrap();
+        type_.register_trait(self, mono(NAMED)).unwrap();
         let mut type_container = Self::builtin_methods(Some(poly(CONTAINER, vec![ty_tp(Obj)])), 2);
         type_container.register_builtin_erg_impl(
             FUNDAMENTAL_CONTAINS,
@@ -1341,7 +1375,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        type_.register_trait(Type, type_container);
+        type_.register_trait_methods(Type, type_container);
         let mut type_eq = Self::builtin_methods(Some(mono(EQ)), 2);
         type_eq.register_builtin_erg_impl(
             OP_EQ,
@@ -1349,7 +1383,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        type_.register_trait(Type, type_eq);
+        type_.register_trait_methods(Type, type_eq);
         let mut type_hash = Self::builtin_methods(Some(mono(HASH)), 1);
         type_hash.register_builtin_erg_impl(
             OP_HASH,
@@ -1357,10 +1391,10 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        type_.register_trait(Type, type_hash);
+        type_.register_trait_methods(Type, type_hash);
         let mut class_type = Self::builtin_mono_class(CLASS_TYPE, 2);
         class_type.register_superclass(Type, &type_);
-        class_type.register_marker_trait(self, mono(NAMED)).unwrap();
+        class_type.register_trait(self, mono(NAMED)).unwrap();
         let mut class_eq = Self::builtin_methods(Some(mono(EQ)), 2);
         class_eq.register_builtin_erg_impl(
             OP_EQ,
@@ -1368,10 +1402,10 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        class_type.register_trait(ClassType, class_eq);
+        class_type.register_trait_methods(ClassType, class_eq);
         let mut trait_type = Self::builtin_mono_class(TRAIT_TYPE, 2);
         trait_type.register_superclass(Type, &type_);
-        trait_type.register_marker_trait(self, mono(NAMED)).unwrap();
+        trait_type.register_trait(self, mono(NAMED)).unwrap();
         let mut trait_eq = Self::builtin_methods(Some(mono(EQ)), 2);
         trait_eq.register_builtin_erg_impl(
             OP_EQ,
@@ -1379,7 +1413,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        trait_type.register_trait(TraitType, trait_eq);
+        trait_type.register_trait_methods(TraitType, trait_eq);
         let mut code = Self::builtin_mono_class(CODE, 10);
         code.register_superclass(Obj, &obj);
         code.register_builtin_erg_impl(
@@ -1470,7 +1504,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        code.register_trait(Code, code_eq);
+        code.register_trait_methods(Code, code_eq);
         let mut code_hash = Self::builtin_methods(Some(mono(HASH)), 1);
         code_hash.register_builtin_erg_impl(
             OP_HASH,
@@ -1478,8 +1512,8 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        code.register_trait(Code, code_hash);
-        code.register_marker_trait(self, mono(EQ_HASH)).unwrap();
+        code.register_trait_methods(Code, code_hash);
+        code.register_trait(self, mono(EQ_HASH)).unwrap();
         let mut frame = Self::builtin_mono_class(FRAME, 10);
         frame.register_builtin_erg_impl(
             F_BUILTINS,
@@ -1505,9 +1539,7 @@ impl Context {
         let g_module_t = mono(GENERIC_MODULE);
         let mut generic_module = Self::builtin_mono_class(GENERIC_MODULE, 2);
         generic_module.register_superclass(Obj, &obj);
-        generic_module
-            .register_marker_trait(self, mono(NAMED))
-            .unwrap();
+        generic_module.register_trait(self, mono(NAMED)).unwrap();
         let mut generic_module_eq = Self::builtin_methods(Some(mono(EQ)), 2);
         generic_module_eq.register_builtin_erg_impl(
             OP_EQ,
@@ -1515,7 +1547,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        generic_module.register_trait(g_module_t.clone(), generic_module_eq);
+        generic_module.register_trait_methods(g_module_t.clone(), generic_module_eq);
         let mut generic_module_hash = Self::builtin_methods(Some(mono(HASH)), 1);
         generic_module_hash.register_builtin_erg_impl(
             OP_HASH,
@@ -1523,10 +1555,8 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        generic_module.register_trait(g_module_t.clone(), generic_module_hash);
-        generic_module
-            .register_marker_trait(self, mono(EQ_HASH))
-            .unwrap();
+        generic_module.register_trait_methods(g_module_t.clone(), generic_module_hash);
+        generic_module.register_trait(self, mono(EQ_HASH)).unwrap();
         let Path = mono_q_tp(PATH, instanceof(Str));
         let module_t = module(Path.clone());
         let py_module_t = py_module(Path);
@@ -1546,7 +1576,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        generic_array.register_trait(mono(GENERIC_ARRAY), arr_eq);
+        generic_array.register_trait_methods(mono(GENERIC_ARRAY), arr_eq);
         let t_call = func1(
             poly(ITERABLE, vec![ty_tp(T.clone())]),
             array_t(T.clone(), TyParam::erased(Nat)),
@@ -1565,7 +1595,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        generic_array.register_trait(mono(GENERIC_ARRAY), array_hash);
+        generic_array.register_trait_methods(mono(GENERIC_ARRAY), array_hash);
         let unsized_array_t = poly(UNSIZED_ARRAY, vec![ty_tp(T.clone())]);
         let mut unsized_array =
             Self::builtin_poly_class(UNSIZED_ARRAY, vec![ParamSpec::t_nd(TY_T)], 1);
@@ -1576,7 +1606,7 @@ impl Context {
             Self::builtin_poly_class(ARRAY, vec![PS::t_nd(TY_T), PS::default(TY_N, Nat)], 10);
         array_.register_superclass(mono(GENERIC_ARRAY), &generic_array);
         array_
-            .register_marker_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
+            .register_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
             .unwrap();
         let arr_t = array_t(T.clone(), N.clone());
         let t = no_var_fn_met(
@@ -1613,7 +1643,7 @@ impl Context {
             None,
             ValueObj::builtin_class(out_t),
         );
-        array_.register_trait(arr_t.clone(), array_add);
+        array_.register_trait_methods(arr_t.clone(), array_add);
         let t = no_var_fn_met(
             arr_t.clone(),
             vec![kw(KW_ELEM, T.clone())],
@@ -1645,7 +1675,7 @@ impl Context {
             None,
             mut_type,
         );
-        array_.register_trait(arr_t.clone(), array_mutizable);
+        array_.register_trait_methods(arr_t.clone(), array_mutizable);
         let var = FRESH_GEN.fresh_varname();
         let input = refinement(
             var.clone(),
@@ -1735,10 +1765,10 @@ impl Context {
             array_remove_all,
         );
         array_
-            .register_marker_trait(self, poly(INDEXABLE, vec![ty_tp(input), ty_tp(T.clone())]))
+            .register_trait(self, poly(INDEXABLE, vec![ty_tp(input), ty_tp(T.clone())]))
             .unwrap();
         array_
-            .register_marker_trait(
+            .register_trait(
                 self,
                 poly(
                     HAS_SHAPE,
@@ -1747,7 +1777,7 @@ impl Context {
             )
             .unwrap();
         array_
-            .register_marker_trait(
+            .register_trait(
                 self,
                 poly(
                     HAS_SCALAR_TYPE,
@@ -1762,7 +1792,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        array_.register_trait(arr_t.clone(), array_sized);
+        array_.register_trait_methods(arr_t.clone(), array_sized);
         // union: (self: [Type; _]) -> Type
         let array_union_t = fn0_met(array_t(Type, TyParam::erased(Nat)), Type).quantify();
         let union = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
@@ -1805,9 +1835,9 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        array_.register_trait(arr_t.clone(), array_eq);
+        array_.register_trait_methods(arr_t.clone(), array_eq);
         array_
-            .register_marker_trait(self, poly(SEQUENCE, vec![ty_tp(T.clone())]))
+            .register_trait(self, poly(SEQUENCE, vec![ty_tp(T.clone())]))
             .unwrap();
         array_.unregister_trait(&poly(INDEXABLE, vec![ty_tp(Nat), ty_tp(T.clone())]));
         let mut array_show = Self::builtin_methods(Some(mono(SHOW)), 1);
@@ -1818,7 +1848,7 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNDAMENTAL_STR),
         );
-        array_.register_trait(arr_t.clone(), array_show);
+        array_.register_trait_methods(arr_t.clone(), array_show);
         let mut array_iterable =
             Self::builtin_methods(Some(poly(ITERABLE, vec![ty_tp(T.clone())])), 2);
         let array_iter = poly(ARRAY_ITERATOR, vec![ty_tp(T.clone())]);
@@ -1836,9 +1866,18 @@ impl Context {
             None,
             ValueObj::builtin_class(array_iter),
         );
-        array_.register_trait(arr_t.clone(), array_iterable);
+        array_.register_trait_methods(arr_t.clone(), array_iterable);
+        let mut array_collection =
+            Self::builtin_methods(Some(poly(COLLECTION, vec![ty_tp(T.clone())])), 4);
+        array_collection.register_builtin_erg_impl(
+            FUNDAMENTAL_CONTAINS,
+            fn1_met(arr_t.clone(), T.clone(), Bool).quantify(),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        array_.register_trait_methods(arr_t.clone(), array_collection);
         array_
-            .register_marker_trait(self, poly(COLLECTION, vec![ty_tp(T.clone())]))
+            .register_trait(self, poly(COLLECTION, vec![ty_tp(T.clone())]))
             .unwrap();
         let t = fn1_met(
             array_t(T.clone(), TyParam::erased(Nat)),
@@ -1914,7 +1953,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        generic_set.register_trait(mono(GENERIC_SET), set_eq);
+        generic_set.register_trait_methods(mono(GENERIC_SET), set_eq);
         let t_call = func1(
             poly(ITERABLE, vec![ty_tp(T.clone())]),
             set_t(T.clone(), TyParam::erased(Nat)),
@@ -1931,7 +1970,7 @@ impl Context {
             Self::builtin_poly_class(SET, vec![PS::t_nd(TY_T), PS::named_nd(TY_N, Nat)], 10);
         let set_t = set_t(T.clone(), TyParam::erased(Nat));
         set_.register_superclass(mono(GENERIC_SET), &generic_set);
-        set_.register_marker_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
+        set_.register_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
             .unwrap();
         let t = no_var_fn_met(
             set_t.clone(),
@@ -1949,7 +1988,7 @@ impl Context {
             None,
             mut_type,
         );
-        set_.register_trait(set_t.clone(), set_mutizable);
+        set_.register_trait_methods(set_t.clone(), set_mutizable);
         let mut set_iterable =
             Self::builtin_methods(Some(poly(ITERABLE, vec![ty_tp(T.clone())])), 2);
         let set_iter = poly(SET_ITERATOR, vec![ty_tp(T.clone())]);
@@ -1967,8 +2006,17 @@ impl Context {
             None,
             ValueObj::builtin_class(set_iter),
         );
-        set_.register_trait(set_t.clone(), set_iterable);
-        set_.register_marker_trait(self, poly(COLLECTION, vec![ty_tp(T.clone())]))
+        set_.register_trait_methods(set_t.clone(), set_iterable);
+        let mut set_collection =
+            Self::builtin_methods(Some(poly(COLLECTION, vec![ty_tp(T.clone())])), 4);
+        set_collection.register_builtin_erg_impl(
+            FUNDAMENTAL_CONTAINS,
+            fn1_met(set_t.clone(), T.clone(), Bool).quantify(),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        set_.register_trait_methods(set_t.clone(), set_collection);
+        set_.register_trait(self, poly(COLLECTION, vec![ty_tp(T.clone())]))
             .unwrap();
         let t_call = func1(poly(ITERABLE, vec![ty_tp(T.clone())]), set_t.clone()).quantify();
         set_.register_builtin_erg_impl(
@@ -1984,9 +2032,9 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        set_.register_trait(set_t.clone(), set_eq);
-        set_.register_marker_trait(self, mono(MUTIZABLE)).unwrap();
-        set_.register_marker_trait(self, poly(SEQUENCE, vec![ty_tp(T.clone())]))
+        set_.register_trait_methods(set_t.clone(), set_eq);
+        set_.register_trait(self, mono(MUTIZABLE)).unwrap();
+        set_.register_trait(self, poly(SEQUENCE, vec![ty_tp(T.clone())]))
             .unwrap();
         let mut set_show = Self::builtin_methods(Some(mono(SHOW)), 1);
         set_show.register_builtin_erg_impl(
@@ -1995,7 +2043,7 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
-        set_.register_trait(set_t.clone(), set_show);
+        set_.register_trait_methods(set_t.clone(), set_show);
         let g_dict_t = mono(GENERIC_DICT);
         let mut generic_dict = Self::builtin_mono_class(GENERIC_DICT, 2);
         generic_dict.register_superclass(Obj, &obj);
@@ -2006,7 +2054,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        generic_dict.register_trait(g_dict_t.clone(), generic_dict_eq);
+        generic_dict.register_trait_methods(g_dict_t.clone(), generic_dict_eq);
         let D = mono_q_tp(TY_D, instanceof(mono(GENERIC_DICT)));
         // .get: _: T -> T or None
         let dict_get_t = fn1_met(g_dict_t.clone(), T.clone(), or(T.clone(), NoneType)).quantify();
@@ -2034,7 +2082,7 @@ impl Context {
             Self::builtin_poly_class(DICT, vec![PS::named_nd(TY_D, mono(GENERIC_DICT))], 10);
         dict_.register_superclass(g_dict_t.clone(), &generic_dict);
         dict_
-            .register_marker_trait(self, poly(OUTPUT, vec![D.clone()]))
+            .register_trait(self, poly(OUTPUT, vec![D.clone()]))
             .unwrap();
         let mut dict_mutizable = Self::builtin_methods(Some(mono(MUTIZABLE)), 2);
         dict_mutizable.register_builtin_const(
@@ -2043,7 +2091,7 @@ impl Context {
             None,
             ValueObj::builtin_class(poly(MUT_DICT, vec![D.clone()])),
         );
-        dict_.register_trait(dict_t.clone(), dict_mutizable);
+        dict_.register_trait_methods(dict_t.clone(), dict_mutizable);
         // __getitem__: _: T -> D[T]
         let dict_getitem_out = proj_call(D.clone(), FUNDAMENTAL_GETITEM, vec![ty_tp(T.clone())]);
         let dict_getitem_t =
@@ -2061,7 +2109,7 @@ impl Context {
             get_item,
         );
         dict_
-            .register_marker_trait(
+            .register_trait(
                 self,
                 poly(MAPPING, vec![ty_tp(T.clone()), ty_tp(dict_getitem_out)]),
             )
@@ -2097,9 +2145,9 @@ impl Context {
             None,
             ValueObj::builtin_class(dict_keys_iterator),
         );
-        dict_.register_trait(dict_t.clone(), dict_iterable);
+        dict_.register_trait_methods(dict_t.clone(), dict_iterable);
         dict_
-            .register_marker_trait(
+            .register_trait(
                 self,
                 poly(CONTAINER, vec![ty_tp(proj_call(D.clone(), KEYS, vec![]))]),
             )
@@ -2152,8 +2200,10 @@ impl Context {
         )
         .quantify();
         dict_.register_py_builtin(FUNC_GET, get_t, Some(FUNC_GET), 9);
-        let copy_t = fn0_met(dict_t.clone(), dict_t.clone()).quantify();
-        dict_.register_py_builtin(COPY, copy_t, Some(COPY), 7);
+        let copy_t = fn0_met(ref_(dict_t.clone()), dict_t.clone()).quantify();
+        let mut dict_copy = Self::builtin_methods(Some(mono(COPY)), 1);
+        dict_copy.register_py_builtin(FUNC_COPY, copy_t, Some(FUNC_COPY), 7);
+        dict_.register_trait_methods(dict_t.clone(), dict_copy);
         let D2 = mono_q_tp(TY_D2, instanceof(mono(GENERIC_DICT)));
         let other_dict_t = poly(DICT, vec![D2.clone()]);
         let dict_concat_t = fn1_met(
@@ -2212,7 +2262,7 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         bytes
-            .register_marker_trait(self, poly(SEQUENCE, vec![ty_tp(Int)]))
+            .register_trait(self, poly(SEQUENCE, vec![ty_tp(Int)]))
             .unwrap();
         let mut bytes_eq = Self::builtin_methods(Some(mono(EQ)), 2);
         bytes_eq.register_builtin_erg_impl(
@@ -2221,7 +2271,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        bytes.register_trait(mono(BYTES), bytes_eq);
+        bytes.register_trait_methods(mono(BYTES), bytes_eq);
         let mut bytes_hash = Self::builtin_methods(Some(mono(HASH)), 1);
         bytes_hash.register_builtin_erg_impl(
             OP_HASH,
@@ -2229,8 +2279,8 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        bytes.register_trait(mono(BYTES), bytes_hash);
-        bytes.register_marker_trait(self, mono(EQ_HASH)).unwrap();
+        bytes.register_trait_methods(mono(BYTES), bytes_hash);
+        bytes.register_trait(self, mono(EQ_HASH)).unwrap();
         /* GenericTuple */
         let mut generic_tuple = Self::builtin_mono_class(GENERIC_TUPLE, 1);
         generic_tuple.register_superclass(Obj, &obj);
@@ -2242,7 +2292,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        generic_tuple.register_trait(mono(GENERIC_TUPLE), tuple_eq);
+        generic_tuple.register_trait_methods(mono(GENERIC_TUPLE), tuple_eq);
         let mut tuple_hash = Self::builtin_methods(Some(mono(HASH)), 1);
         tuple_hash.register_builtin_erg_impl(
             OP_HASH,
@@ -2250,10 +2300,8 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        generic_tuple.register_trait(mono(GENERIC_TUPLE), tuple_hash);
-        generic_tuple
-            .register_marker_trait(self, mono(EQ_HASH))
-            .unwrap();
+        generic_tuple.register_trait_methods(mono(GENERIC_TUPLE), tuple_hash);
+        generic_tuple.register_trait(self, mono(EQ_HASH)).unwrap();
         let Ts = mono_q_tp(TY_TS, instanceof(array_t(Type, N.clone())));
         // Ts <: GenericArray
         let _tuple_t = poly(TUPLE, vec![Ts.clone()]);
@@ -2264,7 +2312,7 @@ impl Context {
         );
         tuple_.register_superclass(mono(GENERIC_TUPLE), &generic_tuple);
         tuple_
-            .register_marker_trait(self, poly(OUTPUT, vec![Ts.clone()]))
+            .register_trait(self, poly(OUTPUT, vec![Ts.clone()]))
             .unwrap();
         // __Tuple_getitem__: (self: Tuple(Ts), _: {N}) -> Ts[N]
         let input_t = tp_enum(Nat, set! {N.clone()});
@@ -2280,10 +2328,10 @@ impl Context {
             Some(FUNDAMENTAL_GETITEM),
         );
         tuple_
-            .register_marker_trait(self, poly(INDEXABLE, vec![ty_tp(input_t), ty_tp(return_t)]))
+            .register_trait(self, poly(INDEXABLE, vec![ty_tp(input_t), ty_tp(return_t)]))
             .unwrap();
         tuple_
-            .register_marker_trait(self, poly(COLLECTION, vec![ty_tp(union_t.clone())]))
+            .register_trait(self, poly(COLLECTION, vec![ty_tp(union_t.clone())]))
             .unwrap();
         // `__Tuple_getitem__` and `__getitem__` are the same thing
         // but `x.0` => `x__Tuple_getitem__(0)` determines that `x` is a tuple, which is better for type inference.
@@ -2320,10 +2368,19 @@ impl Context {
             None,
             ValueObj::builtin_class(tuple_iterator),
         );
-        tuple_.register_trait(_tuple_t.clone(), tuple_iterable);
+        tuple_.register_trait_methods(_tuple_t.clone(), tuple_iterable);
         tuple_
-            .register_marker_trait(self, poly(SEQUENCE, vec![ty_tp(union_t)]))
+            .register_trait(self, poly(SEQUENCE, vec![ty_tp(union_t.clone())]))
             .unwrap();
+        let mut tuple_collection =
+            Self::builtin_methods(Some(poly(COLLECTION, vec![ty_tp(union_t.clone())])), 4);
+        tuple_collection.register_builtin_erg_impl(
+            FUNDAMENTAL_CONTAINS,
+            fn1_met(_tuple_t.clone(), union_t.clone(), Bool).quantify(),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        tuple_.register_trait_methods(_tuple_t.clone(), tuple_collection);
         /* record */
         let mut record = Self::builtin_mono_class(RECORD, 2);
         record.register_superclass(Obj, &obj);
@@ -2334,7 +2391,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        record.register_trait(mono(RECORD), record_eq);
+        record.register_trait_methods(mono(RECORD), record_eq);
         let Slf = mono_q(SELF, subtypeof(mono(RECORD)));
         let as_dict_t =
             fn0_met(Slf.clone(), proj_call(ty_tp(Slf), FUNC_AS_DICT, vec![])).quantify();
@@ -2374,7 +2431,8 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNDAMENTAL_GETITEM),
         );
-        generic_named_tuple.register_trait(mono(GENERIC_NAMED_TUPLE), named_tuple_indexable);
+        generic_named_tuple
+            .register_trait_methods(mono(GENERIC_NAMED_TUPLE), named_tuple_indexable);
         let get_item = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNDAMENTAL_GETITEM,
             __named_tuple_getitem__,
@@ -2412,7 +2470,7 @@ impl Context {
             None,
             ValueObj::builtin_class(named_tuple_iterator),
         );
-        generic_named_tuple.register_trait(mono(GENERIC_NAMED_TUPLE), named_tuple_iterable);
+        generic_named_tuple.register_trait_methods(mono(GENERIC_NAMED_TUPLE), named_tuple_iterable);
         // union: (self: NamedTuple({...})) -> Type
         let named_tuple_union_t = fn0_met(Slf, Type).quantify();
         let union = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
@@ -2435,138 +2493,140 @@ impl Context {
         let mut str_iterator = Self::builtin_mono_class(STR_ITERATOR, 1);
         str_iterator.register_superclass(Obj, &obj);
         str_iterator
-            .register_marker_trait(self, poly(ITERABLE, vec![ty_tp(Str)]))
+            .register_trait(self, poly(ITERABLE, vec![ty_tp(Str)]))
             .unwrap();
         str_iterator
-            .register_marker_trait(self, poly(OUTPUT, vec![ty_tp(Str)]))
+            .register_trait(self, poly(OUTPUT, vec![ty_tp(Str)]))
             .unwrap();
         let mut array_iterator = Self::builtin_poly_class(ARRAY_ITERATOR, vec![PS::t_nd(TY_T)], 1);
         array_iterator.register_superclass(Obj, &obj);
         array_iterator
-            .register_marker_trait(self, poly(ITERABLE, vec![ty_tp(T.clone())]))
+            .register_trait(self, poly(ITERABLE, vec![ty_tp(T.clone())]))
             .unwrap();
         array_iterator
-            .register_marker_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
+            .register_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
             .unwrap();
         let mut set_iterator = Self::builtin_poly_class(SET_ITERATOR, vec![PS::t_nd(TY_T)], 1);
         set_iterator.register_superclass(Obj, &obj);
         set_iterator
-            .register_marker_trait(self, poly(ITERABLE, vec![ty_tp(T.clone())]))
+            .register_trait(self, poly(ITERABLE, vec![ty_tp(T.clone())]))
             .unwrap();
         set_iterator
-            .register_marker_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
+            .register_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
             .unwrap();
         let mut tuple_iterator = Self::builtin_poly_class(TUPLE_ITERATOR, vec![PS::t_nd(TY_T)], 1);
         tuple_iterator.register_superclass(Obj, &obj);
         tuple_iterator
-            .register_marker_trait(self, poly(ITERABLE, vec![ty_tp(T.clone())]))
+            .register_trait(self, poly(ITERABLE, vec![ty_tp(T.clone())]))
             .unwrap();
         tuple_iterator
-            .register_marker_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
+            .register_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
             .unwrap();
         let mut range_iterator = Self::builtin_poly_class(RANGE_ITERATOR, vec![PS::t_nd(TY_T)], 1);
         range_iterator.register_superclass(Obj, &obj);
         range_iterator
-            .register_marker_trait(self, poly(ITERABLE, vec![ty_tp(T.clone())]))
+            .register_trait(self, poly(ITERABLE, vec![ty_tp(T.clone())]))
             .unwrap();
         range_iterator
-            .register_marker_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
+            .register_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
             .unwrap();
         let mut dict_keys = Self::builtin_poly_class(DICT_KEYS, vec![PS::t_nd(TY_T)], 1);
         dict_keys.register_superclass(Obj, &obj);
         dict_keys
-            .register_marker_trait(self, poly(ITERABLE, vec![ty_tp(T.clone())]))
+            .register_trait(self, poly(ITERABLE, vec![ty_tp(T.clone())]))
             .unwrap();
         dict_keys
-            .register_marker_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
+            .register_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
             .unwrap();
         let mut dict_values = Self::builtin_poly_class(DICT_VALUES, vec![PS::t_nd(TY_T)], 1);
         dict_values.register_superclass(Obj, &obj);
         dict_values
-            .register_marker_trait(self, poly(ITERABLE, vec![ty_tp(T.clone())]))
+            .register_trait(self, poly(ITERABLE, vec![ty_tp(T.clone())]))
             .unwrap();
         dict_values
-            .register_marker_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
+            .register_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
             .unwrap();
         let mut dict_items = Self::builtin_poly_class(DICT_ITEMS, vec![PS::t_nd(TY_T)], 1);
         dict_items.register_superclass(Obj, &obj);
         dict_items
-            .register_marker_trait(self, poly(ITERABLE, vec![ty_tp(T.clone())]))
+            .register_trait(self, poly(ITERABLE, vec![ty_tp(T.clone())]))
             .unwrap();
         dict_items
-            .register_marker_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
+            .register_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
             .unwrap();
         /* Enumerate */
         let mut enumerate = Self::builtin_poly_class(ENUMERATE, vec![PS::t_nd(TY_T)], 2);
         enumerate.register_superclass(Obj, &obj);
         enumerate
-            .register_marker_trait(
+            .register_trait(
                 self,
                 poly(ITERABLE, vec![ty_tp(tuple_t(vec![Nat, T.clone()]))]),
             )
             .unwrap();
         enumerate
-            .register_marker_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
+            .register_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
             .unwrap();
         /* Filter */
         let mut filter = Self::builtin_poly_class(FILTER, vec![PS::t_nd(TY_T)], 2);
         filter.register_superclass(Obj, &obj);
         filter
-            .register_marker_trait(self, poly(ITERABLE, vec![ty_tp(T.clone())]))
+            .register_trait(self, poly(ITERABLE, vec![ty_tp(T.clone())]))
             .unwrap();
         filter
-            .register_marker_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
+            .register_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
             .unwrap();
         /* Map */
         let mut map = Self::builtin_poly_class(MAP, vec![PS::t_nd(TY_T)], 2);
         map.register_superclass(Obj, &obj);
-        map.register_marker_trait(self, poly(ITERABLE, vec![ty_tp(T.clone())]))
+        map.register_trait(self, poly(ITERABLE, vec![ty_tp(T.clone())]))
             .unwrap();
-        map.register_marker_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
+        map.register_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
             .unwrap();
         /* Reversed */
         let mut reversed = Self::builtin_poly_class(REVERSED, vec![PS::t_nd(TY_T)], 2);
         reversed.register_superclass(Obj, &obj);
         reversed
-            .register_marker_trait(self, poly(ITERABLE, vec![ty_tp(T.clone())]))
+            .register_trait(self, poly(ITERABLE, vec![ty_tp(T.clone())]))
             .unwrap();
         reversed
-            .register_marker_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
+            .register_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
             .unwrap();
         /* Zip */
         let mut zip = Self::builtin_poly_class(ZIP, vec![PS::t_nd(TY_T), PS::t_nd(TY_U)], 2);
         zip.register_superclass(Obj, &obj);
-        zip.register_marker_trait(
+        zip.register_trait(
             self,
             poly(ITERABLE, vec![ty_tp(tuple_t(vec![T.clone(), U.clone()]))]),
         )
         .unwrap();
-        zip.register_marker_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
+        zip.register_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
             .unwrap();
-        zip.register_marker_trait(self, poly(OUTPUT, vec![ty_tp(U.clone())]))
+        zip.register_trait(self, poly(OUTPUT, vec![ty_tp(U.clone())]))
             .unwrap();
         let fset_t = poly(FROZENSET, vec![ty_tp(T.clone())]);
         let mut frozenset = Self::builtin_poly_class(FROZENSET, vec![PS::t_nd(TY_T)], 2);
         frozenset.register_superclass(Obj, &obj);
         frozenset
-            .register_marker_trait(self, poly(ITERABLE, vec![ty_tp(T.clone())]))
+            .register_trait(self, poly(ITERABLE, vec![ty_tp(T.clone())]))
             .unwrap();
         frozenset
-            .register_marker_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
+            .register_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
             .unwrap();
         let t = fn0_met(fset_t.clone(), fset_t.clone()).quantify();
-        frozenset.register_py_builtin(COPY, t, Some(COPY), 3);
-        let bin_t = fn1_met(fset_t.clone(), fset_t.clone(), fset_t.clone()).quantify();
-        frozenset.register_py_builtin(DIFFERENCE, bin_t.clone(), Some(DIFFERENCE), 3);
-        frozenset.register_py_builtin(INTERSECTION, bin_t.clone(), Some(INTERSECTION), 3);
+        let mut frozenset_copy = Self::builtin_methods(Some(mono(COPY)), 1);
+        frozenset_copy.register_py_builtin(FUNC_COPY, t, Some(FUNC_COPY), 3);
+        frozenset.register_trait_methods(fset_t.clone(), frozenset_copy);
+        let bin_t = fn1_met(ref_(fset_t.clone()), fset_t.clone(), fset_t.clone()).quantify();
+        frozenset.register_py_builtin(FUNC_DIFFERENCE, bin_t.clone(), Some(FUNC_DIFFERENCE), 3);
+        frozenset.register_py_builtin(FUNC_INTERSECTION, bin_t.clone(), Some(FUNC_INTERSECTION), 3);
         let bool_t = fn1_met(fset_t.clone(), fset_t.clone(), Bool).quantify();
-        frozenset.register_py_builtin(ISDISJOINT, bool_t.clone(), Some(ISDISJOINT), 3);
-        frozenset.register_py_builtin(ISSUBSET, bool_t.clone(), Some(ISSUBSET), 3);
-        frozenset.register_py_builtin(ISSUPERSET, bool_t, Some(ISSUPERSET), 3);
+        frozenset.register_py_builtin(FUNC_ISDISJOINT, bool_t.clone(), Some(FUNC_ISDISJOINT), 3);
+        frozenset.register_py_builtin(FUNC_ISSUBSET, bool_t.clone(), Some(FUNC_ISSUBSET), 3);
+        frozenset.register_py_builtin(FUNC_ISSUPERSET, bool_t, Some(FUNC_ISSUPERSET), 3);
         frozenset.register_py_builtin(
-            SYMMETRIC_DIFFERENCE,
+            FUNC_SYMMETRIC_DIFFERENCE,
             bin_t.clone(),
-            Some(SYMMETRIC_DIFFERENCE),
+            Some(FUNC_SYMMETRIC_DIFFERENCE),
             3,
         );
         frozenset.register_py_builtin(FUNC_UNION, bin_t, Some(FUNC_UNION), 3);
@@ -2596,7 +2656,7 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
-        obj_mut.register_trait(mono(MUTABLE_OBJ), obj_mut_mutable);
+        obj_mut.register_trait_methods(mono(MUTABLE_OBJ), obj_mut_mutable);
         /* Float! */
         let mut float_mut = Self::builtin_mono_class(MUT_FLOAT, 2);
         float_mut.register_superclass(Float, &float);
@@ -2650,7 +2710,15 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_DEC),
         );
-        float_mut.register_trait(mono(MUT_FLOAT), float_mut_mutable);
+        float_mut.register_trait_methods(mono(MUT_FLOAT), float_mut_mutable);
+        let mut float_mut_copy = Self::builtin_methods(Some(mono(COPY)), 1);
+        float_mut_copy.register_builtin_erg_impl(
+            FUNC_COPY,
+            fn0_met(ref_(mono(MUT_FLOAT)), mono(MUT_FLOAT)),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        float_mut.register_trait_methods(mono(MUT_FLOAT), float_mut_copy);
         /* Ratio! */
         let mut ratio_mut = Self::builtin_mono_class(MUT_RATIO, 2);
         ratio_mut.register_superclass(Ratio, &ratio);
@@ -2676,7 +2744,15 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_UPDATE),
         );
-        ratio_mut.register_trait(mono(MUT_RATIO), ratio_mut_mutable);
+        ratio_mut.register_trait_methods(mono(MUT_RATIO), ratio_mut_mutable);
+        let mut ratio_mut_copy = Self::builtin_methods(Some(mono(COPY)), 1);
+        ratio_mut_copy.register_builtin_erg_impl(
+            FUNC_COPY,
+            fn0_met(ref_(mono(MUT_RATIO)), mono(MUT_RATIO)),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        ratio_mut.register_trait_methods(mono(MUT_RATIO), ratio_mut_copy);
         /* Int! */
         let mut int_mut = Self::builtin_mono_class(MUT_INT, 2);
         int_mut.register_superclass(Int, &int);
@@ -2718,7 +2794,15 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_UPDATE),
         );
-        int_mut.register_trait(mono(MUT_INT), int_mut_mutable);
+        int_mut.register_trait_methods(mono(MUT_INT), int_mut_mutable);
+        let mut int_mut_copy = Self::builtin_methods(Some(mono(COPY)), 1);
+        int_mut_copy.register_builtin_erg_impl(
+            FUNC_COPY,
+            fn0_met(ref_(mono(MUT_INT)), mono(MUT_INT)),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        int_mut.register_trait_methods(mono(MUT_INT), int_mut_copy);
         let mut nat_mut = Self::builtin_mono_class(MUT_NAT, 2);
         nat_mut.register_superclass(Nat, &nat);
         nat_mut.register_superclass(mono(MUT_INT), &int_mut);
@@ -2745,7 +2829,15 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_UPDATE),
         );
-        nat_mut.register_trait(mono(MUT_NAT), nat_mut_mutable);
+        nat_mut.register_trait_methods(mono(MUT_NAT), nat_mut_mutable);
+        let mut nat_mut_copy = Self::builtin_methods(Some(mono(COPY)), 1);
+        nat_mut_copy.register_builtin_erg_impl(
+            FUNC_COPY,
+            fn0_met(ref_(mono(MUT_NAT)), mono(MUT_NAT)),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        nat_mut.register_trait_methods(mono(MUT_NAT), nat_mut_copy);
         /* Bool! */
         let mut bool_mut = Self::builtin_mono_class(MUT_BOOL, 2);
         bool_mut.register_superclass(Bool, &bool_);
@@ -2772,7 +2864,15 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_UPDATE),
         );
-        bool_mut.register_trait(mono(MUT_BOOL), bool_mut_mutable);
+        bool_mut.register_trait_methods(mono(MUT_BOOL), bool_mut_mutable);
+        let mut bool_mut_copy = Self::builtin_methods(Some(mono(COPY)), 1);
+        bool_mut_copy.register_builtin_erg_impl(
+            FUNC_COPY,
+            fn0_met(ref_(mono(MUT_BOOL)), mono(MUT_BOOL)),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        bool_mut.register_trait_methods(mono(MUT_BOOL), bool_mut_copy);
         let t = pr0_met(mono(MUT_BOOL), NoneType);
         bool_mut.register_builtin_py_impl(
             PROC_INVERT,
@@ -2806,7 +2906,15 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_UPDATE),
         );
-        str_mut.register_trait(mono(MUT_STR), str_mut_mutable);
+        str_mut.register_trait_methods(mono(MUT_STR), str_mut_mutable);
+        let mut str_mut_copy = Self::builtin_methods(Some(mono(COPY)), 1);
+        str_mut_copy.register_builtin_erg_impl(
+            FUNC_COPY,
+            fn0_met(ref_(mono(MUT_STR)), mono(MUT_STR)),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        str_mut.register_trait_methods(mono(MUT_STR), str_mut_copy);
         let t = pr_met(
             ref_mut(mono(MUT_STR), None),
             vec![kw(KW_S, Str)],
@@ -2881,7 +2989,7 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_READ),
         );
-        file_mut.register_trait(mono(MUT_FILE), file_mut_readable);
+        file_mut.register_trait_methods(mono(MUT_FILE), file_mut_readable);
         let mut file_mut_writable = Self::builtin_methods(Some(mono(MUT_WRITABLE)), 1);
         file_mut_writable.register_builtin_py_impl(
             PROC_WRITE,
@@ -2890,15 +2998,11 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_WRITE),
         );
-        file_mut.register_trait(mono(MUT_FILE), file_mut_writable);
+        file_mut.register_trait_methods(mono(MUT_FILE), file_mut_writable);
+        file_mut.register_trait(self, mono(FILE_LIKE)).unwrap();
+        file_mut.register_trait(self, mono(MUT_FILE_LIKE)).unwrap();
         file_mut
-            .register_marker_trait(self, mono(FILE_LIKE))
-            .unwrap();
-        file_mut
-            .register_marker_trait(self, mono(MUT_FILE_LIKE))
-            .unwrap();
-        file_mut
-            .register_marker_trait(self, mono(CONTEXT_MANAGER))
+            .register_trait(self, mono(CONTEXT_MANAGER))
             .unwrap();
         /* Array! */
         let array_mut_t = poly(MUT_ARRAY, vec![ty_tp(T.clone()), N.clone()]);
@@ -2920,8 +3024,10 @@ impl Context {
         )
         .quantify();
         array_mut_.register_py_builtin(PROC_PUSH, t, Some(FUNC_APPEND), 15);
-        let t_copy = pr0_met(ref_(array_mut_t.clone()), array_mut_t.clone()).quantify();
-        array_mut_.register_py_builtin(FUNC_COPY, t_copy, Some(FUNC_COPY), 116);
+        let t_copy = fn0_met(ref_(array_mut_t.clone()), array_mut_t.clone()).quantify();
+        let mut array_mut_copy = Self::builtin_methods(Some(mono(COPY)), 2);
+        array_mut_copy.register_py_builtin(FUNC_COPY, t_copy, Some(FUNC_COPY), 116);
+        array_mut_.register_trait_methods(array_mut_t.clone(), array_mut_copy);
         let t_extend = pr_met(
             ref_mut(
                 array_mut_t.clone(),
@@ -3043,7 +3149,7 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_UPDATE),
         );
-        array_mut_.register_trait(array_mut_t.clone(), array_mut_mutable);
+        array_mut_.register_trait_methods(array_mut_t.clone(), array_mut_mutable);
         /* ByteArray! */
         let bytearray_mut_t = mono(BYTEARRAY);
         let mut bytearray_mut = Self::builtin_mono_class(BYTEARRAY, 2);
@@ -3061,14 +3167,16 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_APPEND),
         );
-        let t_copy = pr0_met(bytearray_mut_t.clone(), bytearray_mut_t.clone());
-        bytearray_mut.register_builtin_py_impl(
+        let t_copy = fn0_met(ref_(bytearray_mut_t.clone()), bytearray_mut_t.clone());
+        let mut bytearray_mut_copy = Self::builtin_methods(Some(mono(COPY)), 2);
+        bytearray_mut_copy.register_builtin_py_impl(
             FUNC_COPY,
             t_copy,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_COPY),
         );
+        bytearray_mut.register_trait_methods(bytearray_mut_t.clone(), bytearray_mut_copy);
         let t_extend = pr_met(
             ref_mut(bytearray_mut_t.clone(), None),
             vec![kw(
@@ -3205,6 +3313,14 @@ impl Context {
         let mut set_mut_ =
             Self::builtin_poly_class(MUT_SET, vec![PS::t_nd(TY_T), PS::named_nd(TY_N, Nat)], 2);
         set_mut_.register_superclass(set_t.clone(), &set_);
+        let mut set_mut_copy = Self::builtin_methods(Some(mono(COPY)), 1);
+        set_mut_copy.register_py_builtin(
+            FUNC_COPY,
+            fn0_met(ref_(set_mut_t.clone()), set_mut_t.clone()).quantify(),
+            Some(FUNC_COPY),
+            9,
+        );
+        set_mut_.register_trait_methods(set_mut_t.clone(), set_mut_copy);
         // `add!` will erase N
         let t = pr_met(
             ref_mut(
@@ -3257,17 +3373,17 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
-        set_mut_.register_trait(set_mut_t.clone(), set_mut_mutable);
+        set_mut_.register_trait_methods(set_mut_t.clone(), set_mut_mutable);
         /* Range */
         let range_t = poly(RANGE, vec![TyParam::t(T.clone())]);
         let mut range = Self::builtin_poly_class(RANGE, vec![PS::t_nd(TY_T)], 2);
         // range.register_superclass(Obj, &obj);
         range.register_superclass(Type, &type_);
         range
-            .register_marker_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
+            .register_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
             .unwrap();
         range
-            .register_marker_trait(self, poly(SEQUENCE, vec![ty_tp(T.clone())]))
+            .register_trait(self, poly(SEQUENCE, vec![ty_tp(T.clone())]))
             .unwrap();
         let mut range_eq = Self::builtin_methods(Some(mono(EQ)), 2);
         range_eq.register_builtin_erg_impl(
@@ -3276,7 +3392,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        range.register_trait(range_t.clone(), range_eq);
+        range.register_trait_methods(range_t.clone(), range_eq);
         let mut range_iterable =
             Self::builtin_methods(Some(poly(ITERABLE, vec![ty_tp(T.clone())])), 2);
         let range_iter = poly(RANGE_ITERATOR, vec![ty_tp(T.clone())]);
@@ -3293,7 +3409,7 @@ impl Context {
             None,
             ValueObj::builtin_class(range_iter),
         );
-        range.register_trait(range_t.clone(), range_iterable);
+        range.register_trait_methods(range_t.clone(), range_iterable);
         let range_getitem_t = fn1_kw_met(range_t.clone(), anon(T.clone()), T.clone()).quantify();
         let get_item = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNDAMENTAL_GETITEM,
@@ -3325,18 +3441,206 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PRIVATE,
         );
+        let mut base_exception = Self::builtin_mono_class(BASE_EXCEPTION, 2);
+        base_exception.register_superclass(Obj, &obj);
+        base_exception.register_builtin_erg_impl(
+            ATTR_ARGS,
+            unknown_len_array_t(Str),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        let EXC = type_q(TY_E);
+        base_exception.register_builtin_erg_impl(
+            FUNC_WITH_TRACEBACK,
+            fn1_met(EXC.clone(), mono(TRACEBACK), EXC).quantify(),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        base_exception.register_builtin_erg_impl(
+            FUNDAMENTAL_TRACEBACK,
+            mono(TRACEBACK) | NoneType,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        base_exception.register_builtin_erg_impl(
+            FUNDAMENTAL_SUPPRESS_CONTEXT,
+            Bool,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        base_exception.register_builtin_erg_impl(
+            FUNDAMENTAL_CAUSE,
+            mono(BASE_EXCEPTION) | NoneType,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        base_exception.register_builtin_erg_impl(
+            FUNDAMENTAL_CONTEXT,
+            mono(BASE_EXCEPTION) | NoneType,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        let mut traceback = Self::builtin_mono_class(TRACEBACK, 2);
+        traceback.register_superclass(Obj, &obj);
+        traceback.register_builtin_erg_impl(ATTR_TB_FRAME, Frame, Immutable, vis.clone());
+        traceback.register_builtin_erg_impl(ATTR_TB_LASTI, Nat, Immutable, vis.clone());
+        traceback.register_builtin_erg_impl(ATTR_TB_LINENO, Nat, Immutable, vis.clone());
+        traceback.register_builtin_erg_impl(
+            ATTR_TB_NEXT,
+            mono(TRACEBACK) | NoneType,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        let mut exception = Self::builtin_mono_class(EXCEPTION, 2);
+        exception.register_superclass(mono(BASE_EXCEPTION), &base_exception);
+        let mut system_exit = Self::builtin_mono_class(SYSTEM_EXIT, 2);
+        system_exit.register_superclass(mono(BASE_EXCEPTION), &base_exception);
+        system_exit.register_builtin_erg_impl(ATTR_CODE, Obj, Immutable, vis.clone());
+        let mut keyboard_interrupt = Self::builtin_mono_class(KEYBOARD_INTERRUPT, 1);
+        keyboard_interrupt.register_superclass(mono(BASE_EXCEPTION), &base_exception);
+        let mut generator_exit = Self::builtin_mono_class(GENERATOR_EXIT, 2);
+        generator_exit.register_superclass(mono(BASE_EXCEPTION), &base_exception);
+        let mut stop_iteration = Self::builtin_mono_class(STOP_ITERATION, 2);
+        stop_iteration.register_superclass(mono(EXCEPTION), &exception);
+        stop_iteration.register_builtin_erg_impl(ATTR_VALUE, Obj, Immutable, vis.clone());
+        let mut stop_async_iteration = Self::builtin_mono_class(STOP_ASYNC_ITERATION, 2);
+        stop_async_iteration.register_superclass(mono(EXCEPTION), &exception);
+        stop_async_iteration.register_builtin_erg_impl(ATTR_VALUE, Obj, Immutable, vis.clone());
+        let mut arithmetic_error = Self::builtin_mono_class(ARITHMETIC_ERROR, 2);
+        arithmetic_error.register_superclass(mono(EXCEPTION), &exception);
+        let mut floating_point_error = Self::builtin_mono_class(FLOATING_POINT_ERROR, 2);
+        floating_point_error.register_superclass(mono(ARITHMETIC_ERROR), &arithmetic_error);
+        let mut overflow_error = Self::builtin_mono_class(OVERFLOW_ERROR, 2);
+        overflow_error.register_superclass(mono(ARITHMETIC_ERROR), &arithmetic_error);
+        let mut zero_division_error = Self::builtin_mono_class(ZERO_DIVISION_ERROR, 2);
+        zero_division_error.register_superclass(mono(ARITHMETIC_ERROR), &arithmetic_error);
+        let mut assertion_error = Self::builtin_mono_class(ASSERTION_ERROR, 2);
+        assertion_error.register_superclass(mono(EXCEPTION), &exception);
+        let mut attribute_error = Self::builtin_mono_class(ATTRIBUTE_ERROR, 2);
+        attribute_error.register_superclass(mono(EXCEPTION), &exception);
+        let mut buffer_error = Self::builtin_mono_class(BUFFER_ERROR, 2);
+        buffer_error.register_superclass(mono(EXCEPTION), &exception);
+        let mut eof_error = Self::builtin_mono_class(EOF_ERROR, 2);
+        eof_error.register_superclass(mono(EXCEPTION), &exception);
+        let mut import_error = Self::builtin_mono_class(IMPORT_ERROR, 2);
+        import_error.register_superclass(mono(EXCEPTION), &exception);
+        import_error.register_builtin_erg_impl(ATTR_MSG, Str, Immutable, vis.clone());
+        import_error.register_builtin_erg_impl(ATTR_NAME, Str, Immutable, vis.clone());
+        import_error.register_builtin_erg_impl(ATTR_PATH, Str, Immutable, vis.clone());
+        let mut module_not_found_error = Self::builtin_mono_class(MODULE_NOT_FOUND_ERROR, 2);
+        module_not_found_error.register_superclass(mono(IMPORT_ERROR), &import_error);
+        let mut lookup_error = Self::builtin_mono_class(LOOKUP_ERROR, 1);
+        lookup_error.register_superclass(mono(EXCEPTION), &exception);
+        let mut index_error = Self::builtin_mono_class(INDEX_ERROR, 1);
+        index_error.register_superclass(mono(LOOKUP_ERROR), &lookup_error);
+        let mut key_error = Self::builtin_mono_class(KEY_ERROR, 1);
+        key_error.register_superclass(mono(LOOKUP_ERROR), &lookup_error);
+        let mut memory_error = Self::builtin_mono_class(MEMORY_ERROR, 1);
+        memory_error.register_superclass(mono(EXCEPTION), &exception);
+        let mut name_error = Self::builtin_mono_class(NAME_ERROR, 1);
+        name_error.register_superclass(mono(EXCEPTION), &exception);
+        let mut unbound_local_error = Self::builtin_mono_class(UNBOUND_LOCAL_ERROR, 2);
+        unbound_local_error.register_superclass(mono(NAME_ERROR), &name_error);
+        let mut os_error = Self::builtin_mono_class(OS_ERROR, 2);
+        os_error.register_superclass(mono(EXCEPTION), &exception);
+        os_error.register_builtin_erg_impl(ATTR_ERRNO, Int, Immutable, vis.clone());
+        os_error.register_builtin_erg_impl(ATTR_FILENAME, Str, Immutable, vis.clone());
+        os_error.register_builtin_erg_impl(ATTR_FILENAME2, Str, Immutable, vis.clone());
+        os_error.register_builtin_erg_impl(ATTR_STRERROR, Str, Immutable, vis.clone());
+        let mut blocking_io_error = Self::builtin_mono_class(BLOCKING_IO_ERROR, 1);
+        blocking_io_error.register_superclass(mono(OS_ERROR), &os_error);
+        let mut child_process_error = Self::builtin_mono_class(CHILD_PROCESS_ERROR, 1);
+        child_process_error.register_superclass(mono(OS_ERROR), &os_error);
+        let mut connection_error = Self::builtin_mono_class(CONNECTION_ERROR, 1);
+        connection_error.register_superclass(mono(OS_ERROR), &os_error);
+        let mut broken_pipe_error = Self::builtin_mono_class(BROKEN_PIPE_ERROR, 1);
+        broken_pipe_error.register_superclass(mono(CONNECTION_ERROR), &connection_error);
+        let mut connection_aborted_error = Self::builtin_mono_class(CONNECTION_ABORTED_ERROR, 1);
+        connection_aborted_error.register_superclass(mono(CONNECTION_ERROR), &connection_error);
+        let mut connection_refused_error = Self::builtin_mono_class(CONNECTION_REFUSED_ERROR, 1);
+        connection_refused_error.register_superclass(mono(CONNECTION_ERROR), &connection_error);
+        let mut connection_reset_error = Self::builtin_mono_class(CONNECTION_RESET_ERROR, 1);
+        connection_reset_error.register_superclass(mono(CONNECTION_ERROR), &connection_error);
+        let mut file_exists_error = Self::builtin_mono_class(FILE_EXISTS_ERROR, 1);
+        file_exists_error.register_superclass(mono(OS_ERROR), &os_error);
+        let mut file_not_found_error = Self::builtin_mono_class(FILE_NOT_FOUND_ERROR, 1);
+        file_not_found_error.register_superclass(mono(OS_ERROR), &os_error);
+        let mut interrupted_error = Self::builtin_mono_class(INTERRUPTED_ERROR, 1);
+        interrupted_error.register_superclass(mono(OS_ERROR), &os_error);
+        let mut is_a_directory_error = Self::builtin_mono_class(IS_A_DIRECTORY_ERROR, 1);
+        is_a_directory_error.register_superclass(mono(OS_ERROR), &os_error);
+        let mut not_a_directory_error = Self::builtin_mono_class(NOT_A_DIRECTORY_ERROR, 1);
+        not_a_directory_error.register_superclass(mono(OS_ERROR), &os_error);
+        let mut permission_error = Self::builtin_mono_class(PERMISSION_ERROR, 1);
+        permission_error.register_superclass(mono(OS_ERROR), &os_error);
+        let mut process_lookup_error = Self::builtin_mono_class(PROCESS_LOOKUP_ERROR, 1);
+        process_lookup_error.register_superclass(mono(OS_ERROR), &os_error);
+        let mut timeout_error = Self::builtin_mono_class(TIMEOUT_ERROR, 1);
+        timeout_error.register_superclass(mono(OS_ERROR), &os_error);
+        let mut reference_error = Self::builtin_mono_class(REFERENCE_ERROR, 1);
+        reference_error.register_superclass(mono(EXCEPTION), &exception);
+        let mut runtime_error = Self::builtin_mono_class(RUNTIME_ERROR, 2);
+        runtime_error.register_superclass(mono(EXCEPTION), &exception);
+        let mut not_implemented_error = Self::builtin_mono_class(NOT_IMPLEMENTED_ERROR, 1);
+        not_implemented_error.register_superclass(mono(RUNTIME_ERROR), &runtime_error);
+        let mut recursion_error = Self::builtin_mono_class(RECURSION_ERROR, 1);
+        recursion_error.register_superclass(mono(RUNTIME_ERROR), &runtime_error);
+        let mut syntax_error = Self::builtin_mono_class(SYNTAX_ERROR, 2);
+        syntax_error.register_superclass(mono(EXCEPTION), &exception);
+        let mut indentation_error = Self::builtin_mono_class(INDENTATION_ERROR, 2);
+        indentation_error.register_superclass(mono(SYNTAX_ERROR), &syntax_error);
+        let mut tab_error = Self::builtin_mono_class(TAB_ERROR, 2);
+        tab_error.register_superclass(mono(INDENTATION_ERROR), &indentation_error);
+        let mut system_error = Self::builtin_mono_class(SYSTEM_ERROR, 2);
+        system_error.register_superclass(mono(EXCEPTION), &exception);
+        let mut type_error = Self::builtin_mono_class(TYPE_ERROR, 2);
+        type_error.register_superclass(mono(EXCEPTION), &exception);
+        let mut value_error = Self::builtin_mono_class(VALUE_ERROR, 2);
+        value_error.register_superclass(mono(EXCEPTION), &exception);
+        let mut unicode_error = Self::builtin_mono_class(UNICODE_ERROR, 2);
+        unicode_error.register_superclass(mono(VALUE_ERROR), &value_error);
+        let mut unicode_encode_error = Self::builtin_mono_class(UNICODE_ENCODE_ERROR, 2);
+        unicode_encode_error.register_superclass(mono(UNICODE_ERROR), &unicode_error);
+        let mut unicode_decode_error = Self::builtin_mono_class(UNICODE_DECODE_ERROR, 2);
+        unicode_decode_error.register_superclass(mono(UNICODE_ERROR), &unicode_error);
+        let mut unicode_translate_error = Self::builtin_mono_class(UNICODE_TRANSLATE_ERROR, 2);
+        unicode_translate_error.register_superclass(mono(UNICODE_ERROR), &unicode_error);
+        let mut warning = Self::builtin_mono_class(WARNING, 2);
+        warning.register_superclass(mono(EXCEPTION), &exception);
+        let mut deprecation_warning = Self::builtin_mono_class(DEPRECATION_WARNING, 2);
+        deprecation_warning.register_superclass(mono(WARNING), &warning);
+        let mut pending_deprecation_warning =
+            Self::builtin_mono_class(PENDING_DEPRECATION_WARNING, 2);
+        pending_deprecation_warning
+            .register_superclass(mono(DEPRECATION_WARNING), &deprecation_warning);
+        let mut runtime_warning = Self::builtin_mono_class(RUNTIME_WARNING, 2);
+        runtime_warning.register_superclass(mono(WARNING), &warning);
+        let mut syntax_warning = Self::builtin_mono_class(SYNTAX_WARNING, 2);
+        syntax_warning.register_superclass(mono(WARNING), &warning);
+        let mut user_warning = Self::builtin_mono_class(USER_WARNING, 2);
+        user_warning.register_superclass(mono(WARNING), &warning);
+        let mut future_warning = Self::builtin_mono_class(FUTURE_WARNING, 2);
+        future_warning.register_superclass(mono(WARNING), &warning);
+        let mut import_warning = Self::builtin_mono_class(IMPORT_WARNING, 2);
+        import_warning.register_superclass(mono(WARNING), &warning);
+        let mut unicode_warning = Self::builtin_mono_class(UNICODE_WARNING, 2);
+        unicode_warning.register_superclass(mono(WARNING), &warning);
+        let mut bytes_warning = Self::builtin_mono_class(BYTES_WARNING, 2);
+        bytes_warning.register_superclass(mono(WARNING), &warning);
+        let mut resource_warning = Self::builtin_mono_class(RESOURCE_WARNING, 2);
+        resource_warning.register_superclass(mono(WARNING), &warning);
         /* Proc */
         let mut proc = Self::builtin_mono_class(PROC, 2);
         proc.register_superclass(mono(SUBROUTINE), &subr);
         let mut named_proc = Self::builtin_mono_class(NAMED_PROC, 2);
         named_proc.register_superclass(mono(PROC), &proc);
-        named_proc.register_marker_trait(self, mono(NAMED)).unwrap();
+        named_proc.register_trait(self, mono(NAMED)).unwrap();
         /* Func */
         let mut func = Self::builtin_mono_class(FUNC, 2);
         func.register_superclass(mono(PROC), &proc);
         let mut named_func = Self::builtin_mono_class(NAMED_FUNC, 2);
         named_func.register_superclass(mono(FUNC), &func);
-        named_func.register_marker_trait(self, mono(NAMED)).unwrap();
+        named_func.register_trait(self, mono(NAMED)).unwrap();
         let mut quant = Self::builtin_mono_class(QUANTIFIED, 2);
         quant.register_superclass(mono(PROC), &proc);
         let mut qproc = Self::builtin_mono_class(QUANTIFIED_PROC, 2);
@@ -3564,6 +3868,449 @@ impl Context {
             vis.clone(),
             Const,
             Some(GENERATOR),
+        );
+        self.register_builtin_type(
+            mono(BASE_EXCEPTION),
+            base_exception,
+            vis.clone(),
+            Const,
+            Some(BASE_EXCEPTION),
+        );
+        self.register_builtin_type(
+            mono(TRACEBACK),
+            traceback,
+            vis.clone(),
+            Const,
+            Some(TRACEBACK),
+        );
+        self.register_builtin_type(
+            mono(EXCEPTION),
+            exception,
+            vis.clone(),
+            Const,
+            Some(EXCEPTION),
+        );
+        self.register_builtin_type(
+            mono(SYSTEM_EXIT),
+            system_exit,
+            vis.clone(),
+            Const,
+            Some(SYSTEM_EXIT),
+        );
+        self.register_builtin_type(
+            mono(KEYBOARD_INTERRUPT),
+            keyboard_interrupt,
+            vis.clone(),
+            Const,
+            Some(KEYBOARD_INTERRUPT),
+        );
+        self.register_builtin_type(
+            mono(GENERATOR_EXIT),
+            generator_exit,
+            vis.clone(),
+            Const,
+            Some(GENERATOR_EXIT),
+        );
+        self.register_builtin_type(
+            mono(STOP_ITERATION),
+            stop_iteration,
+            vis.clone(),
+            Const,
+            Some(STOP_ITERATION),
+        );
+        self.register_builtin_type(
+            mono(STOP_ASYNC_ITERATION),
+            stop_async_iteration,
+            vis.clone(),
+            Const,
+            Some(STOP_ASYNC_ITERATION),
+        );
+        self.register_builtin_type(
+            mono(ARITHMETIC_ERROR),
+            arithmetic_error,
+            vis.clone(),
+            Const,
+            Some(ARITHMETIC_ERROR),
+        );
+        self.register_builtin_type(
+            mono(FLOATING_POINT_ERROR),
+            floating_point_error,
+            vis.clone(),
+            Const,
+            Some(FLOATING_POINT_ERROR),
+        );
+        self.register_builtin_type(
+            mono(OVERFLOW_ERROR),
+            overflow_error,
+            vis.clone(),
+            Const,
+            Some(OVERFLOW_ERROR),
+        );
+        self.register_builtin_type(
+            mono(ZERO_DIVISION_ERROR),
+            zero_division_error,
+            vis.clone(),
+            Const,
+            Some(ZERO_DIVISION_ERROR),
+        );
+        self.register_builtin_type(
+            mono(ASSERTION_ERROR),
+            assertion_error,
+            vis.clone(),
+            Const,
+            Some(ASSERTION_ERROR),
+        );
+        self.register_builtin_type(
+            mono(ATTRIBUTE_ERROR),
+            attribute_error,
+            vis.clone(),
+            Const,
+            Some(ATTRIBUTE_ERROR),
+        );
+        self.register_builtin_type(
+            mono(BUFFER_ERROR),
+            buffer_error,
+            vis.clone(),
+            Const,
+            Some(BUFFER_ERROR),
+        );
+        self.register_builtin_type(
+            mono(EOF_ERROR),
+            eof_error,
+            vis.clone(),
+            Const,
+            Some(EOF_ERROR),
+        );
+        self.register_builtin_type(
+            mono(IMPORT_ERROR),
+            import_error,
+            vis.clone(),
+            Const,
+            Some(IMPORT_ERROR),
+        );
+        self.register_builtin_type(
+            mono(MODULE_NOT_FOUND_ERROR),
+            module_not_found_error,
+            vis.clone(),
+            Const,
+            Some(MODULE_NOT_FOUND_ERROR),
+        );
+        self.register_builtin_type(
+            mono(LOOKUP_ERROR),
+            lookup_error,
+            vis.clone(),
+            Const,
+            Some(LOOKUP_ERROR),
+        );
+        self.register_builtin_type(
+            mono(INDEX_ERROR),
+            index_error,
+            vis.clone(),
+            Const,
+            Some(INDEX_ERROR),
+        );
+        self.register_builtin_type(
+            mono(KEY_ERROR),
+            key_error,
+            vis.clone(),
+            Const,
+            Some(KEY_ERROR),
+        );
+        self.register_builtin_type(
+            mono(MEMORY_ERROR),
+            memory_error,
+            vis.clone(),
+            Const,
+            Some(MEMORY_ERROR),
+        );
+        self.register_builtin_type(
+            mono(NAME_ERROR),
+            name_error,
+            vis.clone(),
+            Const,
+            Some(NAME_ERROR),
+        );
+        self.register_builtin_type(
+            mono(UNBOUND_LOCAL_ERROR),
+            unbound_local_error,
+            vis.clone(),
+            Const,
+            Some(UNBOUND_LOCAL_ERROR),
+        );
+        self.register_builtin_type(mono(OS_ERROR), os_error, vis.clone(), Const, Some(OS_ERROR));
+        self.register_builtin_type(
+            mono(BLOCKING_IO_ERROR),
+            blocking_io_error,
+            vis.clone(),
+            Const,
+            Some(BLOCKING_IO_ERROR),
+        );
+        self.register_builtin_type(
+            mono(CHILD_PROCESS_ERROR),
+            child_process_error,
+            vis.clone(),
+            Const,
+            Some(CHILD_PROCESS_ERROR),
+        );
+        self.register_builtin_type(
+            mono(CONNECTION_ERROR),
+            connection_error,
+            vis.clone(),
+            Const,
+            Some(CONNECTION_ERROR),
+        );
+        self.register_builtin_type(
+            mono(BROKEN_PIPE_ERROR),
+            broken_pipe_error,
+            vis.clone(),
+            Const,
+            Some(BROKEN_PIPE_ERROR),
+        );
+        self.register_builtin_type(
+            mono(CONNECTION_ABORTED_ERROR),
+            connection_aborted_error,
+            vis.clone(),
+            Const,
+            Some(CONNECTION_ABORTED_ERROR),
+        );
+        self.register_builtin_type(
+            mono(CONNECTION_REFUSED_ERROR),
+            connection_refused_error,
+            vis.clone(),
+            Const,
+            Some(CONNECTION_REFUSED_ERROR),
+        );
+        self.register_builtin_type(
+            mono(CONNECTION_RESET_ERROR),
+            connection_reset_error,
+            vis.clone(),
+            Const,
+            Some(CONNECTION_RESET_ERROR),
+        );
+        self.register_builtin_type(
+            mono(FILE_EXISTS_ERROR),
+            file_exists_error,
+            vis.clone(),
+            Const,
+            Some(FILE_EXISTS_ERROR),
+        );
+        self.register_builtin_type(
+            mono(FILE_NOT_FOUND_ERROR),
+            file_not_found_error,
+            vis.clone(),
+            Const,
+            Some(FILE_NOT_FOUND_ERROR),
+        );
+        self.register_builtin_type(
+            mono(INTERRUPTED_ERROR),
+            interrupted_error,
+            vis.clone(),
+            Const,
+            Some(INTERRUPTED_ERROR),
+        );
+        self.register_builtin_type(
+            mono(IS_A_DIRECTORY_ERROR),
+            is_a_directory_error,
+            vis.clone(),
+            Const,
+            Some(IS_A_DIRECTORY_ERROR),
+        );
+        self.register_builtin_type(
+            mono(NOT_A_DIRECTORY_ERROR),
+            not_a_directory_error,
+            vis.clone(),
+            Const,
+            Some(NOT_A_DIRECTORY_ERROR),
+        );
+        self.register_builtin_type(
+            mono(PERMISSION_ERROR),
+            permission_error,
+            vis.clone(),
+            Const,
+            Some(PERMISSION_ERROR),
+        );
+        self.register_builtin_type(
+            mono(PROCESS_LOOKUP_ERROR),
+            process_lookup_error,
+            vis.clone(),
+            Const,
+            Some(PROCESS_LOOKUP_ERROR),
+        );
+        self.register_builtin_type(
+            mono(TIMEOUT_ERROR),
+            timeout_error,
+            vis.clone(),
+            Const,
+            Some(TIMEOUT_ERROR),
+        );
+        self.register_builtin_type(
+            mono(REFERENCE_ERROR),
+            reference_error,
+            vis.clone(),
+            Const,
+            Some(REFERENCE_ERROR),
+        );
+        self.register_builtin_type(
+            mono(RUNTIME_ERROR),
+            runtime_error,
+            vis.clone(),
+            Const,
+            Some(RUNTIME_ERROR),
+        );
+        self.register_builtin_type(
+            mono(NOT_IMPLEMENTED_ERROR),
+            not_implemented_error,
+            vis.clone(),
+            Const,
+            Some(NOT_IMPLEMENTED_ERROR),
+        );
+        self.register_builtin_type(
+            mono(RECURSION_ERROR),
+            recursion_error,
+            vis.clone(),
+            Const,
+            Some(RECURSION_ERROR),
+        );
+        self.register_builtin_type(
+            mono(SYNTAX_ERROR),
+            syntax_error,
+            vis.clone(),
+            Const,
+            Some(SYNTAX_ERROR),
+        );
+        self.register_builtin_type(
+            mono(INDENTATION_ERROR),
+            indentation_error,
+            vis.clone(),
+            Const,
+            Some(INDENTATION_ERROR),
+        );
+        self.register_builtin_type(
+            mono(TAB_ERROR),
+            tab_error,
+            vis.clone(),
+            Const,
+            Some(TAB_ERROR),
+        );
+        self.register_builtin_type(
+            mono(SYSTEM_ERROR),
+            system_error,
+            vis.clone(),
+            Const,
+            Some(SYSTEM_ERROR),
+        );
+        self.register_builtin_type(
+            mono(TYPE_ERROR),
+            type_error,
+            vis.clone(),
+            Const,
+            Some(TYPE_ERROR),
+        );
+        self.register_builtin_type(
+            mono(VALUE_ERROR),
+            value_error,
+            vis.clone(),
+            Const,
+            Some(VALUE_ERROR),
+        );
+        self.register_builtin_type(
+            mono(UNICODE_ERROR),
+            unicode_error,
+            vis.clone(),
+            Const,
+            Some(UNICODE_ERROR),
+        );
+        self.register_builtin_type(
+            mono(UNICODE_ENCODE_ERROR),
+            unicode_encode_error,
+            vis.clone(),
+            Const,
+            Some(UNICODE_ENCODE_ERROR),
+        );
+        self.register_builtin_type(
+            mono(UNICODE_DECODE_ERROR),
+            unicode_decode_error,
+            vis.clone(),
+            Const,
+            Some(UNICODE_DECODE_ERROR),
+        );
+        self.register_builtin_type(
+            mono(UNICODE_TRANSLATE_ERROR),
+            unicode_translate_error,
+            vis.clone(),
+            Const,
+            Some(UNICODE_TRANSLATE_ERROR),
+        );
+        self.register_builtin_type(mono(WARNING), warning, vis.clone(), Const, Some(WARNING));
+        self.register_builtin_type(
+            mono(DEPRECATION_WARNING),
+            deprecation_warning,
+            vis.clone(),
+            Const,
+            Some(DEPRECATION_WARNING),
+        );
+        self.register_builtin_type(
+            mono(PENDING_DEPRECATION_WARNING),
+            pending_deprecation_warning,
+            vis.clone(),
+            Const,
+            Some(PENDING_DEPRECATION_WARNING),
+        );
+        self.register_builtin_type(
+            mono(RUNTIME_WARNING),
+            runtime_warning,
+            vis.clone(),
+            Const,
+            Some(RUNTIME_WARNING),
+        );
+        self.register_builtin_type(
+            mono(SYNTAX_WARNING),
+            syntax_warning,
+            vis.clone(),
+            Const,
+            Some(SYNTAX_WARNING),
+        );
+        self.register_builtin_type(
+            mono(USER_WARNING),
+            user_warning,
+            vis.clone(),
+            Const,
+            Some(USER_WARNING),
+        );
+        self.register_builtin_type(
+            mono(FUTURE_WARNING),
+            future_warning,
+            vis.clone(),
+            Const,
+            Some(FUTURE_WARNING),
+        );
+        self.register_builtin_type(
+            mono(IMPORT_WARNING),
+            import_warning,
+            vis.clone(),
+            Const,
+            Some(IMPORT_WARNING),
+        );
+        self.register_builtin_type(
+            mono(UNICODE_WARNING),
+            unicode_warning,
+            vis.clone(),
+            Const,
+            Some(UNICODE_WARNING),
+        );
+        self.register_builtin_type(
+            mono(BYTES_WARNING),
+            bytes_warning,
+            vis.clone(),
+            Const,
+            Some(BYTES_WARNING),
+        );
+        self.register_builtin_type(
+            mono(RESOURCE_WARNING),
+            resource_warning,
+            vis.clone(),
+            Const,
+            Some(RESOURCE_WARNING),
         );
         self.register_builtin_type(mono(PROC), proc, vis.clone(), Const, Some(PROC));
         self.register_builtin_type(mono(FUNC), func, vis.clone(), Const, Some(FUNC));

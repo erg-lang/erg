@@ -306,7 +306,12 @@ pub fn mod_name(path: &Path) -> Str {
     for parent in path.components().rev().skip(1) {
         let parent = parent.as_os_str().to_string_lossy();
         if parent.ends_with(".d") {
-            name = parent.trim_end_matches(".d").to_string() + "." + &name;
+            let p = parent.trim_end_matches(".d").to_string();
+            if name == "__init__" {
+                name = p;
+            } else {
+                name = p + "." + &name;
+            }
         } else {
             break;
         }

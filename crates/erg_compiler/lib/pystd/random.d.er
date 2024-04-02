@@ -1,8 +1,22 @@
+.Random!: ClassType
+.Random! <: InheritableType
+.Random!.
+    seed!: (self: RefMut(.Random!), a := Float, version := Nat) => NoneType
+    getstate!: (self: Ref(.Random!)) => (Nat, [Nat; _], Nat or NoneType)
+    setstate!: (self: RefMut(.Random!), state: (Nat, [Nat; _], Nat or NoneType)) => NoneType
+    random!: (self: RefMut(.Random!)) => Float
+    getrandbits!: (self: RefMut(.Random!), k: Nat) => Nat
+
+.SystemRandom!: ClassType
+.SystemRandom! <: InheritableType
+
 .seed!: (a := Num, version := Int) => NoneType
 .randbytes!: (n: Nat) => Bytes
 .randrange!: (start: Int, stop := Int, step := Int) => Int
 .randint!: (a: Int, b: Int) => Int
 .getrandbits!: (k: Nat) => Nat
+.getstate!: () => (Nat, [Nat; _], Nat or NoneType)
+.setstate!: (state: (Nat, [Nat; _], Nat or NoneType)) => NoneType
 .choice!: |T: Type|(seq: Sequence(T)) => T
 # TODO: dependent length array type
 .choices!: |T: Type|(population: Sequence(T), weights := [Nat; _] or NoneType, k := Nat) => [T; _]
@@ -12,3 +26,13 @@
 .random!: () => 0.0..1.0 # TODO: <1.0
 .dep_uniform! = 'uniform': |A: Int, B: Int|(a: {A}, b: {B}) => A..B
 .uniform!: (a: Int, b: Int) => Int
+.triangular!: (low: Float, high: Float, mode: Float) => Float
+.betavariate!: (alpha: Float, beta: Float) => 0.0..1.0
+.expovariate!: (lambd := Float) => Float
+.gammavariate!: (alpha: Float, beta: Float) => Float
+.gauss!: (mu := Float, sigma := Float) => Float
+.lognormvariate!: (mu: Float, sigma: Float) => Float
+.normalvariate!: (mu := Float, sigma := Float) => Float
+.vonmisesvariate!: (mu: Float, kappa: Float) => Float
+.paretovariate!: (alpha: Float) => Float
+.weibullvariate!: (alpha: Float, beta: Float) => Float

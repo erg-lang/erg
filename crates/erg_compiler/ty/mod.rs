@@ -19,6 +19,7 @@ pub mod vis;
 
 use std::cell::RefMut;
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::ops::{BitAnd, BitOr, Deref, Not, Range, RangeInclusive};
 use std::path::PathBuf;
 
@@ -193,6 +194,13 @@ impl ParamTy {
     }
 
     pub fn name(&self) -> Option<&Str> {
+        match self {
+            Self::Pos(_) => None,
+            Self::Kw { name, .. } | Self::KwWithDefault { name, .. } => Some(name),
+        }
+    }
+
+    pub fn name_mut(&mut self) -> Option<&mut Str> {
         match self {
             Self::Pos(_) => None,
             Self::Kw { name, .. } | Self::KwWithDefault { name, .. } => Some(name),
@@ -713,6 +721,55 @@ impl SubrType {
             .map(|t| (t.name().cloned(), t.typ().ownership()));
         ArgsOwnership::new(nd_args, var_args, d_args, kw_var_args)
     }
+
+    pub fn _replace(mut self, target: &Type, to: &Type) -> Self {
+        for nd in self.non_default_params.iter_mut() {
+            *nd.typ_mut() = std::mem::take(nd.typ_mut())._replace(target, to);
+        }
+        if let Some(var) = self.var_params.as_mut() {
+            *var.as_mut().typ_mut() = std::mem::take(var.as_mut().typ_mut())._replace(target, to);
+        }
+        for d in self.default_params.iter_mut() {
+            *d.typ_mut() = std::mem::take(d.typ_mut())._replace(target, to);
+        }
+        self.return_t = Box::new(self.return_t._replace(target, to));
+        self
+    }
+
+    pub fn replace_params(mut self, target_and_to: Vec<(Str, Str)>) -> Self {
+        for (target, to) in target_and_to {
+            for nd in self.non_default_params.iter_mut() {
+                if let Some(name) = nd.name_mut() {
+                    if name == target {
+                        *name = to.clone();
+                    }
+                }
+            }
+            if let Some(var) = self.var_params.as_mut() {
+                if let Some(name) = var.name_mut() {
+                    if name == target {
+                        *name = to.clone();
+                    }
+                }
+            }
+            for d in self.default_params.iter_mut() {
+                if let Some(name) = d.name_mut() {
+                    if name == target {
+                        *name = to.clone();
+                    }
+                }
+            }
+            if let Some(kw_var) = self.kw_var_params.as_mut() {
+                if let Some(name) = kw_var.name_mut() {
+                    if name == target {
+                        *name = to.clone();
+                    }
+                }
+            }
+            *self.return_t = self.return_t.replace_param(&target, &to);
+        }
+        self
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -916,9 +973,9 @@ impl ArgsOwnership {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub enum CastTarget {
-    Param {
+    Arg {
         nth: usize,
         name: Str,
         loc: Location,
@@ -931,10 +988,33 @@ pub enum CastTarget {
     Expr(Box<Expr>),
 }
 
+impl PartialEq for CastTarget {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Arg { nth: l, .. }, Self::Arg { nth: r, .. }) => l == r,
+            (Self::Var { name: l, .. }, Self::Var { name: r, .. }) => l == r,
+            (Self::Expr(l), Self::Expr(r)) => l == r,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for CastTarget {}
+
+impl Hash for CastTarget {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Self::Arg { nth, .. } => nth.hash(state),
+            Self::Var { name, .. } => name.hash(state),
+            Self::Expr(expr) => expr.hash(state),
+        }
+    }
+}
+
 impl fmt::Display for CastTarget {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Param { nth, name, .. } => write!(f, "{name}#{nth}"),
+            Self::Arg { name, .. } => write!(f, "{name}"),
             Self::Var { name, .. } => write!(f, "{name}"),
             Self::Expr(expr) => write!(f, "{expr}"),
         }
@@ -944,7 +1024,7 @@ impl fmt::Display for CastTarget {
 impl Locational for CastTarget {
     fn loc(&self) -> Location {
         match self {
-            Self::Param { loc, .. } => *loc,
+            Self::Arg { loc, .. } => *loc,
             Self::Var { loc, .. } => *loc,
             Self::Expr(expr) => expr.loc(),
         }
@@ -952,8 +1032,8 @@ impl Locational for CastTarget {
 }
 
 impl CastTarget {
-    pub const fn param(nth: usize, name: Str, loc: Location) -> Self {
-        Self::Param { nth, name, loc }
+    pub const fn arg(nth: usize, name: Str, loc: Location) -> Self {
+        Self::Arg { nth, name, loc }
     }
 
     pub fn expr(expr: Expr) -> Self {
@@ -966,6 +1046,14 @@ pub struct GuardType {
     pub namespace: Str,
     pub target: CastTarget,
     pub to: Box<Type>,
+}
+
+impl LimitedDisplay for GuardType {
+    fn limited_fmt<W: std::fmt::Write>(&self, f: &mut W, limit: isize) -> fmt::Result {
+        write!(f, "{{{} in ", self.target)?;
+        self.to.limited_fmt(f, limit - 1)?;
+        write!(f, "}}")
+    }
 }
 
 impl fmt::Display for GuardType {
@@ -987,6 +1075,14 @@ impl GuardType {
             target,
             to: Box::new(to),
         }
+    }
+
+    pub fn replace_param(mut self, target: &str, to: &str) -> Self {
+        match &mut self.target {
+            CastTarget::Arg { name, .. } if name == target => *name = Str::rc(to),
+            _ => {}
+        }
+        self
     }
 }
 
@@ -1383,9 +1479,7 @@ impl LimitedDisplay for Type {
                 ty.limited_fmt(f, limit - 1)?;
                 write!(f, ")")
             }
-            Self::Guard(guard) if cfg!(feature = "debug") => {
-                write!(f, "Guard({guard})")
-            }
+            Self::Guard(guard) => guard.limited_fmt(f, limit),
             Self::Bounded { sub, sup } => {
                 if sub.is_union_type() || sub.is_intersection_type() {
                     write!(f, "(")?;
@@ -2019,7 +2113,13 @@ impl Type {
             Self::Refinement(refine) => refine.t.is_value_class(),
             Self::Poly { name, params } => {
                 if &name[..] == "Array" || &name[..] == "Set" {
-                    let elem_t = <&Type>::try_from(params.first().unwrap()).unwrap();
+                    let Some(elem_t) = params.first().and_then(|p| <&Type>::try_from(p).ok())
+                    else {
+                        if DEBUG_MODE {
+                            todo!();
+                        }
+                        return false;
+                    };
                     elem_t.is_value_class()
                 } else {
                     false
@@ -2052,7 +2152,7 @@ impl Type {
                 if fv.is_linked() {
                     fv.crack().is_mut_type()
                 } else {
-                    fv.unbound_name().unwrap().ends_with('!')
+                    fv.unbound_name().is_some_and(|n| n.ends_with('!'))
                 }
             }
             Self::Mono(name) | Self::Poly { name, .. } | Self::Proj { rhs: name, .. } => {
@@ -2069,12 +2169,56 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_nonelike(),
             Self::NoneType => true,
             Self::Poly { name, params, .. } if &name[..] == "Option" || &name[..] == "Option!" => {
-                let inner_t = enum_unwrap!(params.first().unwrap(), TyParam::Type);
+                let Some(TyParam::Type(inner_t)) = params.first() else {
+                    return false;
+                };
                 inner_t.is_nonelike()
             }
             Self::Poly { name, params, .. } if &name[..] == "Tuple" => params.is_empty(),
             Self::Refinement(refine) => refine.t.is_nonelike(),
             Self::Bounded { sup, .. } => sup.is_nonelike(),
+            _ => false,
+        }
+    }
+
+    pub fn is_nonetype(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_nonetype(),
+            Self::NoneType => true,
+            Self::Refinement(refine) => refine.t.is_nonetype(),
+            _ => false,
+        }
+    }
+
+    pub fn is_singleton(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_singleton(),
+            Self::Refinement(refine) => refine.t.is_singleton(),
+            Self::Poly { name, params } => {
+                if &name[..] == "Array" || &name[..] == "Set" {
+                    let Some(elem_t) = params.first().and_then(|p| <&Type>::try_from(p).ok())
+                    else {
+                        if DEBUG_MODE {
+                            todo!();
+                        }
+                        return false;
+                    };
+                    elem_t.is_singleton()
+                } else {
+                    false
+                }
+            }
+            Self::NamedTuple(attrs) => attrs.iter().all(|(_, t)| t.is_singleton()),
+            Self::Record(attrs) => attrs.values().all(|t| t.is_singleton()),
+            Self::Ref(t) => t.is_singleton(),
+            Self::RefMut { before, after } => {
+                before.is_singleton() && after.as_ref().map_or(true, |t| t.is_singleton())
+            }
+            Self::Structural(ty) => ty.is_singleton(),
+            Self::Bounded { sub, sup } => sub.is_singleton() && sup.is_singleton(),
+            Self::NoneType => true,
+            Self::Ellipsis => true,
+            Self::NotImplementedType => true,
             _ => false,
         }
     }
@@ -2238,6 +2382,15 @@ impl Type {
         }
     }
 
+    pub fn is_guard(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_guard(),
+            Self::Guard(_) => true,
+            Self::Refinement(refine) => refine.t.is_guard(),
+            _ => false,
+        }
+    }
+
     pub fn is_array_mut(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_array_mut(),
@@ -2261,6 +2414,15 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_tuple(),
             Self::Poly { name, .. } => &name[..] == "Tuple",
             Self::Refinement(refine) => refine.t.is_tuple(),
+            _ => false,
+        }
+    }
+
+    pub fn is_named_tuple(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_named_tuple(),
+            Self::NamedTuple(_) => true,
+            Self::Refinement(refine) => refine.t.is_named_tuple(),
             _ => false,
         }
     }
@@ -2631,9 +2793,9 @@ impl Type {
             Self::Refinement(refine) => refine.t.namespace(),
             Self::Mono(name) | Self::Poly { name, .. } => {
                 let namespaces = name.split_with(&[".", "::"]);
-                if namespaces.len() > 1 {
+                if let Some(last) = namespaces.last() {
                     Str::rc(
-                        name.trim_end_matches(namespaces.last().unwrap())
+                        name.trim_end_matches(last)
                             .trim_end_matches('.')
                             .trim_end_matches("::"),
                     )
@@ -2879,7 +3041,7 @@ impl Type {
             Type::FreeVar(fv) if fv.is_linked() => {
                 fv.crack().destructive_coerce();
             }
-            Type::FreeVar(fv) if fv.is_unbound() => {
+            Type::FreeVar(fv) if fv.is_unbound_and_sandwiched() => {
                 let (sub, _sup) = fv.get_subsup().unwrap();
                 sub.destructive_coerce();
                 self.destructive_link(&sub);
@@ -2905,7 +3067,7 @@ impl Type {
             Type::FreeVar(fv) if fv.is_linked() => {
                 fv.crack().undoable_coerce(list);
             }
-            Type::FreeVar(fv) if fv.is_unbound() => {
+            Type::FreeVar(fv) if fv.is_unbound_and_sandwiched() => {
                 let (sub, _sup) = fv.get_subsup().unwrap();
                 sub.undoable_coerce(list);
                 self.undoable_link(&sub, list);
@@ -3359,7 +3521,7 @@ impl Type {
             // NOTE: Quantified could return a quantified type variable.
             // At least in situations where this function is needed, self cannot be Quantified.
             Self::Quantified(quant) => {
-                if quant.return_t().unwrap().is_generalized() {
+                if quant.return_t()?.is_generalized() {
                     log!(err "quantified return type (recursive function type inference)");
                 }
                 quant.return_t()
@@ -3371,9 +3533,7 @@ impl Type {
 
     pub fn tyvar_mut_return_t(&mut self) -> Option<RefMut<Type>> {
         match self {
-            Self::FreeVar(fv)
-                if fv.is_linked() && fv.get_linked().unwrap().return_t().is_some() =>
-            {
+            Self::FreeVar(fv) if fv.get_linked()?.return_t().is_some() => {
                 Some(RefMut::map(fv.borrow_mut(), |fk| {
                     fk.linked_mut().unwrap().mut_return_t().unwrap()
                 }))
@@ -3389,7 +3549,7 @@ impl Type {
                 Some(return_t)
             }
             Self::Quantified(quant) => {
-                if quant.return_t().unwrap().is_generalized() {
+                if quant.return_t()?.is_generalized() {
                     log!(err "quantified return type (recursive function type inference)");
                 }
                 quant.mut_return_t()
@@ -3614,20 +3774,7 @@ impl Type {
                 }
                 Self::NamedTuple(r)
             }
-            Self::Subr(mut subr) => {
-                for nd in subr.non_default_params.iter_mut() {
-                    *nd.typ_mut() = std::mem::take(nd.typ_mut())._replace(target, to);
-                }
-                if let Some(var) = subr.var_params.as_mut() {
-                    *var.as_mut().typ_mut() =
-                        std::mem::take(var.as_mut().typ_mut())._replace(target, to);
-                }
-                for d in subr.default_params.iter_mut() {
-                    *d.typ_mut() = std::mem::take(d.typ_mut())._replace(target, to);
-                }
-                subr.return_t = Box::new(subr.return_t._replace(target, to));
-                Self::Subr(subr)
-            }
+            Self::Subr(subr) => Self::Subr(subr._replace(target, to)),
             Self::Callable { param_ts, return_t } => {
                 let param_ts = param_ts
                     .into_iter()
@@ -3676,6 +3823,30 @@ impl Type {
             },
             other => other,
         }
+    }
+
+    fn replace_param(self, target: &str, to: &str) -> Self {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().clone().replace_param(target, to),
+            Self::Refinement(mut refine) => {
+                *refine.t = refine.t.replace_param(target, to);
+                Self::Refinement(refine)
+            }
+            Self::And(l, r) => l.replace_param(target, to) & r.replace_param(target, to),
+            Self::Guard(guard) => Self::Guard(guard.replace_param(target, to)),
+            _ => self,
+        }
+    }
+
+    pub fn replace_params<'l, 'r>(
+        mut self,
+        target: impl Iterator<Item = &'l str>,
+        to: impl Iterator<Item = &'r str>,
+    ) -> Self {
+        for (target, to) in target.zip(to) {
+            self = self.replace_param(target, to);
+        }
+        self
     }
 
     /// TyParam::Value(ValueObj::Type(_)) => TyParam::Type
@@ -3831,7 +4002,12 @@ impl Type {
         new_constraint: Constraint,
         list: &UndoableLinkedList,
     ) {
-        let level = self.level().unwrap();
+        let Some(level) = self.level() else {
+            if DEBUG_MODE {
+                todo!();
+            }
+            return;
+        };
         let new = if let Some(name) = self.unbound_name() {
             named_free_var(name, level, new_constraint)
         } else {

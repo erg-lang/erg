@@ -17,7 +17,7 @@ use ast::{
     ConstIdentifier, Decorator, DefId, Identifier, OperationKind, PolyTypeSpec, PreDeclTypeSpec,
     VarName,
 };
-use erg_parser::ast::{self, ClassAttr, TypeSpecWithOp};
+use erg_parser::ast::{self, ClassAttr, RecordAttrOrIdent, TypeSpecWithOp};
 
 use crate::ty::constructors::{
     free_var, func, func0, func1, module, proc, py_module, ref_, ref_mut, str_dict_t, tp_enum,
@@ -31,7 +31,7 @@ use crate::ty::{
 };
 
 use crate::context::{ClassDefType, Context, ContextKind, DefaultInfo, RegistrationMode};
-use crate::error::readable_name;
+use crate::error::{concat_result, readable_name};
 use crate::error::{
     CompileError, CompileErrors, CompileResult, TyCheckError, TyCheckErrors, TyCheckResult,
 };
@@ -1059,7 +1059,7 @@ impl Context {
         for expr in block.iter() {
             match expr {
                 ast::Expr::Def(def) => {
-                    if let Err(errs) = self.register_const_def(def) {
+                    if let Err(errs) = self.register_def(def) {
                         total_errs.extend(errs);
                     }
                     if def.def_kind().is_import() {
@@ -1069,7 +1069,7 @@ impl Context {
                     }
                 }
                 ast::Expr::ClassDef(class_def) => {
-                    if let Err(errs) = self.register_const_def(&class_def.def) {
+                    if let Err(errs) = self.register_def(&class_def.def) {
                         total_errs.extend(errs);
                     }
                     let vis = self
@@ -1092,7 +1092,7 @@ impl Context {
                         self.grow(&class.local_name(), kind, vis.clone(), None);
                         for attr in methods.attrs.iter() {
                             if let ClassAttr::Def(def) = attr {
-                                if let Err(errs) = self.register_const_def(def) {
+                                if let Err(errs) = self.register_def(def) {
                                     total_errs.extend(errs);
                                 }
                             }
@@ -1113,7 +1113,7 @@ impl Context {
                     }
                 }
                 ast::Expr::PatchDef(patch_def) => {
-                    if let Err(errs) = self.register_const_def(&patch_def.def) {
+                    if let Err(errs) = self.register_def(&patch_def.def) {
                         total_errs.extend(errs);
                     }
                 }
@@ -1206,7 +1206,7 @@ impl Context {
         }
     }
 
-    pub(crate) fn register_const_def(&mut self, def: &ast::Def) -> TyCheckResult<()> {
+    pub(crate) fn register_def(&mut self, def: &ast::Def) -> TyCheckResult<()> {
         let id = Some(def.body.id);
         let __name__ = def.sig.ident().map(|i| i.inspect()).unwrap_or(UBAR);
         let call = if let Some(ast::Expr::Call(call)) = &def.body.block.first() {
@@ -1217,7 +1217,9 @@ impl Context {
         match &def.sig {
             ast::Signature::Subr(sig) => {
                 if sig.is_const() {
-                    let tv_cache = self.instantiate_ty_bounds(&sig.bounds, PreRegister)?;
+                    let tv_cache = self
+                        .instantiate_ty_bounds(&sig.bounds, PreRegister)
+                        .map_err(|(_, errs)| errs)?;
                     let vis = self.instantiate_vis_modifier(sig.vis())?;
                     self.grow(__name__, ContextKind::Proc, vis, Some(tv_cache));
                     let (obj, const_t) = match self.eval_const_block(&def.body.block) {
@@ -1337,6 +1339,8 @@ impl Context {
     }
 
     /// e.g. `::__call__`
+    ///
+    /// NOTE: this is same as `register_auto_impl` if `PYTHON_MODE` is true
     fn register_fixed_auto_impl(
         &mut self,
         name: &'static str,
@@ -1346,6 +1350,11 @@ impl Context {
         py_name: Option<Str>,
     ) -> CompileResult<()> {
         let name = VarName::from_static(name);
+        let kind = if PYTHON_MODE {
+            VarKind::Auto
+        } else {
+            VarKind::FixedAuto
+        };
         if self.locals.get(&name).is_some() {
             Err(CompileErrors::from(CompileError::reassign_error(
                 self.cfg.input.clone(),
@@ -1361,7 +1370,7 @@ impl Context {
                     t,
                     muty,
                     vis,
-                    VarKind::FixedAuto,
+                    kind,
                     None,
                     self.kind.clone(),
                     py_name,
@@ -1438,7 +1447,8 @@ impl Context {
         }
     }
 
-    pub(crate) fn register_trait(&mut self, class: Type, methods: Self) {
+    /// If the trait has super-traits, you should call `register_trait` after calling this method.
+    pub(crate) fn register_trait_methods(&mut self, class: Type, methods: Self) {
         let trait_ = if let ContextKind::MethodDefs(Some(tr)) = &methods.kind {
             tr.clone()
         } else {
@@ -1452,7 +1462,8 @@ impl Context {
         ));
     }
 
-    pub(crate) fn register_marker_trait(&mut self, ctx: &Self, trait_: Type) -> CompileResult<()> {
+    /// Register that a class implements a trait and its super-traits.
+    pub(crate) fn register_trait(&mut self, ctx: &Self, trait_: Type) -> CompileResult<()> {
         let trait_ctx = ctx.get_nominal_type_ctx(&trait_).ok_or_else(|| {
             CompileError::type_not_found(
                 self.cfg.input.clone(),
@@ -1607,8 +1618,9 @@ impl Context {
                         2,
                         self.level,
                     );
-                    self.gen_class_new_method(&gen, call, &mut ctx)?;
-                    self.register_gen_mono_type(ident, gen, ctx, Const)
+                    let res = self.gen_class_new_method(&gen, call, &mut ctx);
+                    let res2 = self.register_gen_mono_type(ident, gen, ctx, Const);
+                    concat_result(res, res2)
                 } else {
                     let params = gen
                         .typ()
@@ -1627,13 +1639,15 @@ impl Context {
                         2,
                         self.level,
                     );
-                    self.gen_class_new_method(&gen, call, &mut ctx)?;
-                    self.register_gen_poly_type(ident, gen, ctx, Const)
+                    let res = self.gen_class_new_method(&gen, call, &mut ctx);
+                    let res2 = self.register_gen_poly_type(ident, gen, ctx, Const);
+                    concat_result(res, res2)
                 }
             }
             GenTypeObj::Subclass(_) => {
+                let mut errs = CompileErrors::empty();
                 if gen.typ().is_monomorphic() {
-                    let super_classes = vec![gen.base_or_sup().unwrap().typ().clone()];
+                    let super_classes = gen.base_or_sup().map_or(vec![], |t| vec![t.typ().clone()]);
                     // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
                     let mut ctx = Self::mono_class(
                         gen.typ().qual_name(),
@@ -1643,7 +1657,7 @@ impl Context {
                         self.level,
                     );
                     for sup in super_classes.into_iter() {
-                        let sup_ctx = self.get_nominal_type_ctx(&sup).ok_or_else(|| {
+                        let sup_ctx = match self.get_nominal_type_ctx(&sup).ok_or_else(|| {
                             TyCheckErrors::from(TyCheckError::type_not_found(
                                 self.cfg.input.clone(),
                                 line!() as usize,
@@ -1651,7 +1665,13 @@ impl Context {
                                 self.caused_by(),
                                 &sup,
                             ))
-                        })?;
+                        }) {
+                            Ok(ctx) => ctx,
+                            Err(es) => {
+                                errs.extend(es);
+                                continue;
+                            }
+                        };
                         ctx.register_superclass(sup, sup_ctx);
                     }
                     let mut methods =
@@ -1669,42 +1689,63 @@ impl Context {
                                 ..
                             } = additional
                             {
-                                self.register_instance_attrs(&mut ctx, rec, call)?;
+                                if let Err(es) = self.register_instance_attrs(&mut ctx, rec, call) {
+                                    errs.extend(es);
+                                }
                             }
                             param_t
                                 .map(|t| self.intersection(t, additional.typ()))
                                 .or(Some(additional.typ().clone()))
                         } else {
-                            param_t.cloned()
+                            self.get_nominal_type_ctx(sup.typ())
+                                .and_then(|ctx| {
+                                    ctx.get_class_attr(&VarName::from_static("__call__"), ctx)
+                                })
+                                .and_then(|vi| vi.t.param_ts().first().cloned())
+                                .or(param_t.cloned())
                         };
                         let new_t = if let Some(t) = param_t {
                             func1(t, gen.typ().clone())
                         } else {
                             func0(gen.typ().clone())
                         };
-                        methods.register_fixed_auto_impl(
+                        if let Err(es) = methods.register_fixed_auto_impl(
                             "__call__",
                             new_t.clone(),
                             Immutable,
                             Visibility::private(ctx.name.clone()),
                             None,
-                        )?;
+                        ) {
+                            errs.extend(es);
+                        }
                         // 必要なら、ユーザーが独自に上書きする
-                        methods.register_auto_impl(
+                        if let Err(es) = methods.register_auto_impl(
                             "new",
                             new_t,
                             Immutable,
                             Visibility::public(ctx.name.clone()),
                             None,
-                        )?;
+                        ) {
+                            errs.extend(es);
+                        }
                         ctx.methods_list.push(MethodContext::new(
                             DefId(0),
                             ClassDefType::Simple(gen.typ().clone()),
                             methods,
                         ));
-                        self.register_gen_mono_type(ident, gen, ctx, Const)
+                        if let Err(es) = self.register_gen_mono_type(ident, gen, ctx, Const) {
+                            errs.extend(es);
+                        }
+                        if errs.is_empty() {
+                            Ok(())
+                        } else {
+                            Err(errs)
+                        }
                     } else {
-                        let class_name = gen.base_or_sup().unwrap().typ().local_name();
+                        let class_name = gen
+                            .base_or_sup()
+                            .map(|t| t.typ().local_name())
+                            .unwrap_or(Str::from("?"));
                         Err(CompileErrors::from(CompileError::no_type_error(
                             self.cfg.input.clone(),
                             line!() as usize,
@@ -1733,14 +1774,17 @@ impl Context {
                         2,
                         self.level,
                     );
-                    if let Some(TypeObj::Builtin {
+                    let res = if let Some(TypeObj::Builtin {
                         t: Type::Record(req),
                         ..
                     }) = gen.base_or_sup()
                     {
-                        self.register_instance_attrs(&mut ctx, req, call)?;
-                    }
-                    self.register_gen_mono_type(ident, gen, ctx, Const)
+                        self.register_instance_attrs(&mut ctx, req, call)
+                    } else {
+                        Ok(())
+                    };
+                    let res2 = self.register_gen_mono_type(ident, gen, ctx, Const);
+                    concat_result(res, res2)
                 } else {
                     feature_error!(
                         CompileErrors,
@@ -1753,7 +1797,7 @@ impl Context {
             }
             GenTypeObj::Subtrait(_) => {
                 if gen.typ().is_monomorphic() {
-                    let super_classes = vec![gen.base_or_sup().unwrap().typ().clone()];
+                    let super_classes = gen.base_or_sup().map_or(vec![], |t| vec![t.typ().clone()]);
                     // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
                     let mut ctx = Self::mono_trait(
                         gen.typ().qual_name(),
@@ -1771,9 +1815,11 @@ impl Context {
                     } else {
                         None
                     };
-                    if let Some(additional) = additional {
-                        self.register_instance_attrs(&mut ctx, additional, call)?;
-                    }
+                    let res = if let Some(additional) = additional {
+                        self.register_instance_attrs(&mut ctx, additional, call)
+                    } else {
+                        Ok(())
+                    };
                     for sup in super_classes.into_iter() {
                         if let Some(sup_ctx) = self.get_nominal_type_ctx(&sup) {
                             ctx.register_supertrait(sup, sup_ctx);
@@ -1781,7 +1827,8 @@ impl Context {
                             log!(err "{sup} not found");
                         }
                     }
-                    self.register_gen_mono_type(ident, gen, ctx, Const)
+                    let res2 = self.register_gen_mono_type(ident, gen, ctx, Const);
+                    concat_result(res, res2)
                 } else {
                     feature_error!(
                         CompileErrors,
@@ -2361,6 +2408,16 @@ impl Context {
                 if expr == target.as_ref() {
                     return Some(*guard.to.clone());
                 }
+                // { r.x in Int } =>  { r in Structural { .x = Int } }
+                else if let ast::Expr::Accessor(ast::Accessor::Attr(attr)) = target.as_ref() {
+                    if attr.obj.as_ref() == expr {
+                        let mut rec = Dict::new();
+                        let vis = self.instantiate_vis_modifier(&attr.ident.vis).ok()?;
+                        let field = Field::new(vis, attr.ident.inspect().clone());
+                        rec.insert(field, *guard.to.clone());
+                        return Some(Type::Record(rec).structuralize());
+                    }
+                }
             }
         }
         None
@@ -2369,6 +2426,7 @@ impl Context {
     pub(crate) fn cast(
         &mut self,
         guard: GuardType,
+        args: Option<&hir::Args>,
         overwritten: &mut Vec<(VarName, VarInfo)>,
     ) -> TyCheckResult<()> {
         match &guard.target {
@@ -2399,15 +2457,57 @@ impl Context {
                         return Err(errs);
                     }
                 }
+                Ok(())
             }
-            CastTarget::Param { .. } => {
-                // TODO:
+            // ```
+            // i: Obj
+            // is_int: (x: Obj) -> {x in Int} # change the 0th arg type to Int
+            // assert is_int i
+            // i: Int
+            // ```
+            CastTarget::Arg { nth, name, loc } => {
+                if let Some(name) = args
+                    .and_then(|args| args.get(*nth))
+                    .and_then(|ex| ex.local_name())
+                {
+                    let vi = if let Some((name, vi)) = self.locals.remove_entry(name) {
+                        overwritten.push((name, vi.clone()));
+                        vi
+                    } else if let Some((n, vi)) = self.get_var_kv(name) {
+                        overwritten.push((n.clone(), vi.clone()));
+                        vi.clone()
+                    } else {
+                        VarInfo::nd_parameter(
+                            *guard.to.clone(),
+                            self.absolutize(().loc()),
+                            self.name.clone(),
+                        )
+                    };
+                    match self.recover_typarams(&vi.t, &guard) {
+                        Ok(t) => {
+                            self.locals
+                                .insert(VarName::from_str(Str::rc(name)), VarInfo { t, ..vi });
+                        }
+                        Err(errs) => {
+                            self.locals.insert(VarName::from_str(Str::rc(name)), vi);
+                            return Err(errs);
+                        }
+                    }
+                    Ok(())
+                } else {
+                    let target = CastTarget::Var {
+                        name: name.clone(),
+                        loc: *loc,
+                    };
+                    let guard = GuardType::new(guard.namespace, target, *guard.to);
+                    self.cast(guard, args, overwritten)
+                }
             }
             CastTarget::Expr(_) => {
                 self.guards.push(guard);
+                Ok(())
             }
         }
-        Ok(())
     }
 
     pub(crate) fn inc_ref<L: Locational>(
@@ -2473,7 +2573,9 @@ impl Context {
                 false
             }
             // TODO:
-            _ => false,
+            PreDeclTypeSpec::Subscr { namespace: ns, .. } => {
+                self.inc_ref_expr(ns, namespace, tmp_tv_cache)
+            }
         }
     }
 
@@ -2514,6 +2616,9 @@ impl Context {
         for arg in poly.args.kw_args() {
             self.inc_ref_expr(&arg.expr.clone().downgrade(), namespace, tmp_tv_cache);
         }
+        if let Some(arg) = poly.args.kw_var.as_ref() {
+            self.inc_ref_expr(&arg.expr.clone().downgrade(), namespace, tmp_tv_cache);
+        }
         self.inc_ref_acc(&poly.acc.clone().downgrade(), namespace, tmp_tv_cache)
     }
 
@@ -2547,6 +2652,51 @@ impl Context {
     ) -> bool {
         let mut res = false;
         for expr in block.iter() {
+            if self.inc_ref_expr(expr, namespace, tmp_tv_cache) {
+                res = true;
+            }
+        }
+        res
+    }
+
+    fn inc_ref_params(
+        &self,
+        params: &ast::Params,
+        namespace: &Context,
+        tmp_tv_cache: &TyVarCache,
+    ) -> bool {
+        let mut res = false;
+        for param in params.non_defaults.iter() {
+            if let Some(expr) = param.t_spec.as_ref().map(|ts| &ts.t_spec_as_expr) {
+                if self.inc_ref_expr(expr, namespace, tmp_tv_cache) {
+                    res = true;
+                }
+            }
+        }
+        if let Some(expr) = params
+            .var_params
+            .as_ref()
+            .and_then(|p| p.t_spec.as_ref().map(|ts| &ts.t_spec_as_expr))
+        {
+            if self.inc_ref_expr(expr, namespace, tmp_tv_cache) {
+                res = true;
+            }
+        }
+        for param in params.defaults.iter() {
+            if let Some(expr) = param.sig.t_spec.as_ref().map(|ts| &ts.t_spec_as_expr) {
+                if self.inc_ref_expr(expr, namespace, tmp_tv_cache) {
+                    res = true;
+                }
+            }
+            if self.inc_ref_expr(&param.default_val, namespace, tmp_tv_cache) {
+                res = true;
+            }
+        }
+        if let Some(expr) = params
+            .kw_var_params
+            .as_ref()
+            .and_then(|p| p.t_spec.as_ref().map(|ts| &ts.t_spec_as_expr))
+        {
             if self.inc_ref_expr(expr, namespace, tmp_tv_cache) {
                 res = true;
             }
@@ -2592,6 +2742,24 @@ impl Context {
                 for val in rec.attrs.iter() {
                     if self.inc_ref_block(&val.body.block, namespace, tmp_tv_cache) {
                         res = true;
+                    }
+                }
+                res
+            }
+            ast::Expr::Record(ast::Record::Mixed(rec)) => {
+                let mut res = false;
+                for val in rec.attrs.iter() {
+                    match val {
+                        RecordAttrOrIdent::Attr(attr) => {
+                            if self.inc_ref_block(&attr.body.block, namespace, tmp_tv_cache) {
+                                res = true;
+                            }
+                        }
+                        RecordAttrOrIdent::Ident(ident) => {
+                            if self.inc_ref_local(ident, namespace, tmp_tv_cache) {
+                                res = true;
+                            }
+                        }
                     }
                 }
                 res
@@ -2660,6 +2828,29 @@ impl Context {
                     if self.inc_ref_expr(guard, namespace, tmp_tv_cache) {
                         res = true;
                     }
+                }
+                res
+            }
+            ast::Expr::TypeAscription(ascription) => {
+                self.inc_ref_expr(&ascription.expr, namespace, tmp_tv_cache)
+            }
+            ast::Expr::Compound(comp) => {
+                let mut res = false;
+                for expr in comp.exprs.iter() {
+                    if self.inc_ref_expr(expr, namespace, tmp_tv_cache) {
+                        res = true;
+                    }
+                }
+                res
+            }
+            ast::Expr::Lambda(lambda) => {
+                let mut res = false;
+                // FIXME: assign params
+                if self.inc_ref_params(&lambda.sig.params, namespace, tmp_tv_cache) {
+                    res = true;
+                }
+                if self.inc_ref_block(&lambda.body, namespace, tmp_tv_cache) {
+                    res = true;
                 }
                 res
             }

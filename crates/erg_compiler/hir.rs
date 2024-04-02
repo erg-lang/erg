@@ -234,16 +234,17 @@ impl Locational for Args {
             }
         }
         match (
-            self.pos_args.first(),
+            self.pos_args.first().zip(self.pos_args.last()),
             self.var_args.as_ref(),
-            self.kw_args.last(),
+            self.kw_args.first().zip(self.kw_args.last()),
         ) {
-            (Some(l), _, Some(r)) => Location::concat(l, r),
-            (Some(l), Some(r), None) => Location::concat(l, r.as_ref()),
-            (Some(l), None, None) => Location::concat(l, self.pos_args.last().unwrap()),
-            (None, Some(l), Some(r)) => Location::concat(l.as_ref(), r),
-            (None, None, Some(r)) => Location::concat(self.kw_args.first().unwrap(), r),
-            _ => Location::Unknown,
+            (Some((l, _)), _, Some((_, r))) => Location::concat(l, r),
+            (Some((l, _)), Some(r), None) => Location::concat(l, r.as_ref()),
+            (Some((l, r)), None, None) => Location::concat(l, r),
+            (None, Some(l), Some((_, r))) => Location::concat(l.as_ref(), r),
+            (None, None, Some((l, r))) => Location::concat(l, r),
+            (None, Some(l), None) => l.loc(),
+            (None, None, None) => Location::Unknown,
         }
     }
 }
@@ -1191,7 +1192,11 @@ impl_stream!(RecordAttrs, Def);
 
 impl Locational for RecordAttrs {
     fn loc(&self) -> Location {
-        Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+        if let Some((l, r)) = self.0.first().zip(self.0.last()) {
+            Location::concat(l, r)
+        } else {
+            Location::Unknown
+        }
     }
 }
 
@@ -1617,6 +1622,13 @@ impl Block {
         }
         None
     }
+
+    pub fn get_def(&self, name: &str) -> Option<&Def> {
+        self.0.iter().find_map(|e| match e {
+            Expr::Def(def) if def.sig.ident().inspect() == name => Some(def),
+            _ => None,
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -1641,7 +1653,7 @@ impl HasType for Dummy {
     }
     #[inline]
     fn signature_mut_t(&mut self) -> Option<&mut Type> {
-        todo!()
+        unreachable!()
     }
 }
 
@@ -1900,17 +1912,17 @@ impl Locational for Params {
             }
         }
         match (
-            self.non_defaults.first(),
+            self.non_defaults.first().zip(self.non_defaults.last()),
             self.var_params.as_ref(),
-            self.defaults.last(),
+            self.defaults.first().zip(self.defaults.last()),
         ) {
-            (Some(l), _, Some(r)) => Location::concat(l, r),
-            (Some(l), Some(r), None) => Location::concat(l, r.as_ref()),
-            (None, Some(l), Some(r)) => Location::concat(l.as_ref(), r),
-            (Some(l), None, None) => Location::concat(l, self.non_defaults.last().unwrap()),
-            (None, Some(var), None) => var.loc(),
-            (None, None, Some(r)) => Location::concat(self.defaults.first().unwrap(), r),
-            _ => Location::Unknown,
+            (Some((l, _)), _, Some((_, r))) => Location::concat(l, r),
+            (Some((l, _)), Some(r), None) => Location::concat(l, r.as_ref()),
+            (Some((l, r)), None, None) => Location::concat(l, r),
+            (None, Some(l), Some((_, r))) => Location::concat(l.as_ref(), r),
+            (None, None, Some((l, r))) => Location::concat(l, r),
+            (None, Some(l), None) => l.loc(),
+            (None, None, None) => Location::Unknown,
         }
     }
 }
@@ -2312,8 +2324,8 @@ impl Def {
     }
 
     pub fn def_kind(&self) -> DefKind {
-        match self.body.block.first().unwrap() {
-            Expr::Call(call) => match call.obj.show_acc().as_ref().map(|n| &n[..]) {
+        match self.body.block.first() {
+            Some(Expr::Call(call)) => match call.obj.show_acc().as_ref().map(|n| &n[..]) {
                 Some("Class") => DefKind::Class,
                 Some("Inherit") => DefKind::Inherit,
                 Some("Trait") => DefKind::Trait,
@@ -2342,7 +2354,7 @@ impl Def {
     }
 
     pub fn get_base(&self) -> Option<&Record> {
-        match self.body.block.first().unwrap() {
+        match self.body.block.first()? {
             Expr::Call(call) => match call.obj.show_acc().as_ref().map(|n| &n[..]) {
                 Some("Class") | Some("Trait") => {
                     if let Some(Expr::Record(rec)) = call.args.get_left_or_key("Base") {
@@ -2428,7 +2440,7 @@ pub struct ClassDef {
     pub require_or_sup: Option<Box<Expr>>,
     /// The type of `new` that is automatically defined if not defined
     pub need_to_gen_new: bool,
-    pub __new__: Type,
+    pub constructor: Type,
     pub methods_list: Vec<Methods>,
 }
 
@@ -2481,7 +2493,7 @@ impl ClassDef {
         sig: Signature,
         require_or_sup: Option<Expr>,
         need_to_gen_new: bool,
-        __new__: Type,
+        constructor: Type,
         methods_list: Vec<Methods>,
     ) -> Self {
         Self {
@@ -2489,7 +2501,7 @@ impl ClassDef {
             sig,
             require_or_sup: require_or_sup.map(Box::new),
             need_to_gen_new,
-            __new__,
+            constructor,
             methods_list,
         }
     }

@@ -85,6 +85,9 @@
 .setcontext!: (ctx: .Context!) => NoneType
 .localcontext: (ctx := .Context!) -> .Context!
 
+.Decimal <: Eq
+.Decimal <: Hash
+.Decimal <: Ord
 .Decimal.
     __call__: (value := Str or Float) -> .Decimal
     adjusted: (self: .Decimal) -> Int

@@ -318,7 +318,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     ) -> ELSResult<InlayHint> {
         self.send_log(format!("inlay hint resolve request: {hint:?}"))?;
         if let Some(data) = &hint.data {
-            let Ok(uri) = data.as_str().unwrap().parse::<NormalizedUrl>() else {
+            let Some(uri) = data.as_str().and_then(|s| s.parse::<NormalizedUrl>().ok()) else {
                 return Ok(hint);
             };
             if let Some(module) = self.get_mod_ctx(&uri) {

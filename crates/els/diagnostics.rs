@@ -11,7 +11,6 @@ use erg_common::dict::Dict;
 use erg_common::pathutil::{project_entry_file_of, project_root_dir_of};
 use erg_common::spawn::{safe_yield, spawn_new_thread};
 use erg_common::style::*;
-use erg_common::traits::Stream;
 use erg_common::{fn_name, lsp_log};
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::build_package::CheckStatus;
@@ -160,7 +159,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             }
         };
         let ast = self.build_ast(&uri).ok();
-        let ctx = checker.pop_context().unwrap();
+        let Some(ctx) = checker.pop_context() else {
+            _log!(self, "context not found");
+            return Ok(());
+        };
         if mode == "declare" {
             self.shared
                 .py_mod_cache
@@ -412,7 +414,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     "method": "window/workDoneProgress/create",
                     "params": progress_token,
                 }));
-                let Some(project_root) = project_root_dir_of(&current_dir().unwrap()) else {
+                let Ok(current_dir) = current_dir() else {
+                    work_done!(token)
+                };
+                let Some(project_root) = project_root_dir_of(&current_dir) else {
                     work_done!(token);
                 };
                 let src_dir = if project_root.join("src").is_dir() {
@@ -420,7 +425,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 } else {
                     project_root
                 };
-                let Some(main_path) = project_entry_file_of(&current_dir().unwrap()) else {
+                let Some(main_path) = project_entry_file_of(&current_dir) else {
                     work_done!(token);
                 };
                 let Ok(main_uri) = NormalizedUrl::from_file_path(main_path) else {
@@ -444,8 +449,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                         "params": params,
                     }))
                     .unwrap();
-                let code = _self.file_cache.get_entire_code(&main_uri).unwrap();
-                let _ = _self.check_file(main_uri, code);
+                if let Ok(code) = _self.file_cache.get_entire_code(&main_uri) {
+                    let _ = _self.check_file(main_uri.clone(), code);
+                }
                 work_done!(token, uris);
             },
             fn_name!(),

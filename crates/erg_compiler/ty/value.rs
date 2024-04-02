@@ -974,6 +974,10 @@ impl ValueObj {
         ))
     }
 
+    pub const fn is_none(&self) -> bool {
+        matches!(self, Self::None)
+    }
+
     // TODO: add Complex
     pub const fn is_num(&self) -> bool {
         matches!(
@@ -1607,17 +1611,13 @@ pub mod value_set {
         if !is_homogeneous(set) {
             return None;
         }
-        set.iter()
-            .max_by(|x, y| x.try_cmp(y).unwrap())
-            .map(Clone::clone)
+        set.iter().max_by(|x, y| x.try_cmp(y).unwrap()).cloned()
     }
 
     pub fn min(set: &Set<ValueObj>) -> Option<ValueObj> {
         if !is_homogeneous(set) {
             return None;
         }
-        set.iter()
-            .min_by(|x, y| x.try_cmp(y).unwrap())
-            .map(Clone::clone)
+        set.iter().min_by(|x, y| x.try_cmp(y).unwrap()).cloned()
     }
 }

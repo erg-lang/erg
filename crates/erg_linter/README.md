@@ -8,12 +8,16 @@ The following codes are warned.
 
 * Unreachable codes
 * Wildcard import
-* Unused variables
 * Shadowing of built-in variables
-* Unused objects that are not `NoneLike`
 * Procedures without side-effects
 * Variables that can be defined as constants
 * Unnecessary `.clone`
 * Mutable objects that do not change
 * Hardcoded well-known constants (e.g. `3.14`)
 * Defining a subroutine with too many parameters
+* Defining a class with too many fields
+
+### These are warned by the compiler
+
+* Unused variables
+* Unused objects that are not `NoneLike`

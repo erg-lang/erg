@@ -34,34 +34,40 @@ func(x: Int) = y => print! x, y # NG
 ```
 
 ## 绑定
+
 过程可以操作范围外的变量。
+
 ```python
-x = ! 0
-proc! () =
- x.inc! ()
-proc! ()
+x = !0
+proc!() =
+    x.inc!()
+proc!()
 assert x == 1
 ```
+
 此时，“proc！” 具有以下类型：
+
 ```python
 proc!: {| x: Int! |} () => ()
 ```
-`{| x: Int! |} '部分称为绑定列，表示过程操作的变量及其类型。
+
+`{| x: Int! |}`部分称为绑定列，表示过程操作的变量及其类型。
 绑定列是自动派生的，因此无需显式编写。
 请注意，常规过程只能操作预先确定的外部变量。 这意味着不能重写传递给参数的变量。
 如果要执行此操作，则必须使用过程方法。 过程方法可以重写“自”。
+
 ```python
 C! N = Class {arr = [Int; N]!}
 C!.
- new() = Self! (0)::__new__ {arr = ![]}
+    new() = Self!(0) {arr = ![]}
 C! (N).
-    # push!: {|self: C!( N) ~> C! (N+1)|} (self: RefMut(C!( N)), x: Int) => NoneType
- push! ref! self, x = self.arr.push! (x)
-    # pop!: {|self: C!( N) ~> C! (N-1)|} (self: RefMut(C!( N))) => Int
- pop! ref! self = self.arr.pop! ()
-c = C!. new()
-c.push! (1)
-assert c.pop! () ==  1
+    # push!: {|self: C!(N) ~> C!(N+1)|} (self: RefMut(C!(N)), x: Int) => NoneType
+    push! ref! self, x = self.arr.push! (x)
+    # pop!: {|self: C!(N) ~> C!(N-1)|} (self: RefMut(C!(N))) => Int
+    pop! ref! self = self.arr.pop! ()
+c = C!.new()
+c.push!(1)
+assert c.pop!() ==  1
 ```
 
 <p align='center'>
