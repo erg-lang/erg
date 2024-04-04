@@ -5,7 +5,7 @@ use erg_common::log;
 use crate::ty::constructors::*;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::ValueObj;
-use crate::ty::{CastTarget, Field, GuardType, Type, Visibility};
+use crate::ty::{CastTarget, Field, Type, Visibility};
 use Type::*;
 
 use crate::context::initialize::*;
@@ -108,14 +108,14 @@ impl Context {
             poly(ENUMERATE, vec![ty_tp(T.clone())]),
         )
         .quantify();
-        let guard = Type::Guard(GuardType::new(
+        let grd = guard(
             "<builtins>".into(),
             CastTarget::arg(0, "x".into(), Location::Unknown),
             U.clone(),
-        ));
+        );
         let t_filter = nd_func(
             vec![
-                kw(KW_FUNC, nd_func(vec![kw("x", T.clone())], None, guard)),
+                kw(KW_FUNC, nd_func(vec![kw("x", T.clone())], None, grd)),
                 kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())])),
             ],
             None,

@@ -3,7 +3,7 @@ use erg_common::log;
 
 use crate::ty::constructors::*;
 use crate::ty::value::ValueObj;
-use crate::ty::{Type, Visibility};
+use crate::ty::{CastTarget, Type, Visibility};
 use ParamSpec as PS;
 use Type::*;
 
@@ -249,12 +249,23 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some("Function::iterable_map"),
         );
+        let grd = guard(
+            "<builtins>".into(),
+            CastTarget::arg(0, "x".into(), Location::Unknown),
+            U.clone(),
+        );
         let t_filter = fn1_met(
             Slf.clone(),
-            func1(T.clone(), Bool),
-            poly(FILTER, vec![ty_tp(T.clone())]),
+            nd_func(vec![kw("x", T.clone())], None, grd),
+            poly(FILTER, vec![ty_tp(T.clone() & U.clone())]),
         )
-        .quantify();
+        .quantify()
+            & fn1_met(
+                Slf.clone(),
+                func1(T.clone(), Bool),
+                poly(FILTER, vec![ty_tp(T.clone())]),
+            )
+            .quantify();
         iterable.register_builtin_decl(
             FUNC_FILTER,
             t_filter,
