@@ -16,7 +16,7 @@ assert a1 in [Nat; 4]
 assert a1 + a2 in [Nat; 7]
 ```
 
-如果函数参数中传递的类型对象与返回类型有关，则写: 
+如果函数参数中传递的类型对象与返回类型有关，则写:
 
 ```python
 narray: |N: Nat| {N} -> [{N}; N]
@@ -69,11 +69,12 @@ vm.stop!() # 类型错误: VM!(!"stopped", 1) 没有 .stop!()
 您还可以嵌入或继承现有类型以创建依赖类型
 
 ```python
-MyArray(T, N) = Inherit[T; N]
+MyList(T, N) = Inherit[T; N]
 
 # self 的类型: Self(T, N) 与 .array 一起变化
 MyStruct!(T, N: Nat!) = Class {.array: [T; !N]}
 ```
+
 <p align='center'>
     <a href='./13_algebraic.md'>上一页</a> | <a href='./15_quantified.md'>下一页</a>
 </p>

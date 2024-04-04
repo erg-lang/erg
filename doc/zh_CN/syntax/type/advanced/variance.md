@@ -7,19 +7,19 @@ Erg 可以对多态类型进行子类型化，但有一些注意事项
 首先，考虑普通多态类型的包含关系。一般来说，有一个容器`K`和它分配的类型`A，B`，当`A < B`时，`K A < K B`
 例如，`Option Int < Option Object`。因此，在`Option Object`中定义的方法也可以在`Option Int`中使用
 
-考虑典型的多态类型 `Array!(T)`
-请注意，这一次不是 `Array!(T, N)` 因为我们不关心元素的数量
-现在，`Array!(T)` 类型具有称为 `.push!` 和 `.pop!` 的方法，分别表示添加和删除元素。这是类型: 
+考虑典型的多态类型 `List!(T)`
+请注意，这一次不是 `List!(T, N)` 因为我们不关心元素的数量
+现在，`List!(T)` 类型具有称为 `.push!` 和 `.pop!` 的方法，分别表示添加和删除元素。这是类型:
 
-`Array.push!: Self(T).(T) => NoneType`
-`Array.pop!: Self(T).() => T`
+`List.push!: Self(T).(T) => NoneType`
+`List.pop!: Self(T).() => T`
 
 可以直观地理解:
 
-* `Array!(Object).push!(s)` is OK when `s: Str` (just upcast `Str` to `Object`)
-* When `o: Object`, `Array!(Str).push!(o)` is NG
-* `Array!(Object).pop!().into(Str)` is NG
-* `Array!(Str).pop!().into(Object)` is OK
+* `List!(Object).push!(s)` is OK when `s: Str` (just upcast `Str` to `Object`)
+* When `o: Object`, `List!(Str).push!(o)` is NG
+* `List!(Object).pop!().into(Str)` is NG
+* `List!(Str).pop!().into(Object)` is OK
 
 就类型系统而言，这是
 
@@ -65,7 +65,7 @@ Erg 有另一个修改。它是不变的
 |A<: T, A :> U| ...
 ```
 
-这是使用变量规范的代码示例: 
+这是使用变量规范的代码示例:
 
 ```python
 show|S <: Show| s: S = log s
@@ -81,7 +81,7 @@ List(T).
 ## 更改规范
 
 `List T` 的例子很棘手，所以让我们更详细一点
-要理解上面的代码，你需要了解多态类型退化。[this section](./variance.md) 中详细讨论了方差，但现在我们需要三个事实: 
+要理解上面的代码，你需要了解多态类型退化。[this section](./variance.md) 中详细讨论了方差，但现在我们需要三个事实:
 
 * 普通的多态类型，例如`List T`，与`T`是协变的(`List U > List T` when `U > T`)
 * 函数 `T -> U` 对于参数类型 `T` 是逆变的(`(S -> U) < (T -> U)` when `S > T`)

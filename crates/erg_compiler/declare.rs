@@ -12,7 +12,7 @@ use erg_parser::desugar::Desugarer;
 use crate::context::instantiate::TyVarCache;
 use crate::context::{ClassDefType, Context, MethodContext, MethodPair, TraitImpl};
 use crate::lower::GenericASTLowerer;
-use crate::ty::constructors::{array_t, mono, mono_q, mono_q_tp, poly, v_enum};
+use crate::ty::constructors::{list_t, mono, mono_q, mono_q_tp, poly, v_enum};
 use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{HasType, TyParam, Type, Visibility};
@@ -288,30 +288,30 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         Ok(hir::UnaryOp::new(unaryop.op, expr, VarInfo::default()))
     }
 
-    fn fake_lower_array(&self, arr: ast::Array) -> LowerResult<hir::Array> {
+    fn fake_lower_list(&self, arr: ast::List) -> LowerResult<hir::List> {
         match arr {
-            ast::Array::WithLength(arr) => {
-                let len = self.fake_lower_expr(*arr.len)?;
-                let elem = self.fake_lower_expr(arr.elem.expr)?;
-                Ok(hir::Array::WithLength(hir::ArrayWithLength::new(
-                    arr.l_sqbr,
-                    arr.r_sqbr,
+            ast::List::WithLength(lis) => {
+                let len = self.fake_lower_expr(*lis.len)?;
+                let elem = self.fake_lower_expr(lis.elem.expr)?;
+                Ok(hir::List::WithLength(hir::ListWithLength::new(
+                    lis.l_sqbr,
+                    lis.r_sqbr,
                     Type::Failure,
                     elem,
                     Some(len),
                 )))
             }
-            ast::Array::Normal(arr) => {
+            ast::List::Normal(lis) => {
                 let mut elems = Vec::new();
-                let (elems_, ..) = arr.elems.deconstruct();
+                let (elems_, ..) = lis.elems.deconstruct();
                 for elem in elems_.into_iter() {
                     let elem = self.fake_lower_expr(elem.expr)?;
                     elems.push(hir::PosArg::new(elem));
                 }
                 let elems = hir::Args::new(elems, None, vec![], None, None);
-                let t = array_t(Type::Failure, TyParam::value(elems.len()));
-                Ok(hir::Array::Normal(hir::NormalArray::new(
-                    arr.l_sqbr, arr.r_sqbr, t, elems,
+                let t = list_t(Type::Failure, TyParam::value(elems.len()));
+                Ok(hir::List::Normal(hir::NormalList::new(
+                    lis.l_sqbr, lis.r_sqbr, t, elems,
                 )))
             }
             other => Err(LowerErrors::from(LowerError::declare_error(
@@ -612,7 +612,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             ast::Expr::Literal(lit) => Ok(hir::Expr::Literal(self.fake_lower_literal(lit)?)),
             ast::Expr::BinOp(binop) => Ok(hir::Expr::BinOp(self.fake_lower_binop(binop)?)),
             ast::Expr::UnaryOp(unop) => Ok(hir::Expr::UnaryOp(self.fake_lower_unaryop(unop)?)),
-            ast::Expr::Array(arr) => Ok(hir::Expr::Array(self.fake_lower_array(arr)?)),
+            ast::Expr::List(lis) => Ok(hir::Expr::List(self.fake_lower_list(lis)?)),
             ast::Expr::Tuple(tup) => Ok(hir::Expr::Tuple(self.fake_lower_tuple(tup)?)),
             ast::Expr::Record(rec) => Ok(hir::Expr::Record(self.fake_lower_record(rec)?)),
             ast::Expr::Set(set) => Ok(hir::Expr::Set(self.fake_lower_set(set)?)),

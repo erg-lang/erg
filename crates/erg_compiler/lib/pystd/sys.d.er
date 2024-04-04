@@ -56,7 +56,7 @@ io = pyimport "io"
     .seed_bits = Nat;
     .cutoff = Int;
 }
-.path: Array!(Str, _)
+.path: List!(Str, _)
 '''
 * AIX -> 'aix'
 * FreeBSD -> 'freebsd'

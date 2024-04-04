@@ -77,7 +77,7 @@ Trait is also a type, so it can be used for normal type specification.
 
 ```python
 points: [Norm; 2] = [Point2D::new(1, 2), Point2D::new(3, 4)]
-assert points.iter().map(x -> x.norm()).collect(Array) == [5, 25].
+assert points.iter().map(x -> x.norm()).collect(List) == [5, 25].
 ```
 
 ## Trait inclusion
@@ -151,11 +151,11 @@ Mapper T: Type = Trait {
     .map = (self: Self, T -> U) -> Self.MapIter U
 }
 
-# ArrayIterator <: Mapper
-# ArrayIterator.MapIter == ArrayMapper
-# [1, 2, 3].iter(): ArrayIterator Int
-# [1, 2, 3].iter().map(x -> "\{x}"): ArrayMapper Str
-assert [1, 2, 3].iter().map(x -> "\{x}").collect(Array) == ["1", "2", "3"].
+# ListIterator <: Mapper
+# ListIterator.MapIter == ListMapper
+# [1, 2, 3].iter(): ListIterator Int
+# [1, 2, 3].iter().map(x -> "\{x}"): ListMapper Str
+assert [1, 2, 3].iter().map(x -> "\{x}").collect(List) == ["1", "2", "3"].
 ```
 
 ## Override in Trait

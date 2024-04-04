@@ -744,7 +744,7 @@ impl Accessor {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ArrayWithLength {
+pub struct ListWithLength {
     pub l_sqbr: Token,
     pub r_sqbr: Token,
     pub t: Type,
@@ -752,7 +752,7 @@ pub struct ArrayWithLength {
     pub len: Option<Box<Expr>>,
 }
 
-impl NestedDisplay for ArrayWithLength {
+impl NestedDisplay for ListWithLength {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         write!(
             f,
@@ -764,7 +764,7 @@ impl NestedDisplay for ArrayWithLength {
     }
 }
 
-impl NoTypeDisplay for ArrayWithLength {
+impl NoTypeDisplay for ListWithLength {
     fn to_string_notype(&self) -> String {
         format!(
             "[{}; {}]",
@@ -774,11 +774,11 @@ impl NoTypeDisplay for ArrayWithLength {
     }
 }
 
-impl_display_from_nested!(ArrayWithLength);
-impl_locational!(ArrayWithLength, l_sqbr, elem, r_sqbr);
-impl_t!(ArrayWithLength);
+impl_display_from_nested!(ListWithLength);
+impl_locational!(ListWithLength, l_sqbr, elem, r_sqbr);
+impl_t!(ListWithLength);
 
-impl ArrayWithLength {
+impl ListWithLength {
     pub fn new(l_sqbr: Token, r_sqbr: Token, t: Type, elem: Expr, len: Option<Expr>) -> Self {
         Self {
             l_sqbr,
@@ -796,7 +796,7 @@ impl ArrayWithLength {
 
 // TODO: generators
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ArrayComprehension {
+pub struct ListComprehension {
     pub l_sqbr: Token,
     pub r_sqbr: Token,
     pub t: Type,
@@ -804,13 +804,13 @@ pub struct ArrayComprehension {
     pub guard: Box<Expr>,
 }
 
-impl NestedDisplay for ArrayComprehension {
+impl NestedDisplay for ListComprehension {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         write!(f, "[{} | {}](: {})", self.elem, self.guard, self.t)
     }
 }
 
-impl NoTypeDisplay for ArrayComprehension {
+impl NoTypeDisplay for ListComprehension {
     fn to_string_notype(&self) -> String {
         format!(
             "[{} | {}]",
@@ -820,19 +820,19 @@ impl NoTypeDisplay for ArrayComprehension {
     }
 }
 
-impl_display_from_nested!(ArrayComprehension);
-impl_locational!(ArrayComprehension, l_sqbr, elem, r_sqbr);
-impl_t!(ArrayComprehension);
+impl_display_from_nested!(ListComprehension);
+impl_locational!(ListComprehension, l_sqbr, elem, r_sqbr);
+impl_t!(ListComprehension);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct NormalArray {
+pub struct NormalList {
     pub l_sqbr: Token,
     pub r_sqbr: Token,
     pub t: Type,
     pub elems: Args,
 }
 
-impl NestedDisplay for NormalArray {
+impl NestedDisplay for NormalList {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         writeln!(f, "[")?;
         self.elems.fmt_nest(f, level + 1)?;
@@ -840,7 +840,7 @@ impl NestedDisplay for NormalArray {
     }
 }
 
-impl NoTypeDisplay for NormalArray {
+impl NoTypeDisplay for NormalList {
     fn to_string_notype(&self) -> String {
         format!(
             "[{}]",
@@ -854,11 +854,11 @@ impl NoTypeDisplay for NormalArray {
     }
 }
 
-impl_display_from_nested!(NormalArray);
-impl_locational!(NormalArray, l_sqbr, elems, r_sqbr);
-impl_t!(NormalArray);
+impl_display_from_nested!(NormalList);
+impl_locational!(NormalList, l_sqbr, elems, r_sqbr);
+impl_t!(NormalList);
 
-impl NormalArray {
+impl NormalList {
     pub fn new(l_sqbr: Token, r_sqbr: Token, t: Type, elems: Args) -> Self {
         Self {
             l_sqbr,
@@ -874,21 +874,21 @@ impl NormalArray {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Array {
-    Normal(NormalArray),
-    Comprehension(ArrayComprehension),
-    WithLength(ArrayWithLength),
+pub enum List {
+    Normal(NormalList),
+    Comprehension(ListComprehension),
+    WithLength(ListWithLength),
 }
 
-impl_nested_display_for_enum!(Array; Normal, Comprehension, WithLength);
-impl_no_type_display_for_enum!(Array; Normal, Comprehension, WithLength);
-impl_display_for_enum!(Array; Normal, Comprehension, WithLength);
-impl_locational_for_enum!(Array; Normal, Comprehension, WithLength);
-impl_t_for_enum!(Array; Normal, Comprehension, WithLength);
+impl_nested_display_for_enum!(List; Normal, Comprehension, WithLength);
+impl_no_type_display_for_enum!(List; Normal, Comprehension, WithLength);
+impl_display_for_enum!(List; Normal, Comprehension, WithLength);
+impl_locational_for_enum!(List; Normal, Comprehension, WithLength);
+impl_t_for_enum!(List; Normal, Comprehension, WithLength);
 
-impl Array {
+impl List {
     pub const fn is_unsized(&self) -> bool {
-        matches!(self, Self::WithLength(arr) if arr.is_unsized())
+        matches!(self, Self::WithLength(lis) if lis.is_unsized())
     }
 }
 
@@ -2733,7 +2733,7 @@ impl TypeAscription {
 pub enum Expr {
     Literal(Literal),
     Accessor(Accessor),
-    Array(Array),
+    List(List),
     Tuple(Tuple),
     Set(Set),
     Dict(Dict),
@@ -2753,13 +2753,13 @@ pub enum Expr {
     Dummy(Dummy), // for mapping to Python AST
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, ReDef, Code, Compound, TypeAsc, Set, Import, Dummy);
-impl_no_type_display_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, ReDef, Code, Compound, TypeAsc, Set, Import, Dummy);
+impl_nested_display_for_chunk_enum!(Expr; Literal, Accessor, List, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, ReDef, Code, Compound, TypeAsc, Set, Import, Dummy);
+impl_no_type_display_for_enum!(Expr; Literal, Accessor, List, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, ReDef, Code, Compound, TypeAsc, Set, Import, Dummy);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, ReDef, Code, Compound, TypeAsc, Set, Import, Dummy);
-impl_t_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, ReDef, Code, Compound, TypeAsc, Set, Import, Dummy);
-impl_from_trait_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, ReDef, Set, Dummy);
-impl_try_from_trait_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, ReDef, Set, Dummy);
+impl_locational_for_enum!(Expr; Literal, Accessor, List, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, ReDef, Code, Compound, TypeAsc, Set, Import, Dummy);
+impl_t_for_enum!(Expr; Literal, Accessor, List, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, ReDef, Code, Compound, TypeAsc, Set, Import, Dummy);
+impl_from_trait_for_enum!(Expr; Literal, Accessor, List, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, ReDef, Set, Dummy);
+impl_try_from_trait_for_enum!(Expr; Literal, Accessor, List, Tuple, Dict, Record, BinOp, UnaryOp, Call, Lambda, Def, ClassDef, PatchDef, ReDef, Set, Dummy);
 
 impl Default for Expr {
     fn default() -> Self {
@@ -2849,7 +2849,7 @@ impl Expr {
         match self {
             Self::Literal(_) => "literal",
             Self::Accessor(_) => "accessor",
-            Self::Array(_) => "array",
+            Self::List(_) => "array",
             Self::Tuple(_) => "tuple",
             Self::Dict(_) => "dict",
             Self::Set(_) => "set",
@@ -2945,9 +2945,9 @@ impl Expr {
                 }
                 sum
             }
-            Self::Array(Array::Normal(arr)) => {
+            Self::List(List::Normal(lis)) => {
                 let mut sum = 0;
-                for elem in arr.elems.pos_args.iter() {
+                for elem in lis.elems.pos_args.iter() {
                     sum += elem.expr.complexity();
                 }
                 sum

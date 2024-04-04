@@ -24,7 +24,7 @@ However, these rules do not apply to the tuple-like part of a Function type, bec
 
 In addition, return values of Unit types can be ignored, but return values of other tuple types cannot be ignored.
 
-## Array Type
+## List Type
 
 ```erg
 [], [X; 0], [X; 1], [X; 2], ..., [X; _] == [X]
@@ -37,7 +37,7 @@ The same subtype rules exist for arrays as for tuples.
 * forall N in 0..<Len(T) (Len(T) <= Len(U)), U[N] == T[N] => U <: T (oblivion rule)
 ```
 
-Arrays like the one below are not valid types. It is an intentional design to emphasize that the elements of the array are homogenized.
+Lists like the one below are not valid types. It is an intentional design to emphasize that the elements of the array are homogenized.
 
 ```erg
 [Int, Str]

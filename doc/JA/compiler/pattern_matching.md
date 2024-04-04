@@ -42,7 +42,7 @@ TypeがIntersection型(e.g. `Int and Str`)の場合は、`isinstance(i, Int) and
 
 Typeが篩型(e.g. `{I: Int | I >= 0}`)の場合は、中の述語式を評価することで行われる。`{1}`は`{I: Int | I == 1}`の構文糖であったから、`i == 1`が行われる。
 
-最後に、Typeが多相型・依存型(e.g. `Array(Int, 3)`)の場合は定義に従って検査するべき属性・メソッドが決定される。
+最後に、Typeが多相型・依存型(e.g. `List(Int, 3)`)の場合は定義に従って検査するべき属性・メソッドが決定される。
 
 `F(X)`型の検査を考える。定義が`F(A <-> E) = ...`(`E`中に現れる`Self`はオブジェクト自身に置換される)であるとき、`fits(X, E)`で検査される。
 
@@ -53,13 +53,13 @@ fits X, E =
         else := do X == E
 ```
 
-`Array`の定義は
+`List`の定義は
 
 ```erg
-Array T <-> Union Self.iter().map(Typeof), N <-> Self.__len__() = ...
+List T <-> Union Self.iter().map(Typeof), N <-> Self.__len__() = ...
 ```
 
-である。なので、`Array(Int, 3)`の検査としては`isinstance(i, Array) and subtypeof(Int, Union(i.iter().map(Typeof))) and i.__len__() == 3`が行われる。
+である。なので、`List(Int, 3)`の検査としては`isinstance(i, List) and subtypeof(Int, Union(i.iter().map(Typeof))) and i.__len__() == 3`が行われる。
 
 ## リテラルパターン
 

@@ -525,7 +525,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 self.sub_unify(sub, &r)?;
                 Ok(())
             }
-            (TyParam::Array(sub), TyParam::Array(sup))
+            (TyParam::List(sub), TyParam::List(sup))
             | (TyParam::Tuple(sub), TyParam::Tuple(sup)) => {
                 for (l, r) in sub.iter().zip(sup.iter()) {
                     self.sub_unify_tp(l, r, _variance, allow_divergence)?;
@@ -1208,8 +1208,8 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     };
                     self.sub_unify(&sub, &new_sup)?;
                     // ?T(:> Int, <: Int) ==> ?T == Int
-                    // ?T(:> Array(Int, 3), <: Array(?T, ?N)) ==> ?T == Array(Int, 3)
-                    // ?T(:> Array(Int, 3), <: Indexable(?K, ?V)) ==> ?T(:> Array(Int, 3), <: Indexable(0..2, Int))
+                    // ?T(:> List(Int, 3), <: List(?T, ?N)) ==> ?T == List(Int, 3)
+                    // ?T(:> List(Int, 3), <: Indexable(?K, ?V)) ==> ?T(:> List(Int, 3), <: Indexable(0..2, Int))
                     if !sub.is_refinement()
                         && new_sup.qual_name() == sub.qual_name()
                         && !new_sup.is_unbound_var()
@@ -1384,7 +1384,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 },
             ) => {
                 // e.g. Set(?T) <: Eq(Set(?T))
-                //      Array(Str) <: Iterable(Str)
+                //      List(Str) <: Iterable(Str)
                 //      Zip(T, U) <: Iterable(Tuple([T, U]))
                 if ln != rn {
                     self.nominal_sub_unify(maybe_sub, maybe_sup, rps)?;
@@ -1542,7 +1542,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             (Subr(_) | Record(_), Type) => {}
             (Guard(_), Bool) | (Bool, Guard(_)) => {}
             // REVIEW: correct?
-            (Poly { name, .. }, Type) if &name[..] == "Array" || &name[..] == "Tuple" => {}
+            (Poly { name, .. }, Type) if &name[..] == "List" || &name[..] == "Tuple" => {}
             (Poly { .. }, _) => {
                 if maybe_sub.has_no_qvar() && maybe_sup.has_no_qvar() {
                     return Ok(());

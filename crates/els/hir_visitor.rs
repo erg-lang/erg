@@ -142,7 +142,7 @@ impl<'a> HIRVisitor<'a> {
             | Expr::Accessor(_)
             | Expr::BinOp(_)
             | Expr::UnaryOp(_)
-            | Expr::Array(_)
+            | Expr::List(_)
             | Expr::Dict(_)
             | Expr::Set(_)
             | Expr::Tuple(_)
@@ -275,7 +275,7 @@ impl<'a> HIRVisitor<'a> {
             Expr::Def(def) => self.get_expr_from_def(expr, def, pos),
             Expr::PatchDef(patch_def) => self.get_expr_from_patch_def(expr, patch_def, pos),
             Expr::Lambda(lambda) => self.get_expr_from_lambda(expr, lambda, pos),
-            Expr::Array(arr) => self.get_expr_from_array(expr, arr, pos),
+            Expr::List(lis) => self.get_expr_from_list(expr, lis, pos),
             Expr::Dict(dict) => self.get_expr_from_dict(expr, dict, pos),
             Expr::Record(record) => self.get_expr_from_record(expr, record, pos),
             Expr::Set(set) => self.get_expr_from_set(expr, set, pos),
@@ -440,18 +440,18 @@ impl<'a> HIRVisitor<'a> {
         self.get_expr_from_block(lambda.body.iter(), pos)
     }
 
-    fn get_expr_from_array<'e>(
+    fn get_expr_from_list<'e>(
         &'e self,
         expr: &'e Expr,
-        arr: &'e Array,
+        lis: &'e List,
         pos: Position,
     ) -> Option<&Expr> {
-        if arr.ln_end() == pos.ln_end() && self.search.matches(expr) {
+        if lis.ln_end() == pos.ln_end() && self.search.matches(expr) {
             // arr: `[1, 2]`, pos: `]`
             return Some(expr);
         }
-        match arr {
-            Array::Normal(arr) => self.get_expr_from_args(&arr.elems, pos),
+        match lis {
+            List::Normal(lis) => self.get_expr_from_args(&lis.elems, pos),
             _ => None, // todo!(),
         }
     }
@@ -587,7 +587,7 @@ impl<'a> HIRVisitor<'a> {
             Expr::PatchDef(patch_def) => self.get_patch_def_info(patch_def, token),
             Expr::Def(def) => self.get_def_info(def, token),
             Expr::Lambda(lambda) => self.get_lambda_info(lambda, token),
-            Expr::Array(arr) => self.get_array_info(arr, token),
+            Expr::List(lis) => self.get_list_info(lis, token),
             Expr::Dict(dict) => self.get_dict_info(dict, token),
             Expr::Record(record) => self.get_record_info(record, token),
             Expr::Set(set) => self.get_set_info(set, token),
@@ -764,9 +764,9 @@ impl<'a> HIRVisitor<'a> {
             .or_else(|| self.get_block_info(lambda.body.iter(), token))
     }
 
-    fn get_array_info(&self, arr: &Array, token: &Token) -> Option<VarInfo> {
-        match arr {
-            Array::Normal(arr) => self.get_args_info(&arr.elems, token),
+    fn get_list_info(&self, lis: &List, token: &Token) -> Option<VarInfo> {
+        match lis {
+            List::Normal(lis) => self.get_args_info(&lis.elems, token),
             _ => None, // todo!(),
         }
     }

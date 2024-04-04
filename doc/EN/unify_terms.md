@@ -46,11 +46,6 @@ Use attributes. By the way, a record is a function that can define an object wit
 Giving arguments to a subroutine object and getting a result.
 Use Call. This is because Application has a usage of "application software".
 
-## Array, List
-
-Use Arrays. Erg arrays are (generally) contiguous in memory.
-List refers to a so-called linked list, or a list as a Python data type.
-
 ## lambda functions, lambda expressions, anonymous functions
 
 Unify with anonymous functions. In English, Lambda can be used to shorten the number of characters, but the official name is Anonymous function.

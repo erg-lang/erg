@@ -12,8 +12,8 @@ Nat = 0.. _
 Odd = {N: Int | N % 2 == 1}
 Char = StrWithLen 1
 # StrWithLen 1 == {_: StrWithLen N | N == 1}
-[Int; 3] == {_: Array Int, N | N == 3}
-Array3OrMore == {A: Array _, N | N >= 3}
+[Int; 3] == {_: List Int, N | N == 3}
+List3OrMore == {A: List _, N | N >= 3}
 ```
 
 当有多个 pred 时，可以用 `;` 或 `and` 或 `or` 分隔。`;` 和 `and` 的意思是一样的
@@ -72,9 +72,10 @@ match i:
 
 ```python
 # 方法 `.m` 是为长度为 3 或更大的数组定义的
-Array(T, N | N >= 3)
+List(T, N | N >= 3)
     .m(&self) = ...
 ```
+
 <p align='center'>
     <a href='./11_enum.md'>上一页</a> | <a href='./13_algebraic.md'>下一页</a>
 </p>

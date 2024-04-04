@@ -34,22 +34,22 @@ Iterable T = Trait {
 ```python
 assert [1, 2, 3] in Iterable(Int)
 assert 1..3 in Iterable(Int)
-assert [1, 2, 3].Iterator == ArrayIterator
+assert [1, 2, 3].Iterator == ListIterator
 assert (1..3).Iterator == RangeIterator
 
 log [1, 2, 3].iter() # <數組迭代器對象>
 log (1..3).iter() # <Range迭代器對象>
 ```
 
-`ArrayIterator` 和 `RangeIterator` 都是實現 `Iterator` 的類，它們的存在只是為了提供 `Array` 和 `Range` 迭代函數
+`ListIterator` 和 `RangeIterator` 都是實現 `Iterator` 的類，它們的存在只是為了提供 `List` 和 `Range` 迭代函數
 這種設計模式稱為伴生類 [<sup id="f1">1</sup>](#1)
-而"IteratorImpl"補丁是迭代功能的核心。`Iterator` 只需要一個`.next` 方法，`IteratorImpl` 確實提供了幾十種方法。`ArrayIterator`和`RangeIterator`只需實現`.next`方法就可以使用`IteratorImpl`的實現方法。為了方便起見，標準庫實現了許多迭代器
+而"IteratorImpl"補丁是迭代功能的核心。`Iterator` 只需要一個`.next` 方法，`IteratorImpl` 確實提供了幾十種方法。`ListIterator`和`RangeIterator`只需實現`.next`方法就可以使用`IteratorImpl`的實現方法。為了方便起見，標準庫實現了許多迭代器
 
 ```mermaid
 classDiagram
-    class Array~T~ {
+    class List~T~ {
         ...
-        iter() ArrayIterator~T~
+        iter() ListIterator~T~
     }
     class Range~T~ {
         ...
@@ -59,10 +59,10 @@ classDiagram
         <<trait>>
         iter() Iterator~T~
     }
-    Iterable~T~ <|.. Array~T~: Impl
+    Iterable~T~ <|.. List~T~: Impl
     Iterable~T~ <|.. Range~T~: Impl
-    class ArrayIterator~T~ {
-        array: Array~T~
+    class ListIterator~T~ {
+        array: List~T~
         next() T
     }
     class RangeIterator~T~ {
@@ -73,10 +73,10 @@ classDiagram
         <<trait>>
         next() T
     }
-    Iterator~T~ <|.. ArrayIterator~T~: Impl
+    Iterator~T~ <|.. ListIterator~T~: Impl
     Iterator~T~ <|.. RangeIterator~T~: Impl
 
-    Array <-- ArrayIterator
+    List <-- ListIterator
     Range <-- RangeIterator
 ```
 

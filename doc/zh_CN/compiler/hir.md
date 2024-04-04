@@ -13,7 +13,7 @@ for! 0..10, i =>
 log v.sum()
 ```
 
-从此代码生成的 AST 如下所示: 
+从此代码生成的 AST 如下所示:
 
 ```python
 AST(Module[
@@ -26,7 +26,7 @@ AST(Module[
         body: Block[
             UnaryOp{
                 op: "!",
-                expr: Array([]),
+                expr: List([]),
             },
         ],
     },
@@ -70,7 +70,7 @@ AST(Module[
 ])
 ```
 
-从 AST 生成的 HIR 如下所示: 
+从 AST 生成的 HIR 如下所示:
 
 ```python
 HIR(Module[
@@ -83,7 +83,7 @@ HIR(Module[
         body: Block[
             expr: UnaryOp{
                 op: "!",
-                expr: Array([]),
+                expr: List([]),
                 t: [0..10, 0]!,
             },
         ],

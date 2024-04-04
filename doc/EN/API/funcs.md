@@ -52,7 +52,7 @@ Returns the class of `object`.
 However, since classes cannot be compared, use `object in Class` instead of `classof(object) == Class` if you want to judge instances.
 The structure type determined at compile time is obtained with `Typeof`.
 
-## Iterator, Array generation system
+## Iterator, List generation system
 
 ### repeat|T|(x: T) -> RepeatIterator T
 
@@ -96,11 +96,11 @@ match jan:
     _ -> log "Other"
 ```
 
-
 ### Inherit
 
 Inherit classes. You can use the methods of the parent class ('Super') as is. The second parameter 'Layout' can specify a new layout.
 It must be 'Super.Base:> Layout'.
+
 ```python
 @ Inheritable
 C = Class {i = Int}

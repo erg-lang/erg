@@ -44,36 +44,36 @@ pub fn named_uninit_var(name: Str) -> Type {
     Type::FreeVar(Free::new_named_unbound(name, 1, Constraint::Uninited))
 }
 
-pub fn array_t(elem_t: Type, len: TyParam) -> Type {
-    poly("Array", vec![TyParam::t(elem_t), len])
+pub fn list_t(elem_t: Type, len: TyParam) -> Type {
+    poly("List", vec![TyParam::t(elem_t), len])
 }
 
-pub fn array_mut(elem_t: Type, len: TyParam) -> Type {
-    poly("Array!", vec![TyParam::t(elem_t), len])
+pub fn list_mut(elem_t: Type, len: TyParam) -> Type {
+    poly("List!", vec![TyParam::t(elem_t), len])
 }
 
-pub fn unknown_len_array_t(elem_t: Type) -> Type {
-    array_t(elem_t, TyParam::erased(Type::Nat))
+pub fn unknown_len_list_t(elem_t: Type) -> Type {
+    list_t(elem_t, TyParam::erased(Type::Nat))
 }
 
-pub fn unknown_len_array_mut(elem_t: Type) -> Type {
-    array_mut(elem_t, TyParam::erased(Type::Nat))
+pub fn unknown_len_list_mut(elem_t: Type) -> Type {
+    list_mut(elem_t, TyParam::erased(Type::Nat))
 }
 
 pub fn str_dict_t(value: Type) -> Type {
     dict! { Type::Str => value }.into()
 }
 
-/// `UnsizedArray` is a type of `[x; _]` (unsized array literal).
-/// `UnsizedArray(T) != Array(T, _)`
-pub fn unsized_array_t(elem_t: Type) -> Type {
-    poly("UnsizedArray", vec![TyParam::t(elem_t)])
+/// `UnsizedList` is a type of `[x; _]` (unsized list literal).
+/// `UnsizedList(T) != List(T, _)`
+pub fn unsized_list_t(elem_t: Type) -> Type {
+    poly("UnsizedList", vec![TyParam::t(elem_t)])
 }
 
 pub fn tuple_t(args: Vec<Type>) -> Type {
     poly(
         "Tuple",
-        vec![TyParam::Array(args.into_iter().map(TyParam::t).collect())],
+        vec![TyParam::List(args.into_iter().map(TyParam::t).collect())],
     )
 }
 

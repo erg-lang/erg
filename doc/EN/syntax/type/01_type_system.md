@@ -45,14 +45,14 @@ In Erg, the nominal types are classes and traits. When we simply say class/trait
 
 The type for the entire nominal type (`NominalType`) and the type for the entire structural type (`StructuralType`) are subtypes of the type for the entire type (`Type`).
 
-Erg can pass arguments (type arguments) to the type definition. An `Option`, `Array`, etc. with type arguments are called a polynomial kind. These are not themselves types, but they become types by applying arguments. Types such as `Int`, `Str`, etc., which have no arguments, are called simple types (scalar types).
+Erg can pass arguments (type arguments) to the type definition. An `Option`, `List`, etc. with type arguments are called a polynomial kind. These are not themselves types, but they become types by applying arguments. Types such as `Int`, `Str`, etc., which have no arguments, are called simple types (scalar types).
 
 A type can be regarded as a set, and there is an inclusion relation. For example, `Num` contains `Add`, `Sub`, etc., and `Int` contains `Nat`.
 The upper class of all classes is `Object == Class {:}` and the lower class of all types is `Never == Class {}`. This is described below.
 
 ## Types
 
-A type like `Array T` can be regarded as a function of type `Type -> Type` that takes type `T` as an argument and returns type `Array T` (also called Kind in type theory). Types like `Array T` are specifically called polymorphic types, and `Array` itself is called unary Kind.
+A type like `List T` can be regarded as a function of type `Type -> Type` that takes type `T` as an argument and returns type `List T` (also called Kind in type theory). Types like `List T` are specifically called polymorphic types, and `List` itself is called unary Kind.
 
 The type of a function whose argument and return types are known is denoted as `(T, U) -> V`. If you want to specify an entire two-argument function of the same type, you can use `|T| (T, T) -> T`, and if you want to specify an entire N-argument function, you can use `Func N`. However, the `Func N` type has no information about the number of arguments or their types, so all return values are of type `Obj` when called.
 
@@ -60,7 +60,7 @@ The `Proc` type is denoted as `() => Int` and so on. Also, the name of the `Proc
 
 A `Method` type is a function/procedure whose first argument is the object `self` to which it belongs (by reference). For dependent types, you can also specify the type of yourself after the method is applied. This is `T!(!N)` type and `T!(N ~> N-1). () => Int` and so on.
 
-Erg's array (Array) is what Python calls a list. `[Int; 3]` is an array class that contains three objects of type `Int`.
+Erg's array (List) is what Python calls a list. `[Int; 3]` is an array class that contains three objects of type `Int`.
 
 > __Note__: `(Type; N)` is both a type and a value, so it can be used like this.
 >
@@ -113,7 +113,7 @@ Since types are also objects, there are attributes on the types themselves. Such
 As mentioned earlier, a "type" in Erg roughly means a set of objects.
 
 The following is a definition of the `Add` type, which requires `+` (the middle operator). `R, O` are the so-called type parameters, which can be a true type (class) such as `Int` or `Str`. In other languages, type parameters are given a special notation (generics, templates, etc.), but in Erg they can be defined just like normal parameters.
-Type parameters can also be used for types other than type objects. For example, the array type `[Int; 3]` is a syntax sugar for `Array Int, 3`. If the type implementations overlap, the user must explicitly choose one.
+Type parameters can also be used for types other than type objects. For example, the array type `[Int; 3]` is a syntax sugar for `List Int, 3`. If the type implementations overlap, the user must explicitly choose one.
 
 ```python
 Add R = Trait {

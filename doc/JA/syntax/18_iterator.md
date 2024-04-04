@@ -34,22 +34,22 @@ Iterable T = Trait {
 ```python
 assert [1, 2, 3] in Iterable(Int)
 assert 1..3 in Iterable(Int)
-assert [1, 2, 3].Iterator == ArrayIterator
+assert [1, 2, 3].Iterator == ListIterator
 assert (1..3).Iterator == RangeIterator
 
-log [1, 2, 3].iter() # <ArrayIterator object>
+log [1, 2, 3].iter() # <ListIterator object>
 log (1..3).iter() # <RangeIterator object>
 ```
 
-`ArrayIterator`と`RangeIterator`はどちらも`Iterator`を実装するクラスで、`Array`, `Range`にイテレーション機能を与えるためだけに存在します。
+`ListIterator`と`RangeIterator`はどちらも`Iterator`を実装するクラスで、`List`, `Range`にイテレーション機能を与えるためだけに存在します。
 このようなデザインパターンをコンパニオンクラス[<sup id="f1">1</sup>](#1)と呼びます。
-そして`IteratorImpl`パッチがイテレーション機能のコアです。`Iterator`は`.next`メソッド1つだけを要求し、`IteratorImpl`は実に数十個のメソッドを提供します。`ArrayIterator`や`RangeIterator`は`.next`メソッドを実装するだけで`IteratorImpl`の実装メソッドを使うことができるわけです。この利便性から、標準ライブラリでは多数のイテレータが実装されています。
+そして`IteratorImpl`パッチがイテレーション機能のコアです。`Iterator`は`.next`メソッド1つだけを要求し、`IteratorImpl`は実に数十個のメソッドを提供します。`ListIterator`や`RangeIterator`は`.next`メソッドを実装するだけで`IteratorImpl`の実装メソッドを使うことができるわけです。この利便性から、標準ライブラリでは多数のイテレータが実装されています。
 
 ```mermaid
 classDiagram
-    class Array~T~ {
+    class List~T~ {
         ...
-        iter() ArrayIterator~T~
+        iter() ListIterator~T~
     }
     class Range~T~ {
         ...
@@ -59,10 +59,10 @@ classDiagram
         <<trait>>
         iter() Iterator~T~
     }
-    Iterable~T~ <|.. Array~T~: Impl
+    Iterable~T~ <|.. List~T~: Impl
     Iterable~T~ <|.. Range~T~: Impl
-    class ArrayIterator~T~ {
-        array: Array~T~
+    class ListIterator~T~ {
+        array: List~T~
         next() T
     }
     class RangeIterator~T~ {
@@ -73,10 +73,10 @@ classDiagram
         <<trait>>
         next() T
     }
-    Iterator~T~ <|.. ArrayIterator~T~: Impl
+    Iterator~T~ <|.. ListIterator~T~: Impl
     Iterator~T~ <|.. RangeIterator~T~: Impl
 
-    Array <-- ArrayIterator
+    List <-- ListIterator
     Range <-- RangeIterator
 ```
 

@@ -12,8 +12,8 @@ Nat = 0.._
 Odd = {N: Int | N % 2 == 1}
 Char = StrWithLen 1
 # StrWithLen 1 == {_: StrWithLen N | N == 1}
-[Int; 3] == {_: Array Int, N | N == 3}
-Array3OrMore == {A: Array _, N | N >= 3}
+[Int; 3] == {_: List Int, N | N == 3}
+List3OrMore == {A: List _, N | N >= 3}
 ```
 
 複数のPredがあるとき、`;`か`and`, `or`で区切れます。`;`と`and`は同じ意味です。
@@ -85,7 +85,7 @@ match i:
 
 ```python
 # メソッド.mは長さ3以上の配列に定義される
-Array(T, N | N >= 3)
+List(T, N | N >= 3)
     .m(ref self) = ...
 ```
 

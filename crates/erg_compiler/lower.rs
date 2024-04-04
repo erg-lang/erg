@@ -33,8 +33,8 @@ use crate::artifact::{BuildRunnable, Buildable, CompleteArtifact, IncompleteArti
 use crate::build_package::CheckStatus;
 use crate::module::SharedCompilerResource;
 use crate::ty::constructors::{
-    array_t, free_var, func, guard, mono, poly, proc, refinement, set_t, singleton, ty_tp,
-    unsized_array_t, v_enum,
+    free_var, func, guard, list_t, mono, poly, proc, refinement, set_t, singleton, ty_tp,
+    unsized_list_t, v_enum,
 };
 use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
@@ -335,21 +335,19 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         Ok(lit)
     }
 
-    fn lower_array(&mut self, array: ast::Array, expect: Option<&Type>) -> LowerResult<hir::Array> {
-        log!(info "entered {}({array})", fn_name!());
-        match array {
-            ast::Array::Normal(arr) => {
-                Ok(hir::Array::Normal(self.lower_normal_array(arr, expect)?))
-            }
-            ast::Array::WithLength(arr) => Ok(hir::Array::WithLength(
-                self.lower_array_with_length(arr, expect)?,
+    fn lower_list(&mut self, list: ast::List, expect: Option<&Type>) -> LowerResult<hir::List> {
+        log!(info "entered {}({list})", fn_name!());
+        match list {
+            ast::List::Normal(lis) => Ok(hir::List::Normal(self.lower_normal_list(lis, expect)?)),
+            ast::List::WithLength(lis) => Ok(hir::List::WithLength(
+                self.lower_list_with_length(lis, expect)?,
             )),
             other => feature_error!(
                 LowerErrors,
                 LowerError,
                 self.module.context,
                 other.loc(),
-                "array comprehension"
+                "list comprehension"
             ),
         }
     }
@@ -364,10 +362,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             elem.loc(),
             String::from(&self.module.context.name[..]),
             switch_lang!(
-                "japanese" => "配列の要素は全て同じ型である必要があります",
+                "japanese" => "リストの要素は全て同じ型である必要があります",
                 "simplified_chinese" => "数组元素必须全部是相同类型",
                 "traditional_chinese" => "數組元素必須全部是相同類型",
-                "english" => "all elements of an array must be of the same type",
+                "english" => "all elements of a list must be of the same type",
             )
             .to_owned(),
             Some(switch_lang!(
@@ -379,18 +377,18 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         ))
     }
 
-    fn lower_normal_array(
+    fn lower_normal_list(
         &mut self,
-        array: ast::NormalArray,
+        list: ast::NormalList,
         expect: Option<&Type>,
-    ) -> LowerResult<hir::NormalArray> {
-        log!(info "entered {}({array})", fn_name!());
-        let mut new_array = vec![];
-        let eval_result = self.module.context.eval_const_normal_array(&array);
-        let (elems, ..) = array.elems.deconstruct();
+    ) -> LowerResult<hir::NormalList> {
+        log!(info "entered {}({list})", fn_name!());
+        let mut new_list = vec![];
+        let eval_result = self.module.context.eval_const_normal_list(&list);
+        let (elems, ..) = list.elems.deconstruct();
         let expect_elem = expect.and_then(|t| {
             // REVIEW: are these all?
-            if !(t.is_array() || t.is_array_mut() || t.is_iterable()) {
+            if !(t.is_list() || t.is_list_mut() || t.is_iterable()) {
                 return None;
             }
             self.module
@@ -404,7 +402,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             let union_ = self.module.context.union(&union, elem.ref_t());
             self.homogeneity_check(expect_elem.as_ref(), &union_, &union, &elem)?;
             union = union_;
-            new_array.push(elem);
+            new_list.push(elem);
         }
         let elem_t = if union == Type::Never {
             free_var(
@@ -414,14 +412,14 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         } else {
             union
         };
-        let elems = hir::Args::values(new_array, None);
-        let t = array_t(elem_t, TyParam::value(elems.len()));
+        let elems = hir::Args::values(new_list, None);
+        let t = list_t(elem_t, TyParam::value(elems.len()));
         let t = if let Ok(value) = eval_result {
             singleton(t, TyParam::Value(value))
         } else {
             t
         };
-        Ok(hir::NormalArray::new(array.l_sqbr, array.r_sqbr, t, elems))
+        Ok(hir::NormalList::new(list.l_sqbr, list.r_sqbr, t, elems))
     }
 
     fn homogeneity_check(
@@ -466,14 +464,14 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         Ok(())
     }
 
-    fn lower_array_with_length(
+    fn lower_list_with_length(
         &mut self,
-        array: ast::ArrayWithLength,
+        list: ast::ListWithLength,
         expect: Option<&Type>,
-    ) -> LowerResult<hir::ArrayWithLength> {
-        log!(info "entered {}({array})", fn_name!());
+    ) -> LowerResult<hir::ListWithLength> {
+        log!(info "entered {}({list})", fn_name!());
         let expect_elem = expect.and_then(|t| {
-            if !(t.is_array() || t.is_array_mut() || t.is_iterable()) {
+            if !(t.is_list() || t.is_list_mut() || t.is_iterable()) {
                 return None;
             }
             self.module
@@ -481,26 +479,26 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 .convert_tp_into_type(t.typarams().first()?.clone())
                 .ok()
         });
-        let elem = self.lower_expr(array.elem.expr, expect_elem.as_ref())?;
-        let array_t = self.gen_array_with_length_type(&elem, &array.len);
-        let len = match *array.len {
+        let elem = self.lower_expr(list.elem.expr, expect_elem.as_ref())?;
+        let list_t = self.gen_list_with_length_type(&elem, &list.len);
+        let len = match *list.len {
             ast::Expr::Accessor(ast::Accessor::Ident(ident)) if ident.is_discarded() => None,
             len => Some(self.lower_expr(len, Some(&Type::Nat))?),
         };
-        let hir_array = hir::ArrayWithLength::new(array.l_sqbr, array.r_sqbr, array_t, elem, len);
-        Ok(hir_array)
+        let hir_list = hir::ListWithLength::new(list.l_sqbr, list.r_sqbr, list_t, elem, len);
+        Ok(hir_list)
     }
 
-    fn gen_array_with_length_type(&self, elem: &hir::Expr, len: &ast::Expr) -> Type {
+    fn gen_list_with_length_type(&self, elem: &hir::Expr, len: &ast::Expr) -> Type {
         match len {
             ast::Expr::Accessor(ast::Accessor::Ident(ident)) if ident.is_discarded() => {
-                return unsized_array_t(elem.t());
+                return unsized_list_t(elem.t());
             }
             _ => {}
         }
         let maybe_len = self.module.context.eval_const_expr(len);
         match maybe_len {
-            Ok(v @ ValueObj::Nat(_)) => array_t(elem.t(), TyParam::Value(v)),
+            Ok(v @ ValueObj::Nat(_)) => list_t(elem.t(), TyParam::Value(v)),
             Ok(other) => todo!("{other} is not a Nat object"),
             Err(err) => todo!("{err}"),
         }
@@ -2947,7 +2945,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         let casted = self.module.context.get_casted_type(&expr);
         let mut expr = match expr {
             ast::Expr::Literal(lit) => hir::Expr::Literal(self.lower_literal(lit, expect)?),
-            ast::Expr::Array(arr) => hir::Expr::Array(self.lower_array(arr, expect)?),
+            ast::Expr::List(lis) => hir::Expr::List(self.lower_list(lis, expect)?),
             ast::Expr::Tuple(tup) => hir::Expr::Tuple(self.lower_tuple(tup, expect)?),
             ast::Expr::Record(rec) => hir::Expr::Record(self.lower_record(rec, expect)?),
             ast::Expr::Set(set) => hir::Expr::Set(self.lower_set(set, expect)?),

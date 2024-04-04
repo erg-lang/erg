@@ -25,7 +25,7 @@ fn: Int -> Int = x -> x + 1
 # 高阶类型
 a: [Int; 4] = [0, 1, 2, 3]
 # or
-a: Array Int, 4 = [0, 1, 2, 3]
+a: List Int, 4 = [0, 1, 2, 3]
 ```
 
 ### 文字字面量
@@ -68,8 +68,8 @@ name = match num:
 
 ```python,checker_ignore
 # 这两个是一样的
-Array(T, N: {N | N >= 3})
-Array(T, N | N >= 3)
+List(T, N: {N | N >= 3})
+List(T, N | N >= 3)
 
 f M, N | M >= 0, N >= 1 = ...
 f(1, 0) # 类型错误: N(第二个参数)必须为 1 或更多

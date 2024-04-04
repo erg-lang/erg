@@ -39,7 +39,7 @@ assert i == 2
 
 ```python
 a = [1, 2, 3].into [Nat; !3]
-x = a.freeze_map a: [Nat; 3] -> a.iter().map(i -> i + 1).filter(i -> i % 2 == 0).collect(Array)
+x = a.freeze_map a: [Nat; 3] -> a.iter().map(i -> i + 1).filter(i -> i % 2 == 0).collect(List)
 ```
 
 在多态不可变类型中，该类型的类型参数"T"被隐式假定为不可变
@@ -70,19 +70,19 @@ K!T: Type = Class ...
 ```
 
 当然，您不必全部记住和使用它们
-对于可变数组类型，只需将 `!` 添加到您想要可变的部分，实际上是 `[T; N]`, `[T!; N]`，`[T; !N]`, ` [T!; !N]` 可以涵盖大多数情况
+对于可变数组类型，只需将 `!` 添加到您想要可变的部分，实际上是 `[T; N]`, `[T!; N]`，`[T; !N]`, `[T!; !N]` 可以涵盖大多数情况
 
 这些数组类型是语法糖，实际类型是:
 
 ```python
 # actually 4 types
-[T; N] = Array(T, N)
-[T; !N] = Array!(T, !N)
-[!T; N] = ArrayWithMutType!(!T, N)
-[!T; !N] = ArrayWithMutTypeAndLength!(!T, !N)
-[T!; !N] = Array!(T!, !N)
-[!T!; N] = ArrayWithMutType!(!T!, N)
-[!T!; !N] = ArrayWithMutTypeAndLength!(!T!, !N)
+[T; N] = List(T, N)
+[T; !N] = List!(T, !N)
+[!T; N] = ListWithMutType!(!T, N)
+[!T; !N] = ListWithMutTypeAndLength!(!T, !N)
+[T!; !N] = List!(T!, !N)
+[!T!; N] = ListWithMutType!(!T!, N)
+[!T!; !N] = ListWithMutTypeAndLength!(!T!, !N)
 ```
 
 这就是能够改变类型的意思

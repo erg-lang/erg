@@ -26,7 +26,7 @@ v: [Str; !1].
 ```
 
 For mutable structure types, Mutable type arguments are marked with `!`. In the above case, the type `[Str; !0]` can be changed to `[Str; !1]` and so on. That is, the length can be changed.
-Incidentally, the `[T; !N]` type is the sugar-coated syntax of the `ArrayWithLength!(T, !N)` type.
+Incidentally, the `[T; !N]` type is the sugar-coated syntax of the `ListWithLength!(T, !N)` type.
 
 Mutable structure types can of course be user-defined. Note, however, that there are some differences from invariant structure types in terms of the construction method.
 

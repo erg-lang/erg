@@ -1,6 +1,6 @@
 # Comprehension
 
-You can create an Array with `[(expr |)? (name <- iterable;)+ (| predicate)?]`,
+You can create an List with `[(expr |)? (name <- iterable;)+ (| predicate)?]`,
 a set with `{(expr |)? (name <- iterable;)+ (| predicate)?}`,
 a Dict with `{(key: value |)? (name <- iterable;)+ (| predicate)?}`.
 

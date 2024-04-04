@@ -27,7 +27,7 @@ AST(Module[
         body: Block[
             UnaryOp{
                 op: "!",
-                expr: Array([]),
+                expr: List([]),
             },
         ],
     },
@@ -84,7 +84,7 @@ HIR(Module[
         body: Block[
             expr: UnaryOp{
                 op: "!",
-                expr: Array([]),
+                expr: List([]),
                 t: [0..10, 0]!,
             },
         ],

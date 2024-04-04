@@ -10,17 +10,17 @@
 
 * ! → [side&nbsp;effect](./07_side_effect.md)
   * !-type → [mutable&nbsp;type](./type/18_mut.md)
-* ? → [error&nbsp;handling](./31_error_handling.md)
+* ? → [error&nbsp;handling](./32_error_handling.md)
 * &#35; → [コメント](./00_basic.md#コメント)
 * $ → [shared](./type/advanced/shared.md)
 * %
 * &
   * &&
-* [&prime;&nbsp;(single&nbsp;quote)](./21_naming_rule.md)
+* [&prime;&nbsp;(single&nbsp;quote)](./22_naming_rule.md)
 * [&quot;&nbsp;(double&nbsp;quote)](./01_literal.md)
 * &lpar;&rpar; → [Tuple](./13_tuple.md)
 * &ast;
-  * &ast; → [*-less&nbsp;multiplication](./01_literal.md/#less-multiplication)
+  * &ast; → [*-less&nbsp;multiplication](./01_literal.md#less-multiplication)
 * &plus; (前置) → [operator](./06_operator.md)
   * &plus;_ → &plus; (前置)
 * &plus; (中置) → [operator](./06_operator.md)
@@ -30,17 +30,17 @@
   * &minus;_ → &minus; (前置)
 * &minus; (中置) → [operator](./06_operator.md)
 * &minus; (中置) → [Trait](./type/03_trait.md)
-  * &minus;> → [anonymous&nbsp;function](./22_lambda.md)
-* . → [Visibility](./20_visibility.md)
-  * [...&nbsp;assignment](./29_spread_syntax.md)
-  * [...&nbsp;Extract&nbsp;assignment](./29_spread_syntax.md)
+  * &minus;> → [anonymous&nbsp;function](./23_lambda.md)
+* . → [Visibility](./21_visibility.md)
+  * [...&nbsp;assignment](./30_spread_syntax.md)
+  * [...&nbsp;Extract&nbsp;assignment](./30_spread_syntax.md)
   * [...&nbsp;function](./04_function.md)
 * /
 * :
   * : → [Colon&nbsp;application&nbsp;style](./04_function.md)
   * : → [Declaration](./03_declaration.md)
   * : → [Keyword&nbsp;Arguments](./04_function.md)
-  * :: → [visibility](./20_visibility.md)
+  * :: → [visibility](./21_visibility.md)
   * := → [default&nbsp;parameters](./04_function.md)
 * ;
 * &lt;
@@ -53,8 +53,8 @@
 * &gt;
   * &gt;&gt;
   * &gt;=
-* @ → [decorator](./30_decorator.md)
-* [] → [Array](./10_array.md)
+* @ → [decorator](./31_decorator.md)
+* [] → [List](./10_list.md)
 * \ → [Indention](./00_basic.md)
 * \ → [Str](./01_literal.md)
 * ^
@@ -62,7 +62,7 @@
 * _ → [Type&nbsp;erasure](./type/advanced/erasure.md)
   * &#95;+&#95; → &plus; (infix)
   * &#95;-&#95; → &minus; (infix)
-* [``&nbsp;(back&nbsp;quote)](./23_subroutine.md)
+* [``&nbsp;(back&nbsp;quote)](./24_subroutine.md)
 * {}
   * [{} type](./type/01_type_system.md)
 * {:}
@@ -82,12 +82,12 @@
 * [algebraic&nbsp;type](./type/13_algebraic.md)
 * [And]
 * [and]
-* [anonymous&nbsp;function](./22_lambda.md)
-* [Anonymous&nbsp;polycorrelation&nbsp;coefficient](./22_lambda.md)
+* [anonymous&nbsp;function](./23_lambda.md)
+* [Anonymous&nbsp;polycorrelation&nbsp;coefficient](./23_lambda.md)
 * anonymous type → [Type&nbsp;System](./type/01_type_system.md)
-* [Array](./10_array.md)
+* [List](./10_list.md)
 * [assert]
-* [Attach](./30_decorator.md)
+* [Attach](./31_decorator.md)
 * [attribute](type/09_attributive.md)
 * [Attribute&nbsp;definitions](./type/02_basic.md)
 * [Attribute&nbsp;Type](./type/09_attributive.md)
@@ -96,7 +96,7 @@
 
 * [Bool, Boolean](./01_literal.md)
 * [Boolean&nbsp;Object](./01_literal.md)
-* [borrow](./19_ownership.md)
+* [borrow](./20_ownership.md)
 
 ### C
 
@@ -104,24 +104,24 @@
 * [Comments](./00_basic.md)
 * [Complex&nbsp;Object](./01_literal.md)
 * [Compile-time&nbsp;functions](./04_function.md)
-* [circular&nbsp;references](./19_ownership.md)
+* [circular&nbsp;references](./20_ownership.md)
 * [Class](./type/04_class.md)
 * [Class&nbsp;Relationship](./type/04_class.md)
 * [Class&nbsp;upcasting](./type/16_subtyping.md)
 * [Colon&nbsp;application&nbsp;style](./04_function.md)
-* [Closure](./24_closure.md)
+* [Closure](./25_closure.md)
 * [Compound Literals](./01_literal.md)
 * [Complement](./type/13_algebraic.md)
-* [Comprehension](./28_comprehension.md)
-* [constant](./18_mutability.md)
+* [Comprehension](./29_comprehension.md)
+* [constant](./19_mutability.md)
 * [Constants](./02_name.md)
-* [Context](./31_error_handling.md)
+* [Context](./32_error_handling.md)
 
 ### D
 
 * [Data&nbsp;type](./type/01_type_system.md)
 * [Declaration](./03_declaration.md)
-* [decorator](./30_decorator.md)
+* [decorator](./31_decorator.md)
 * [Default&nbsp;parameters](./04_function.md)
 * [Del](./02_name.md)
 * [Dependent&nbsp;Type](./type/14_dependent.md)
@@ -140,10 +140,10 @@
 * [Enum&nbsp;Class](./type/04_class.md)
 * [Enum&nbsp;type](./type/11_enum.md)
 * [Enumerated,&nbsp;Interval&nbsp;and&nbsp;Refinement&nbsp;Types](./type/12_refinement.md)
-* [error&nbsp;handling](./31_error_handling.md)
+* [error&nbsp;handling](./32_error_handling.md)
 * [Existential&nbsp;type](./type/advanced/existential.md)
 * [Exponential&nbsp;Literal](./01_literal.md)
-* [Extract&nbsp;assignment](./29_spread_syntax.md)
+* [Extract&nbsp;assignment](./30_spread_syntax.md)
 
 ### F
 
@@ -152,14 +152,14 @@
 * [for](./05_builtin_funcs.md)
 * [For-All&nbsp;Patch](./type/07_patch.md)
 * [For&nbsp;all&nbsp;types](./type/15_quantified.md)
-* [freeze](./19_ownership.md)
+* [freeze](./20_ownership.md)
 * [Function](./04_function.md)
 * [Function&nbsp;definition&nbsp;with&nbsp;multiple patterns](./04_function.md)
 
 ### G
 
 * [GADTs(Generalized&nbsp;Algebraic&nbsp;Data&nbsp;Types)](./type/advanced/GADTs.md)
-* [Generator](./35_generator.md)
+* [Generator](./36_generator.md)
 * [Glue&nbsp;Patch](./type/07_patch.md)
 
 ### H
@@ -170,21 +170,21 @@
 
 * [id](./09_builtin_procs.md)
 * [if](./05_builtin_funcs.md)
-* [import](./34_package_system.md)
-* [impl](./30_decorator.md)
+* [import](./35_package_system.md)
+* [impl](./31_decorator.md)
 * [in]
 * [Indention](./00_basic.md)
 * [Instant&nbsp;Block](./14_record.md)
 * [Instance&nbsp;and&nbsp;class&nbsp;attributes](./type/04_class.md)
 * [Implementing&nbsp;and&nbsp;resolving&nbsp;duplicate&nbsp;traits&nbsp;in&nbsp;the&nbsp;API](type/03_trait.md)
-* [inheritable](./30_decorator.md)
+* [inheritable](./31_decorator.md)
 * [inheritance](./type/05_inheritance.md)
 * [Inheritance&nbsp;of&nbsp;Enumerated&nbsp;Classes](./type/05_inheritance.md)
 * [Int](./01_literal.md)
-* [Integration&nbsp;with&nbsp;Python](./33_integration_with_Python.md)
+* [Integration&nbsp;with&nbsp;Python](./34_integration_with_Python.md)
 * [Interval&nbsp;Type](./type/10_interval.md)
 * [Intersection](./type/13_algebraic.md)
-* [Iterator](./17_iterator.md)
+* [Iterator](./18_iterator.md)
 
 ### J
 
@@ -195,9 +195,9 @@
 
 ### L
 
-* lambda → [anonymous&nbsp;function](./22_lambda.md)
+* lambda → [anonymous&nbsp;function](./23_lambda.md)
 * let-polymorphism → [rank&nbsp;1&nbsp;polymorphism]
-* [Literal&nbsp;Identifiers](./21_naming_rule.md)
+* [Literal&nbsp;Identifiers](./22_naming_rule.md)
 * log → [side&nbsp;effect](./07_side_effect.md)
 
 ### M
@@ -205,13 +205,13 @@
 * [match]
 * [Marker&nbsp;Trait](./type/advanced/marker_trait.md)
 * [Method](./07_side_effect.md)
-* Modifier → [decorator](./30_decorator.md)
-* [module](./25_module.md)
+* Modifier → [decorator](./31_decorator.md)
+* [module](./26_module.md)
 * [Multiple&nbsp;Inheritance](type/05_inheritance.md)
 * [Multi-layer&nbsp;(multi-level)&nbsp;Inheritance](type/05_inheritance.md)
 * [Mutable&nbsp;Type](./type/18_mut.md)
 * [Mutable&nbsp;Structure&nbsp;Type](./type/advanced/mut_struct.md)
-* [Mutability](./18_mutability.md)
+* [Mutability](./19_mutability.md)
 
 ### N
 
@@ -227,28 +227,28 @@
 
 ### O
 
-* [Object](./26_object_system.md)
+* [Object](./27_object_system.md)
 * [Option]
 * [Or]
 * [or]
 * [Ord]
-* [ownership&nbsp;system](./19_ownership.md)
+* [ownership&nbsp;system](./20_ownership.md)
 * [Overloading](./type/advanced/overloading.md)
 * [Overriding](./type/05_inheritance.md)
 * [Override&nbsp;in&nbsp;Trait](./type/03_trait.md)
 
 ### P
 
-* [Panic](./31_error_handling.md)
+* [Panic](./32_error_handling.md)
 * [Patch](./type/07_patch.md)
-* [Pattern&nbsp;match](./27_pattern_matching.md)
+* [Pattern&nbsp;match](./28_pattern_matching.md)
 * [Phantom&nbsp;class](./type/advanced/phantom.md)
-* [pipeline&nbsp;operator](./32_pipeline.md)
+* [pipeline&nbsp;operator](./33_pipeline.md)
 * [Predicate](./type/19_bound.md)
 * [print!]
 * [Procedures](./08_procedure.md)
 * [Projection&nbsp;Type](./type/advanced/projection.md)
-* Python → [Integration&nbsp;with&nbsp;Python](./33_integration_with_Python.md)
+* Python → [Integration&nbsp;with&nbsp;Python](./34_integration_with_Python.md)
 
 ### Q
 
@@ -266,9 +266,9 @@
 * [Recursive&nbsp;functions](./04_function.md)
 * [Refinement&nbsp;pattern](./type/12_refinement.md)
 * [Refinement&nbsp;Type](./type/12_refinement.md)
-* [replication](./19_ownership.md)
+* [replication](./20_ownership.md)
 * [Replacing&nbsp;Traits](./type/05_inheritance.md)
-* Result → [error&nbsp;handling](./31_error_handling.md)
+* Result → [error&nbsp;handling](./32_error_handling.md)
 * [Rewriting&nbsp;Inherited&nbsp;Attributes](./type/05_inheritance.md)
 * rootobj
 
@@ -281,9 +281,9 @@
 * [Shared&nbsp;Reference](./type/advanced/shared.md)
 * [side-effect](./07_side_effect.md)
 * [Smart&nbsp;Cast](./type/12_refinement.md)
-* [Spread&nbsp;assignment](./29_spread_syntax.md)
+* [Spread&nbsp;assignment](./30_spread_syntax.md)
 * [special&nbsp;type&nbsp;variables](./type/advanced/special.md)
-* [Stack&nbsp;trace](31_error_handling.md)
+* [Stack&nbsp;trace](32_error_handling.md)
 * [Structure&nbsp;type](./type/01_type_system.md)
 * [Structural&nbsp;Patch](./type/07_patch.md)
 * [Structural&nbsp;Trait](./type/03_trait.md)
@@ -294,11 +294,11 @@
 * [Subtyping&nbsp;of&nbsp;subroutines](./type/16_subtyping.md)
 * [Subtype&nbsp;specification](./type/02_basic.md)
 * [Subtyping&nbsp;of&nbsp;Polymorphic&nbsp;Function Types](./type/15_quantified.md)
-* [Subroutine&nbsp;Signatures](./23_subroutine.md)
+* [Subroutine&nbsp;Signatures](./24_subroutine.md)
 
 ### T
 
-* [Test](./30_decorator.md)
+* [Test](./31_decorator.md)
 * [Traits](./type/03_trait.md)
 * [Trait&nbsp;inclusion](./type/03_trait.md)
 * True → [Boolean&nbsp;Object](./01_literal.md)
@@ -342,7 +342,7 @@
 
 * [アサーション]
 * 値オブジェクト
-* [アタッチメントパッチ](./30_decorator.md#attach)
+* [アタッチメントパッチ](./31_decorator.md#attach)
 * アドホック多相 → [オーバーロードの禁止](./type/advanced/overloading.md)
 * アトリビュート → [属性]
 * アリティ
@@ -386,10 +386,10 @@
   * [可変オブジェクト]
   * [可変型]
   * [可変参照]
-  * [可変配列]
+  * [可変リスト]
   * [可変長引数]
 * [関数](./04_function.md)
-  * [関数型プログラミング](./24_closure.md#可変状態の回避関数型プログラミング)
+  * [関数型プログラミング](./25_closure.md#可変状態の回避関数型プログラミング)
 * 基底型
 * 記名
   * [記名型] → [クラス](./type/04_class.md)
@@ -420,7 +420,7 @@
 * ~~後方参照~~ → [前方参照]
 * [コピー]
 * コメント
-* [コレクション](./10_array.md)
+* [コレクション](./10_list.md)
 * コロン → [:]
 * [コンストラクタ](./type/04_class.md)
 * コンテナ
@@ -436,11 +436,11 @@
 * サブスクリプト → [インデックス]
 * [サブタイピング多相](./type/advanced/overloading.md)
 * サブルーチン
-* [参照](./19_ownership.md#借用)
+* [参照](./20_ownership.md#借用)
   * 参照オブジェクト
-  * [参照カウント(RC)](./19_ownership.md#複製)
+  * [参照カウント(RC)](./20_ownership.md#複製)
   * 参照等価性 → [副作用](./07_side_effect.md)
-* [識別子](./02_name.md/#変数)
+* [識別子](./02_name.md#変数)
 * シグネチャ
   * 型シグネチャ
 * [辞書](./11_dict.md)
@@ -448,7 +448,7 @@
 * ジェネリクス → [全称型]
 * ジェネレータ
 * [射影型]
-* 借用 → [参照](./19_ownership.md#借用)
+* 借用 → [参照](./20_ownership.md#借用)
 * [シャドーイング](./02_name.md#変数)
 * 種 → [カインド](./type/advanced/kind.md)
 * [集合] → [セット]
@@ -463,7 +463,7 @@
 * [スクリプト](./00_basic.md#スクリプト)
 * スコープ
 * スプレッド演算子 → [展開代入]
-* [スライス](./10_array.md#スライス)
+* [スライス](./10_list.md#スライス)
 * 制御文字
 * [整数] → [Int]
 * [セット](./15_set.md)
@@ -488,7 +488,7 @@
   * 代数的データ型
 * [代入](./02_name.md#変数)
 * 多重
-  * [多重継承](./type/05_inheritance.md/#多重継承の禁止)
+  * [多重継承](./type/05_inheritance.md#多重継承の禁止)
   * 多重代入
   * 多重定義 → [オーバーロードの禁止]
 * 多相
@@ -505,13 +505,13 @@
 * 抽出代入
 * 抽象構文木 → [AST]
 * 中置演算子
-* [定数](./02_name.md/#定数)
+* [定数](./02_name.md#定数)
   * [定数型](./type/08_value.md)
   * [定数式](./type/08_value.md)
 * [定義]
 * 提供属性
 * [適用]
-* [デコレータ](./30_decorator.md)
+* [デコレータ](./31_decorator.md)
 * デストラクタ
 * 手続き → [プロシージャ](./08_procedure.md)
 * [デフォルト引数](./04_function.md#デフォルト引数)
@@ -519,7 +519,7 @@
   * [展開演算子]
   * [展開代入]
 * [特殊形式](./../API/special.md)
-* 匿名関数 → [無名関数](./22_lambda.md)
+* 匿名関数 → [無名関数](./23_lambda.md)
 * ドット演算子(`.`) → [属性参照]
 * トップ
   * トップ型 → [Structural Object]
@@ -528,26 +528,26 @@
 
 ## な行
 
-* [内包表記](./28_comprehension.md)
+* [内包表記](./29_comprehension.md)
 * ~~中置(なかおき)演算子~~ → [中置(ちゅうち)演算子]
 * [名前空間]
 
 ## は行
 
-* [配列](./10_array.md)
+* ~~配列~~ → [リスト](./10_list.md)
 * [派生型](./type/advanced/variance.md#付録-ユーザー定義型の変性)
-* [パターン(マッチ)](./27_pattern_matching.md)
-* [パッケージ](./34_package_system.md)
+* [パターン(マッチ)](./28_pattern_matching.md)
+* [パッケージ](./35_package_system.md)
 * ハッシュマップ → [辞書](./11_dict.md)
 * [パッチ](./type/07_patch.md)
-* パブリック変数 → [公開変数](./20_visibility.md)
+* パブリック変数 → [公開変数](./21_visibility.md)
 * パラメーター → [引数](./04_function.md)
 * [パラメトリック多相](./type/advanced/overloading.md)
 * [反変](./type/advanced/variance.md)
 * 比較
   * [比較演算子]
   * [比較可能型]
-* [非公開変数](./20_visibility.md)
+* [非公開変数](./21_visibility.md)
 * 標準
   * 標準出力
   * 標準入力
@@ -577,12 +577,12 @@
 
 * ~~前置(まえおき)演算子~~ → 前置(ぜんち)演算子
 * [マーカー型](./type/advanced/marker_trait.md)
-* [無名関数](./22_lambda.md)
+* [無名関数](./23_lambda.md)
 * ミュータブル → [可変性]
 * ムーブ
 * メソッド
 * メタキャラクタ
-* [モジュール](./25_module.md)
+* [モジュール](./26_module.md)
 * 文字列 → [Str](./01_literal.md#文字列リテラルstr-literal)
   * [文字列補間](./01_literal.md#文字列リテラルstr-literal)
 * 戻り値
@@ -597,11 +597,11 @@
 ## ら行
 
 * [ライブラリ]
-* ラムダ式 → [無名関数](./22_lambda.md)
+* ラムダ式 → [無名関数](./23_lambda.md)
 * ランク
   * ランク2多相
 * [リテラル](./01_literal.md)
-  * [リテラル識別子](./21_naming_rule.md#リテラル識別子)
+  * [リテラル識別子](./22_naming_rule.md#リテラル識別子)
 * [量化](./type/15_quantified.md)
 * [レイアウト](./type/18_mut.md)
 * [列挙型](./type/11_enum.md)
@@ -609,7 +609,7 @@
   * レコード型
   * レコード多相 → [列多相]
 * [列多相]
-* [ローカル変数](./20_visibility.md)
+* [ローカル変数](./21_visibility.md)
 
 ## わ行
 

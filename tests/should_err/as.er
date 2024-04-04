@@ -6,15 +6,15 @@ _ = n.times!
 i = n as Int
 _ = i.times! # ERR
 
-v: Array!(Int or Str, 2) = ![1, 2]
+v: List!(Int or Str, 2) = ![1, 2]
 v.push! 1 # OK
 v.push! "a" # ERR
 v.push! None # ERR
 
-v2 as Array!(Int or Str, 2) = ![1, 2]
+v2 as List!(Int or Str, 2) = ![1, 2]
 v2.push! 1 # OK
 v2.push! "a" # OK
 v2.push! None # ERR
 
-v3 = v2 as Array!(Int or Str or NoneType, _)
+v3 = v2 as List!(Int or Str or NoneType, _)
 v3.push! None # OK

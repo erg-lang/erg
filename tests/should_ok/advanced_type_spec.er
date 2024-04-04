@@ -5,8 +5,8 @@ add|R: Type, A <: Add(R)|(x: A, y: R): A.Output = x + y
 f _: Tuple([{B: Bool | B == False} or Str, Int]) = None
 g _: Tuple([]) = None
 
-_: Iterable(Array(Int, _)) = [[1]]
-_: Array(Int, _) = [1]
+_: Iterable(List(Int, _)) = [[1]]
+_: List(Int, _) = [1]
 _: Iterable(Dict({Str: Int})) = [{"a": 1}]
 
 f2|T|(_: Structural { .a = (self: T) -> Obj }): NoneType = None

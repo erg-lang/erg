@@ -222,7 +222,7 @@ right(_, r) = r
 
 ### Variable length patterns
 
-Used in combination with the tuple/array/record pattern described later.
+Used in combination with the tuple/list/record pattern described later.
 
 ```python
 [i, *j] = [1, 2, 3, 4]
@@ -240,7 +240,7 @@ assert first(1, 2, 3) == 1
 m, n = 1, 2
 ```
 
-### Array pattern
+### List pattern
 
 ```python
 length [] = 0

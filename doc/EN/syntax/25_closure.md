@@ -41,7 +41,7 @@ Call `.clone` if you want the contents of the mutable object at the time the fun
 
 ```python
 i = !0
-immut_i = i.clone().freeze()
+immut_i = i.copy().freeze()
 fx = immut_i + x
 assert f 1 == 1
 i.add! 1

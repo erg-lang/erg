@@ -12,5 +12,5 @@ i_s.push! "b"
 i_s.push! 2
 i_s.push! None # ERR
 
-_: Array!(Int, _) = !["a"] # ERR
-_: Array!(Int, 1) = ![1, 2] # ERR
+_: List!(Int, _) = !["a"] # ERR
+_: List!(Int, 1) = ![1, 2] # ERR

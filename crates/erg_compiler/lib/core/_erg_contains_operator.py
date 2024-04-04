@@ -60,9 +60,9 @@ def contains_operator(y, elem) -> bool:
         len_check = True  # It can be True even if either elem or y has the larger number of elems
         return type_check and len_check
     elif _isinstance(elem, list):
-        from _erg_array import Array
+        from _erg_list import List
 
-        return contains_operator(y, Array(elem))
+        return contains_operator(y, List(elem))
     elif callable(elem):
         # TODO:
         return callable(y)

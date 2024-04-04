@@ -6,7 +6,7 @@ Erg 有量化和依赖类型。那么很自然地，就可以创建一个将两�
 
 ```python
 NonNullStr = |N: Nat| StrWithLen N | N ! = 0 # 同 {S | N: Nat; S: StrWithLen N; N ! = 0}
-NonEmptyArray = |N: Nat| [_; N | N > 0] # 同 {A | N: Nat; A: Array(_, N); N > 0}
+NonEmptyList = |N: Nat| [_; N | N > 0] # 同 {A | N: Nat; A: List(_, N); N > 0}
 ```
 
 量化依赖类型的标准形式是"K(A, ... | Pred)"。`K` 是类型构造函数，`A, B` 是类型参数，`Pred` 是条件表达式

@@ -10,7 +10,7 @@ use erg_parser::token::TokenKind;
 
 use crate::context::Context;
 use crate::error::{EffectError, EffectErrors};
-use crate::hir::{Array, Call, Def, Dict, Expr, Params, Set, Signature, Tuple, HIR};
+use crate::hir::{Call, Def, Dict, Expr, List, Params, Set, Signature, Tuple, HIR};
 use crate::ty::{HasType, Visibility};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -134,21 +134,21 @@ impl<'c> SideEffectChecker<'c> {
                     self.check_expr(&unary.expr);
                 }
                 Expr::Accessor(_) | Expr::Literal(_) => {}
-                Expr::Array(array) => match array {
-                    Array::Normal(arr) => {
-                        for elem in arr.elems.pos_args.iter() {
+                Expr::List(list) => match list {
+                    List::Normal(lis) => {
+                        for elem in lis.elems.pos_args.iter() {
                             self.check_expr(&elem.expr);
                         }
                     }
-                    Array::WithLength(arr) => {
-                        self.check_expr(&arr.elem);
-                        if let Some(len) = &arr.len {
+                    List::WithLength(lis) => {
+                        self.check_expr(&lis.elem);
+                        if let Some(len) = &lis.len {
                             self.check_expr(len);
                         }
                     }
-                    Array::Comprehension(arr) => {
-                        self.check_expr(&arr.elem);
-                        self.check_expr(&arr.guard);
+                    List::Comprehension(lis) => {
+                        self.check_expr(&lis.elem);
+                        self.check_expr(&lis.guard);
                     }
                 },
                 Expr::Tuple(tuple) => match tuple {
@@ -350,21 +350,21 @@ impl<'c> SideEffectChecker<'c> {
                     self.check_expr(def);
                 }
             }
-            Expr::Array(array) => match array {
-                Array::Normal(arr) => {
-                    for elem in arr.elems.pos_args.iter() {
+            Expr::List(list) => match list {
+                List::Normal(lis) => {
+                    for elem in lis.elems.pos_args.iter() {
                         self.check_expr(&elem.expr);
                     }
                 }
-                Array::WithLength(arr) => {
-                    self.check_expr(&arr.elem);
-                    if let Some(len) = &arr.len {
+                List::WithLength(lis) => {
+                    self.check_expr(&lis.elem);
+                    if let Some(len) = &lis.len {
                         self.check_expr(len);
                     }
                 }
-                Array::Comprehension(arr) => {
-                    self.check_expr(&arr.elem);
-                    self.check_expr(&arr.guard);
+                List::Comprehension(lis) => {
+                    self.check_expr(&lis.elem);
+                    self.check_expr(&lis.guard);
                 }
             },
             Expr::Tuple(tuple) => match tuple {
@@ -538,15 +538,15 @@ impl<'c> SideEffectChecker<'c> {
             }
             Expr::BinOp(bin) => Self::is_impure(&bin.lhs) || Self::is_impure(&bin.rhs),
             Expr::UnaryOp(unary) => Self::is_impure(&unary.expr),
-            Expr::Array(arr) => match arr {
-                Array::Normal(arr) => arr
+            Expr::List(lis) => match lis {
+                List::Normal(lis) => lis
                     .elems
                     .pos_args
                     .iter()
                     .any(|elem| Self::is_impure(&elem.expr)),
-                Array::WithLength(arr) => {
-                    Self::is_impure(&arr.elem)
-                        || arr.len.as_ref().map_or(false, |len| Self::is_impure(len))
+                List::WithLength(lis) => {
+                    Self::is_impure(&lis.elem)
+                        || lis.len.as_ref().map_or(false, |len| Self::is_impure(len))
                 }
                 _ => todo!(),
             },

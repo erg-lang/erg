@@ -20,9 +20,9 @@ use erg_parser::desugar::Desugarer;
 use erg_parser::token::{Token, TokenKind};
 
 use crate::ty::constructors::{
-    array_t, bounded, closed_range, dict_t, func, guard, mono, mono_q, named_free_var, poly, proj,
+    bounded, closed_range, dict_t, func, guard, list_t, mono, mono_q, named_free_var, poly, proj,
     proj_call, ref_, ref_mut, refinement, set_t, subr_t, subtypeof, tp_enum, try_v_enum, tuple_t,
-    unknown_len_array_t, v_enum,
+    unknown_len_list_t, v_enum,
 };
 use crate::ty::free::HasLevel;
 use crate::ty::typaram::{OpKind, TyParam};
@@ -154,13 +154,13 @@ impl<'c> Substituter<'c> {
 
     /// e.g.
     /// ```erg
-    /// qt: Array(T, N), st: Array(Int, 3)
+    /// qt: List(T, N), st: List(Int, 3)
     /// qt: T or NoneType, st: NoneType or Int (T == Int)
     /// ```
     /// invalid (no effect):
     /// ```erg
-    /// qt: Iterable(T), st: Array(Int, 3)
-    /// qt: Array(T, N), st: Array!(Int, 3) # TODO
+    /// qt: Iterable(T), st: List(Int, 3)
+    /// qt: List(T, N), st: List!(Int, 3) # TODO
     /// ```
     pub(crate) fn substitute_typarams(
         ctx: &'c Context,
@@ -282,9 +282,9 @@ impl<'c> Substituter<'c> {
         if !qt.is_undoable_linked_var() && qt.is_generalized() && qt.is_free_var() {
             qt.undoable_link(&st, &self.undoable_linked);
         } else if qt.is_undoable_linked_var() && qt != st {
-            // e.g. Array(T, N) <: Add(Array(T, M))
-            // Array((Int), (3)) <: Add(Array((Int), (4))): OK
-            // Array((Int), (3)) <: Add(Array((Str), (4))): NG
+            // e.g. List(T, N) <: Add(List(T, M))
+            // List((Int), (3)) <: Add(List((Int), (4))): OK
+            // List((Int), (3)) <: Add(List((Str), (4))): NG
             if let Some(union) = self.ctx.unify(&qt, &st) {
                 qt.undoable_link(&union, &self.undoable_linked);
             } else {
@@ -331,7 +331,7 @@ impl<'c> Substituter<'c> {
             }
             // NOTE: Rarely, double overwriting occurs.
             // Whether this could be a problem is under consideration.
-            // e.g. `T` of Array(T, N) <: Add(T, M)
+            // e.g. `T` of List(T, N) <: Add(T, M)
             TyParam::FreeVar(ref fv) if fv.is_generalized() => {
                 qtp.undoable_link(&stp, &self.undoable_linked);
                 /*if let Err(errs) = self.sub_unify_tp(&stp, &qtp, None, &(), false) {
@@ -785,23 +785,23 @@ impl Context {
         }
     }
 
-    pub(crate) fn eval_const_normal_array(&self, arr: &NormalArray) -> EvalResult<ValueObj> {
+    pub(crate) fn eval_const_normal_list(&self, lis: &NormalList) -> EvalResult<ValueObj> {
         let mut elems = vec![];
-        for elem in arr.elems.pos_args().iter() {
+        for elem in lis.elems.pos_args().iter() {
             let elem = self.eval_const_expr(&elem.expr)?;
             elems.push(elem);
         }
-        Ok(ValueObj::Array(ArcArray::from(elems)))
+        Ok(ValueObj::List(ArcArray::from(elems)))
     }
 
-    fn eval_const_array(&self, arr: &Array) -> EvalResult<ValueObj> {
-        match arr {
-            Array::Normal(arr) => self.eval_const_normal_array(arr),
-            Array::WithLength(arr) => {
-                let elem = self.eval_const_expr(&arr.elem.expr)?;
-                match arr.len.as_ref() {
+    fn eval_const_list(&self, lis: &List) -> EvalResult<ValueObj> {
+        match lis {
+            List::Normal(lis) => self.eval_const_normal_list(lis),
+            List::WithLength(lis) => {
+                let elem = self.eval_const_expr(&lis.elem.expr)?;
+                match lis.len.as_ref() {
                     Expr::Accessor(Accessor::Ident(ident)) if ident.is_discarded() => {
-                        Ok(ValueObj::UnsizedArray(Box::new(elem)))
+                        Ok(ValueObj::UnsizedList(Box::new(elem)))
                     }
                     other => {
                         let len = self.eval_const_expr(other)?;
@@ -820,14 +820,14 @@ impl Context {
                             )
                         })?;
                         let arr = vec![elem; len];
-                        Ok(ValueObj::Array(ArcArray::from(arr)))
+                        Ok(ValueObj::List(ArcArray::from(arr)))
                     }
                 }
             }
             _ => Err(EvalErrors::from(EvalError::not_const_expr(
                 self.cfg.input.clone(),
                 line!() as usize,
-                arr.loc(),
+                lis.loc(),
                 self.caused_by(),
             ))),
         }
@@ -836,8 +836,8 @@ impl Context {
     fn eval_const_set(&self, set: &AstSet) -> EvalResult<ValueObj> {
         let mut elems = vec![];
         match set {
-            AstSet::Normal(arr) => {
-                for elem in arr.elems.pos_args().iter() {
+            AstSet::Normal(lis) => {
+                for elem in lis.elems.pos_args().iter() {
                     let elem = self.eval_const_expr(&elem.expr)?;
                     elems.push(elem);
                 }
@@ -875,8 +875,8 @@ impl Context {
     fn eval_const_tuple(&self, tuple: &Tuple) -> EvalResult<ValueObj> {
         let mut elems = vec![];
         match tuple {
-            Tuple::Normal(arr) => {
-                for elem in arr.elems.pos_args().iter() {
+            Tuple::Normal(lis) => {
+                for elem in lis.elems.pos_args().iter() {
                     let elem = self.eval_const_expr(&elem.expr)?;
                     elems.push(elem);
                 }
@@ -1109,7 +1109,7 @@ impl Context {
             Expr::BinOp(bin) => self.eval_const_bin(bin),
             Expr::UnaryOp(unary) => self.eval_const_unary(unary),
             Expr::Call(call) => self.eval_const_call(call),
-            Expr::Array(arr) => self.eval_const_array(arr),
+            Expr::List(lis) => self.eval_const_list(lis),
             Expr::Set(set) => self.eval_const_set(set),
             Expr::Dict(dict) => self.eval_const_dict(dict),
             Expr::Tuple(tuple) => self.eval_const_tuple(tuple),
@@ -1139,7 +1139,7 @@ impl Context {
             Expr::BinOp(bin) => self.eval_const_bin(bin),
             Expr::UnaryOp(unary) => self.eval_const_unary(unary),
             Expr::Call(call) => self.eval_const_call(call),
-            Expr::Array(arr) => self.eval_const_array(arr),
+            Expr::List(lis) => self.eval_const_list(lis),
             Expr::Set(set) => self.eval_const_set(set),
             Expr::Dict(dict) => self.eval_const_dict(dict),
             Expr::Tuple(tuple) => self.eval_const_tuple(tuple),
@@ -1412,8 +1412,8 @@ impl Context {
             (TyParam::Dict(l), TyParam::Dict(r)) if op == OpKind::Add => {
                 Ok(TyParam::Dict(l.concat(r)))
             }
-            (TyParam::Array(l), TyParam::Array(r)) if op == OpKind::Add => {
-                Ok(TyParam::Array([l, r].concat()))
+            (TyParam::List(l), TyParam::List(r)) if op == OpKind::Add => {
+                Ok(TyParam::List([l, r].concat()))
             }
             (TyParam::FreeVar(fv), r) if fv.is_linked() => {
                 let t = fv.crack().clone();
@@ -1563,16 +1563,16 @@ impl Context {
             TyParam::App { name, args } => self.eval_app(name, args),
             TyParam::BinOp { op, lhs, rhs } => self.eval_bin_tp(op, *lhs, *rhs),
             TyParam::UnaryOp { op, val } => self.eval_unary_tp(op, *val),
-            TyParam::Array(tps) => {
+            TyParam::List(tps) => {
                 let mut new_tps = Vec::with_capacity(tps.len());
                 for tp in tps {
                     new_tps.push(self.eval_tp(tp)?);
                 }
-                Ok(TyParam::Array(new_tps))
+                Ok(TyParam::List(new_tps))
             }
-            TyParam::UnsizedArray(elem) => {
+            TyParam::UnsizedList(elem) => {
                 let elem = self.eval_tp(*elem)?;
-                Ok(TyParam::UnsizedArray(Box::new(elem)))
+                Ok(TyParam::UnsizedList(Box::new(elem)))
             }
             TyParam::Tuple(tps) => {
                 let mut new_tps = Vec::with_capacity(tps.len());
@@ -2055,17 +2055,17 @@ impl Context {
                 }
                 Ok(tuple_t(ts))
             }
-            TyParam::Array(tps) => {
+            TyParam::List(tps) => {
                 let mut union = Type::Never;
                 let len = tps.len();
                 for tp in tps {
                     union = self.union(&union, &self.convert_tp_into_type(tp)?);
                 }
-                Ok(array_t(union, TyParam::value(len)))
+                Ok(list_t(union, TyParam::value(len)))
             }
-            TyParam::UnsizedArray(elem) => {
+            TyParam::UnsizedList(elem) => {
                 let elem = self.convert_tp_into_type(*elem)?;
-                Ok(unknown_len_array_t(elem))
+                Ok(unknown_len_list_t(elem))
             }
             TyParam::Set(tps) => {
                 let mut union = Type::Never;
@@ -2095,7 +2095,7 @@ impl Context {
                 let t = fv.crack().clone();
                 self.convert_tp_into_type(t)
             }
-            // TyParam(Ts: Array(Type)) -> Type(Ts: Array(Type))
+            // TyParam(Ts: List(Type)) -> Type(Ts: List(Type))
             // TyParam(?S(: Str)) -> Err(...),
             // TyParam(?D(: GenericDict)) -> Ok(?D(: GenericDict)),
             // FIXME: GenericDict
@@ -2136,17 +2136,17 @@ impl Context {
                 self.convert_tp_into_value(tp)
             }
             TyParam::Value(v) => Ok(v),
-            TyParam::Array(arr) => {
+            TyParam::List(lis) => {
                 let mut new = vec![];
-                for elem in arr {
+                for elem in lis {
                     let elem = self.convert_tp_into_value(elem)?;
                     new.push(elem);
                 }
-                Ok(ValueObj::Array(new.into()))
+                Ok(ValueObj::List(new.into()))
             }
-            TyParam::UnsizedArray(elem) => {
+            TyParam::UnsizedList(elem) => {
                 let elem = self.convert_tp_into_value(*elem)?;
-                Ok(ValueObj::UnsizedArray(Box::new(elem)))
+                Ok(ValueObj::UnsizedList(Box::new(elem)))
             }
             TyParam::Tuple(tys) => {
                 let mut new = vec![];
@@ -2244,17 +2244,17 @@ impl Context {
                 }
                 Ok(tuple_t(new_ts))
             }
-            ValueObj::Array(arr) => {
-                let len = TyParam::value(arr.len());
+            ValueObj::List(lis) => {
+                let len = TyParam::value(lis.len());
                 let mut union = Type::Never;
-                for v in arr.iter().cloned() {
+                for v in lis.iter().cloned() {
                     union = self.union(&union, &self.convert_value_into_type(v)?);
                 }
-                Ok(array_t(union, len))
+                Ok(list_t(union, len))
             }
-            ValueObj::UnsizedArray(elem) => {
+            ValueObj::UnsizedList(elem) => {
                 let elem = self.convert_value_into_type(*elem)?;
-                Ok(unknown_len_array_t(elem))
+                Ok(unknown_len_list_t(elem))
             }
             ValueObj::Set(set) => try_v_enum(set).map_err(ValueObj::Set),
             ValueObj::Dict(dic) => {
@@ -2279,23 +2279,23 @@ impl Context {
     pub(crate) fn convert_value_into_tp(value: ValueObj) -> Result<TyParam, TyParam> {
         match value {
             ValueObj::Type(t) => Ok(TyParam::t(t.into_typ())),
-            ValueObj::Array(arr) => {
-                let mut new_arr = vec![];
-                for v in arr.iter().cloned() {
+            ValueObj::List(lis) => {
+                let mut new_lis = vec![];
+                for v in lis.iter().cloned() {
                     let tp = match Self::convert_value_into_tp(v) {
                         Ok(tp) => tp,
                         Err(tp) => tp,
                     };
-                    new_arr.push(tp);
+                    new_lis.push(tp);
                 }
-                Ok(TyParam::Array(new_arr))
+                Ok(TyParam::List(new_lis))
             }
-            ValueObj::UnsizedArray(elem) => {
+            ValueObj::UnsizedList(elem) => {
                 let tp = match Self::convert_value_into_tp(*elem) {
                     Ok(tp) => tp,
                     Err(tp) => tp,
                 };
-                Ok(TyParam::UnsizedArray(Box::new(tp)))
+                Ok(TyParam::UnsizedList(Box::new(tp)))
             }
             ValueObj::Tuple(vs) => {
                 let mut new_ts = vec![];
@@ -2404,14 +2404,14 @@ impl Context {
         }
     }
 
-    pub(crate) fn convert_type_to_array(&self, ty: Type) -> Result<Vec<ValueObj>, Type> {
+    pub(crate) fn convert_type_to_list(&self, ty: Type) -> Result<Vec<ValueObj>, Type> {
         match ty {
             Type::FreeVar(fv) if fv.is_linked() => {
                 let t = fv.crack().clone();
-                self.convert_type_to_array(t)
+                self.convert_type_to_list(t)
             }
-            Type::Refinement(refine) => self.convert_type_to_array(*refine.t),
-            Type::Poly { name, params } if &name[..] == "Array" || &name[..] == "Array!" => {
+            Type::Refinement(refine) => self.convert_type_to_list(*refine.t),
+            Type::Poly { name, params } if &name[..] == "List" || &name[..] == "List!" => {
                 let Ok(t) = self.convert_tp_into_type(params[0].clone()) else {
                     log!(err "cannot convert to type: {}", params[0]);
                     return Err(poly(name, params));
@@ -2429,14 +2429,11 @@ impl Context {
         }
     }
 
-    pub(crate) fn convert_value_into_array(
-        &self,
-        val: ValueObj,
-    ) -> Result<Vec<ValueObj>, ValueObj> {
+    pub(crate) fn convert_value_into_list(&self, val: ValueObj) -> Result<Vec<ValueObj>, ValueObj> {
         match val {
-            ValueObj::Array(arr) => Ok(arr.to_vec()),
+            ValueObj::List(lis) => Ok(lis.to_vec()),
             ValueObj::Type(t) => self
-                .convert_type_to_array(t.into_typ())
+                .convert_type_to_list(t.into_typ())
                 .map_err(ValueObj::builtin_type),
             _ => Err(val),
         }
@@ -2972,13 +2969,13 @@ impl Context {
                         line!(),
                     ))
                 }),
-            TyParam::Array(tps) => {
+            TyParam::List(tps) => {
                 let tp_t = if let Some(fst) = tps.first() {
                     self.get_tp_t(fst)?
                 } else {
                     Never
                 };
-                let t = array_t(tp_t, TyParam::value(tps.len()));
+                let t = list_t(tp_t, TyParam::value(tps.len()));
                 Ok(t)
             }
             TyParam::Tuple(tps) => {
@@ -3113,7 +3110,7 @@ impl Context {
             (TyParam::Type(l), TyParam::Type(r)) => l == r,
             (TyParam::Value(l), TyParam::Value(r)) => l == r,
             (TyParam::Erased(l), TyParam::Erased(r)) => l == r,
-            (TyParam::Array(l), TyParam::Array(r)) => l == r,
+            (TyParam::List(l), TyParam::List(r)) => l == r,
             (TyParam::Tuple(l), TyParam::Tuple(r)) => l == r,
             (TyParam::Set(l), TyParam::Set(r)) => l == r, // FIXME:
             (TyParam::Dict(l), TyParam::Dict(r)) => l == r,

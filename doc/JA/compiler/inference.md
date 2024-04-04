@@ -52,19 +52,19 @@ Ergの型推論は、大枠としてHindley-Milner型推論アルゴリズムを
 line 1. Def{sig: v, block: ![]}
     get block type:
         get UnaryOp type:
-            get Array type: `['T; 0]`
+            get List type: `['T; 0]`
             instantiate: `[?T; 0]`
             (substitute, eval are omitted)
     update: `Γ: {v: [?T; 0]!}`
     expr returns `NoneType`: OK
 
 line 2. CallMethod{obj: v, name: push!, args: [1]}
-    get obj type: `Array!(?T, 0)`
-        search: `Γ Array!(?T, 0).push!({1})`
-        get: `= Array!('T ~> 'T, 'N ~> 'N+1).push!('T) => NoneType`
-        instantiate: `Array!(?T, ?N).push!(?T) => NoneType`
-        substitute(`S: {?T --> Nat, ?N --> 0}`): `Array!(Nat ~> Nat, 0 ~> 0+1).push!(Nat) => NoneType`
-        eval: `Array!(Nat, 0 ~> 1).push!({1}) => NoneType`
+    get obj type: `List!(?T, 0)`
+        search: `Γ List!(?T, 0).push!({1})`
+        get: `= List!('T ~> 'T, 'N ~> 'N+1).push!('T) => NoneType`
+        instantiate: `List!(?T, ?N).push!(?T) => NoneType`
+        substitute(`S: {?T --> Nat, ?N --> 0}`): `List!(Nat ~> Nat, 0 ~> 0+1).push!(Nat) => NoneType`
+        eval: `List!(Nat, 0 ~> 1).push!({1}) => NoneType`
         update: `Γ: {v: [Nat; 1]!}`
     expr returns `NoneType`: OK
 

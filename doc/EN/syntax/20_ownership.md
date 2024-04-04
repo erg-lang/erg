@@ -36,11 +36,11 @@ A subroutine that needs to duplicate an object is said to be an "argument consum
 
 ```python
 capitalize s: Str!=
-    s. capitalize!()
+    s.capitalize!()
     s
 
 s1 = !"hello"
-s2 = capitalize s1.clone()
+s2 = capitalize s1.copy()
 log s2, s1 # !"HELLO hello"
 ```
 

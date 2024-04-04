@@ -2040,8 +2040,8 @@ impl Type {
                 _ => None,
             },
             Self::Poly { name, params } => match &name[..] {
-                "Array!" => Some(Self::Poly {
-                    name: "Array".into(),
+                "List!" => Some(Self::Poly {
+                    name: "List".into(),
                     params: params.clone(),
                 }),
                 "Set!" => Some(Self::Poly {
@@ -2106,13 +2106,13 @@ impl Type {
         }
     }
 
-    /// value class := mono value object class | (Array | Set)(value class)
+    /// value class := mono value object class | (List | Set)(value class)
     pub fn is_value_class(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_value_class(),
             Self::Refinement(refine) => refine.t.is_value_class(),
             Self::Poly { name, params } => {
-                if &name[..] == "Array" || &name[..] == "Set" {
+                if &name[..] == "List" || &name[..] == "Set" {
                     let Some(elem_t) = params.first().and_then(|p| <&Type>::try_from(p).ok())
                     else {
                         if DEBUG_MODE {
@@ -2195,7 +2195,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_singleton(),
             Self::Refinement(refine) => refine.t.is_singleton(),
             Self::Poly { name, params } => {
-                if &name[..] == "Array" || &name[..] == "Set" {
+                if &name[..] == "List" || &name[..] == "Set" {
                     let Some(elem_t) = params.first().and_then(|p| <&Type>::try_from(p).ok())
                     else {
                         if DEBUG_MODE {
@@ -2373,11 +2373,11 @@ impl Type {
         }
     }
 
-    pub fn is_array(&self) -> bool {
+    pub fn is_list(&self) -> bool {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_array(),
-            Self::Poly { name, .. } => &name[..] == "Array",
-            Self::Refinement(refine) => refine.t.is_array(),
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_list(),
+            Self::Poly { name, .. } => &name[..] == "List",
+            Self::Refinement(refine) => refine.t.is_list(),
             _ => false,
         }
     }
@@ -2391,11 +2391,11 @@ impl Type {
         }
     }
 
-    pub fn is_array_mut(&self) -> bool {
+    pub fn is_list_mut(&self) -> bool {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_array_mut(),
-            Self::Poly { name, .. } => &name[..] == "Array!",
-            Self::Refinement(refine) => refine.t.is_array_mut(),
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_list_mut(),
+            Self::Poly { name, .. } => &name[..] == "List!",
+            Self::Refinement(refine) => refine.t.is_list_mut(),
             _ => false,
         }
     }
@@ -3391,7 +3391,7 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().container_len(),
             Self::Poly { name, params } => match &name[..] {
-                "Array" => {
+                "List" => {
                     if let TyParam::Value(ValueObj::Nat(n)) = &params[0] {
                         Some(*n as usize)
                     } else {
@@ -3691,7 +3691,7 @@ impl Type {
     /// ```erg
     /// (Failure -> Int).replace_failure() == (Obj -> Int)
     /// (Int -> Failure).replace_failure() == (Int -> Never)
-    /// Array(Failure, 3).replace_failure() == Array(Never, 3)
+    /// List(Failure, 3).replace_failure() == List(Never, 3)
     /// ```
     pub fn replace_failure(&self) -> Type {
         match self {
@@ -4093,7 +4093,7 @@ impl Type {
 
     /// ```erg
     /// Int.contained_ts() == {Int}
-    /// Array(Array(Int)).contained_ts() == {Array(Int), Int}
+    /// List(List(Int)).contained_ts() == {List(Int), Int}
     /// (Int or Str).contained_ts() == {Int, Str}
     /// ```
     pub fn contained_ts(&self) -> Set<Type> {
@@ -4460,8 +4460,8 @@ pub enum TypeCode {
     Bool,
     Str,
     StrMut,
-    Array, // 要素数は検査済みなので、気にする必要はない
-    ArrayMut,
+    List, // 要素数は検査済みなので、気にする必要はない
+    ListMut,
     // Dict,
     Set,
     SetMut,
@@ -4493,7 +4493,7 @@ impl From<&Type> for TypeCode {
                 _ => Self::Other,
             },
             Type::Poly { name, .. } => match &name[..] {
-                "Array" | "Array!" => Self::Array,
+                "List" | "List!" => Self::List,
                 "Set" | "Set!" => Self::Set,
                 "Func" => Self::Func,
                 "Proc" => Self::Proc,
@@ -4516,7 +4516,7 @@ pub enum TypePair {
     IntFloat,
     IntStr,
     IntBool,
-    IntArray,
+    IntList,
     IntFunc,
     IntProc,
     NatInt,
@@ -4524,7 +4524,7 @@ pub enum TypePair {
     NatFloat,
     NatStr,
     NatBool,
-    NatArray,
+    NatList,
     NatFunc,
     NatProc,
     FloatInt,
@@ -4532,7 +4532,7 @@ pub enum TypePair {
     FloatFloat,
     FloatStr,
     FloatBool,
-    FloatArray,
+    FloatList,
     FloatFunc,
     FloatProc,
     BoolInt,
@@ -4540,7 +4540,7 @@ pub enum TypePair {
     BoolFloat,
     BoolStr,
     BoolBool,
-    BoolArray,
+    BoolList,
     BoolFunc,
     BoolProc,
     StrInt,
@@ -4548,24 +4548,24 @@ pub enum TypePair {
     StrFloat,
     StrBool,
     StrStr,
-    StrArray,
+    StrList,
     StrFunc,
     StrProc,
     // 要素数は検査済みなので、気にする必要はない
-    ArrayInt,
-    ArrayNat,
-    ArrayFloat,
-    ArrayStr,
-    ArrayBool,
-    ArrayArray,
-    ArrayFunc,
-    ArrayProc,
+    ListInt,
+    ListNat,
+    ListFloat,
+    ListStr,
+    ListBool,
+    ListList,
+    ListFunc,
+    ListProc,
     FuncInt,
     FuncNat,
     FuncFloat,
     FuncStr,
     FuncBool,
-    FuncArray,
+    FuncList,
     FuncFunc,
     FuncProc,
     ProcInt,
@@ -4573,7 +4573,7 @@ pub enum TypePair {
     ProcFloat,
     ProcStr,
     ProcBool,
-    ProcArray,
+    ProcList,
     ProcFunc,
     ProcProc,
     Others,
@@ -4588,7 +4588,7 @@ impl From<u8> for TypePair {
             3 => Self::IntFloat,
             4 => Self::IntStr,
             5 => Self::IntBool,
-            6 => Self::IntArray,
+            6 => Self::IntList,
             7 => Self::IntFunc,
             8 => Self::IntProc,
             9 => Self::NatInt,
@@ -4596,7 +4596,7 @@ impl From<u8> for TypePair {
             11 => Self::NatFloat,
             12 => Self::NatStr,
             13 => Self::NatBool,
-            14 => Self::NatArray,
+            14 => Self::NatList,
             15 => Self::NatFunc,
             16 => Self::NatProc,
             17 => Self::FloatInt,
@@ -4604,7 +4604,7 @@ impl From<u8> for TypePair {
             19 => Self::FloatFloat,
             20 => Self::FloatStr,
             21 => Self::FloatBool,
-            22 => Self::FloatArray,
+            22 => Self::FloatList,
             23 => Self::FloatFunc,
             24 => Self::FloatProc,
             25 => Self::BoolInt,
@@ -4612,7 +4612,7 @@ impl From<u8> for TypePair {
             27 => Self::BoolFloat,
             28 => Self::BoolStr,
             29 => Self::BoolBool,
-            30 => Self::BoolArray,
+            30 => Self::BoolList,
             31 => Self::BoolFunc,
             32 => Self::BoolProc,
             33 => Self::StrInt,
@@ -4620,24 +4620,24 @@ impl From<u8> for TypePair {
             35 => Self::StrFloat,
             36 => Self::StrBool,
             37 => Self::StrStr,
-            38 => Self::StrArray,
+            38 => Self::StrList,
             39 => Self::StrFunc,
             40 => Self::StrProc,
             // 要素数は検査済みなので、気にする必要はない
-            41 => Self::ArrayInt,
-            42 => Self::ArrayNat,
-            43 => Self::ArrayFloat,
-            44 => Self::ArrayStr,
-            45 => Self::ArrayBool,
-            46 => Self::ArrayArray,
-            47 => Self::ArrayFunc,
-            48 => Self::ArrayProc,
+            41 => Self::ListInt,
+            42 => Self::ListNat,
+            43 => Self::ListFloat,
+            44 => Self::ListStr,
+            45 => Self::ListBool,
+            46 => Self::ListList,
+            47 => Self::ListFunc,
+            48 => Self::ListProc,
             49 => Self::FuncInt,
             50 => Self::FuncNat,
             51 => Self::FuncFloat,
             52 => Self::FuncStr,
             53 => Self::FuncBool,
-            54 => Self::FuncArray,
+            54 => Self::FuncList,
             55 => Self::FuncFunc,
             56 => Self::FuncProc,
             57 => Self::ProcInt,
@@ -4645,7 +4645,7 @@ impl From<u8> for TypePair {
             59 => Self::ProcFloat,
             60 => Self::ProcStr,
             61 => Self::ProcBool,
-            62 => Self::ProcArray,
+            62 => Self::ProcList,
             63 => Self::ProcProc,
             64 => Self::Others,
             _ => Self::Illegals,
@@ -4662,7 +4662,7 @@ impl TypePair {
             (Type::Int, Type::Float) => Self::IntFloat,
             (Type::Int, Type::Str) => Self::IntStr,
             (Type::Int, Type::Bool) => Self::IntBool,
-            (Type::Int, Type::Poly { name, .. }) if &name[..] == "Array" => Self::IntArray,
+            (Type::Int, Type::Poly { name, .. }) if &name[..] == "List" => Self::IntList,
             (Type::Int, Type::Poly { name, .. }) if &name[..] == "Func" => Self::IntFunc,
             (Type::Int, Type::Poly { name, .. }) if &name[..] == "Proc" => Self::IntProc,
             (Type::Nat, Type::Int) => Self::NatInt,
@@ -4670,7 +4670,7 @@ impl TypePair {
             (Type::Nat, Type::Float) => Self::NatFloat,
             (Type::Nat, Type::Str) => Self::NatStr,
             (Type::Nat, Type::Bool) => Self::NatBool,
-            (Type::Nat, Type::Poly { name, .. }) if &name[..] == "Array" => Self::NatArray,
+            (Type::Nat, Type::Poly { name, .. }) if &name[..] == "List" => Self::NatList,
             (Type::Nat, Type::Poly { name, .. }) if &name[..] == "Func" => Self::NatFunc,
             (Type::Nat, Type::Poly { name, .. }) if &name[..] == "Proc" => Self::NatProc,
             (Type::Float, Type::Int) => Self::FloatInt,
@@ -4678,7 +4678,7 @@ impl TypePair {
             (Type::Float, Type::Float) => Self::FloatFloat,
             (Type::Float, Type::Str) => Self::FloatStr,
             (Type::Float, Type::Bool) => Self::FloatBool,
-            (Type::Float, Type::Poly { name, .. }) if &name[..] == "Array" => Self::FloatArray,
+            (Type::Float, Type::Poly { name, .. }) if &name[..] == "List" => Self::FloatList,
             (Type::Float, Type::Poly { name, .. }) if &name[..] == "Func" => Self::FloatFunc,
             (Type::Float, Type::Poly { name, .. }) if &name[..] == "Proc" => Self::FloatProc,
             (Type::Bool, Type::Int) => Self::BoolInt,
@@ -4686,7 +4686,7 @@ impl TypePair {
             (Type::Bool, Type::Float) => Self::BoolFloat,
             (Type::Bool, Type::Str) => Self::BoolStr,
             (Type::Bool, Type::Bool) => Self::BoolBool,
-            (Type::Bool, Type::Poly { name, .. }) if &name[..] == "Array" => Self::BoolArray,
+            (Type::Bool, Type::Poly { name, .. }) if &name[..] == "List" => Self::BoolList,
             (Type::Bool, Type::Poly { name, .. }) if &name[..] == "Func" => Self::BoolFunc,
             (Type::Bool, Type::Poly { name, .. }) if &name[..] == "Proc" => Self::BoolProc,
             (Type::Str, Type::Int) => Self::StrInt,
@@ -4694,29 +4694,29 @@ impl TypePair {
             (Type::Str, Type::Float) => Self::StrFloat,
             (Type::Str, Type::Bool) => Self::StrBool,
             (Type::Str, Type::Str) => Self::StrStr,
-            (Type::Str, Type::Poly { name, .. }) if &name[..] == "Array" => Self::StrArray,
+            (Type::Str, Type::Poly { name, .. }) if &name[..] == "List" => Self::StrList,
             (Type::Str, Type::Poly { name, .. }) if &name[..] == "Func" => Self::StrFunc,
             (Type::Str, Type::Poly { name, .. }) if &name[..] == "Proc" => Self::StrProc,
             // 要素数は検査済みなので、気にする必要はない
-            (Type::Poly { name, .. }, Type::Int) if &name[..] == "Array" => Self::ArrayInt,
-            (Type::Poly { name, .. }, Type::Nat) if &name[..] == "Array" => Self::ArrayNat,
-            (Type::Poly { name, .. }, Type::Float) if &name[..] == "Array" => Self::ArrayFloat,
-            (Type::Poly { name, .. }, Type::Str) if &name[..] == "Array" => Self::ArrayStr,
-            (Type::Poly { name, .. }, Type::Bool) if &name[..] == "Array" => Self::ArrayBool,
+            (Type::Poly { name, .. }, Type::Int) if &name[..] == "List" => Self::ListInt,
+            (Type::Poly { name, .. }, Type::Nat) if &name[..] == "List" => Self::ListNat,
+            (Type::Poly { name, .. }, Type::Float) if &name[..] == "List" => Self::ListFloat,
+            (Type::Poly { name, .. }, Type::Str) if &name[..] == "List" => Self::ListStr,
+            (Type::Poly { name, .. }, Type::Bool) if &name[..] == "List" => Self::ListBool,
             (Type::Poly { name: ln, .. }, Type::Poly { name: rn, .. })
-                if &ln[..] == "Array" && &rn[..] == "Array" =>
+                if &ln[..] == "List" && &rn[..] == "List" =>
             {
-                Self::ArrayArray
+                Self::ListList
             }
             (Type::Poly { name: ln, .. }, Type::Poly { name: rn, .. })
-                if &ln[..] == "Array" && &rn[..] == "Func" =>
+                if &ln[..] == "List" && &rn[..] == "Func" =>
             {
-                Self::ArrayFunc
+                Self::ListFunc
             }
             (Type::Poly { name: ln, .. }, Type::Poly { name: rn, .. })
-                if &ln[..] == "Array" && &rn[..] == "Proc" =>
+                if &ln[..] == "List" && &rn[..] == "Proc" =>
             {
-                Self::ArrayProc
+                Self::ListProc
             }
             (Type::Poly { name, .. }, Type::Int) if &name[..] == "Func" => Self::FuncInt,
             (Type::Poly { name, .. }, Type::Nat) if &name[..] == "Func" => Self::FuncNat,
@@ -4724,9 +4724,9 @@ impl TypePair {
             (Type::Poly { name, .. }, Type::Str) if &name[..] == "Func" => Self::FuncStr,
             (Type::Poly { name, .. }, Type::Bool) if &name[..] == "Func" => Self::FuncBool,
             (Type::Poly { name: ln, .. }, Type::Poly { name: rn, .. })
-                if &ln[..] == "Func" && &rn[..] == "Array" =>
+                if &ln[..] == "Func" && &rn[..] == "List" =>
             {
-                Self::FuncArray
+                Self::FuncList
             }
             (Type::Poly { name: ln, .. }, Type::Poly { name: rn, .. })
                 if &ln[..] == "Func" && &rn[..] == "Func" =>
@@ -4744,9 +4744,9 @@ impl TypePair {
             (Type::Poly { name, .. }, Type::Str) if &name[..] == "Proc" => Self::ProcStr,
             (Type::Poly { name, .. }, Type::Bool) if &name[..] == "Proc" => Self::ProcBool,
             (Type::Poly { name: ln, .. }, Type::Poly { name: rn, .. })
-                if &ln[..] == "Proc" && &rn[..] == "Array" =>
+                if &ln[..] == "Proc" && &rn[..] == "List" =>
             {
-                Self::ProcArray
+                Self::ProcList
             }
             (Type::Poly { name: ln, .. }, Type::Poly { name: rn, .. })
                 if &ln[..] == "Proc" && &rn[..] == "Func" =>

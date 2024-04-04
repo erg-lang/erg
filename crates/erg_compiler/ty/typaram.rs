@@ -240,9 +240,9 @@ impl TyParamLambda {
 /// * Type: Int, Add(?R, ?O), ...
 /// * Mono: I, N, ...
 /// * Attr: math.PI, ...
-/// * Array: `[1, 2, N]`
+/// * List: `[1, 2, N]`
 /// * Tuple: (1, N, True)
-/// * App: Array(Int), Fib(10), ...
+/// * App: List(Int), Fib(10), ...
 /// * QuantVar: N: Nat, ...
 /// * FreeVar: ?I: Int, ...
 /// * UnaryOp: -N, ~B, ...
@@ -252,8 +252,8 @@ impl TyParamLambda {
 pub enum TyParam {
     Value(ValueObj),
     Type(Box<Type>),
-    Array(Vec<TyParam>),
-    UnsizedArray(Box<TyParam>),
+    List(Vec<TyParam>),
+    UnsizedList(Box<TyParam>),
     Tuple(Vec<TyParam>),
     Set(Set<TyParam>),
     Dict(Dict<TyParam, TyParam>),
@@ -296,8 +296,8 @@ impl PartialEq for TyParam {
         match (self, other) {
             (Self::Value(l), Self::Value(r)) => l == r,
             (Self::Type(l), Self::Type(r)) => l == r,
-            (Self::Array(l), Self::Array(r)) => l == r,
-            (Self::UnsizedArray(l), Self::UnsizedArray(r)) => l == r,
+            (Self::List(l), Self::List(r)) => l == r,
+            (Self::UnsizedList(l), Self::UnsizedList(r)) => l == r,
             (Self::Tuple(l), Self::Tuple(r)) => l == r,
             (Self::Dict(l), Self::Dict(r)) => l == r,
             (Self::Record(l), Self::Record(r)) => l == r,
@@ -435,9 +435,9 @@ impl LimitedDisplay for TyParam {
                 write!(f, ")")?;
                 Ok(())
             }
-            Self::Array(arr) => {
+            Self::List(lis) => {
                 write!(f, "[")?;
-                for (i, t) in arr.iter().enumerate() {
+                for (i, t) in lis.iter().enumerate() {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
@@ -449,7 +449,7 @@ impl LimitedDisplay for TyParam {
                 }
                 write!(f, "]")
             }
-            Self::UnsizedArray(elem) => {
+            Self::UnsizedList(elem) => {
                 write!(f, "[")?;
                 elem.limited_fmt(f, limit - 1)?;
                 write!(f, "; _]")
@@ -685,16 +685,16 @@ impl TryFrom<TyParam> for ValueObj {
     type Error = ();
     fn try_from(tp: TyParam) -> Result<Self, ()> {
         match tp {
-            TyParam::Array(tps) => {
+            TyParam::List(tps) => {
                 let mut vals = vec![];
                 for tp in tps {
                     vals.push(ValueObj::try_from(tp)?);
                 }
-                Ok(ValueObj::Array(Arc::from(vals)))
+                Ok(ValueObj::List(Arc::from(vals)))
             }
-            TyParam::UnsizedArray(elem) => {
+            TyParam::UnsizedList(elem) => {
                 let elem = ValueObj::try_from(*elem)?;
-                Ok(ValueObj::UnsizedArray(Box::new(elem)))
+                Ok(ValueObj::UnsizedList(Box::new(elem)))
             }
             TyParam::Tuple(tps) => {
                 let mut vals = vec![];
@@ -768,7 +768,7 @@ impl TryFrom<TyParam> for Vec<TyParam> {
     fn try_from(tp: TyParam) -> Result<Self, ()> {
         match tp {
             TyParam::FreeVar(fv) if fv.is_linked() => Vec::try_from(fv.crack().clone()),
-            TyParam::Array(tps) => Ok(tps),
+            TyParam::List(tps) => Ok(tps),
             _ => Err(()),
         }
     }
@@ -783,7 +783,7 @@ impl<'a> TryFrom<&'a TyParam> for &'a Type {
             }
             TyParam::Type(t) => Ok(t.as_ref()),
             TyParam::Value(v) => <&Type>::try_from(v),
-            // TODO: Array, Dict, Set
+            // TODO: List, Dict, Set
             _ => Err(()),
         }
     }
@@ -805,7 +805,7 @@ impl HasLevel for TyParam {
         match self {
             Self::Type(t) => t.level(),
             Self::FreeVar(fv) => fv.level(),
-            Self::Array(tps) | Self::Tuple(tps) => tps.iter().filter_map(|tp| tp.level()).min(),
+            Self::List(tps) | Self::Tuple(tps) => tps.iter().filter_map(|tp| tp.level()).min(),
             Self::Dict(tps) => tps
                 .iter()
                 .map(|(k, v)| {
@@ -844,7 +844,7 @@ impl HasLevel for TyParam {
                     v.set_level(level);
                 }
             }
-            Self::Array(tps) => {
+            Self::List(tps) => {
                 for tp in tps {
                     tp.set_level(level);
                 }
@@ -883,7 +883,7 @@ impl StructuralEq for TyParam {
     fn structural_eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Type(l), Self::Type(r)) => l.structural_eq(r),
-            (Self::Array(l), Self::Array(r)) => l.iter().zip(r).all(|(l, r)| l.structural_eq(r)),
+            (Self::List(l), Self::List(r)) => l.iter().zip(r).all(|(l, r)| l.structural_eq(r)),
             (Self::Tuple(l), Self::Tuple(r)) => l.iter().zip(r).all(|(l, r)| l.structural_eq(r)),
             (Self::Dict(l), Self::Dict(r)) => {
                 if l.len() != r.len() {
@@ -1076,8 +1076,8 @@ impl TyParam {
         Self::Erased(Box::new(t))
     }
 
-    pub fn unsized_array(elem: TyParam) -> Self {
-        Self::UnsizedArray(Box::new(elem))
+    pub fn unsized_list(elem: TyParam) -> Self {
+        Self::UnsizedList(Box::new(elem))
     }
 
     // if self: Ratio, Succ(self) => self+ε
@@ -1196,7 +1196,7 @@ impl TyParam {
             }
             Self::Type(t) => t.qvars(),
             Self::Proj { obj, .. } => obj.qvars(),
-            Self::Array(ts) | Self::Tuple(ts) => {
+            Self::List(ts) | Self::Tuple(ts) => {
                 ts.iter().fold(set! {}, |acc, t| acc.concat(t.qvars()))
             }
             Self::Set(ts) => ts.iter().fold(set! {}, |acc, t| acc.concat(t.qvars())),
@@ -1225,7 +1225,7 @@ impl TyParam {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().has_qvar(),
             Self::Type(t) => t.has_qvar(),
             Self::Proj { obj, .. } => obj.has_qvar(),
-            Self::Array(tps) | Self::Tuple(tps) => tps.iter().any(|tp| tp.has_qvar()),
+            Self::List(tps) | Self::Tuple(tps) => tps.iter().any(|tp| tp.has_qvar()),
             Self::Set(tps) => tps.iter().any(|tp| tp.has_qvar()),
             Self::Dict(tps) => tps.iter().any(|(k, v)| k.has_qvar() || v.has_qvar()),
             Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
@@ -1247,7 +1247,7 @@ impl TyParam {
             Self::Type(t) => t.contains_tvar(target),
             Self::Erased(t) => t.contains_tvar(target),
             Self::Proj { obj, .. } => obj.contains_tvar(target),
-            Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.contains_tvar(target)),
+            Self::List(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.contains_tvar(target)),
             Self::Set(ts) => ts.iter().any(|t| t.contains_tvar(target)),
             Self::Dict(ts) => ts
                 .iter()
@@ -1273,8 +1273,8 @@ impl TyParam {
             Self::ProjCall { obj, args, .. } => {
                 obj.contains_type(target) || args.iter().any(|t| t.contains_type(target))
             }
-            Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.contains_type(target)),
-            Self::UnsizedArray(elem) => elem.contains_type(target),
+            Self::List(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.contains_type(target)),
+            Self::UnsizedList(elem) => elem.contains_type(target),
             Self::Set(ts) => ts.iter().any(|t| t.contains_type(target)),
             Self::Dict(ts) => ts
                 .iter()
@@ -1303,8 +1303,8 @@ impl TyParam {
             Self::ProjCall { obj, args, .. } => {
                 obj.contains_tp(target) || args.iter().any(|t| t.contains_tp(target))
             }
-            Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.contains_tp(target)),
-            Self::UnsizedArray(elem) => elem.contains_tp(target),
+            Self::List(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.contains_tp(target)),
+            Self::UnsizedList(elem) => elem.contains_tp(target),
             Self::Set(ts) => ts.iter().any(|t| t.contains_tp(target)),
             Self::Dict(ts) => ts
                 .iter()
@@ -1333,8 +1333,8 @@ impl TyParam {
             Self::UnaryOp { val, .. } => val.contains_tp(self),
             Self::App { args, .. } => args.iter().any(|t| t.contains_tp(self)),
             Self::Lambda(lambda) => lambda.body.iter().any(|t| t.contains_tp(self)),
-            Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.contains_tp(self)),
-            Self::UnsizedArray(elem) => elem.contains_tp(self),
+            Self::List(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.contains_tp(self)),
+            Self::UnsizedList(elem) => elem.contains_tp(self),
             Self::Set(ts) => ts.iter().any(|t| t.contains_tp(self)),
             Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
                 rec.iter().any(|(_, t)| t.contains_tp(self))
@@ -1372,8 +1372,8 @@ impl TyParam {
             Self::ProjCall { obj, args, .. } => {
                 obj.has_unbound_var() || args.iter().any(|t| t.has_unbound_var())
             }
-            Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.has_unbound_var()),
-            Self::UnsizedArray(elem) => elem.has_unbound_var(),
+            Self::List(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.has_unbound_var()),
+            Self::UnsizedList(elem) => elem.has_unbound_var(),
             Self::Set(ts) => ts.iter().any(|t| t.has_unbound_var()),
             Self::Dict(kv) => kv
                 .iter()
@@ -1403,8 +1403,8 @@ impl TyParam {
             Self::ProjCall { obj, args, .. } => {
                 obj.has_undoable_linked_var() || args.iter().any(|t| t.has_undoable_linked_var())
             }
-            Self::Array(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.has_undoable_linked_var()),
-            Self::UnsizedArray(elem) => elem.has_undoable_linked_var(),
+            Self::List(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.has_undoable_linked_var()),
+            Self::UnsizedList(elem) => elem.has_undoable_linked_var(),
             Self::Set(ts) => ts.iter().any(|t| t.has_undoable_linked_var()),
             Self::Dict(kv) => kv
                 .iter()
@@ -1432,10 +1432,10 @@ impl TyParam {
             Self::ProjCall { obj, args, .. } => obj
                 .union_size()
                 .max(args.iter().map(|t| t.union_size()).max().unwrap_or(1)),
-            Self::Array(ts) | Self::Tuple(ts) => {
+            Self::List(ts) | Self::Tuple(ts) => {
                 ts.iter().map(|t| t.union_size()).max().unwrap_or(1)
             }
-            Self::UnsizedArray(elem) => elem.union_size(),
+            Self::UnsizedList(elem) => elem.union_size(),
             Self::Set(ts) => ts.iter().map(|t| t.union_size()).max().unwrap_or(1),
             Self::Dict(kv) => kv
                 .iter()
@@ -1517,10 +1517,10 @@ impl TyParam {
                 let new_val = val.substitute(var, to);
                 TyParam::unary(op, new_val)
             }
-            TyParam::UnsizedArray(elem) => TyParam::unsized_array(elem.substitute(var, to)),
-            TyParam::Array(tps) => {
+            TyParam::UnsizedList(elem) => TyParam::unsized_list(elem.substitute(var, to)),
+            TyParam::List(tps) => {
                 let new_tps = tps.into_iter().map(|t| t.substitute(var, to)).collect();
-                TyParam::Array(new_tps)
+                TyParam::List(new_tps)
             }
             TyParam::Tuple(tps) => {
                 let new_tps = tps.into_iter().map(|t| t.substitute(var, to)).collect();
@@ -1610,10 +1610,10 @@ impl TyParam {
                 let new_val = val.replace(target, to);
                 TyParam::unary(op, new_val)
             }
-            TyParam::UnsizedArray(elem) => TyParam::unsized_array(elem.replace(target, to)),
-            TyParam::Array(tps) => {
+            TyParam::UnsizedList(elem) => TyParam::unsized_list(elem.replace(target, to)),
+            TyParam::List(tps) => {
                 let new_tps = tps.into_iter().map(|t| t.replace(target, to)).collect();
-                TyParam::Array(new_tps)
+                TyParam::List(new_tps)
             }
             TyParam::Tuple(tps) => {
                 let new_tps = tps.into_iter().map(|t| t.replace(target, to)).collect();
@@ -1844,12 +1844,12 @@ impl TyParam {
                     arg.dereference();
                 }
             }
-            Self::Array(ts) | Self::Tuple(ts) => {
+            Self::List(ts) | Self::Tuple(ts) => {
                 for t in ts {
                     t.dereference();
                 }
             }
-            Self::UnsizedArray(elem) => elem.dereference(),
+            Self::UnsizedList(elem) => elem.dereference(),
             Self::Set(ts) => {
                 let ts_ = std::mem::take(ts);
                 *ts = ts_
@@ -1922,7 +1922,7 @@ impl TyParam {
                 }
                 set
             }
-            Self::Array(tps) | Self::Tuple(tps) => {
+            Self::List(tps) | Self::Tuple(tps) => {
                 tps.iter().fold(set! {}, |acc, t| acc.concat(t.variables()))
             }
             Self::Set(tps) => tps.iter().fold(set! {}, |acc, t| acc.concat(t.variables())),
@@ -1932,7 +1932,7 @@ impl TyParam {
             Self::Dict(tps) => tps.iter().fold(set! {}, |acc, (k, v)| {
                 acc.concat(k.variables().concat(v.variables()))
             }),
-            Self::UnsizedArray(elem) => elem.variables(),
+            Self::UnsizedList(elem) => elem.variables(),
             Self::BinOp { lhs, rhs, .. } => lhs.variables().concat(rhs.variables()),
             Self::UnaryOp { val, .. } => val.variables(),
             Self::Lambda(lambda) => lambda

@@ -10,7 +10,7 @@ use ast::{
     NonDefaultParamSignature, ParamTySpec, PreDeclTypeSpec, TypeBoundSpec, TypeBoundSpecs, TypeSpec,
 };
 use erg_parser::ast::{
-    self, ConstApp, ConstArgs, ConstArray, ConstExpr, ConstSet, Identifier, VarName,
+    self, ConstApp, ConstArgs, ConstExpr, ConstList, ConstSet, Identifier, VarName,
     VisModifierSpec, VisRestriction,
 };
 use erg_parser::token::TokenKind;
@@ -443,13 +443,13 @@ impl Context {
                 ast::ParamPattern::Ref(_) => ref_(gen_free_t()),
                 ast::ParamPattern::RefMut(_) => ref_mut(gen_free_t(), None),
                 // ast::ParamPattern::VarName(name) if &name.inspect()[..] == "_" => Type::Obj,
-                // TODO: Array<Lit>
+                // TODO: List<Lit>
                 _ => gen_free_t(),
             }
         };
         if let Some(decl_pt) = opt_decl_t {
             if kind.is_var_params() {
-                let spec_t = unknown_len_array_t(spec_t.clone());
+                let spec_t = unknown_len_list_t(spec_t.clone());
                 self.sub_unify(
                     decl_pt.typ(),
                     &spec_t,
@@ -710,9 +710,9 @@ impl Context {
         not_found_is_qvar: bool,
     ) -> Failable<Type> {
         match name.inspect().trim_start_matches([':', '.']) {
-            "Array" => {
+            "List" => {
                 let ctx = &self
-                    .get_nominal_type_ctx(&array_t(Type::Obj, TyParam::Failure))
+                    .get_nominal_type_ctx(&list_t(Type::Obj, TyParam::Failure))
                     .unwrap()
                     .ctx;
                 // TODO: kw
@@ -737,9 +737,9 @@ impl Context {
                     } else {
                         TyParam::erased(Nat)
                     };
-                    Ok(array_t(t, len))
+                    Ok(list_t(t, len))
                 } else {
-                    Ok(mono("GenericArray"))
+                    Ok(mono("GenericList"))
                 }
             }
             "Ref" => {
@@ -1250,7 +1250,7 @@ impl Context {
     }
 
     /// erased_index:
-    /// e.g. `instantiate_const_expr(Array(Str, _), Some((self, 1))) => Array(Str, _: Nat)`
+    /// e.g. `instantiate_const_expr(List(Str, _), Some((self, 1))) => List(Str, _: Nat)`
     pub(crate) fn instantiate_const_expr(
         &self,
         expr: &ast::ConstExpr,
@@ -1269,40 +1269,40 @@ impl Context {
             ast::ConstExpr::App(app) => {
                 self.instantiate_app(app, erased_idx, tmp_tv_cache, not_found_is_qvar)
             }
-            ast::ConstExpr::Array(ConstArray::Normal(array)) => {
-                let mut tp_arr = vec![];
-                for (i, elem) in array.elems.pos_args().enumerate() {
+            ast::ConstExpr::List(ConstList::Normal(list)) => {
+                let mut tp_lis = vec![];
+                for (i, elem) in list.elems.pos_args().enumerate() {
                     let el = self.instantiate_const_expr(
                         &elem.expr,
                         Some((self, i)),
                         tmp_tv_cache,
                         not_found_is_qvar,
                     )?;
-                    tp_arr.push(el);
+                    tp_lis.push(el);
                 }
-                Ok(TyParam::Array(tp_arr))
+                Ok(TyParam::List(tp_lis))
             }
-            ast::ConstExpr::Array(ConstArray::WithLength(arr)) => {
+            ast::ConstExpr::List(ConstList::WithLength(lis)) => {
                 let elem = self.instantiate_const_expr(
-                    &arr.elem,
+                    &lis.elem,
                     erased_idx,
                     tmp_tv_cache,
                     not_found_is_qvar,
                 )?;
                 let length = self.instantiate_const_expr(
-                    &arr.length,
+                    &lis.length,
                     erased_idx,
                     tmp_tv_cache,
                     not_found_is_qvar,
                 )?;
                 if length.is_erased() {
-                    if let Ok(elem_t) = self.instantiate_tp_as_type(elem, arr) {
-                        return Ok(TyParam::t(unknown_len_array_t(elem_t)));
+                    if let Ok(elem_t) = self.instantiate_tp_as_type(elem, lis) {
+                        return Ok(TyParam::t(unknown_len_list_t(elem_t)));
                     }
                 }
                 type_feature_error!(
                     self,
-                    arr.loc(),
+                    lis.loc(),
                     &format!("instantiating const expression {expr}")
                 )
             }
@@ -1636,14 +1636,14 @@ impl Context {
             TyParam::Value(value) => self.convert_value_into_type(value).or_else(|value| {
                 type_feature_error!(self, loc.loc(), &format!("instantiate `{value}` as type"))
             }),
-            TyParam::Array(arr) => {
-                let len = TyParam::value(arr.len());
+            TyParam::List(lis) => {
+                let len = TyParam::value(lis.len());
                 let mut union = Type::Never;
-                for tp in arr {
+                for tp in lis {
                     let t = self.instantiate_tp_as_type(tp, loc)?;
                     union = self.union(&union, &t);
                 }
-                Ok(array_t(union, len))
+                Ok(list_t(union, len))
             }
             TyParam::Set(set) => {
                 let t = set
@@ -1962,20 +1962,20 @@ impl Context {
                 mode,
                 not_found_is_qvar,
             )?)),
-            TypeSpec::Array(arr) => {
+            TypeSpec::List(lis) => {
                 let elem_t = self.instantiate_typespec_full(
-                    &arr.ty,
+                    &lis.ty,
                     opt_decl_t,
                     tmp_tv_cache,
                     mode,
                     not_found_is_qvar,
                 )?;
                 let mut len =
-                    self.instantiate_const_expr(&arr.len, None, tmp_tv_cache, not_found_is_qvar)?;
+                    self.instantiate_const_expr(&lis.len, None, tmp_tv_cache, not_found_is_qvar)?;
                 if let TyParam::Erased(t) = &mut len {
                     *t.as_mut() = Type::Nat;
                 }
-                Ok(array_t(elem_t, len))
+                Ok(list_t(elem_t, len))
             }
             TypeSpec::SetWithLen(set) => {
                 let elem_t = self.instantiate_typespec_full(

@@ -70,7 +70,7 @@ assert 1e-10 == 0.0000000001
 
 Each of these literals has its own documentation describing them separately, so please refer to that documentation for details.
 
-### [Array Literal](./10_array.md)
+### [List Literal](./10_list.md)
 
 ```python
 [], [1], [1, 2, 3], ["1", "2",], ...
@@ -100,7 +100,7 @@ Each of these literals has its own documentation describing them separately, so 
 {}, {1}, {1, 2, 3}, {"1", "2", "1"}, ...
 ```
 
-As a difference from `Array` literals, duplicate elements are removed in `Set`.
+As a difference from `List` literals, duplicate elements are removed in `Set`.
 
 ```python
 assert {1, 2, 1} == {1, 2}

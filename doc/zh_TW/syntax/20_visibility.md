@@ -189,5 +189,5 @@ _ = foo.record.a.z # OK
 ```
 
 <p align='center'>
-    <a href='./19_ownership.md'>上一頁</a> | <a href='./21_naming_rule.md'>下一頁</a>
+    <a href='./19_ownership.md'>上一頁</a> | <a href='./22_naming_rule.md'>下一頁</a>
 </p>

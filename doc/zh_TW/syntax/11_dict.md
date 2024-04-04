@@ -66,5 +66,5 @@ valid2: {Int: Int or Str} = {1: "a", 2: 2}
 ```
 
 <p align='center'>
-    <a href='./10_array.md'>上一頁</a> | <a href='./12_container_ownership.md'>下一頁</a>
+    <a href='./10_list.md'>上一頁</a> | <a href='./12_container_ownership.md'>下一頁</a>
 </p>

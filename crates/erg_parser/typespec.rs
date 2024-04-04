@@ -26,28 +26,28 @@ impl Parser {
                     "complex const accessor",
                 )),
             },
-            Expr::Array(array) => match array {
-                Array::Normal(arr) => {
-                    let (elems, ..) = arr.elems.deconstruct();
+            Expr::List(list) => match list {
+                List::Normal(lis) => {
+                    let (elems, ..) = lis.elems.deconstruct();
                     let mut const_elems = vec![];
                     for elem in elems.into_iter() {
                         let const_expr = Self::validate_const_expr(elem.expr)?;
                         const_elems.push(ConstPosArg::new(const_expr));
                     }
                     let elems = ConstArgs::pos_only(const_elems, None);
-                    let const_arr = ConstNormalArray::new(arr.l_sqbr, arr.r_sqbr, elems, None);
-                    Ok(ConstExpr::Array(ConstArray::Normal(const_arr)))
+                    let const_lis = ConstNormalList::new(lis.l_sqbr, lis.r_sqbr, elems, None);
+                    Ok(ConstExpr::List(ConstList::Normal(const_lis)))
                 }
-                Array::WithLength(arr) => {
-                    let elem = Self::validate_const_expr(arr.elem.expr)?;
-                    let len = Self::validate_const_expr(*arr.len)?;
-                    let const_arr = ConstArrayWithLength::new(arr.l_sqbr, arr.r_sqbr, elem, len);
-                    Ok(ConstExpr::Array(ConstArray::WithLength(const_arr)))
+                List::WithLength(lis) => {
+                    let elem = Self::validate_const_expr(lis.elem.expr)?;
+                    let len = Self::validate_const_expr(*lis.len)?;
+                    let const_lis = ConstListWithLength::new(lis.l_sqbr, lis.r_sqbr, elem, len);
+                    Ok(ConstExpr::List(ConstList::WithLength(const_lis)))
                 }
                 other => Err(ParseError::feature_error(
                     line!() as usize,
                     other.loc(),
-                    "const array comprehension",
+                    "const list comprehension",
                 )),
             },
             Expr::Set(set) => match set {
@@ -375,25 +375,25 @@ impl Parser {
         ))
     }
 
-    fn array_to_array_type_spec(array: Array) -> Result<ArrayTypeSpec, ParseError> {
-        match array {
-            Array::Normal(arr) => {
+    fn list_to_list_type_spec(list: List) -> Result<ListTypeSpec, ParseError> {
+        match list {
+            List::Normal(lis) => {
                 // TODO: add hint
-                let err = ParseError::simple_syntax_error(line!() as usize, arr.loc());
+                let err = ParseError::simple_syntax_error(line!() as usize, lis.loc());
                 Err(err)
             }
-            Array::WithLength(arr) => {
-                let t_spec = Self::expr_to_type_spec(arr.elem.expr)?;
-                let len = Self::validate_const_expr(*arr.len)?;
-                Ok(ArrayTypeSpec::new(
+            List::WithLength(lis) => {
+                let t_spec = Self::expr_to_type_spec(lis.elem.expr)?;
+                let len = Self::validate_const_expr(*lis.len)?;
+                Ok(ListTypeSpec::new(
                     t_spec,
                     len,
-                    Some((arr.l_sqbr, arr.r_sqbr)),
+                    Some((lis.l_sqbr, lis.r_sqbr)),
                 ))
             }
-            Array::Comprehension(arr) => {
+            List::Comprehension(lis) => {
                 // TODO: add hint
-                let err = ParseError::simple_syntax_error(line!() as usize, arr.loc());
+                let err = ParseError::simple_syntax_error(line!() as usize, lis.loc());
                 Err(err)
             }
         }
@@ -508,9 +508,9 @@ impl Parser {
                 let lambda = Self::lambda_to_subr_type_spec(lambda)?;
                 Ok(TypeSpec::Subr(lambda))
             }
-            Expr::Array(array) => {
-                let array = Self::array_to_array_type_spec(array)?;
-                Ok(TypeSpec::Array(array))
+            Expr::List(list) => {
+                let list = Self::list_to_list_type_spec(list)?;
+                Ok(TypeSpec::List(list))
             }
             Expr::Set(set) => {
                 let set = Self::set_to_set_type_spec(set)?;

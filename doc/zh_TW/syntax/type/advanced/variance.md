@@ -7,19 +7,19 @@ Erg 可以對多態類型進行子類型化，但有一些注意事項
 首先，考慮普通多態類型的包含關系。一般來說，有一個容器`K`和它分配的類型`A，B`，當`A < B`時，`K A < K B`
 例如，`Option Int < Option Object`。因此，在`Option Object`中定義的方法也可以在`Option Int`中使用
 
-考慮典型的多態類型 `Array!(T)`
-請注意，這一次不是 `Array!(T, N)` 因為我們不關心元素的數量
-現在，`Array!(T)` 類型具有稱為 `.push!` 和 `.pop!` 的方法，分別表示添加和刪除元素。這是類型: 
+考慮典型的多態類型 `List!(T)`
+請注意，這一次不是 `List!(T, N)` 因為我們不關心元素的數量
+現在，`List!(T)` 類型具有稱為 `.push!` 和 `.pop!` 的方法，分別表示添加和刪除元素。這是類型:
 
-`Array.push!: Self(T).(T) => NoneType`
-`Array.pop!: Self(T).() => T`
+`List.push!: Self(T).(T) => NoneType`
+`List.pop!: Self(T).() => T`
 
 可以直觀地理解:
 
-* `Array!(Object).push!(s)` is OK when `s: Str` (just upcast `Str` to `Object`)
-* When `o: Object`, `Array!(Str).push!(o)` is NG
-* `Array!(Object).pop!().into(Str)` is NG
-* `Array!(Str).pop!().into(Object)` is OK
+* `List!(Object).push!(s)` is OK when `s: Str` (just upcast `Str` to `Object`)
+* When `o: Object`, `List!(Str).push!(o)` is NG
+* `List!(Object).pop!().into(Str)` is NG
+* `List!(Str).pop!().into(Object)` is OK
 
 就類型系統而言，這是
 
@@ -65,7 +65,7 @@ Erg 有另一個修改。它是不變的
 |A<: T, A :> U| ...
 ```
 
-這是使用變量規范的代碼示例: 
+這是使用變量規范的代碼示例:
 
 ```python
 show|S <: Show| s: S = log s
@@ -81,7 +81,7 @@ List(T).
 ## 更改規范
 
 `List T` 的例子很棘手，所以讓我們更詳細一點
-要理解上面的代碼，你需要了解多態類型退化。[this section](./variance.md) 中詳細討論了方差，但現在我們需要三個事實: 
+要理解上面的代碼，你需要了解多態類型退化。[this section](./variance.md) 中詳細討論了方差，但現在我們需要三個事實:
 
 * 普通的多態類型，例如`List T`，與`T`是協變的(`List U > List T` when `U > T`)
 * 函數 `T -> U` 對于參數類型 `T` 是逆變的(`(S -> U) < (T -> U)` when `S > T`)

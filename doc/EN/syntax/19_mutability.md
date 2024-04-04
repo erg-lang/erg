@@ -31,7 +31,7 @@ print! id! _a # 0x000002A798DFE980
 
 The `id!` procedure returns the address in memory where the object resides.
 
-`b` is a `Nat` "dynamic" array. The content of the object changes, but the variables point to the same thing.
+`b` is a `Nat` "dynamic" list. The content of the object changes, but the variables point to the same thing.
 
 ```python
 b = ![1, 2, 3]

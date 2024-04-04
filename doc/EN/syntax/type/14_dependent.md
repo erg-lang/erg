@@ -3,7 +3,7 @@
 Dependent types are a feature that can be said to be the biggest feature of Erg.
 A dependent type is a type that takes a value as an argument. Ordinary polymorphic types can take only types as arguments, but dependent types relax that restriction.
 
-Dependent types are equivalent to `[T; N]` (`Array(T, N)`).
+Dependent types are equivalent to `[T; N]` (`List(T, N)`).
 This type is determined not only by the content type `T` but also by the number of contents `N`. `N` contains an object of type `Nat`.
 
 ```python
@@ -67,7 +67,7 @@ vm.stop!() # TypeError: VM!(!"stopped", 1) doesn't have .stop!()
 You can also embed or inherit existing types to create dependent types.
 
 ```python
-MyArray(T, N) = Inherit[T; N]
+MyList(T, N) = Inherit[T; N]
 
 # The type of self: Self(T, N) changes in conjunction with .array
 MyStruct!(T, N: Nat!) = Class {.array: [T; !N]}

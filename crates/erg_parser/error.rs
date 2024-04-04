@@ -518,7 +518,7 @@ impl LexError {
                 let method = StyledStr::new("メソッド", Some(HINT), Some(ATTR));
                 let lit = StyledStr::new("NatLit", Some(HINT), Some(ATTR));
                 let newline = StyledStr::new("改行", Some(HINT), Some(ATTR));
-                let arr = StyledStr::new("配列", Some(HINT), Some(ATTR));
+                let arr = StyledStr::new("リスト", Some(HINT), Some(ATTR));
                 format!("予期: {method}、{lit}、{newline}、{arr}")
             },
             "simplified_chinese" => {
@@ -539,7 +539,7 @@ impl LexError {
                 let method = StyledStr::new("method", Some(HINT), Some(ATTR));
                 let lit = StyledStr::new("NatLit", Some(HINT), Some(ATTR));
                 let newline = StyledStr::new("newline", Some(HINT), Some(ATTR));
-                let arr = StyledStr::new("array", Some(HINT), Some(ATTR));
+                let arr = StyledStr::new("list", Some(HINT), Some(ATTR));
                 format!("expect: {method}, {lit}, {newline}, {arr}")
             },
         );

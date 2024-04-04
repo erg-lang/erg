@@ -25,7 +25,7 @@ use crate::context::Context;
 use self::value_set::inner_class;
 
 use super::codeobj::{tuple_into_bytes, CodeObj};
-use super::constructors::{array_t, dict_t, refinement, set_t, tuple_t, unsized_array_t};
+use super::constructors::{dict_t, list_t, refinement, set_t, tuple_t, unsized_list_t};
 use super::typaram::{OpKind, TyParam};
 use super::{ConstSubr, Field, HasType, Predicate, Type};
 use super::{CONTAINER_OMIT_THRESHOLD, STR_OMIT_THRESHOLD};
@@ -502,8 +502,8 @@ pub enum ValueObj {
     Float(f64),
     Str(Str),
     Bool(bool),
-    Array(ArcArray<ValueObj>),
-    UnsizedArray(Box<ValueObj>),
+    List(ArcArray<ValueObj>),
+    UnsizedList(Box<ValueObj>),
     Set(Set<ValueObj>),
     Dict(Dict<ValueObj, ValueObj>),
     Tuple(ArcArray<ValueObj>),
@@ -562,8 +562,8 @@ impl fmt::Debug for ValueObj {
                     write!(f, "False")
                 }
             }
-            Self::Array(arr) => write!(f, "[{}]", fmt_iter(arr.iter())),
-            Self::UnsizedArray(elem) => write!(f, "[{elem}; _]"),
+            Self::List(lis) => write!(f, "[{}]", fmt_iter(lis.iter())),
+            Self::UnsizedList(elem) => write!(f, "[{elem}; _]"),
             Self::Dict(dict) => {
                 write!(f, "{{")?;
                 for (i, (k, v)) in dict.iter().enumerate() {
@@ -624,9 +624,9 @@ impl LimitedDisplay for ValueObj {
                     write!(f, "\"{}\"", s.escape())
                 }
             }
-            Self::Array(arr) => {
+            Self::List(lis) => {
                 write!(f, "[")?;
-                for (i, item) in arr.iter().enumerate() {
+                for (i, item) in lis.iter().enumerate() {
                     if i != 0 {
                         write!(f, ", ")?;
                     }
@@ -751,8 +751,8 @@ impl Hash for ValueObj {
             Self::Float(f) => f.to_bits().hash(state),
             Self::Str(s) => s.hash(state),
             Self::Bool(b) => b.hash(state),
-            Self::Array(arr) => arr.hash(state),
-            Self::UnsizedArray(elem) => {
+            Self::List(lis) => lis.hash(state),
+            Self::UnsizedList(elem) => {
                 "UnsizedArray".hash(state);
                 elem.hash(state)
             }
@@ -855,7 +855,7 @@ impl From<CodeObj> for ValueObj {
 
 impl<V: Into<ValueObj>> From<Vec<V>> for ValueObj {
     fn from(item: Vec<V>) -> Self {
-        ValueObj::Array(ArcArray::from(
+        ValueObj::List(ArcArray::from(
             &item.into_iter().map(Into::into).collect::<Vec<_>>()[..],
         ))
     }
@@ -863,7 +863,7 @@ impl<V: Into<ValueObj>> From<Vec<V>> for ValueObj {
 
 impl<const N: usize, V: Into<ValueObj>> From<[V; N]> for ValueObj {
     fn from(item: [V; N]) -> Self {
-        ValueObj::Array(ArcArray::from(&item.map(Into::into)[..]))
+        ValueObj::List(ArcArray::from(&item.map(Into::into)[..]))
     }
 }
 
@@ -1031,8 +1031,8 @@ impl ValueObj {
     pub const fn is_container(&self) -> bool {
         matches!(
             self,
-            Self::Array(_)
-                | Self::UnsizedArray(_)
+            Self::List(_)
+                | Self::UnsizedList(_)
                 | Self::Set(_)
                 | Self::Dict(_)
                 | Self::Tuple(_)
@@ -1124,7 +1124,7 @@ impl ValueObj {
             Self::Str(s) => str_into_bytes(s, false),
             Self::Bool(true) => vec![DataTypePrefix::True as u8],
             Self::Bool(false) => vec![DataTypePrefix::False as u8],
-            Self::Array(elems) | Self::Tuple(elems) => tuple_into_bytes(&elems, python_ver),
+            Self::List(elems) | Self::Tuple(elems) => tuple_into_bytes(&elems, python_ver),
             Self::None => {
                 vec![DataTypePrefix::None as u8]
             }
@@ -1169,15 +1169,15 @@ impl ValueObj {
             Self::Float(_) => Type::Float,
             Self::Str(_) => Type::Str,
             Self::Bool(_) => Type::Bool,
-            Self::Array(arr) => array_t(
+            Self::List(lis) => list_t(
                 // REVIEW: Never?
-                arr.iter()
+                lis.iter()
                     .next()
                     .map(|elem| elem.class())
                     .unwrap_or(Type::Never),
-                TyParam::value(arr.len()),
+                TyParam::value(lis.len()),
             ),
-            Self::UnsizedArray(elem) => unsized_array_t(elem.class()),
+            Self::UnsizedList(elem) => unsized_list_t(elem.class()),
             Self::Dict(dict) => {
                 let tp = dict
                     .iter()
@@ -1295,9 +1295,9 @@ impl ValueObj {
             (Self::Nat(l), Self::Float(r)) => Some(Self::Float(l as f64 - r)),
             (Self::Float(l), Self::Int(r)) => Some(Self::Float(l - r as f64)),
             (Self::Str(l), Self::Str(r)) => Some(Self::Str(Str::from(format!("{l}{r}")))),
-            (Self::Array(l), Self::Array(r)) => {
-                let arr = Arc::from([l, r].concat());
-                Some(Self::Array(arr))
+            (Self::List(l), Self::List(r)) => {
+                let lis = Arc::from([l, r].concat());
+                Some(Self::List(lis))
             }
             (Self::Dict(l), Self::Dict(r)) => Some(Self::Dict(l.concat(r))),
             (inf @ (Self::Inf | Self::NegInf), _) | (_, inf @ (Self::Inf | Self::NegInf)) => {

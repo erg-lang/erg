@@ -25,7 +25,7 @@ fn: Int -> Int = x -> x + 1
 # 高階類型
 a: [Int; 4] = [0, 1, 2, 3]
 # or
-a: Array Int, 4 = [0, 1, 2, 3]
+a: List Int, 4 = [0, 1, 2, 3]
 ```
 
 ### 文字字面量
@@ -68,8 +68,8 @@ name = match num:
 
 ```python,checker_ignore
 # 這兩個是一樣的
-Array(T, N: {N | N >= 3})
-Array(T, N | N >= 3)
+List(T, N: {N | N >= 3})
+List(T, N | N >= 3)
 
 f M, N | M >= 0, N >= 1 = ...
 f(1, 0) # 類型錯誤: N(第二個參數)必須為 1 或更多

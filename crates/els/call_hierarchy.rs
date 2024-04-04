@@ -3,7 +3,7 @@ use std::str::FromStr;
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::erg_parser::parse::Parsable;
 
-use erg_compiler::hir::{Accessor, Array, Def, Dict, Expr, KeyValue, Set, Tuple};
+use erg_compiler::hir::{Accessor, Def, Dict, Expr, KeyValue, List, Set, Tuple};
 use erg_compiler::varinfo::{AbsLocation, VarInfo};
 use lsp_types::{
     CallHierarchyIncomingCall, CallHierarchyIncomingCallsParams, CallHierarchyItem,
@@ -145,8 +145,8 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 calls
             }
             Expr::UnaryOp(unop) => self.gen_outgoing_call(&unop.expr),
-            Expr::Array(Array::Normal(arr)) => {
-                for arg in arr.elems.pos_args.iter() {
+            Expr::List(List::Normal(lis)) => {
+                for arg in lis.elems.pos_args.iter() {
                     calls.extend(self.gen_outgoing_call(&arg.expr));
                 }
                 calls

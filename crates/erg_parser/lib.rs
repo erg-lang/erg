@@ -40,7 +40,7 @@ pub fn erg_parser(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(_parse, m)?)?;
     let expr = PyModule::new(py, "expr")?;
     expr.add_class::<ast::Literal>()?;
-    expr.add_class::<ast::NormalArray>()?;
+    expr.add_class::<ast::NormalList>()?;
     expr.add_class::<ast::NormalTuple>()?;
     expr.add_class::<ast::NormalDict>()?;
     expr.add_class::<ast::NormalSet>()?;
@@ -71,7 +71,7 @@ pub fn erg_parser(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     ast.add_class::<ast::TupleAttribute>()?;
     ast.add_class::<ast::Subscript>()?;
     ast.add_class::<ast::TypeApp>()?;
-    ast.add_class::<ast::NormalArray>()?;
+    ast.add_class::<ast::NormalList>()?;
     ast.add_class::<ast::NormalTuple>()?;
     ast.add_class::<ast::NormalDict>()?;
     ast.add_class::<ast::NormalSet>()?;

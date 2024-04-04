@@ -13,7 +13,7 @@ use erg_parser::ast::{ParamPattern, VarName};
 use crate::ty::{HasType, Ownership, Visibility};
 
 use crate::error::{OwnershipError, OwnershipErrors};
-use crate::hir::{self, Accessor, Array, Block, Def, Expr, Identifier, Signature, Tuple, HIR};
+use crate::hir::{self, Accessor, Block, Def, Expr, Identifier, List, Signature, Tuple, HIR};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum WrapperKind {
@@ -222,23 +222,23 @@ impl OwnershipChecker {
             Expr::UnaryOp(unary) => {
                 self.check_expr(&unary.expr, ownership, false);
             }
-            Expr::Array(array) => match array {
-                Array::Normal(arr) => {
-                    for a in arr.elems.pos_args.iter() {
+            Expr::List(list) => match list {
+                List::Normal(lis) => {
+                    for a in lis.elems.pos_args.iter() {
                         self.check_expr(&a.expr, ownership, false);
                     }
                 }
-                Array::WithLength(arr) => {
-                    self.check_expr(&arr.elem, ownership, false);
-                    if let Some(len) = &arr.len {
+                List::WithLength(lis) => {
+                    self.check_expr(&lis.elem, ownership, false);
+                    if let Some(len) = &lis.len {
                         self.check_expr(len, ownership, false);
                     }
                 }
                 _ => todo!(),
             },
             Expr::Tuple(tuple) => match tuple {
-                Tuple::Normal(arr) => {
-                    for a in arr.elems.pos_args.iter() {
+                Tuple::Normal(lis) => {
+                    for a in lis.elems.pos_args.iter() {
                         self.check_expr(&a.expr, ownership, false);
                     }
                 }

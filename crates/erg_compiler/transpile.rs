@@ -23,7 +23,7 @@ use crate::context::{Context, ContextProvider, ModuleContext};
 use crate::desugar_hir::HIRDesugarer;
 use crate::error::{CompileError, CompileErrors, CompileResult};
 use crate::hir::{
-    Accessor, Args, Array, BinOp, Block, Call, ClassDef, Def, Dict, Expr, Identifier, Lambda,
+    Accessor, Args, BinOp, Block, Call, ClassDef, Def, Dict, Expr, Identifier, Lambda, List,
     Literal, Params, PatchDef, ReDef, Record, Set, Signature, Tuple, UnaryOp, HIR,
 };
 use crate::link_hir::HIRLinker;
@@ -476,7 +476,7 @@ impl PyScriptGenerator {
             .replace("from _erg_str import Str", "")
             .replace("from _erg_float import FloatMut", "")
             .replace("from _erg_float import Float", "")
-            .replace("from _erg_array import Array", "")
+            .replace("from _erg_list import List", "")
             .replace("from _erg_range import Range", "")
             .replace("from _erg_result import Error", "")
             .replace("from _erg_result import is_ok", "")
@@ -531,7 +531,7 @@ impl PyScriptGenerator {
             self.load_contains_op_if_not();
             if self.range_ops_loaded {
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_float.py"));
-                self.prelude += &Self::replace_import(include_str!("lib/core/_erg_array.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/core/_erg_list.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_dict.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_set.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_bytes.py"));
@@ -541,7 +541,7 @@ impl PyScriptGenerator {
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_bool.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_str.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_float.py"));
-                self.prelude += &Self::replace_import(include_str!("lib/core/_erg_array.py"));
+                self.prelude += &Self::replace_import(include_str!("lib/core/_erg_list.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_dict.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_set.py"));
                 self.prelude += &Self::replace_import(include_str!("lib/core/_erg_bytes.py"));
@@ -578,11 +578,11 @@ impl PyScriptGenerator {
             Expr::Call(call) => self.transpile_call(call),
             Expr::BinOp(bin) => self.transpile_binop(bin),
             Expr::UnaryOp(unary) => self.transpile_unaryop(unary),
-            Expr::Array(array) => match array {
-                Array::Normal(arr) => {
+            Expr::List(list) => match list {
+                List::Normal(lis) => {
                     self.load_builtin_types_if_not();
-                    let mut code = "Array([".to_string();
-                    for elem in arr.elems.pos_args {
+                    let mut code = "List([".to_string();
+                    for elem in lis.elems.pos_args {
                         code += &format!("{},", self.transpile_expr(elem.expr));
                     }
                     code += "])";
@@ -762,7 +762,7 @@ impl PyScriptGenerator {
                 prefix.push('(');
             }
             other => {
-                if let t @ ("Bytes" | "Array" | "Dict" | "Set") = &other.qual_name()[..] {
+                if let t @ ("Bytes" | "List" | "Dict" | "Set") = &other.qual_name()[..] {
                     self.load_builtin_types_if_not();
                     prefix.push_str(t);
                     prefix.push('(');
@@ -773,9 +773,9 @@ impl PyScriptGenerator {
         match acc {
             Accessor::Ident(ident) => {
                 match &ident.inspect()[..] {
-                    "Str" | "Bytes" | "Bool" | "Nat" | "Int" | "Float" | "Array" | "Dict"
+                    "Str" | "Bytes" | "Bool" | "Nat" | "Int" | "Float" | "List" | "Dict"
                     | "Set" | "Str!" | "Bytes!" | "Bool!" | "Nat!" | "Int!" | "Float!"
-                    | "Array!" => {
+                    | "List!" => {
                         self.load_builtin_types_if_not();
                     }
                     "if" | "if!" | "for!" | "while" | "discard" => {
@@ -1288,24 +1288,24 @@ impl JsonGenerator {
 
     fn expr_into_value(&self, expr: Expr) -> Option<ValueObj> {
         match expr {
-            Expr::Array(Array::Normal(arr)) => {
+            Expr::List(List::Normal(lis)) => {
                 let mut vals = vec![];
-                for elem in arr.elems.pos_args {
+                for elem in lis.elems.pos_args {
                     if let Some(val) = self.expr_into_value(elem.expr) {
                         vals.push(val);
                     } else {
                         return None;
                     }
                 }
-                Some(ValueObj::Array(vals.into()))
+                Some(ValueObj::List(vals.into()))
             }
-            Expr::Array(Array::WithLength(arr)) => {
-                let len = arr
+            Expr::List(List::WithLength(lis)) => {
+                let len = lis
                     .len
                     .and_then(|len| self.expr_into_value(*len))
                     .and_then(|v| usize::try_from(&v).ok())?;
-                let vals = vec![self.expr_into_value(*arr.elem)?; len];
-                Some(ValueObj::Array(vals.into()))
+                let vals = vec![self.expr_into_value(*lis.elem)?; len];
+                Some(ValueObj::List(vals.into()))
             }
             Expr::Tuple(Tuple::Normal(tup)) => {
                 let mut vals = vec![];
@@ -1379,10 +1379,10 @@ impl JsonGenerator {
                     replace_non_symbolic(&acc.to_string())
                 }
             }
-            Expr::Array(array) => match array {
-                Array::Normal(arr) => {
+            Expr::List(list) => match list {
+                List::Normal(lis) => {
                     let mut code = "[".to_string();
-                    for (i, elem) in arr.elems.pos_args.into_iter().enumerate() {
+                    for (i, elem) in lis.elems.pos_args.into_iter().enumerate() {
                         if i > 0 {
                             code += ", ";
                         }

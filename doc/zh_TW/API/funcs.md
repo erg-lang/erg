@@ -54,7 +54,7 @@ assert True # OK
 但是，由于無法比較類，如果要判斷實例，請使用`object in Class`而不是`classof(object) == Class`
 編譯時確定的結構類型是通過`Typeof`獲得的
 
-## Iterator, Array生成系統
+## Iterator, List生成系統
 
 ### repeat|T|(x: T) -> RepeatIterator T
 
@@ -86,7 +86,6 @@ cycle("hello").take 3 # "hellohellohello"
 
 生成新類。 與`Inherit`不同，通過`Class`與基類型（第一個參數`Base`）無關，并且方法丟失。
 
-
 ```python
 C = Class {i = Int}
 NewInt = Class Int
@@ -97,7 +96,6 @@ match jan:
     1 -> log "January"
     _ -> log "Other"
 ```
-
 
 ### Inherit
 

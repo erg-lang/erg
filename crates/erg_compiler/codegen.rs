@@ -35,11 +35,11 @@ use erg_parser::token::{Token, TokenKind};
 use crate::compile::{AccessKind, Name, StoreLoadKind};
 use crate::context::ControlKind;
 use crate::error::CompileError;
-use crate::hir::ArrayWithLength;
 use crate::hir::DefaultParamSignature;
+use crate::hir::ListWithLength;
 use crate::hir::{
-    Accessor, Args, Array, BinOp, Block, Call, ClassDef, Def, DefBody, Expr, GuardClause,
-    Identifier, Lambda, Literal, NonDefaultParamSignature, Params, PatchDef, PosArg, ReDef, Record,
+    Accessor, Args, BinOp, Block, Call, ClassDef, Def, DefBody, Expr, GuardClause, Identifier,
+    Lambda, List, Literal, NonDefaultParamSignature, Params, PatchDef, PosArg, ReDef, Record,
     Signature, SubrSignature, Tuple, UnaryOp, VarSignature, HIR,
 };
 use crate::ty::codeobj::{CodeObj, CodeObjFlags, MakeFunctionFlags};
@@ -3031,20 +3031,20 @@ impl PyCodeGenerator {
     }
 
     // TODO: list comprehension
-    fn emit_array(&mut self, array: Array) {
+    fn emit_list(&mut self, list: List) {
         let init_stack_len = self.stack_len();
         if !self.cfg.no_std {
             self.emit_push_null();
-            if array.is_unsized() {
-                self.emit_load_name_instr(Identifier::static_public("UnsizedArray"));
+            if list.is_unsized() {
+                self.emit_load_name_instr(Identifier::static_public("UnsizedList"));
             } else {
-                self.emit_load_name_instr(Identifier::static_public("Array"));
+                self.emit_load_name_instr(Identifier::static_public("List"));
             }
         }
-        match array {
-            Array::Normal(mut arr) => {
-                let len = arr.elems.len();
-                while let Some(arg) = arr.elems.try_remove_pos(0) {
+        match list {
+            List::Normal(mut lis) => {
+                let len = lis.elems.len();
+                while let Some(arg) = lis.elems.try_remove_pos(0) {
                     self.emit_expr(arg.expr);
                 }
                 self.write_instr(BUILD_LIST);
@@ -3055,7 +3055,7 @@ impl PyCodeGenerator {
                     self.stack_dec_n(len - 1);
                 }
             }
-            Array::WithLength(ArrayWithLength {
+            List::WithLength(ListWithLength {
                 elem,
                 len: Some(len),
                 ..
@@ -3066,10 +3066,10 @@ impl PyCodeGenerator {
                 self.emit_call_instr(1, Name);
                 self.stack_dec();
                 self.emit_expr(*len);
-                self.emit_binop_instr(Token::dummy(TokenKind::Star, "*"), TypePair::ArrayNat);
+                self.emit_binop_instr(Token::dummy(TokenKind::Star, "*"), TypePair::ListNat);
                 return;
             }
-            Array::WithLength(ArrayWithLength {
+            List::WithLength(ListWithLength {
                 elem, len: None, ..
             }) => {
                 self.emit_expr(*elem);
@@ -3331,7 +3331,7 @@ impl PyCodeGenerator {
             Expr::UnaryOp(unary) => self.emit_unaryop(unary),
             Expr::BinOp(bin) => self.emit_binop(bin),
             Expr::Call(call) => self.emit_call(call),
-            Expr::Array(arr) => self.emit_array(arr),
+            Expr::List(lis) => self.emit_list(lis),
             Expr::Tuple(tup) => self.emit_tuple(tup),
             Expr::Set(set) => self.emit_set(set),
             Expr::Dict(dict) => self.emit_dict(dict),
@@ -3355,7 +3355,7 @@ impl PyCodeGenerator {
                     self.emit_load_name_instr(Identifier::public(&v.qual_name()));
                 }
                 other => match &other.qual_name()[..] {
-                    t @ ("Bytes" | "Array" | "Dict" | "Set") => {
+                    t @ ("Bytes" | "List" | "Dict" | "Set") => {
                         self.emit_push_null();
                         self.emit_load_name_instr(Identifier::public(t));
                     }
@@ -3378,7 +3378,7 @@ impl PyCodeGenerator {
             Expr::UnaryOp(unary) => self.emit_unaryop(unary),
             Expr::BinOp(bin) => self.emit_binop(bin),
             Expr::Call(call) => self.emit_call(call),
-            Expr::Array(arr) => self.emit_array(arr),
+            Expr::List(lis) => self.emit_list(lis),
             Expr::Tuple(tup) => self.emit_tuple(tup),
             Expr::Set(set) => self.emit_set(set),
             Expr::Dict(dict) => self.emit_dict(dict),

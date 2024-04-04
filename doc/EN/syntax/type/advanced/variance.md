@@ -5,19 +5,19 @@ Erg can subtype polymorphic types, but there are some caveats.
 First, consider the inclusion relation of ordinary polymorphic types. In general, there is a container `K` and a type `A, B` to which it assigns, and when `A < B`, `K A < K B`.
 For example, `Option Int < Option Object`. Therefore, methods defined in `Option Object` can also be used in `Option Int`.
 
-Consider the typical polymorphic type `Array!(T)`.
-Note that this time it's not `Array!(T, N)` because we don't care about the number of elements.
-Now, the `Array!(T)` type has methods called `.push!` and `.pop!`, which mean adding and removing elements, respectively. Here is the type:
+Consider the typical polymorphic type `List!(T)`.
+Note that this time it's not `List!(T, N)` because we don't care about the number of elements.
+Now, the `List!(T)` type has methods called `.push!` and `.pop!`, which mean adding and removing elements, respectively. Here is the type:
 
-Array.push!: Self(T).(T) => NoneType
-Array.pop!: Self(T).() => T
+List.push!: Self(T).(T) => NoneType
+List.pop!: Self(T).() => T
 
 As can be intuitively understood,
 
-* `Array!(Object).push!(s)` is OK when `s: Str` (just upcast `Str` to `Object`)
-* When `o: Object`, `Array!(Str).push!(o)` is NG
-* `Array!(Object).pop!().into(Str)` is NG
-* `Array!(Str).pop!().into(Object)` is OK
+* `List!(Object).push!(s)` is OK when `s: Str` (just upcast `Str` to `Object`)
+* When `o: Object`, `List!(Str).push!(o)` is NG
+* `List!(Object).pop!().into(Str)` is NG
+* `List!(Str).pop!().into(Object)` is OK
 
 is. In terms of the type system, this is
 

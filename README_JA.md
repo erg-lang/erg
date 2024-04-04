@@ -150,10 +150,10 @@
     2│     l = [1, 2, 3]
     3│     l.push!(x)
              ^^^^^
-    AttributeError: Arrayオブジェクトは`.push!`という属性を持っていません
+    AttributeError: Listオブジェクトは`.push!`という属性を持っていません
     ヒント: オブジェクトの内部状態を変更したい場合は、`!`演算子を使って可変化してください
-    ヒント: `Array`は`push`メソッドを持っています、詳しくは https://erg-lang.github.io/docs/prelude/Array/##push を参照してください
-    ヒント: `Array!`は`push!`メソッドを持っています、詳しくは https://erg-lang.github.io/docs/prelude/Array!/##push! を参照してください
+    ヒント: `List`は`push`メソッドを持っています、詳しくは https://erg-lang.github.io/docs/prelude/List/##push を参照してください
+    ヒント: `List!`は`push!`メソッドを持っています、詳しくは https://erg-lang.github.io/docs/prelude/List!/##push! を参照してください
     ```
 
 ## Requirements

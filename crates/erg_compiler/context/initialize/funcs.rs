@@ -53,12 +53,6 @@ impl Context {
             None,
         )));
         let t_ascii = nd_func(vec![kw(KW_OBJECT, Obj)], None, Str);
-        let t_array = no_var_func(
-            vec![],
-            vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
-            array_t(T.clone(), TyParam::erased(Nat)),
-        )
-        .quantify();
         let t_assert = no_var_func(vec![kw(KW_TEST, Bool)], vec![kw(KW_MSG, Str)], NoneType);
         let t_bin = nd_func(vec![kw(KW_N, Int)], None, Str);
         let t_bytes = func0(mono(BYTES))
@@ -182,7 +176,7 @@ impl Context {
         let t_isinstance = nd_func(
             vec![
                 kw(KW_OBJECT, Obj),
-                kw(KW_CLASSINFO, ClassType | unknown_len_array_t(ClassType)), // TODO: => ClassInfo
+                kw(KW_CLASSINFO, ClassType | unknown_len_list_t(ClassType)), // TODO: => ClassInfo
             ],
             None,
             Bool,
@@ -190,7 +184,7 @@ impl Context {
         let t_issubclass = nd_func(
             vec![
                 kw(KW_SUBCLASS, ClassType),
-                kw(KW_CLASSINFO, ClassType | unknown_len_array_t(ClassType)), // TODO: => ClassInfo
+                kw(KW_CLASSINFO, ClassType | unknown_len_list_t(ClassType)), // TODO: => ClassInfo
             ],
             None,
             Bool,
@@ -216,6 +210,12 @@ impl Context {
             t_len.clone(),
             None,
         )));
+        let t_list = no_var_func(
+            vec![],
+            vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
+            list_t(T.clone(), TyParam::erased(Nat)),
+        )
+        .quantify();
         let t_log = func(
             vec![],
             Some(kw(KW_OBJECTS, ref_(Obj))),
@@ -341,7 +341,7 @@ impl Context {
         let t_sorted = nd_func(
             vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
             None,
-            array_t(T.clone(), TyParam::erased(Nat)),
+            list_t(T.clone(), TyParam::erased(Nat)),
         )
         .quantify();
         let t_staticmethod = nd_func(vec![kw(KW_FUNC, F.clone())], None, F.clone()).quantify();
@@ -411,7 +411,7 @@ impl Context {
             Some(FUNC_ANY),
             Some(33),
         );
-        self.register_py_builtin(FUNC_ARRAY, t_array, Some(FUNC_LIST), 215);
+        self.register_py_builtin(FUNC_LIST, t_list, Some(FUNC_LIST), 215);
         self.register_py_builtin(FUNC_ASCII, t_ascii, Some(FUNC_ASCII), 53);
         // Leave as `Const`, as it may negatively affect assert casting.
         let name = if PYTHON_MODE { FUNC_ASSERT } else { "assert__" };

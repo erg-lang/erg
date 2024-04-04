@@ -102,7 +102,7 @@ Iterator T = Trait {
 }
 
 it = [1, 2, 3].iter().map i -> i + 1
-it.collect(Array) # [2, 3, 4]
+it.collect(List) # [2, 3, 4]
 ```
 
 型変数が宣言できるのは`||`の間のみである。ただし、宣言した後はスコープを抜けるまで任意の場所で使用できる。
@@ -281,6 +281,7 @@ DepFn.
 assert (Int -> Int).type() == Int # by DepFn
 assert DepFn(Int).type() == Int # by DepFn
 ```
+
 <p align='center'>
     <a href='./14_dependent.md'>Previous</a> | <a href='./16_subtyping.md'>Next</a>
 </p>

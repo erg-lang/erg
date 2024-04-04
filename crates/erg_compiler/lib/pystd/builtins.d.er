@@ -206,13 +206,13 @@ opened in a binary mode.
 ) => File!
 
 '''
-Convert `iterable` into an array.
+Convert `iterable` into a list.
 '''
 '''erg
-assert array() == []
-assert array((1, 2)) == [1, 2]
+assert list() == []
+assert list((1, 2)) == [1, 2]
 '''
-.array: |T| (iterable := Iterable(T)) -> [T; _]
+.list: |T| (iterable := Iterable(T)) -> [T; _]
 
 '''
 Convert `iterable` into a dict.

@@ -24,11 +24,11 @@ f([1, "a"]: [Int or Str])
 
 ```python
 # 参数的类型规范
-f x, y: Array Int = ...
-T X, Y: Array Int = ...
+f x, y: List Int = ...
+T X, Y: List Int = ...
 ```
 
-请注意，在上述情况下，`x, y` 都是 `Array Int`
+请注意，在上述情况下，`x, y` 都是 `List Int`
 
 ```python
 # 大写变量的值必须是常量表达式
@@ -133,7 +133,7 @@ C::
 Id = Int
 Point3D = {x = Int; y = Int; z = Int}
 IorS = Int or Str
-Vector = Array Int
+Vector = List Int
 ```
 
 此外，当显示错误时，如果定义了复合类型(在上面的示例中，右侧类型不是第一个类型)，编译器将为它们使用别名
@@ -146,8 +146,8 @@ Vector = Array Int
 Id = Int
 UserId = Int # 类型警告: 重复别名: Id 和 UserId
 
-Ids = Array Id
-Ints = Array Int # 类型警告: 重复别名: Isd 和 Ints
+Ids = List Id
+Ints = List Int # 类型警告: 重复别名: Isd 和 Ints
 
 IorS = Int or Str
 IorSorB = IorS or Bool

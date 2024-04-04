@@ -7,7 +7,7 @@ ids = {"Alice": 145, "Bob": 214, "Charlie": 301}
 assert ids["Alice"] == 145
 ```
 
-The key does not have to be a string if it is a `Hashable` object.
+The key does not have to be a string if it is a `Hash` object.
 
 ```python
 # deprecated to use a range object as a key (confused with slice)
@@ -73,5 +73,5 @@ x = "a"
 ```
 
 <p align='center'>
-    <a href='./10_array.md'>Previous</a> | <a href='./12_container_ownership.md'>Next</a>
+    <a href='./10_list.md'>Previous</a> | <a href='./12_container_ownership.md'>Next</a>
 </p>

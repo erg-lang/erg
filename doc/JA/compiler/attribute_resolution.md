@@ -32,10 +32,10 @@ c: ?2
 Ergでは関数の型検査はモジュール内で閉じているので、モジュール外で`co_consts`を属性に持つ型が定義されていても、そのインスタンスを`consts`関数に渡すとエラーになります(それを可能にするためには、後述する`Structural`を使う必要があります)。この制約によって`consts`関数の推論が可能になります。
 
 型推論器は、クラス属性が定義されるとき、その"属性"と"定義クラス、属性の型"のペアを記録しておきます。
-`co_consts`の場合は`{co_consts: {Code, Array(Obj, _)}}`というペアです。
+`co_consts`の場合は`{co_consts: {Code, List(Obj, _)}}`というペアです。
 
 ```erg
-method_to_classes: {co_consts: [{Code, Array(Obj, _)}], real: [{Int, Int}], times!: [{Nat, (self: Nat, proc!: () => NoneType) => NoneType}], ...}
+method_to_classes: {co_consts: [{Code, List(Obj, _)}], real: [{Int, Int}], times!: [{Nat, (self: Nat, proc!: () => NoneType) => NoneType}], ...}
 ```
 
 key-valueペアのvalueが配列になっていることに注意してください。この配列が長さ1であるとき、または(部分型関係による)最小の要素が存在するときのみ、keyは一意に特定できたということになります(そうでなければ型エラーが発生します)。
@@ -43,11 +43,11 @@ key-valueペアのvalueが配列になっていることに注意してくださ
 keyが特定できたら、その定義型を`?2`の型に逆伝搬させます。
 
 ```erg
-?2(<: Code).co_consts: Array(Obj, _)
+?2(<: Code).co_consts: List(Obj, _)
 ```
 
-最終的に、`consts`の型は`Code -> Array(Obj, _)`となります。
+最終的に、`consts`の型は`Code -> List(Obj, _)`となります。
 
 ```erg
-consts(c: Code): Array(Obj, _) = c.co_consts
+consts(c: Code): List(Obj, _) = c.co_consts
 ```

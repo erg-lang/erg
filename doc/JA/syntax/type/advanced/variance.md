@@ -7,19 +7,19 @@ Ergは多相型のサブタイピングを行えるが、一部注意しなく�
 まずは通常の多相型の包含関係を考える。一般に、コンテナ`K`と代入する型`A, B`があり、`A < B`のとき、`K A < K B`となる。
 例えば、`Option Int < Option Object`となる。よって、`Option Object`で定義されているメソッドは、`Option Int`でも使用可能である。
 
-典型的な多相型である`Array!(T)`型について考える。
-今回は要素の数を問題にしないので`Array!(T, N)`ではないことに注意してほしい。
-さて、`Array!(T)`型には`.push!`と`.pop!`というメソッドが存在し、それぞれ、要素の追加・取り出しを意味する。型はこうである。
+典型的な多相型である`List!(T)`型について考える。
+今回は要素の数を問題にしないので`List!(T, N)`ではないことに注意してほしい。
+さて、`List!(T)`型には`.push!`と`.pop!`というメソッドが存在し、それぞれ、要素の追加・取り出しを意味する。型はこうである。
 
-Array.push!: Self(T).(T) => NoneType
-Array.pop!: Self(T).() => T
+List.push!: Self(T).(T) => NoneType
+List.pop!: Self(T).() => T
 
 直感的に理解できることとして、
 
-* `s: Str`のとき`Array!(Object).push!(s)`はOK(`Str`を`Object`にアップキャストすれば良い)
-* `o: Object`のとき`Array!(Str).push!(o)`はNG
-* `Array!(Object).pop!().into(Str)`はNG
-* `Array!(Str).pop!().into(Object)`はOK
+* `s: Str`のとき`List!(Object).push!(s)`はOK(`Str`を`Object`にアップキャストすれば良い)
+* `o: Object`のとき`List!(Str).push!(o)`はNG
+* `List!(Object).pop!().into(Str)`はNG
+* `List!(Str).pop!().into(Object)`はOK
 
 である。これは、型システム的には
 
@@ -82,7 +82,7 @@ List(T).
 ## 変性指定
 
 `List T`の例については注意が必要なので、もう少し詳しく説明します。
-上のコードを理解するためには多相型の変性について知っておく必要があります。変性については[この項](./variance.md)で詳しく解説していますが、さしあたって必要となる事実は以下の3つです: 
+上のコードを理解するためには多相型の変性について知っておく必要があります。変性については[この項](./variance.md)で詳しく解説していますが、さしあたって必要となる事実は以下の3つです:
 
 * 通常の多相型、`List T`などは`T`に対して共変(`U > T`のとき`List U > List T`)
 * 関数`T -> U`は引数型`T`に対して反変(`S > T`のとき`(S -> U) < (T -> U)`)

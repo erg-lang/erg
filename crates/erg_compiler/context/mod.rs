@@ -645,7 +645,7 @@ pub struct Context {
     pub(crate) mono_types: Dict<VarName, TypeContext>,
     // Implementation Contexts for Polymorphic Types
     // Vec<TyParam> are specialization parameters
-    // e.g. {"Array": [(Array(Nat), ctx), (Array(Int), ctx), (Array(Str), ctx), (Array(Obj), ctx), (Array('T), ctx)], ...}
+    // e.g. {"List": [(List(Nat), ctx), (List(Int), ctx), (List(Str), ctx), (List(Obj), ctx), (List('T), ctx)], ...}
     pub(crate) poly_types: Dict<VarName, TypeContext>,
     // patches can be accessed like normal records
     // but when used as a fallback to a type, values are traversed instead of accessing by keys

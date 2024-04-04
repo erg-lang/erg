@@ -8,21 +8,21 @@ from _erg_result import is_ok
 from _erg_type import UnionType
 
 
-class Array(list):
+class List(list):
     @staticmethod
-    def try_new(arr):  # -> Result[Array]
-        if isinstance(arr, list):
-            return Array(arr)
+    def try_new(lis):  # -> Result[List]
+        if isinstance(lis, list):
+            return List(lis)
         else:
             return Error("not a list")
 
-    def generic_try_new(arr, cls=None):  # -> Result[Array]
+    def generic_try_new(lis, cls=None):  # -> Result[List]
         if cls is None:
-            return Array.try_new(arr)
+            return List.try_new(lis)
         else:
             elem_t = cls.__args__[0]
             elems = []
-            for elem in arr:
+            for elem in lis:
                 if not hasattr(elem_t, "try_new"):
                     return Error("not a " + str(elem_t))
                 # TODO: nested check
@@ -31,11 +31,11 @@ class Array(list):
                     elems.append(elem)
                 else:
                     return Error("not a " + str(elem_t))
-            return Array(elems)
+            return List(elems)
 
     def dedup(self, same_bucket=None):
         if same_bucket is None:
-            return Array(list(set(self)))
+            return List(list(set(self)))
         else:
             removes = []
             for lhs, rhs in zip(self, self[1:]):
@@ -56,20 +56,20 @@ class Array(list):
         return self
 
     def partition(self, f):
-        return Array(list(filter(f, self))), Array(
+        return List(list(filter(f, self))), List(
             list(filter(lambda x: not f(x), self))
         )
 
     def __mul__(self, n):
-        return then__(list.__mul__(self, n), Array)
+        return then__(list.__mul__(self, n), List)
 
     def __getitem__(self, index_or_slice):
         if isinstance(index_or_slice, slice):
-            return Array(list.__getitem__(self, index_or_slice))
+            return List(list.__getitem__(self, index_or_slice))
         elif isinstance(index_or_slice, NatMut) or isinstance(index_or_slice, IntMut):
             return list.__getitem__(self, int(index_or_slice))
         elif isinstance(index_or_slice, Range):
-            return Array(list.__getitem__(self, index_or_slice.into_slice()))
+            return List(list.__getitem__(self, index_or_slice.into_slice()))
         else:
             return list.__getitem__(self, index_or_slice)
 
@@ -77,7 +77,7 @@ class Array(list):
         return hash(tuple(self))
 
     def update(self, f):
-        self = Array(f(self))
+        self = List(f(self))
 
     def type_check(self, t: type) -> bool:
         if isinstance(t, list):
@@ -114,7 +114,7 @@ class Array(list):
         return reduce(lambda x, y: x * y, self, start)
 
     def reversed(self):
-        return Array(list.__reversed__(self))
+        return List(list.__reversed__(self))
 
     def insert_at(self, index, value):
         self.insert(index, value)
@@ -135,10 +135,10 @@ class Array(list):
         new = []
         for _ in range(n):
             new.extend(deepcopy(self))
-        return Array(new)
+        return List(new)
 
 
-class UnsizedArray:
+class UnsizedList:
     elem: object
 
     def __init__(self, elem):

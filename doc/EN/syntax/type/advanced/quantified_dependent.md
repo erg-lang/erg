@@ -4,7 +4,7 @@ Erg has quantified and dependent types. Then naturally, it is possible to create
 
 ```python
 NonNullStr = |N: Nat| StrWithLen N | N ! = 0 # same as {S | N: Nat; S: StrWithLen N; N ! = 0}
-NonEmptyArray = |N: Nat| [_; N | N > 0] # same as {A | N: Nat; A: Array(_, N); N > 0}
+NonEmptyList = |N: Nat| [_; N | N > 0] # same as {A | N: Nat; A: List(_, N); N > 0}
 ```
 
 The standard form of quantified dependent types are `K(A, ... | Pred)`. ``K`` is a type constructor, `A, B` are type arguments, and `Pred` is a conditional expression.

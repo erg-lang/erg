@@ -16,7 +16,7 @@
 
 ## impl classes
 
-* `Array`
+* `List`
 * `Tuple`
 * `Str`
 * `Range`

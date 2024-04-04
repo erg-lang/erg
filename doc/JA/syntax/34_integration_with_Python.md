@@ -102,14 +102,14 @@ f: (Int -> Str) and (Int -> Int)
 
 ## トレイト実装宣言
 
-クラスに対してトレイトの実装とトレイトメンバーの宣言を行う場合、以下のように記述します([numpy.NDArrayの型宣言](https://github.com/erg-lang/erg/blob/main/crates/erg_compiler/lib/external/numpy.d/__init__.d.er)より抜粋)。
+クラスに対してトレイトの実装とトレイトメンバーの宣言を行う場合、以下のように記述します([numpy.NDListの型宣言](https://github.com/erg-lang/erg/blob/main/crates/erg_compiler/lib/external/numpy.d/__init__.d.er)より抜粋)。
 
 ```erg
-.NDArray = 'ndarray': (T: Type, Shape: [Nat; _]) -> ClassType
+.NDList = 'ndarray': (T: Type, Shape: [Nat; _]) -> ClassType
 ...
-.NDArray(T, S)|<: Add .NDArray(T, S)|.
-    Output: {.NDArray(T, S)}
-    __add__: (self: .NDArray(T, S), other: .NDArray(T, S)) -> .NDArray(T, S)
+.NDList(T, S)|<: Add .NDList(T, S)|.
+    Output: {.NDList(T, S)}
+    __add__: (self: .NDList(T, S), other: .NDList(T, S)) -> .NDList(T, S)
 ```
 
 ## 注意点

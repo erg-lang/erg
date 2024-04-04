@@ -44,7 +44,7 @@ Trait 也是一種類型，因此可以用于普通類型規范
 
 ```python
 points: [Norm; 2] = [Point2D::new(1, 2), Point2D::new(3, 4)]
-assert points.iter().map(x -> x.norm()).collect(Array) == [5, 25].
+assert points.iter().map(x -> x.norm()).collect(List) == [5, 25].
 ```
 
 ## Trait包含
@@ -117,11 +117,11 @@ Mapper T: Type = Trait {
     .map = (self: Self, T -> U) -> Self.MapIter U
 }
 
-# ArrayIterator <: Mapper
-# ArrayIterator.MapIter == ArrayMapper
-# [1, 2, 3].iter(): ArrayIterator Int
-# [1, 2, 3].iter().map(x -> "\{x}"): ArrayMapper Str
-assert [1, 2, 3].iter().map(x -> "\{x}").collect(Array) == ["1", "2", "3"].
+# ListIterator <: Mapper
+# ListIterator.MapIter == ListMapper
+# [1, 2, 3].iter(): ListIterator Int
+# [1, 2, 3].iter().map(x -> "\{x}"): ListMapper Str
+assert [1, 2, 3].iter().map(x -> "\{x}").collect(List) == ["1", "2", "3"].
 ```
 
 ## OverrideTrait
@@ -181,7 +181,7 @@ print! P|<: Mul(Int)|.Output # <class 'P'>
 
 ## 附錄: 與 Rust Trait的區別
 
-Erg 的Trait忠實于 [Sch?rli 等人] (https://www.ptidej.net/courses/ift6251/fall06/presentations/061122/061122.doc.pdf) 提出的Trait
+Erg 的Trait忠實于 [Sch?rli 等人] (<https://www.ptidej.net/courses/ift6251/fall06/presentations/061122/061122.doc.pdf>) 提出的Trait
 為了允許代數運算，Trait被設計為不能有方法實現目錄，但可以在必要時進行修補
 
 <p 對齊='中心'>

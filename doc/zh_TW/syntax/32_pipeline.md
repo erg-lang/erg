@@ -19,16 +19,16 @@ log rand # 0.2597...
 
 1+1*2 |>.times do log("a", end := "") # aaa
 
-evens = 1..100 |>.iter() |>.filter i -> i % 2 == 0 |>.collect Array
+evens = 1..100 |>.iter() |>.filter i -> i % 2 == 0 |>.collect List
 # 在沒有管道操作符的情況下實現，
-_evens = (1..100).iter().filter(i -> i % 2 == 0).collect(Array)
+_evens = (1..100).iter().filter(i -> i % 2 == 0).collect(List)
 # or
 __evens = 1..100 \
     .iter() \
     .filter i -> i % 2 == 0 \
-    .collect Array
+    .collect List
 ```
 
 <p align='center'>
-    <a href='./31_error_handling.md'>上一頁</a> | <a href='./33_integration_with_Python.md'>下一頁</a>
+    <a href='./32_error_handling.md'>上一頁</a> | <a href='./33_integration_with_Python.md'>下一頁</a>
 </p>

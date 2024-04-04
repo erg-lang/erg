@@ -10,11 +10,11 @@ assert dic2 in {Str or Int: Int}
 assert dic2 in {Str: Int or Str}
 assert dic2 notin {Int: Int}
 dic3 = {"a": "b"}
-assert dic3 in {Str: Str or Array(Str) or Record}
+assert dic3 in {Str: Str or List(Str) or Record}
 dic4 = {"a": ["b"]}
-assert dic4 in {Str: Str or Array(Str) or Record}
+assert dic4 in {Str: Str or List(Str) or Record}
 dic5 = {"a": {a = 1}}
-assert dic5 in {Str: Str or Array(Str) or Record}
+assert dic5 in {Str: Str or List(Str) or Record}
 
 tup = ()
 assert tup in ()

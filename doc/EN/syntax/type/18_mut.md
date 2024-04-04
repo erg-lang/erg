@@ -37,7 +37,7 @@ The `.freeze_map` method operates on values ​​unchanged.
 
 ```python
 a = [1, 2, 3].into [Nat; !3]
-x = a.freeze_map a: [Nat; 3] -> a.iter().map(i -> i + 1).filter(i -> i % 2 == 0).collect(Array)
+x = a.freeze_map a: [Nat; 3] -> a.iter().map(i -> i + 1).filter(i -> i % 2 == 0).collect(List)
 ```
 
 In a polymorphic immutable type the type argument `T` of the type is implicitly assumed to be immutable.

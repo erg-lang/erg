@@ -1,4 +1,4 @@
-# Array! T, N
+# List! T, N
 
 Variable length array at compile time. `[t; n]` There is also a sugar cane syntax.
 
@@ -11,16 +11,13 @@ Variable length array at compile time. `[t; n]` There is also a sugar cane synta
 * sample!(ref! self) -> T
 * sample! ref! self, M: Nat -> [T; M]
 
-
   Select a random element and return a copy.
 
 * shuffle!(ref! self)
 
-
   Shuffle contents.
 
 * assert_len ref! self(_ ~> N, ...), N: Nat -> () or Panic
-
 
   Verify length
   Incorrect length will cause `panic`

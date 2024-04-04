@@ -59,7 +59,7 @@ impl Generalizer {
                 fv.generalize();
                 TyParam::FreeVar(fv)
             }
-            TyParam::Array(tps) => TyParam::Array(
+            TyParam::List(tps) => TyParam::List(
                 tps.into_iter()
                     .map(|tp| self.generalize_tp(tp, uninit))
                     .collect(),
@@ -496,12 +496,12 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                     val: Box::new(val),
                 })
             }
-            TyParam::Array(tps) => {
+            TyParam::List(tps) => {
                 let mut new_tps = vec![];
                 for tp in tps {
                     new_tps.push(self.deref_tp(tp)?);
                 }
-                Ok(TyParam::Array(new_tps))
+                Ok(TyParam::List(new_tps))
             }
             TyParam::Tuple(tps) => {
                 let mut new_tps = vec![];
@@ -1374,24 +1374,24 @@ impl Context {
                 }
                 Ok(())
             }
-            hir::Expr::Array(array) => match array {
-                hir::Array::Normal(arr) => {
-                    for elem in arr.elems.pos_args.iter_mut() {
+            hir::Expr::List(list) => match list {
+                hir::List::Normal(lis) => {
+                    for elem in lis.elems.pos_args.iter_mut() {
                         self.resolve_expr_t(&mut elem.expr, qnames)?;
                     }
-                    let t = mem::take(&mut arr.t);
-                    let mut dereferencer = Dereferencer::simple(self, qnames, arr);
-                    arr.t = dereferencer.deref_tyvar(t)?;
+                    let t = mem::take(&mut lis.t);
+                    let mut dereferencer = Dereferencer::simple(self, qnames, lis);
+                    lis.t = dereferencer.deref_tyvar(t)?;
                     Ok(())
                 }
-                hir::Array::WithLength(arr) => {
-                    self.resolve_expr_t(&mut arr.elem, qnames)?;
-                    if let Some(len) = &mut arr.len {
+                hir::List::WithLength(lis) => {
+                    self.resolve_expr_t(&mut lis.elem, qnames)?;
+                    if let Some(len) = &mut lis.len {
                         self.resolve_expr_t(len, qnames)?;
                     }
-                    let t = mem::take(&mut arr.t);
-                    let mut dereferencer = Dereferencer::simple(self, qnames, arr);
-                    arr.t = dereferencer.deref_tyvar(t)?;
+                    let t = mem::take(&mut lis.t);
+                    let mut dereferencer = Dereferencer::simple(self, qnames, lis);
+                    lis.t = dereferencer.deref_tyvar(t)?;
                     Ok(())
                 }
                 other => feature_error!(

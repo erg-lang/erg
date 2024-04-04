@@ -202,7 +202,7 @@ pub fn fmt_lines<'a, T: NestedDisplay + 'a>(
 }
 
 /// リテラルに実際の値が格納された構造体(定数畳み込み用)
-/// ArrayやDictはまた別に
+/// ListやDictはまた別に
 #[pyclass(get_all, set_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Literal {
@@ -865,13 +865,13 @@ impl Accessor {
 
 #[pyclass(get_all, set_all)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct NormalArray {
+pub struct NormalList {
     pub l_sqbr: Token,
     pub r_sqbr: Token,
     pub elems: Args,
 }
 
-impl NestedDisplay for NormalArray {
+impl NestedDisplay for NormalList {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, level: usize) -> fmt::Result {
         writeln!(f, "[")?;
         self.elems.fmt_nest(f, level + 1)?;
@@ -879,11 +879,11 @@ impl NestedDisplay for NormalArray {
     }
 }
 
-impl_display_from_nested!(NormalArray);
-impl_locational!(NormalArray, l_sqbr, elems, r_sqbr);
+impl_display_from_nested!(NormalList);
+impl_locational!(NormalList, l_sqbr, elems, r_sqbr);
 
 #[pymethods]
-impl NormalArray {
+impl NormalList {
     #[pyo3(name = "get")]
     fn _get(&self, index: usize) -> Option<Expr> {
         self.get(index).cloned()
@@ -899,7 +899,7 @@ impl NormalArray {
     }
 }
 
-impl NormalArray {
+impl NormalList {
     pub fn get(&self, index: usize) -> Option<&Expr> {
         self.elems.pos_args.get(index).map(|a| &a.expr)
     }
@@ -911,24 +911,24 @@ impl NormalArray {
 
 #[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ArrayWithLength {
+pub struct ListWithLength {
     pub l_sqbr: Token,
     pub r_sqbr: Token,
     pub elem: Box<PosArg>,
     pub len: Box<Expr>,
 }
 
-impl NestedDisplay for ArrayWithLength {
+impl NestedDisplay for ListWithLength {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         write!(f, "[{}; {}]", self.elem, self.len)
     }
 }
 
-impl_display_from_nested!(ArrayWithLength);
-impl_locational!(ArrayWithLength, l_sqbr, elem, r_sqbr);
+impl_display_from_nested!(ListWithLength);
+impl_locational!(ListWithLength, l_sqbr, elem, r_sqbr);
 
 #[pymethods]
-impl ArrayWithLength {
+impl ListWithLength {
     #[staticmethod]
     pub fn new(l_sqbr: Token, r_sqbr: Token, elem: PosArg, len: Expr) -> Self {
         Self {
@@ -942,7 +942,7 @@ impl ArrayWithLength {
 
 #[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ArrayComprehension {
+pub struct ListComprehension {
     pub l_sqbr: Token,
     pub r_sqbr: Token,
     pub layout: Option<Box<Expr>>,
@@ -950,7 +950,7 @@ pub struct ArrayComprehension {
     pub guard: Option<Box<Expr>>,
 }
 
-impl NestedDisplay for ArrayComprehension {
+impl NestedDisplay for ListComprehension {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         let mut generators = String::new();
         for (name, gen) in self.generators.iter() {
@@ -966,11 +966,11 @@ impl NestedDisplay for ArrayComprehension {
     }
 }
 
-impl_display_from_nested!(ArrayComprehension);
-impl_locational!(ArrayComprehension, l_sqbr, r_sqbr);
+impl_display_from_nested!(ListComprehension);
+impl_locational!(ListComprehension, l_sqbr, r_sqbr);
 
 #[pymethods]
-impl ArrayComprehension {
+impl ListComprehension {
     #[staticmethod]
     #[pyo3(signature = (l_sqbr, r_sqbr, layout, generators, guard=None))]
     pub fn new(
@@ -991,22 +991,22 @@ impl ArrayComprehension {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Array {
-    Normal(NormalArray),
-    WithLength(ArrayWithLength),
-    Comprehension(ArrayComprehension),
+pub enum List {
+    Normal(NormalList),
+    WithLength(ListWithLength),
+    Comprehension(ListComprehension),
 }
 
-impl_nested_display_for_enum!(Array; Normal, WithLength, Comprehension);
-impl_display_for_enum!(Array; Normal, WithLength, Comprehension);
-impl_locational_for_enum!(Array; Normal, WithLength, Comprehension);
-impl_into_py_for_enum!(Array; Normal, WithLength, Comprehension);
-impl_from_py_for_enum!(Array; Normal(NormalArray), WithLength(ArrayWithLength), Comprehension(ArrayComprehension));
+impl_nested_display_for_enum!(List; Normal, WithLength, Comprehension);
+impl_display_for_enum!(List; Normal, WithLength, Comprehension);
+impl_locational_for_enum!(List; Normal, WithLength, Comprehension);
+impl_into_py_for_enum!(List; Normal, WithLength, Comprehension);
+impl_from_py_for_enum!(List; Normal(NormalList), WithLength(ListWithLength), Comprehension(ListComprehension));
 
-impl Array {
+impl List {
     pub fn get(&self, index: usize) -> Option<&Expr> {
         match self {
-            Self::Normal(array) => array.get(index),
+            Self::Normal(list) => list.get(index),
             _ => None,
         }
     }
@@ -2167,36 +2167,36 @@ impl ConstAccessor {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum ConstArray {
-    Normal(ConstNormalArray),
-    WithLength(ConstArrayWithLength),
+pub enum ConstList {
+    Normal(ConstNormalList),
+    WithLength(ConstListWithLength),
 }
 
-impl_nested_display_for_enum!(ConstArray; Normal, WithLength);
-impl_display_from_nested!(ConstArray);
-impl_locational_for_enum!(ConstArray; Normal, WithLength);
-impl_into_py_for_enum!(ConstArray; Normal, WithLength);
-impl_from_py_for_enum!(ConstArray; Normal(ConstNormalArray), WithLength(ConstArrayWithLength));
+impl_nested_display_for_enum!(ConstList; Normal, WithLength);
+impl_display_from_nested!(ConstList);
+impl_locational_for_enum!(ConstList; Normal, WithLength);
+impl_into_py_for_enum!(ConstList; Normal, WithLength);
+impl_from_py_for_enum!(ConstList; Normal(ConstNormalList), WithLength(ConstListWithLength));
 
-impl ConstArray {
-    pub fn downgrade(self) -> Array {
+impl ConstList {
+    pub fn downgrade(self) -> List {
         match self {
-            Self::Normal(normal) => Array::Normal(normal.downgrade()),
-            Self::WithLength(with_length) => Array::WithLength(with_length.downgrade()),
+            Self::Normal(normal) => List::Normal(normal.downgrade()),
+            Self::WithLength(with_length) => List::WithLength(with_length.downgrade()),
         }
     }
 }
 
 #[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct ConstNormalArray {
+pub struct ConstNormalList {
     pub l_sqbr: Token,
     pub r_sqbr: Token,
     pub elems: ConstArgs,
     pub guard: Option<Box<ConstExpr>>,
 }
 
-impl NestedDisplay for ConstNormalArray {
+impl NestedDisplay for ConstNormalList {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         if let Some(guard) = &self.guard {
             write!(f, "[{} | {}]", self.elems, guard)
@@ -2206,11 +2206,11 @@ impl NestedDisplay for ConstNormalArray {
     }
 }
 
-impl_display_from_nested!(ConstNormalArray);
-impl_locational!(ConstNormalArray, l_sqbr, elems, r_sqbr);
+impl_display_from_nested!(ConstNormalList);
+impl_locational!(ConstNormalList, l_sqbr, elems, r_sqbr);
 
 #[pymethods]
-impl ConstNormalArray {
+impl ConstNormalList {
     #[staticmethod]
     pub fn new(l_sqbr: Token, r_sqbr: Token, elems: ConstArgs, guard: Option<ConstExpr>) -> Self {
         Self {
@@ -2222,32 +2222,32 @@ impl ConstNormalArray {
     }
 }
 
-impl ConstNormalArray {
-    pub fn downgrade(self) -> NormalArray {
-        NormalArray::new(self.l_sqbr, self.r_sqbr, self.elems.downgrade())
+impl ConstNormalList {
+    pub fn downgrade(self) -> NormalList {
+        NormalList::new(self.l_sqbr, self.r_sqbr, self.elems.downgrade())
     }
 }
 
 #[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct ConstArrayWithLength {
+pub struct ConstListWithLength {
     pub l_sqbr: Token,
     pub r_sqbr: Token,
     pub elem: Box<ConstExpr>,
     pub length: Box<ConstExpr>,
 }
 
-impl NestedDisplay for ConstArrayWithLength {
+impl NestedDisplay for ConstListWithLength {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         write!(f, "[{}; {}]", self.elem, self.length)
     }
 }
 
-impl_display_from_nested!(ConstArrayWithLength);
-impl_locational!(ConstArrayWithLength, l_sqbr, elem, r_sqbr);
+impl_display_from_nested!(ConstListWithLength);
+impl_locational!(ConstListWithLength, l_sqbr, elem, r_sqbr);
 
 #[pymethods]
-impl ConstArrayWithLength {
+impl ConstListWithLength {
     #[staticmethod]
     pub fn new(l_sqbr: Token, r_sqbr: Token, elem: ConstExpr, length: ConstExpr) -> Self {
         Self {
@@ -2259,9 +2259,9 @@ impl ConstArrayWithLength {
     }
 }
 
-impl ConstArrayWithLength {
-    pub fn downgrade(self) -> ArrayWithLength {
-        ArrayWithLength::new(
+impl ConstListWithLength {
+    pub fn downgrade(self) -> ListWithLength {
+        ListWithLength::new(
             self.l_sqbr,
             self.r_sqbr,
             PosArg::new(self.elem.downgrade()),
@@ -2830,7 +2830,7 @@ pub enum ConstExpr {
     Lit(Literal),
     Accessor(ConstAccessor),
     App(ConstApp),
-    Array(ConstArray),
+    List(ConstList),
     Set(ConstSet),
     Dict(ConstDict),
     Tuple(ConstTuple),
@@ -2842,11 +2842,11 @@ pub enum ConstExpr {
     TypeAsc(ConstTypeAsc),
 }
 
-impl_nested_display_for_chunk_enum!(ConstExpr; Lit, Accessor, App, Array, Set, Dict, Tuple, Record, BinOp, UnaryOp, Def, Lambda, Set, TypeAsc);
+impl_nested_display_for_chunk_enum!(ConstExpr; Lit, Accessor, App, List, Set, Dict, Tuple, Record, BinOp, UnaryOp, Def, Lambda, Set, TypeAsc);
 impl_display_from_nested!(ConstExpr);
-impl_locational_for_enum!(ConstExpr; Lit, Accessor, App, Array, Set, Dict, Tuple, Record, BinOp, UnaryOp, Def, Lambda, Set, TypeAsc);
-impl_into_py_for_enum!(ConstExpr; Lit, Accessor, App, Array, Set, Dict, Tuple, Record, Def, Lambda, BinOp, UnaryOp, TypeAsc);
-impl_from_py_for_enum!(ConstExpr; Lit(Literal), Accessor(ConstAccessor), App(ConstApp), Array(ConstArray), Set(ConstSet), Dict(ConstDict), Tuple(ConstTuple), Record(ConstRecord), Def(ConstDef), Lambda(ConstLambda), BinOp(ConstBinOp), UnaryOp(ConstUnaryOp), TypeAsc(ConstTypeAsc));
+impl_locational_for_enum!(ConstExpr; Lit, Accessor, App, List, Set, Dict, Tuple, Record, BinOp, UnaryOp, Def, Lambda, Set, TypeAsc);
+impl_into_py_for_enum!(ConstExpr; Lit, Accessor, App, List, Set, Dict, Tuple, Record, Def, Lambda, BinOp, UnaryOp, TypeAsc);
+impl_from_py_for_enum!(ConstExpr; Lit(Literal), Accessor(ConstAccessor), App(ConstApp), List(ConstList), Set(ConstSet), Dict(ConstDict), Tuple(ConstTuple), Record(ConstRecord), Def(ConstDef), Lambda(ConstLambda), BinOp(ConstBinOp), UnaryOp(ConstUnaryOp), TypeAsc(ConstTypeAsc));
 
 impl TryFrom<&ParamPattern> for ConstExpr {
     type Error = ();
@@ -2856,7 +2856,7 @@ impl TryFrom<&ParamPattern> for ConstExpr {
                 Ok(ConstExpr::Accessor(ConstAccessor::local(name.0.clone())))
             }
             ParamPattern::Lit(lit) => Ok(ConstExpr::Lit(lit.clone())),
-            ParamPattern::Array(array) => ConstExpr::try_from(array),
+            ParamPattern::List(list) => ConstExpr::try_from(list),
             ParamPattern::Tuple(tuple) => ConstExpr::try_from(tuple),
             _ => Err(()),
         }
@@ -2878,7 +2878,7 @@ impl ConstExpr {
             Self::Lit(lit) => Expr::Literal(lit),
             Self::Accessor(acc) => Expr::Accessor(acc.downgrade()),
             Self::App(app) => Expr::Call(app.downgrade()),
-            Self::Array(arr) => Expr::Array(arr.downgrade()),
+            Self::List(lis) => Expr::List(lis.downgrade()),
             Self::Set(set) => Expr::Set(set.downgrade()),
             Self::Dict(dict) => Expr::Dict(dict.downgrade()),
             Self::Tuple(tuple) => Expr::Tuple(tuple.downgrade()),
@@ -3338,19 +3338,19 @@ impl SubrTypeSpec {
 
 #[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ArrayTypeSpec {
+pub struct ListTypeSpec {
     pub sqbrs: Option<(Token, Token)>,
     pub ty: Box<TypeSpec>,
     pub len: ConstExpr,
 }
 
-impl fmt::Display for ArrayTypeSpec {
+impl fmt::Display for ListTypeSpec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "[{}; {}]", self.ty, self.len)
     }
 }
 
-impl Locational for ArrayTypeSpec {
+impl Locational for ListTypeSpec {
     fn loc(&self) -> Location {
         if let Some((lsqbr, rsqbr)) = &self.sqbrs {
             Location::concat(lsqbr, rsqbr)
@@ -3360,7 +3360,7 @@ impl Locational for ArrayTypeSpec {
     }
 }
 
-impl ArrayTypeSpec {
+impl ListTypeSpec {
     pub fn new(ty: TypeSpec, len: ConstExpr, sqbrs: Option<(Token, Token)>) -> Self {
         Self {
             ty: Box::new(ty),
@@ -3529,7 +3529,7 @@ impl RefinementTypeSpec {
     }
 }
 
-/// * Array: `[Int; 3]`, `[Int, Ratio, Complex]`, etc.
+/// * List: `[Int; 3]`, `[Int, Ratio, Complex]`, etc.
 /// * Dict: `[Str: Str]`, etc.
 /// * And (Intersection type): Add and Sub and Mul (== Num), etc.
 /// * Not (Diff type): Pos == Nat not {0}, etc.
@@ -3545,7 +3545,7 @@ pub enum TypeSpec {
     Infer(Token),
     PreDeclTy(PreDeclTypeSpec),
     /* Composite types */
-    Array(ArrayTypeSpec),
+    List(ListTypeSpec),
     SetWithLen(SetWithLenTypeSpec),
     Tuple(TupleTypeSpec),
     Dict(DictTypeSpec),
@@ -3584,7 +3584,7 @@ impl fmt::Display for TypeSpec {
             Self::And(lhs, rhs) => write!(f, "{lhs} and {rhs}"),
             Self::Not(ty) => write!(f, "not {ty}"),
             Self::Or(lhs, rhs) => write!(f, "{lhs} or {rhs}"),
-            Self::Array(arr) => write!(f, "{arr}"),
+            Self::List(lis) => write!(f, "{lis}"),
             Self::SetWithLen(set) => write!(f, "{set}"),
             Self::Tuple(tup) => write!(f, "{tup}"),
             Self::Dict(dict) => dict.fmt(f),
@@ -3613,7 +3613,7 @@ impl Locational for TypeSpec {
                 Location::concat(lhs.as_ref(), rhs.as_ref())
             }
             Self::Not(ty) => ty.loc(),
-            Self::Array(arr) => arr.loc(),
+            Self::List(lis) => lis.loc(),
             Self::SetWithLen(set) => set.loc(),
             Self::Tuple(tup) => tup.loc(),
             Self::Dict(dict) => dict.loc(),
@@ -4253,21 +4253,21 @@ impl Identifier {
 
 #[pyclass(get_all, set_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct VarArrayPattern {
+pub struct VarListPattern {
     l_sqbr: Token,
     pub(crate) elems: Vars,
     r_sqbr: Token,
 }
 
-impl fmt::Display for VarArrayPattern {
+impl fmt::Display for VarListPattern {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "[{}]", self.elems)
     }
 }
 
-impl_locational!(VarArrayPattern, l_sqbr, r_sqbr);
+impl_locational!(VarListPattern, l_sqbr, r_sqbr);
 
-impl Stream<VarSignature> for VarArrayPattern {
+impl Stream<VarSignature> for VarListPattern {
     #[inline]
     fn payload(self) -> Vec<VarSignature> {
         self.elems.payload()
@@ -4282,7 +4282,7 @@ impl Stream<VarSignature> for VarArrayPattern {
     }
 }
 
-impl VarArrayPattern {
+impl VarListPattern {
     pub const fn new(l_sqbr: Token, elems: Vars, r_sqbr: Token) -> Self {
         Self {
             l_sqbr,
@@ -4439,7 +4439,7 @@ pub enum VarPattern {
     Discard(Token),
     Ident(Identifier),
     /// e.g. `[x, y, z]` of `[x, y, z] = [1, 2, 3]`
-    Array(VarArrayPattern),
+    List(VarListPattern),
     /// e.g. `(x, y, z)` of `(x, y, z) = (1, 2, 3)`
     Tuple(VarTuplePattern),
     // e.g. `{name; age}`, `{_; [car, cdr]}`
@@ -4453,7 +4453,7 @@ impl NestedDisplay for VarPattern {
         match self {
             Self::Discard(_) => write!(f, "_"),
             Self::Ident(ident) => write!(f, "{ident}"),
-            Self::Array(a) => write!(f, "{a}"),
+            Self::List(l) => write!(f, "{l}"),
             Self::Tuple(t) => write!(f, "{t}"),
             Self::Record(r) => write!(f, "{r}"),
             Self::DataPack(d) => write!(f, "{d}"),
@@ -4462,9 +4462,9 @@ impl NestedDisplay for VarPattern {
 }
 
 impl_display_from_nested!(VarPattern);
-impl_locational_for_enum!(VarPattern; Discard, Ident, Array, Tuple, Record, DataPack);
-impl_into_py_for_enum!(VarPattern; Discard, Ident, Array, Tuple, Record, DataPack);
-impl_from_py_for_enum!(VarPattern; Discard(Token), Ident(Identifier), Array(VarArrayPattern), Tuple(VarTuplePattern), Record(VarRecordPattern), DataPack(VarDataPackPattern));
+impl_locational_for_enum!(VarPattern; Discard, Ident, List, Tuple, Record, DataPack);
+impl_into_py_for_enum!(VarPattern; Discard, Ident, List, Tuple, Record, DataPack);
+impl_from_py_for_enum!(VarPattern; Discard(Token), Ident(Identifier), List(VarListPattern), Tuple(VarTuplePattern), Record(VarRecordPattern), DataPack(VarDataPackPattern));
 
 impl VarPattern {
     pub const fn inspect(&self) -> Option<&Str> {
@@ -4643,31 +4643,31 @@ impl Vars {
 
 #[pyclass(get_all, set_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct ParamArrayPattern {
+pub struct ParamListPattern {
     pub l_sqbr: Token,
     pub elems: Params,
     pub r_sqbr: Token,
 }
 
-impl NestedDisplay for ParamArrayPattern {
+impl NestedDisplay for ParamListPattern {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         write!(f, "[{}]", self.elems)
     }
 }
 
-impl_display_from_nested!(ParamArrayPattern);
-impl_locational!(ParamArrayPattern, l_sqbr, r_sqbr);
+impl_display_from_nested!(ParamListPattern);
+impl_locational!(ParamListPattern, l_sqbr, r_sqbr);
 
-impl TryFrom<&ParamArrayPattern> for Expr {
+impl TryFrom<&ParamListPattern> for Expr {
     type Error = ();
 
-    fn try_from(value: &ParamArrayPattern) -> Result<Self, Self::Error> {
+    fn try_from(value: &ParamListPattern) -> Result<Self, Self::Error> {
         let mut new = vec![];
         for elem in value.elems.non_defaults.iter() {
             new.push(PosArg::new(Expr::try_from(&elem.pat)?));
         }
         let elems = Args::pos_only(new, None);
-        Ok(Expr::Array(Array::Normal(NormalArray::new(
+        Ok(Expr::List(List::Normal(NormalList::new(
             value.l_sqbr.clone(),
             value.r_sqbr.clone(),
             elems,
@@ -4675,16 +4675,16 @@ impl TryFrom<&ParamArrayPattern> for Expr {
     }
 }
 
-impl TryFrom<&ParamArrayPattern> for ConstExpr {
+impl TryFrom<&ParamListPattern> for ConstExpr {
     type Error = ();
 
-    fn try_from(value: &ParamArrayPattern) -> Result<Self, Self::Error> {
+    fn try_from(value: &ParamListPattern) -> Result<Self, Self::Error> {
         let mut new = vec![];
         for elem in value.elems.non_defaults.iter() {
             new.push(ConstPosArg::new(ConstExpr::try_from(&elem.pat)?));
         }
         let elems = ConstArgs::pos_only(new, None);
-        Ok(ConstExpr::Array(ConstArray::Normal(ConstNormalArray::new(
+        Ok(ConstExpr::List(ConstList::Normal(ConstNormalList::new(
             value.l_sqbr.clone(),
             value.r_sqbr.clone(),
             elems,
@@ -4694,7 +4694,7 @@ impl TryFrom<&ParamArrayPattern> for ConstExpr {
 }
 
 #[pymethods]
-impl ParamArrayPattern {
+impl ParamListPattern {
     #[staticmethod]
     pub const fn new(l_sqbr: Token, elems: Params, r_sqbr: Token) -> Self {
         Self {
@@ -4851,7 +4851,7 @@ pub enum ParamPattern {
     VarName(VarName),
     // TODO: ConstAttr(),
     Lit(Literal),
-    Array(ParamArrayPattern),
+    List(ParamListPattern),
     Tuple(ParamTuplePattern),
     Record(ParamRecordPattern),
     // DataPack(ParamDataPackPattern),
@@ -4859,7 +4859,7 @@ pub enum ParamPattern {
     RefMut(VarName),
 }
 
-impl_into_py_for_enum!(ParamPattern; Discard, VarName, Lit, Array, Tuple, Record, Ref, RefMut);
+impl_into_py_for_enum!(ParamPattern; Discard, VarName, Lit, List, Tuple, Record, Ref, RefMut);
 
 impl NestedDisplay for ParamPattern {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
@@ -4867,7 +4867,7 @@ impl NestedDisplay for ParamPattern {
             Self::Discard(tok) => write!(f, "{tok}"),
             Self::VarName(var_name) => write!(f, "{var_name}"),
             Self::Lit(lit) => write!(f, "{lit}"),
-            Self::Array(array) => write!(f, "{array}"),
+            Self::List(list) => write!(f, "{list}"),
             Self::Tuple(tuple) => write!(f, "{tuple}"),
             Self::Record(record) => write!(f, "{record}"),
             Self::Ref(var_name) => write!(f, "ref {var_name}"),
@@ -4885,7 +4885,7 @@ impl TryFrom<&ParamPattern> for Expr {
                 Ok(Expr::Accessor(Accessor::local(name.0.clone())))
             }
             ParamPattern::Lit(lit) => Ok(Expr::Literal(lit.clone())),
-            ParamPattern::Array(array) => Expr::try_from(array),
+            ParamPattern::List(list) => Expr::try_from(list),
             ParamPattern::Tuple(tuple) => Expr::try_from(tuple),
             _ => Err(()),
         }
@@ -4893,7 +4893,7 @@ impl TryFrom<&ParamPattern> for Expr {
 }
 
 impl_display_from_nested!(ParamPattern);
-impl_locational_for_enum!(ParamPattern; Discard, VarName, Lit, Array, Tuple, Record, Ref, RefMut);
+impl_locational_for_enum!(ParamPattern; Discard, VarName, Lit, List, Tuple, Record, Ref, RefMut);
 
 impl ParamPattern {
     pub const fn inspect(&self) -> Option<&Str> {
@@ -5890,7 +5890,7 @@ impl Compound {
 pub enum Expr {
     Literal(Literal),
     Accessor(Accessor),
-    Array(Array),
+    List(List),
     Tuple(Tuple),
     Dict(Dict),
     Set(Set),
@@ -5912,12 +5912,12 @@ pub enum Expr {
     Dummy(Dummy),
 }
 
-impl_nested_display_for_chunk_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, Dummy);
-impl_from_trait_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, Dummy);
+impl_nested_display_for_chunk_enum!(Expr; Literal, Accessor, List, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, Dummy);
+impl_from_trait_for_enum!(Expr; Literal, Accessor, List, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, Dummy);
 impl_display_from_nested!(Expr);
-impl_locational_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, Dummy);
-impl_into_py_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, Dummy);
-impl_from_py_for_enum!(Expr; Literal, Accessor, Array, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, Dummy);
+impl_locational_for_enum!(Expr; Literal, Accessor, List, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, Dummy);
+impl_into_py_for_enum!(Expr; Literal, Accessor, List, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, Dummy);
+impl_from_py_for_enum!(Expr; Literal, Accessor, List, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, Dummy);
 
 impl Expr {
     pub fn is_match_call(&self) -> bool {
@@ -5939,7 +5939,7 @@ impl Expr {
         match self {
             Self::Literal(_) => "literal",
             Self::Accessor(_) => "accessor",
-            Self::Array(_) => "array",
+            Self::List(_) => "list",
             Self::Tuple(_) => "tuple",
             Self::Dict(_) => "dict",
             Self::Set(_) => "set",
@@ -6075,9 +6075,9 @@ impl Expr {
                 }
                 sum
             }
-            Self::Array(Array::Normal(arr)) => {
+            Self::List(List::Normal(lis)) => {
                 let mut sum = 0;
-                for elem in arr.elems.pos_args.iter() {
+                for elem in lis.elems.pos_args.iter() {
                     sum += elem.expr.complexity();
                 }
                 sum

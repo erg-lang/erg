@@ -4,7 +4,6 @@
 //! e.g. Literal parameters, Multi assignment
 //! 型チェックなどによる検証は行わない
 
-use erg_common::consts::PYTHON_MODE;
 use erg_common::error::Location;
 use erg_common::fresh::FreshNameGenerator;
 use erg_common::traits::{Locational, Stream};
@@ -12,16 +11,15 @@ use erg_common::{debug_power_assert, Str};
 use erg_common::{enum_unwrap, get_hash, log, set};
 
 use crate::ast::{
-    Accessor, Args, Array, ArrayComprehension, ArrayTypeSpec, ArrayWithLength, BinOp, Block, Call,
-    ClassAttr, ClassAttrs, ClassDef, Compound, ConstExpr, DataPack, Def, DefBody, DefId,
-    DefaultParamSignature, Dict, Dummy, Expr, GuardClause, Identifier, InlineModule, KeyValue,
-    KwArg, Lambda, LambdaSignature, Literal, Methods, MixedRecord, Module,
-    NonDefaultParamSignature, NormalArray, NormalDict, NormalRecord, NormalSet, NormalTuple,
-    ParamPattern, ParamRecordAttr, ParamTuplePattern, Params, PatchDef, PosArg, ReDef, Record,
-    RecordAttrOrIdent, RecordAttrs, RecordTypeSpec, Set as astSet, SetComprehension, SetWithLength,
-    Signature, SubrSignature, Tuple, TupleTypeSpec, TypeAppArgs, TypeAppArgsKind, TypeBoundSpecs,
-    TypeSpec, TypeSpecWithOp, UnaryOp, VarName, VarPattern, VarRecordAttr, VarSignature,
-    VisModifierSpec, AST,
+    Accessor, Args, BinOp, Block, Call, ClassAttr, ClassAttrs, ClassDef, Compound, ConstExpr,
+    DataPack, Def, DefBody, DefId, DefaultParamSignature, Dict, Dummy, Expr, GuardClause,
+    Identifier, InlineModule, KeyValue, KwArg, Lambda, LambdaSignature, List, ListComprehension,
+    ListTypeSpec, ListWithLength, Literal, Methods, MixedRecord, Module, NonDefaultParamSignature,
+    NormalDict, NormalList, NormalRecord, NormalSet, NormalTuple, ParamPattern, ParamRecordAttr,
+    ParamTuplePattern, Params, PatchDef, PosArg, ReDef, Record, RecordAttrOrIdent, RecordAttrs,
+    RecordTypeSpec, Set as astSet, SetComprehension, SetWithLength, Signature, SubrSignature,
+    Tuple, TupleTypeSpec, TypeAppArgs, TypeAppArgsKind, TypeBoundSpecs, TypeSpec, TypeSpecWithOp,
+    UnaryOp, VarName, VarPattern, VarRecordAttr, VarSignature, VisModifierSpec, AST,
 };
 use crate::token::{Token, TokenKind, COLON, DOT};
 
@@ -57,7 +55,7 @@ pub fn symop_to_dname(op: &str) -> Option<&'static str> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum BufIndex<'i> {
-    Array(usize),
+    List(usize),
     Tuple(usize),
     Record(&'i Identifier),
 }
@@ -189,34 +187,34 @@ impl Desugarer {
                 };
                 Expr::DataPack(DataPack::new(class, pack.connector, args))
             }
-            Expr::Array(array) => match array {
-                Array::Normal(arr) => {
-                    let (elems, ..) = arr.elems.deconstruct();
+            Expr::List(list) => match list {
+                List::Normal(lis) => {
+                    let (elems, ..) = lis.elems.deconstruct();
                     let elems = elems
                         .into_iter()
                         .map(|elem| PosArg::new(desugar(elem.expr)))
                         .collect();
                     let elems = Args::pos_only(elems, None);
-                    let arr = NormalArray::new(arr.l_sqbr, arr.r_sqbr, elems);
-                    Expr::Array(Array::Normal(arr))
+                    let lis = NormalList::new(lis.l_sqbr, lis.r_sqbr, elems);
+                    Expr::List(List::Normal(lis))
                 }
-                Array::WithLength(arr) => {
-                    let elem = PosArg::new(desugar(arr.elem.expr));
-                    let len = desugar(*arr.len);
-                    let arr = ArrayWithLength::new(arr.l_sqbr, arr.r_sqbr, elem, len);
-                    Expr::Array(Array::WithLength(arr))
+                List::WithLength(lis) => {
+                    let elem = PosArg::new(desugar(lis.elem.expr));
+                    let len = desugar(*lis.len);
+                    let lis = ListWithLength::new(lis.l_sqbr, lis.r_sqbr, elem, len);
+                    Expr::List(List::WithLength(lis))
                 }
-                Array::Comprehension(arr) => {
-                    let layout = arr.layout.map(|ex| desugar(*ex));
-                    let generators = arr
+                List::Comprehension(lis) => {
+                    let layout = lis.layout.map(|ex| desugar(*ex));
+                    let generators = lis
                         .generators
                         .into_iter()
                         .map(|(ident, gen)| (ident, desugar(gen)))
                         .collect();
-                    let guard = arr.guard.map(|ex| desugar(*ex));
-                    let arr =
-                        ArrayComprehension::new(arr.l_sqbr, arr.r_sqbr, layout, generators, guard);
-                    Expr::Array(Array::Comprehension(arr))
+                    let guard = lis.guard.map(|ex| desugar(*ex));
+                    let lis =
+                        ListComprehension::new(lis.l_sqbr, lis.r_sqbr, layout, generators, guard);
+                    Expr::List(List::Comprehension(lis))
                 }
             },
             Expr::Tuple(tuple) => match tuple {
@@ -718,16 +716,16 @@ impl Desugarer {
                         self.desugar_rest_values(new, var, &buf_name, elems_len);
                     }
                 }
-                VarPattern::Array(arr) => {
+                VarPattern::List(lis) => {
                     let (buf_name, buf_sig) = self.gen_buf_name_and_sig(v.loc(), v.t_spec);
                     let body = self.desugar_pattern_in_body(body);
                     let buf_def = Def::new(buf_sig, body);
                     new.push(Expr::Def(buf_def));
-                    for (n, elem) in arr.elems.iter().enumerate() {
-                        self.desugar_nested_var_pattern(new, elem, &buf_name, BufIndex::Array(n));
+                    for (n, elem) in lis.elems.iter().enumerate() {
+                        self.desugar_nested_var_pattern(new, elem, &buf_name, BufIndex::List(n));
                     }
-                    let elems_len = arr.elems.len();
-                    if let Some(var) = arr.elems.starred.as_ref() {
+                    let elems_len = lis.elems.len();
+                    if let Some(var) = lis.elems.starred.as_ref() {
                         self.desugar_rest_values(new, var, &buf_name, elems_len);
                     }
                 }
@@ -886,7 +884,7 @@ impl Desugarer {
         );
         let acc = match buf_index {
             BufIndex::Tuple(n) => obj.tuple_attr(Literal::nat(n, sig.ln_begin().unwrap_or(1))),
-            BufIndex::Array(n) => {
+            BufIndex::List(n) => {
                 let r_brace = Token::new(
                     TokenKind::RBrace,
                     "]",
@@ -921,17 +919,12 @@ impl Desugarer {
                     );
                 }
             }
-            VarPattern::Array(arr) => {
+            VarPattern::List(lis) => {
                 let (buf_name, buf_sig) = self.gen_buf_name_and_sig(sig.loc(), None);
                 let buf_def = Def::new(buf_sig, body);
                 new_module.push(Expr::Def(buf_def));
-                for (n, elem) in arr.elems.iter().enumerate() {
-                    self.desugar_nested_var_pattern(
-                        new_module,
-                        elem,
-                        &buf_name,
-                        BufIndex::Array(n),
-                    );
+                for (n, elem) in lis.elems.iter().enumerate() {
+                    self.desugar_nested_var_pattern(new_module, elem, &buf_name, BufIndex::List(n));
                 }
             }
             VarPattern::Record(rec) => {
@@ -1054,7 +1047,7 @@ impl Desugarer {
         NormalRecord::new(record.l_brace, record.r_brace, attrs)
     }
 
-    fn dummy_array_expr(len: Literal) -> Expr {
+    fn dummy_list_expr(len: Literal) -> Expr {
         let l_sqbr = Token {
             content: "[".into(),
             kind: TokenKind::LSqBr,
@@ -1066,13 +1059,13 @@ impl Desugarer {
             ..len.token
         };
         let elem = Expr::local("Obj", l_sqbr.lineno, l_sqbr.col_begin, l_sqbr.col_end);
-        let array = Array::WithLength(ArrayWithLength::new(
+        let list = List::WithLength(ListWithLength::new(
             l_sqbr,
             r_sqbr,
             PosArg::new(elem),
             Expr::Literal(len),
         ));
-        Expr::Array(array)
+        Expr::List(list)
     }
 
     fn dummy_set_expr(lit: Literal) -> Expr {
@@ -1271,11 +1264,11 @@ impl Desugarer {
                 param.pat = buf_param;
                 guards
             }
-            ParamPattern::Array(arr) => {
+            ParamPattern::List(lis) => {
                 fn const_check(expr: &Expr) -> bool {
                     match &expr {
                         Expr::Accessor(Accessor::Ident(ident)) => ident.is_const(),
-                        Expr::Array(Array::Normal(arr)) => arr
+                        Expr::List(List::Normal(lis)) => lis
                             .elems
                             .pos_args()
                             .iter()
@@ -1283,21 +1276,21 @@ impl Desugarer {
                         _ => true,
                     }
                 }
-                let expr = Expr::try_from(&*arr).and_then(|expr| {
+                let expr = Expr::try_from(&*lis).and_then(|expr| {
                     if const_check(&expr) {
                         Ok(expr)
                     } else {
                         Err(())
                     }
                 });
-                let (buf_name, buf_param) = self.gen_buf_nd_param(arr.loc());
-                guards.push(Self::len_guard(buf_name.clone(), arr.elems.len(), arr));
-                for (n, elem) in arr.elems.non_defaults.iter_mut().enumerate() {
-                    let gs = self.desugar_nested_param_pattern(elem, &buf_name, BufIndex::Array(n));
+                let (buf_name, buf_param) = self.gen_buf_nd_param(lis.loc());
+                guards.push(Self::len_guard(buf_name.clone(), lis.elems.len(), lis));
+                for (n, elem) in lis.elems.non_defaults.iter_mut().enumerate() {
+                    let gs = self.desugar_nested_param_pattern(elem, &buf_name, BufIndex::List(n));
                     guards.extend(gs);
                 }
                 if param.t_spec.is_none() {
-                    let len = arr.elems.non_defaults.len();
+                    let len = lis.elems.non_defaults.len();
                     let len = Literal::new(Token::new_fake(
                         TokenKind::NatLit,
                         len.to_string(),
@@ -1306,10 +1299,10 @@ impl Desugarer {
                         0,
                     ));
                     let infer = Token::new_fake(TokenKind::Try, "?", line, 0, 0);
-                    let t_spec = ArrayTypeSpec::new(
+                    let t_spec = ListTypeSpec::new(
                         TypeSpec::Infer(infer),
                         ConstExpr::Lit(len.clone()),
-                        Some((arr.l_sqbr.clone(), arr.r_sqbr.clone())),
+                        Some((lis.l_sqbr.clone(), lis.r_sqbr.clone())),
                     );
                     // [1, 2] -> ...
                     // => _: {[1, 2]} -> ...
@@ -1320,11 +1313,11 @@ impl Desugarer {
                             Args::single(PosArg::new(expr)),
                         )))
                     } else {
-                        Self::dummy_array_expr(len)
+                        Self::dummy_list_expr(len)
                     };
                     param.t_spec = Some(TypeSpecWithOp::new(
                         Token::dummy(TokenKind::Colon, ":"),
-                        TypeSpec::Array(t_spec),
+                        TypeSpec::List(t_spec),
                         t_spec_as_expr,
                     ));
                 }
@@ -1419,7 +1412,7 @@ impl Desugarer {
         );
         let acc = match buf_index {
             BufIndex::Tuple(n) => obj.tuple_attr(Literal::nat(n, sig.ln_begin().unwrap_or(1))),
-            BufIndex::Array(n) => {
+            BufIndex::List(n) => {
                 let r_brace = Token::new(
                     TokenKind::RBrace,
                     "]",
@@ -1490,8 +1483,8 @@ impl Desugarer {
                 sig.pat = buf_sig;
                 guards
             }
-            ParamPattern::Array(arr) => {
-                let (buf_name, buf_sig) = self.gen_buf_nd_param(arr.loc());
+            ParamPattern::List(lis) => {
+                let (buf_name, buf_sig) = self.gen_buf_nd_param(lis.loc());
                 let def = Def::new(
                     Signature::Var(VarSignature::new(
                         VarPattern::Ident(Identifier::private(Str::from(&buf_name))),
@@ -1500,13 +1493,13 @@ impl Desugarer {
                     body,
                 );
                 guards.push(GuardClause::Bind(def));
-                guards.push(Self::len_guard(buf_name.clone(), arr.elems.len(), arr));
-                for (n, elem) in arr.elems.non_defaults.iter_mut().enumerate() {
-                    let gs = self.desugar_nested_param_pattern(elem, &buf_name, BufIndex::Array(n));
+                guards.push(Self::len_guard(buf_name.clone(), lis.elems.len(), lis));
+                for (n, elem) in lis.elems.non_defaults.iter_mut().enumerate() {
+                    let gs = self.desugar_nested_param_pattern(elem, &buf_name, BufIndex::List(n));
                     guards.extend(gs);
                 }
                 if sig.t_spec.is_none() {
-                    let len = arr.elems.non_defaults.len();
+                    let len = lis.elems.non_defaults.len();
                     let len = Literal::new(Token::new_fake(
                         TokenKind::NatLit,
                         len.to_string(),
@@ -1515,15 +1508,15 @@ impl Desugarer {
                         0,
                     ));
                     let infer = Token::new_fake(TokenKind::Try, "?", line, 0, 0);
-                    let t_spec = ArrayTypeSpec::new(
+                    let t_spec = ListTypeSpec::new(
                         TypeSpec::Infer(infer),
                         ConstExpr::Lit(len.clone()),
-                        Some((arr.l_sqbr.clone(), arr.r_sqbr.clone())),
+                        Some((lis.l_sqbr.clone(), lis.r_sqbr.clone())),
                     );
-                    let t_spec_as_expr = Self::dummy_array_expr(len);
+                    let t_spec_as_expr = Self::dummy_list_expr(len);
                     sig.t_spec = Some(TypeSpecWithOp::new(
                         COLON,
-                        TypeSpec::Array(t_spec),
+                        TypeSpec::List(t_spec),
                         t_spec_as_expr,
                     ));
                 }
@@ -1754,8 +1747,8 @@ impl Desugarer {
     }
 
     /// ```erg
-    /// [y | x <- xs] ==> array(map(x -> y, xs))
-    /// [(a, b) | x <- xs; y <- ys] ==> array(map(((x, y),) -> (a, b), itertools.product(xs, ys)))
+    /// [y | x <- xs] ==> list(map(x -> y, xs))
+    /// [(a, b) | x <- xs; y <- ys] ==> list(map(((x, y),) -> (a, b), itertools.product(xs, ys)))
     /// {k: v | x <- xs} ==> dict(map(x -> (k, v), xs))
     /// {y | x <- xs} ==> set(map(x -> y, xs))
     /// {x <- xs | x <= 10} ==> set(filter(x -> x <= 10, xs))
@@ -1763,15 +1756,16 @@ impl Desugarer {
     /// ```
     fn rec_desugar_comprehension(expr: Expr) -> Expr {
         match expr {
-            Expr::Array(Array::Comprehension(mut comp)) => {
+            Expr::List(List::Comprehension(mut comp)) => {
                 debug_power_assert!(comp.generators.len(), >, 0);
                 if comp.generators.len() != 1 {
-                    return Expr::Array(Array::Comprehension(comp));
+                    return Expr::List(List::Comprehension(comp));
                 }
                 let (ident, iter) = comp.generators.remove(0);
                 let iterator = Self::desugar_layout_and_guard(ident, iter, comp.layout, comp.guard);
-                let array = if PYTHON_MODE { "list" } else { "array" };
-                Identifier::auto(array.into()).call1(iterator.into()).into()
+                Identifier::auto("list".into())
+                    .call1(iterator.into())
+                    .into()
             }
             Expr::Dict(Dict::Comprehension(mut comp)) => {
                 debug_power_assert!(comp.generators.len(), >, 0);

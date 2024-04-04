@@ -1,4 +1,4 @@
-# Array T: Type, N: Nat
+# List T: Type, N: Nat
 
 `[T; N]` is syntactic sugar. `N` can be emitted (`[T; _]`).
 
@@ -23,7 +23,7 @@ assert ["a", "b", "c", "d", "e"].values_at([0, 1, 3]) == ["a", "b", "d"]
    assert all(False for _in[])
    ```
 
-## methods of Array T, N | T <: Eq
+## methods of List T, N | T <: Eq
 
 * freq self -> [{T: Nat}]
    Returns the frequency of occurrence of an object.

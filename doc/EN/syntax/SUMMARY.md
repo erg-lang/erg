@@ -15,7 +15,7 @@ This file is for generating The Erg Book. Do not add badges, etc.
 - [Side effects and procedures](./07_side_effect.md)
 - [Procedures](./08_procedure.md)
 - [Built-in procedure](./09_builtin_procs.md)
-- [Array](./10_array.md)
+- [List](./10_list.md)
 - [Dict](./11_dict.md)
 - [Subscript (index access)](./12_container_ownership.md)
 - [Tuple](./13_tuple.md)

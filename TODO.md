@@ -21,7 +21,7 @@
   * [ ] Pattern-matching
     * [x] Variable Pattern
     * [x] Literal Pattern
-    * [x] Array Pattern
+    * [x] List Pattern
     * [x] Tuple Pattern
     * [x] Record Pattern
     * [x] Data Type Pattern
@@ -30,7 +30,7 @@
     * [x] Positional arguments
     * [x] Keyword arguments
     * [x] Variable length arguments
-  * [x] Array literal
+  * [x] List literal
   * [x] Record literal
   * [x] Set literal
   * [x] Dict literal
@@ -58,11 +58,11 @@
   * [ ] Patch definition
     * [ ] Glue Patch definition
   * [x] Range object
-  * [ ] Decorator
+  * [x] Decorator
   * [ ] Comprehension
-    * [ ] Array
-    * [ ] Dict
-    * [ ] Set
+    * [x] List
+    * [x] Dict
+    * [x] Set
     * [ ] Tuple
   * [x] Pipeline operator
   * [ ] ? operator
@@ -91,7 +91,7 @@
       * [x] `sys` (partially)
       * [x] `time` (partially)
     * [x] Load User Module
-    * [ ] Recursive module
+    * [x] Recursive module
     * [x] Visibility check
   * [x] Patching
 * [ ] Implement a side-effect checker

@@ -1,5 +1,5 @@
 # HACK: import MutType to suppress segfault in CPython 3.10 (cause unknown)
-from _erg_array import Array, UnsizedArray
+from _erg_list import List, UnsizedList
 from _erg_bool import Bool
 from _erg_bytes import Bytes
 from _erg_contains_operator import contains_operator

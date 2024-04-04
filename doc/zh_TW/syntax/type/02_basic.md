@@ -24,11 +24,11 @@ f([1, "a"]: [Int or Str])
 
 ```python
 # 參數的類型規范
-f x, y: Array Int = ...
-T X, Y: Array Int = ...
+f x, y: List Int = ...
+T X, Y: List Int = ...
 ```
 
-請注意，在上述情況下，`x, y` 都是 `Array Int`
+請注意，在上述情況下，`x, y` 都是 `List Int`
 
 ```python
 # 大寫變量的值必須是常量表達式
@@ -133,7 +133,7 @@ C::
 Id = Int
 Point3D = {x = Int; y = Int; z = Int}
 IorS = Int or Str
-Vector = Array Int
+Vector = List Int
 ```
 
 此外，當顯示錯誤時，如果定義了復合類型(在上面的示例中，右側類型不是第一個類型)，編譯器將為它們使用別名
@@ -146,8 +146,8 @@ Vector = Array Int
 Id = Int
 UserId = Int # 類型警告: 重復別名: Id 和 UserId
 
-Ids = Array Id
-Ints = Array Int # 類型警告: 重復別名: Isd 和 Ints
+Ids = List Id
+Ints = List Int # 類型警告: 重復別名: Isd 和 Ints
 
 IorS = Int or Str
 IorSorB = IorS or Bool

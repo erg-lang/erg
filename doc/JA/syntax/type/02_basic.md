@@ -19,11 +19,11 @@ j = 1 # 型指定は省略できる
 
 ```python
 # 引数の型指定
-f x, y: Array Int = ...
-T X, Y: Array Int = ...
+f x, y: List Int = ...
+T X, Y: List Int = ...
 ```
 
-上の場合、`x, y`は共に`Array Int`であることに注意して下さい。
+上の場合、`x, y`は共に`List Int`であることに注意して下さい。
 
 ```python
 # 大文字変数の値は定数式でなくてはならない
@@ -140,7 +140,7 @@ C::
 Id = Int
 Point3D = {x = Int; y = Int; z = Int}
 IorS = Int or Str
-Vector = Array Int
+Vector = List Int
 ```
 
 またエラー表示の際にも、コンパイラは複合型(上の例の場合、1番目以外の右辺型)にエイリアスが定義されている場合なるべくそれを使用するようになります。
@@ -153,8 +153,8 @@ Vector = Array Int
 Id = Int
 UserId = Int # TypeWarning: duplicate aliases: Id and UserId
 
-Ids = Array Id
-Ints = Array Int # TypeWarning: duplicate aliases: Isd and Ints
+Ids = List Id
+Ints = List Int # TypeWarning: duplicate aliases: Isd and Ints
 
 IorS = Int or Str
 IorSorB = IorS or Bool

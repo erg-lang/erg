@@ -17,13 +17,13 @@ fn exec_advanced_type_spec() -> Result<(), ()> {
 }
 
 #[test]
-fn exec_array() -> Result<(), ()> {
-    expect_success("tests/should_ok/array.er", 0)
+fn exec_list_test() -> Result<(), ()> {
+    expect_success("tests/should_ok/list.er", 0)
 }
 
 #[test]
-fn exec_array_member() -> Result<(), ()> {
-    expect_success("tests/should_ok/array_member.er", 0)
+fn exec_list_member() -> Result<(), ()> {
+    expect_success("tests/should_ok/list_member.er", 0)
 }
 
 #[test]
@@ -238,11 +238,6 @@ fn exec_iterator_test() -> Result<(), ()> {
 }
 
 #[test]
-fn exec_list() -> Result<(), ()> {
-    expect_success("examples/list.er", 0)
-}
-
-#[test]
 fn exec_long() -> Result<(), ()> {
     expect_success("tests/should_ok/long.er", 257)
 }
@@ -288,13 +283,18 @@ fn exec_mut() -> Result<(), ()> {
 }
 
 #[test]
-fn exec_mut_array() -> Result<(), ()> {
-    expect_success("tests/should_ok/mut_array.er", 0)
+fn exec_mut_list() -> Result<(), ()> {
+    expect_success("tests/should_ok/mut_list.er", 0)
 }
 
 #[test]
 fn exec_mut_dict() -> Result<(), ()> {
     expect_success("tests/should_ok/mut_dict.er", 0)
+}
+
+#[test]
+fn exec_mylist() -> Result<(), ()> {
+    expect_success("examples/mylist.er", 0)
 }
 
 #[test]
@@ -488,13 +488,13 @@ fn exec_args() -> Result<(), ()> {
 }
 
 #[test]
-fn exec_array_err() -> Result<(), ()> {
-    expect_failure("examples/array.er", 0, 1)
+fn exec_list_err() -> Result<(), ()> {
+    expect_failure("examples/list.er", 0, 1)
 }
 
 #[test]
-fn exec_array_member_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/array_member.er", 0, 3)
+fn exec_list_member_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/list_member.er", 0, 3)
 }
 
 #[test]
@@ -659,8 +659,8 @@ fn exec_mut_err() -> Result<(), ()> {
 }
 
 #[test]
-fn exec_mut_array_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/mut_array.er", 0, 5)
+fn exec_mut_list_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/mut_list.er", 0, 5)
 }
 
 #[test]

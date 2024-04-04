@@ -23,7 +23,7 @@ fn: Int -> Int = x -> x + 1
 # higher-order type
 a: [Int; 4] = [0, 1, 2, 3]
 # or
-a: Array Int, 4 = [0, 1, 2, 3]
+a: List Int, 4 = [0, 1, 2, 3]
 ```
 
 ### Literal patterns
@@ -66,8 +66,8 @@ name = match num:
 
 ```python,checker_ignore
 # these two are the same
-Array(T, N: {N | N >= 3})
-Array(T, N | N >= 3)
+List(T, N: {N | N >= 3})
+List(T, N | N >= 3)
 
 f M, N | M >= 0, N >= 1 = ...
 f(1, 0) # TypeError: N (2nd parameter) must be 1 or more
@@ -106,7 +106,7 @@ m, n = 1, 2
 f(x, y) = ...
 ```
 
-### array pattern
+### list pattern
 
 ```python
 [i, j] = [1, 2]

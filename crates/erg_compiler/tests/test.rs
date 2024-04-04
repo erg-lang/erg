@@ -12,8 +12,8 @@ use erg_compiler::error::CompileErrors;
 use erg_compiler::lower::ASTLowerer;
 
 use erg_compiler::ty::constructors::{
-    array_t, func0, func1, func2, kw, mono, nd_func, nd_proc, or, poly, proc1, subtype_q, ty_tp,
-    type_q, unknown_len_array_mut, unknown_len_array_t, v_enum,
+    func0, func1, func2, kw, list_t, mono, nd_func, nd_proc, or, poly, proc1, subtype_q, ty_tp,
+    type_q, unknown_len_list_mut, unknown_len_list_t, v_enum,
 };
 use erg_compiler::ty::Type::*;
 
@@ -71,15 +71,15 @@ fn _test_infer_types() -> Result<(), ()> {
     module.context.assert_var_type("abs2", &abs_t)?;
     let norm_t = func1(mono("<module>::Norm"), Nat);
     module.context.assert_var_type("norm", &norm_t)?;
-    let a_t = array_t(
+    let a_t = list_t(
         v_enum(set! {1.into(), 2.into(), 3.into(), 4.into()}),
         4.into(),
     );
     module.context.assert_var_type("a", &a_t)?;
-    let abc_t = unknown_len_array_t(v_enum(set! {"a".into(), "b".into(), "c".into()}));
+    let abc_t = unknown_len_list_t(v_enum(set! {"a".into(), "b".into(), "c".into()}));
     module.context.assert_var_type("abc", &abc_t)?;
     let t = type_q("T");
-    let f_t = proc1(t.clone(), unknown_len_array_mut(t)).quantify();
+    let f_t = proc1(t.clone(), unknown_len_list_mut(t)).quantify();
     module.context.assert_var_type("f!", &f_t)?;
     let r = type_q("R");
     let add_r = poly("Add", vec![ty_tp(r.clone())]);
@@ -92,7 +92,7 @@ fn _test_infer_types() -> Result<(), ()> {
         .assert_var_type("val", &v_enum(set! { "b".into(), "d".into() }))?;
     module
         .context
-        .assert_var_type("ys", &unknown_len_array_t(Nat))?;
+        .assert_var_type("ys", &unknown_len_list_t(Nat))?;
     Ok(())
 }
 

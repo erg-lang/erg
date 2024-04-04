@@ -6,7 +6,7 @@ Ergには量化型、依存型が存在します。すると当然、その二�
 
 ```python
 NonNullStr = |N: Nat| StrWithLen N | N != 0 # N: Nat; S: StrWithLen N; N != 0}と同じ
-NonEmptyArray = |N: Nat| [_; N | N > 0] # N: Nat; A: Array(_, N); N > 0}と同じ
+NonEmptyList = |N: Nat| [_; N | N > 0] # N: Nat; A: List(_, N); N > 0}と同じ
 ```
 
 量化依存型の標準形は`K(A, ... | Pred)`です。`K`は型構築子、`A, B`は型引数、`Pred`は条件式です。

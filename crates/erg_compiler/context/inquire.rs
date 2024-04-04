@@ -3690,7 +3690,7 @@ impl Context {
     /// ```
     pub fn meta_type(&self, typ: &Type) -> Type {
         match typ {
-            Type::Poly { name, params } if &name[..] == "Array" || &name[..] == "Set" => poly(
+            Type::Poly { name, params } if &name[..] == "List" || &name[..] == "Set" => poly(
                 name.clone(),
                 params
                     .iter()
@@ -3743,7 +3743,7 @@ impl Context {
 
     /// ```erg
     /// recover_typarams(Int, Nat) == Nat
-    /// recover_typarams(Array!(Int, _), Array(Nat, 2)) == Array!(Nat, 2)
+    /// recover_typarams(List!(Int, _), List(Nat, 2)) == List!(Nat, 2)
     /// recover_typarams(Str or NoneType, {"a", "b"}) == {"a", "b"}
     /// ```
     /// ```erg
@@ -3773,7 +3773,7 @@ impl Context {
                 )));
             }
         }
-        // Array(Nat, 2) !<: Array!(Int, _)
+        // List(Nat, 2) !<: List!(Int, _)
         let base_def_t = self
             .get_nominal_type_ctx(base)
             .map(|ctx| &ctx.typ)
@@ -3783,7 +3783,7 @@ impl Context {
             .map(|ctx| &ctx.typ)
             .unwrap_or(&Type::Obj);
         if self.related(base_def_t, assert_def_t) {
-            // FIXME: Vec(_), Array(Int, 2) -> Vec(2)
+            // FIXME: Vec(_), List(Int, 2) -> Vec(2)
             let casted = poly(base.qual_name(), guard.to.typarams());
             Ok(casted)
         } else {

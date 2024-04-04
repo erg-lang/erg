@@ -20,14 +20,14 @@ g: [T; n] -> [T; _]
 
 ```python
 i: _ # i: Object
-[_; _] == [Object; _] == Array
+[_; _] == [Object; _] == List
 ```
 
 類型擦除與省略類型說明不同。一旦類型參數信息被刪除，除非您再次聲明它，否則它不會被返回
 
 ```python
 implicit = (1..5).iter().map(i -> i * 2).to_arr()
-explicit = (1..5).iter().map(i -> i * 2).into(Array(Nat))
+explicit = (1..5).iter().map(i -> i * 2).into(List(Nat))
 ```
 
 在 Rust 中，這對應于以下代碼:
@@ -40,6 +40,6 @@ Erg 不允許部分省略類型，而是使用高階種類多態性
 
 ```python
 # collect 是采用 Kind 的高階 Kind 方法
-hk = (1..5).iter().map(i -> i * 2).collect(Array)
-hk: Array(Int)
+hk = (1..5).iter().map(i -> i * 2).collect(List)
+hk: List(Int)
 ```

@@ -17,14 +17,14 @@ log rand # 0.2597...
 
 1+1*2 |>.times do log("a", end := "") # aaa
 
-evens = 1..100 |>.iter() |>.filter i -> i % 2 == 0 |>.collect Array
+evens = 1..100 |>.iter() |>.filter i -> i % 2 == 0 |>.collect List
 # When implemented without the pipeline operator,
-_evens = (1..100).iter().filter(i -> i % 2 == 0).collect(Array)
+_evens = (1..100).iter().filter(i -> i % 2 == 0).collect(List)
 # or
 __evens = 1..100 \
     .iter() \
     .filter i -> i % 2 == 0 \
-    .collect Array
+    .collect List
 ```
 
 <p align='center'>

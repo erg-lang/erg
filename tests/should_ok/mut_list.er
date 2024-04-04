@@ -1,4 +1,4 @@
-v as Array!(Nat, _) = ![]
+v as List!(Nat, _) = ![]
 for! 0..<10, i =>
     v.push! i
 
@@ -6,12 +6,12 @@ assert v[0] == 0
 assert v == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 log sum v
 
-iv: Array!(Int, _) = ![1]
+iv: List!(Int, _) = ![1]
 iv.push! 2
-iv: Array!(Int, 2)
+iv: List!(Int, 2)
 
 v2 = ![1, 1, 1]
 v2.update!((x: [{1}; _]) -> x + [1])
 
-v3 as Array!(Int, _) = ![1, 2, 3]
+v3 as List!(Int, _) = ![1, 2, 3]
 v3.update!(x -> x + [1])

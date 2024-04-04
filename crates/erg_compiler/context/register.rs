@@ -21,7 +21,7 @@ use erg_parser::ast::{self, ClassAttr, RecordAttrOrIdent, TypeSpecWithOp};
 
 use crate::ty::constructors::{
     free_var, func, func0, func1, module, proc, py_module, ref_, ref_mut, str_dict_t, tp_enum,
-    unknown_len_array_t, v_enum,
+    unknown_len_list_t, v_enum,
 };
 use crate::ty::free::{Constraint, HasLevel};
 use crate::ty::typaram::TyParam;
@@ -397,7 +397,7 @@ impl Context {
                         Err((ty, errs)) => (ty, errs),
                     };
                     let spec_t = match kind {
-                        ParamKind::VarParams => unknown_len_array_t(spec_t),
+                        ParamKind::VarParams => unknown_len_list_t(spec_t),
                         ParamKind::KwVarParams => str_dict_t(spec_t),
                         _ => spec_t,
                     };
@@ -577,7 +577,7 @@ impl Context {
             }
             if let Some(var_params) = &mut params.var_params {
                 if let Some(pt) = &subr_t.var_params {
-                    let pt = pt.clone().map_type(unknown_len_array_t);
+                    let pt = pt.clone().map_type(unknown_len_list_t);
                     if let Err(es) =
                         self.assign_param(var_params, Some(&pt), tmp_tv_cache, ParamKind::VarParams)
                     {
@@ -2764,9 +2764,9 @@ impl Context {
                 }
                 res
             }
-            ast::Expr::Array(ast::Array::Normal(arr)) => {
+            ast::Expr::List(ast::List::Normal(lis)) => {
                 let mut res = false;
-                for val in arr.elems.pos_args().iter() {
+                for val in lis.elems.pos_args().iter() {
                     if self.inc_ref_expr(&val.expr, namespace, tmp_tv_cache) {
                         res = true;
                     }

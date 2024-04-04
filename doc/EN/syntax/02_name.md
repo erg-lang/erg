@@ -29,7 +29,7 @@ l1 = l2 = [1, 2, 3] # SyntaxError: multiple assignment not allowed
 ```python
 # OK
 l1 = [1, 2, 3]
-l2 = l1.clone()
+l2 = l1
 ```
 
 It is also not possible to reassign to a variable. The syntax that can be used instead, to hold mutable states, are described later.

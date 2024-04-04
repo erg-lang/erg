@@ -2,7 +2,7 @@
 
 ## [_erg_array.py](https://github.com/erg-lang/erg/blob/d1dc1e60e7d4e3333f80ed23c5ead77b5fe47cb2/crates/erg_compiler/lib/std/_erg_array.py)
 
-`list`のラッパーである`Array`クラスを定義します。
+`list`のラッパーである`List`クラスを定義します。
 
 ## [_erg_bool.py](https://github.com/erg-lang/erg/blob/d1dc1e60e7d4e3333f80ed23c5ead77b5fe47cb2/crates/erg_compiler/lib/std/_erg_bool.py)
 

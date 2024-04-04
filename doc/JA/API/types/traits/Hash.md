@@ -1,4 +1,4 @@
-# Hashable
+# Hash
 
 ## required methods
 

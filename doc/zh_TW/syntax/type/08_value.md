@@ -2,7 +2,7 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/08_value.md%26commit_hash%3Db713e6f5cf9570255ccf44d14166cb2a9984f55a)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/08_value.md&commit_hash=b713e6f5cf9570255ccf44d14166cb2a9984f55a)
 
-值類型是可以在編譯時評估的 Erg 內置類型，具體來說: 
+值類型是可以在編譯時評估的 Erg 內置類型，具體來說:
 
 ```python
 Value = (
@@ -14,7 +14,7 @@ Value = (
     or Bool
     or Str
     or NoneType
-    or Array Const
+    or List Const
     or Tuple Const
     or Set Const
     or ConstFunc(Const, _)
@@ -37,7 +37,6 @@ Value = (
 ---
 
 <span id="1" style="font-size:x-small"><sup>1</sup> Erg 中的術語"值類型"與其他語言中的定義不同。純 Erg 語義中沒有內存的概念，并且因為它被放置在堆棧上而說它是值類型，或者因為它實際上是一個指針而說它不是值類型是不正確的。值類型僅表示它是"值"類型或其子類型。[↩](#f1)</span>
-
 
 <p align='center'>
     <a href='./07_patch.md'>上一頁</a> | <a href='./09_attributive.md'>下一頁</a>

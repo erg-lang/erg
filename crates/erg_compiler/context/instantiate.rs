@@ -30,7 +30,7 @@ use crate::hir;
 /// For example, cloning each type variable of quantified type `?T -> ?T` would result in `?1 -> ?2`.
 /// To avoid this, an environment to store type variables is needed, which is `TyVarCache`.
 /// 量化型をインスタンス化するための文脈
-/// e.g. Array -> [("T": ?T(: Type)), ("N": ?N(: Nat))]
+/// e.g. List -> [("T": ?T(: Type)), ("N": ?N(: Nat))]
 /// FIXME: current implementation is wrong
 /// It will not work unless the type variable is used with the same name as the definition.
 #[derive(Debug, Clone)]
@@ -468,16 +468,16 @@ impl Context {
                     .collect::<TyCheckResult<_>>()?;
                 Ok(TyParam::Dict(dict))
             }
-            TyParam::Array(arr) => {
-                let arr = arr
+            TyParam::List(lis) => {
+                let lis = lis
                     .into_iter()
                     .map(|v| self.instantiate_tp(v, tmp_tv_cache, loc))
                     .collect::<TyCheckResult<_>>()?;
-                Ok(TyParam::Array(arr))
+                Ok(TyParam::List(lis))
             }
-            TyParam::UnsizedArray(elem) => {
+            TyParam::UnsizedList(elem) => {
                 let elem = self.instantiate_tp(*elem, tmp_tv_cache, loc)?;
-                Ok(TyParam::UnsizedArray(Box::new(elem)))
+                Ok(TyParam::UnsizedList(Box::new(elem)))
             }
             TyParam::Set(set) => {
                 let set = set
@@ -706,12 +706,12 @@ impl Context {
                     Ok(ValueObj::Subr(ConstSubr::User(user)))
                 }
             },
-            ValueObj::Array(arr) => {
+            ValueObj::List(lis) => {
                 let mut new = vec![];
-                for v in arr.iter().cloned() {
+                for v in lis.iter().cloned() {
                     new.push(self.instantiate_value(v, tmp_tv_cache, loc)?);
                 }
-                Ok(ValueObj::Array(new.into()))
+                Ok(ValueObj::List(new.into()))
             }
             ValueObj::Tuple(tup) => {
                 let mut new = vec![];

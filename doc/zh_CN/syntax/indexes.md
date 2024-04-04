@@ -54,7 +54,7 @@
   * &gt;&gt;
   * &gt;=
 * @ → [decorator](./29_decorator.md)
-* [] → [Array](./10_array.md)
+* [] → [List](./10_list.md)
 * \ → [Indention](./00_basic.md)
 * \ → [Str](./01_literal.md)
 * ^
@@ -85,7 +85,7 @@
 * [anonymous&nbsp;function](./21_lambda.md)
 * [Anonymous&nbsp;polycorrelation&nbsp;coefficient](./21_lambda.md)
 * anonymous type → [Type&nbsp;System](./type/01_type_system.md)
-* [Array](./10_array.md)
+* [List](./10_list.md)
 * [assert]
 * [Attach](./29_decorator.md)
 * [attribute](type/09_attributive.md)

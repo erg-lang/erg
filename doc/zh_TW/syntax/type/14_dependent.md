@@ -16,7 +16,7 @@ assert a1 in [Nat; 4]
 assert a1 + a2 in [Nat; 7]
 ```
 
-如果函數參數中傳遞的類型對象與返回類型有關，則寫: 
+如果函數參數中傳遞的類型對象與返回類型有關，則寫:
 
 ```python
 narray: |N: Nat| {N} -> [{N}; N]
@@ -69,11 +69,12 @@ vm.stop!() # 類型錯誤: VM!(!"stopped", 1) 沒有 .stop!()
 您還可以嵌入或繼承現有類型以創建依賴類型
 
 ```python
-MyArray(T, N) = Inherit[T; N]
+MyList(T, N) = Inherit[T; N]
 
 # self 的類型: Self(T, N) 與 .array 一起變化
 MyStruct!(T, N: Nat!) = Class {.array: [T; !N]}
 ```
+
 <p align='center'>
     <a href='./13_algebraic.md'>上一頁</a> | <a href='./15_quantified.md'>下一頁</a>
 </p>

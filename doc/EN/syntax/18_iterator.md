@@ -32,22 +32,22 @@ The type `{Iterator}` of the `.Iterator` attribute is so-called set-kind (kind i
 ```python
 assert [1, 2, 3] in Iterable(Int)
 assert 1..3 in Iterable(Int)
-assert [1, 2, 3].Iterator == ArrayIterator
+assert [1, 2, 3].Iterator == ListIterator
 assert (1..3).Iterator == RangeIterator
 
-log [1, 2, 3].iter() # <ArrayIterator object
+log [1, 2, 3].iter() # <ListIterator object
 log (1..3).iter() # <RangeIterator object>
 ```
 
-Both `ArrayIterator` and `RangeIterator` are classes that implement `Iterator` and exist only to give `Array` and `Range` iteration functions.
+Both `ListIterator` and `RangeIterator` are classes that implement `Iterator` and exist only to give `List` and `Range` iteration functions.
 Such a design pattern is called companion class [<sup id="f1">1</sup>](#1).
-And the `IteratorImpl` patch is the core of the iteration functionality. `Iterator` requires only one `.next` method, `IteratorImpl` provides dozens of methods indeed. `ArrayIterator` and `RangeIterator` can use the implementation method of `IteratorImpl` just by implementing the `.next` method. For this convenience, the standard library implements a number of iterators.
+And the `IteratorImpl` patch is the core of the iteration functionality. `Iterator` requires only one `.next` method, `IteratorImpl` provides dozens of methods indeed. `ListIterator` and `RangeIterator` can use the implementation method of `IteratorImpl` just by implementing the `.next` method. For this convenience, the standard library implements a number of iterators.
 
 ```mermaid
 classDiagram
-    class Array~T~ {
+    class List~T~ {
         ...
-        iter() ArrayIterator~T~
+        iter() ListIterator~T~
     }
     class Range~T~ {
         ...
@@ -57,10 +57,10 @@ classDiagram
         <<trait>>
         iter() Iterator~T~
     }
-    Iterable~T~ <|.. Array~T~: Impl
+    Iterable~T~ <|.. List~T~: Impl
     Iterable~T~ <|.. Range~T~: Impl
-    class ArrayIterator~T~ {
-        array: Array~T~
+    class ListIterator~T~ {
+        list: List~T~
         next() T
     }
     class RangeIterator~T~ {
@@ -71,10 +71,10 @@ classDiagram
         <<trait>>
         next() T
     }
-    Iterator~T~ <|.. ArrayIterator~T~: Impl
+    Iterator~T~ <|.. ListIterator~T~: Impl
     Iterator~T~ <|.. RangeIterator~T~: Impl
 
-    Array <-- ArrayIterator
+    List <-- ListIterator
     Range <-- RangeIterator
 ```
 

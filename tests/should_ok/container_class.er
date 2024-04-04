@@ -6,11 +6,11 @@ D! = Class Dict! { Int: [Str; _] }
 _ = D!.new !{:}
 _ = D!.new !{1: ["a"]}
 
-D2 = Class { Str: Array(Int) }
+D2 = Class { Str: List(Int) }
 _ = D2.new { "a": [1] }
 
-D3 = Class { Str: Array!(Int) }
+D3 = Class { Str: List!(Int) }
 _ = D3.new { "a": ![1] }
 
-D4! = Class Dict! { Str: Array!(Int) }
+D4! = Class Dict! { Str: List!(Int) }
 _ = D4!.new !{ "a": ![1] }

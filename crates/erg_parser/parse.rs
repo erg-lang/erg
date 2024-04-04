@@ -135,7 +135,7 @@ enum ArgKind {
     KwVar(PosArg),
 }
 
-pub enum ArrayInner {
+pub enum ListInner {
     Normal(Args),
     WithLength(PosArg, Expr),
     Comprehension {
@@ -145,7 +145,7 @@ pub enum ArrayInner {
     },
 }
 
-impl ArrayInner {
+impl ListInner {
     pub const fn comp(
         layout: Option<Expr>,
         generators: Vec<(Identifier, Expr)>,
@@ -857,7 +857,7 @@ impl Parser {
         Ok(acc)
     }
 
-    fn try_reduce_array_elems(&mut self) -> ParseResult<ArrayInner> {
+    fn try_reduce_list_elems(&mut self) -> ParseResult<ListInner> {
         debug_call_info!(self);
         if self.cur_is(EOF) {
             let tk = self.tokens.last().unwrap();
@@ -868,7 +868,7 @@ impl Parser {
         if self.cur_category_is(TC::REnclosure) {
             let args = Args::empty();
             debug_exit_info!(self);
-            return Ok(ArrayInner::Normal(args));
+            return Ok(ListInner::Normal(args));
         }
         let first = self
             .try_reduce_elem()
@@ -891,7 +891,7 @@ impl Parser {
                         self.stack_dec(fn_name!())
                     })?;
                 debug_exit_info!(self);
-                return Ok(ArrayInner::WithLength(elems.remove_pos(0), len));
+                return Ok(ListInner::WithLength(elems.remove_pos(0), len));
             }
             Some(PreStar) => {
                 self.lpop();
@@ -900,7 +900,7 @@ impl Parser {
                     .map_err(|_| self.stack_dec(fn_name!()))?;
                 elems.set_var_args(PosArg::new(rest));
                 debug_exit_info!(self);
-                return Ok(ArrayInner::Normal(elems));
+                return Ok(ListInner::Normal(elems));
             }
             Some(Inclusion) => {
                 self.lpop();
@@ -925,7 +925,7 @@ impl Parser {
                     .try_reduce_expr(false, false, false, false)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
                 debug_exit_info!(self);
-                return Ok(ArrayInner::comp(None, generators, Some(guard)));
+                return Ok(ListInner::comp(None, generators, Some(guard)));
             }
             Some(VBar) => {
                 self.lpop();
@@ -956,7 +956,7 @@ impl Parser {
                     None
                 };
                 debug_exit_info!(self);
-                return Ok(ArrayInner::comp(Some(elem), generators, guard));
+                return Ok(ListInner::comp(Some(elem), generators, guard));
             }
             Some(RParen | RSqBr | RBrace | Dedent | Comma) => {}
             Some(_) => {
@@ -1027,7 +1027,7 @@ impl Parser {
             }
         }
         debug_exit_info!(self);
-        Ok(ArrayInner::Normal(elems))
+        Ok(ListInner::Normal(elems))
     }
 
     fn try_reduce_elem(&mut self) -> ParseResult<PosArg> {
@@ -2601,11 +2601,11 @@ impl Parser {
                 Ok(expr)
             }
             Some(t) if t.is(LSqBr) => {
-                let array = self
-                    .try_reduce_array()
+                let list = self
+                    .try_reduce_list()
                     .map_err(|_| self.stack_dec(fn_name!()))?;
                 debug_exit_info!(self);
-                Ok(Expr::Array(array))
+                Ok(Expr::List(list))
             }
             Some(t) if t.is(LBrace) => {
                 match self
@@ -2874,15 +2874,15 @@ impl Parser {
     }
 
     #[inline]
-    fn try_reduce_array(&mut self) -> ParseResult<Array> {
+    fn try_reduce_list(&mut self) -> ParseResult<List> {
         debug_call_info!(self);
         let l_sqbr = expect_pop!(self, fail_next LSqBr);
         let inner = self
-            .try_reduce_array_elems()
+            .try_reduce_list_elems()
             .map_err(|_| self.stack_dec(fn_name!()))?;
         let r_sqbr = expect_pop!(self, fail_next RSqBr);
-        let arr = match inner {
-            ArrayInner::Normal(mut elems) => {
+        let lis = match inner {
+            ListInner::Normal(mut elems) => {
                 let elems = if elems
                     .pos_args()
                     .first()
@@ -2896,21 +2896,21 @@ impl Parser {
                 } else {
                     elems
                 };
-                Array::Normal(NormalArray::new(l_sqbr, r_sqbr, elems))
+                List::Normal(NormalList::new(l_sqbr, r_sqbr, elems))
             }
-            ArrayInner::WithLength(elem, len) => {
-                Array::WithLength(ArrayWithLength::new(l_sqbr, r_sqbr, elem, len))
+            ListInner::WithLength(elem, len) => {
+                List::WithLength(ListWithLength::new(l_sqbr, r_sqbr, elem, len))
             }
-            ArrayInner::Comprehension {
+            ListInner::Comprehension {
                 layout,
                 generators,
                 guard,
-            } => Array::Comprehension(ArrayComprehension::new(
+            } => List::Comprehension(ListComprehension::new(
                 l_sqbr, r_sqbr, layout, generators, guard,
             )),
         };
         debug_exit_info!(self);
-        Ok(arr)
+        Ok(lis)
     }
 
     /// Set, Dict, Record

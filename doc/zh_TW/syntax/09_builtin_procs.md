@@ -12,5 +12,5 @@
 ```
 
 <p align='center'>
-    <a href='./08_procedure.md'>上一頁</a> | <a href='./10_array.md'>下一頁</a>
+    <a href='./08_procedure.md'>上一頁</a> | <a href='./10_list.md'>下一頁</a>
 </p>

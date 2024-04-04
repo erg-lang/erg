@@ -1,7 +1,7 @@
 id x = x
 
-ids = Array.__call__(map(id, ["1", "2", "3"]))
-ints = Array.__call__(map(int, ["1", "2", "3"]))
+ids = List.__call__(map(id, ["1", "2", "3"]))
+ints = List.__call__(map(int, ["1", "2", "3"]))
 
 assert ids == ["1", "2", "3"]
 assert ints == [1, 2, 3]

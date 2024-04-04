@@ -11,5 +11,5 @@
 ```
 
 <p align='center'>
-    <a href='./08_procedure.md'>Previous</a> | <a href='./10_array.md'>Next</a>
+    <a href='./08_procedure.md'>Previous</a> | <a href='./10_list.md'>Next</a>
 </p>

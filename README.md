@@ -150,10 +150,10 @@
     2│     l = [1, 2, 3]
     3│     l.push!(x)
              ^^^^^
-    AttributeError: Array object has no attribute `.push!`
+    AttributeError: List object has no attribute `.push!`
     hint: to update the internal state of an object, make it mutable by using `!` operator
-    hint: `Array` has `push`, see https://erg-lang.github.io/docs/prelude/Array/##push for more information
-    hint: `Array!` has `push!`, see https://erg-lang.github.io/docs/prelude/Array!/##push! for more information
+    hint: `List` has `push`, see https://erg-lang.github.io/docs/prelude/List/##push for more information
+    hint: `List!` has `push!`, see https://erg-lang.github.io/docs/prelude/List!/##push! for more information
     ```
 
 ## Requirements

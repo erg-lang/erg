@@ -1,6 +1,6 @@
-f _: Array!(Int, _) = None
-g _: Array!(Int) = None
-h _: Array!(Int, N := 1) = None
+f _: List!(Int, _) = None
+g _: List!(Int) = None
+h _: List!(Int, N := 1) = None
 
 f ![1, 2]
 g ![1, 2]

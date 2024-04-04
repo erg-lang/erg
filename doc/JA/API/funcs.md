@@ -56,7 +56,7 @@ codeをコードとして評価し返す。
 ただしクラスは比較できないため、インスタンス判定がしたい場合は`classof(object) == Class`ではなく`object in Class`を使う。
 コンパイル時に決定される構造型は`Typeof`で得られる。
 
-## Iterator, Array生成系
+## Iterator, List生成系
 
 ### repeat|T|(x: T) -> RepeatIterator T
 

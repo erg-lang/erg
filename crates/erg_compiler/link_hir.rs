@@ -121,15 +121,15 @@ impl<'a> HIRLinker<'a> {
                     }
                 }
             }
-            Expr::Array(array) => match array {
-                Array::Normal(arr) => {
-                    for elem in arr.elems.pos_args.iter_mut() {
+            Expr::List(list) => match list {
+                List::Normal(lis) => {
+                    for elem in lis.elems.pos_args.iter_mut() {
                         Self::resolve_pymod_path(&mut elem.expr);
                     }
                 }
-                Array::WithLength(arr) => {
-                    Self::resolve_pymod_path(&mut arr.elem);
-                    if let Some(len) = arr.len.as_deref_mut() {
+                List::WithLength(lis) => {
+                    Self::resolve_pymod_path(&mut lis.elem);
+                    if let Some(len) = lis.len.as_deref_mut() {
                         Self::resolve_pymod_path(len);
                     }
                 }
@@ -245,15 +245,15 @@ impl<'a> HIRLinker<'a> {
                     },
                 }
             }
-            Expr::Array(array) => match array {
-                Array::Normal(arr) => {
-                    for elem in arr.elems.pos_args.iter_mut() {
+            Expr::List(list) => match list {
+                List::Normal(lis) => {
+                    for elem in lis.elems.pos_args.iter_mut() {
                         self.replace_import(&mut elem.expr);
                     }
                 }
-                Array::WithLength(arr) => {
-                    self.replace_import(&mut arr.elem);
-                    if let Some(len) = arr.len.as_deref_mut() {
+                List::WithLength(lis) => {
+                    self.replace_import(&mut lis.elem);
+                    if let Some(len) = lis.len.as_deref_mut() {
                         self.replace_import(len);
                     }
                 }

@@ -10,8 +10,8 @@ Nat = 0.. _
 Odd = {N: Int | N % 2 == 1}
 Char = StrWithLen 1
 # StrWithLen 1 == {_: StrWithLen N | N == 1}
-[Int; 3] == {_: Array Int, N | N == 3}
-Array3OrMore == {A: Array _, N | N >= 3}
+[Int; 3] == {_: List Int, N | N == 3}
+List3OrMore == {A: List _, N | N >= 3}
 ```
 
 When there are multiple preds, they can be separated by `;` or `and` or `or`. `;` and `and` mean the same thing.
@@ -83,7 +83,7 @@ Just as `_: {X}` can be rewritten as `X` (constant pattern), `_: {X: T | Pred}` 
 
 ```python
 # method `.m` is defined for arrays of length 3 or greater
-Array(T, N | N >= 3)
+List(T, N | N >= 3)
     .m(&self) = ...
 ```
 

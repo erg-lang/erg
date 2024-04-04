@@ -1,6 +1,6 @@
-# Array
+# List
 
-Arrays are the most basic __collection (aggregate)__.
+A list is the most basic __collection (aggregate)__.
 A collection is an object that can hold multiple objects inside it.
 
 ```python
@@ -14,7 +14,7 @@ mut_a[0].inc!()
 assert mut_a == [2, 2, 3]
 ```
 
-As a rule, arrays cannot contain objects of different types.
+As a rule, lists cannot contain objects of different types.
 
 ```python,compile_fail
 [1, "a"] # TypeError: 1st element is Int, but 2nd element is Str
@@ -23,12 +23,12 @@ As a rule, arrays cannot contain objects of different types.
 However, you can bypass the restriction by explicitly specifying the type like this.
 
 ```python
-[1: Int or Str, "a"]
+[1, "a"]: [Int or Str; 2]
 ```
 
 ## Slice
 
-An array can also have multiple values taken out at once. This is called slicing.
+A list can also have multiple values taken out at once. This is called slicing.
 
 ```python
 l = [1, 2, 3, 4]
@@ -41,7 +41,7 @@ assert l[1..1] == [2]
 assert l[..].step(2) == [2, 4]
 ```
 
-The object obtained by slicing is an (immutable) copy to an array.
+The object obtained by slicing is an (immutable) copy to a list.
 
 ```python
 print! Typeof l[1..2] # [Int; 4]

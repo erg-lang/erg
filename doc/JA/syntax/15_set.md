@@ -2,7 +2,7 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/15_set.md%26commit_hash%3De959b3e54bfa8cee4929743b0193a129e7525c61)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/15_set.md&commit_hash=e959b3e54bfa8cee4929743b0193a129e7525c61)
 
-セットは集合を表し、データ構造的には重複、順序のない配列です。
+セットは集合を表し、データ構造的には重複、順序のないリストです。
 
 ```python
 assert Set.from([1, 2, 3, 2, 1]) == {1, 2, 3}

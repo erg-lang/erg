@@ -186,14 +186,14 @@ pub(crate) fn structural_func(mut args: ValueArgs, ctx: &Context) -> EvalValueRe
     Ok(ValueObj::gen_t(GenTypeObj::structural(t, base)).into())
 }
 
-pub(crate) fn __array_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+pub(crate) fn __list_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let slf = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
-    let slf = match ctx.convert_value_into_array(slf) {
+    let slf = match ctx.convert_value_into_list(slf) {
         Ok(slf) => slf,
         Err(val) => {
-            return Err(type_mismatch("Array", val, "Self"));
+            return Err(type_mismatch("List", val, "Self"));
         }
     };
     let index = args
@@ -369,7 +369,7 @@ pub(crate) fn dict_keys(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<T
         // let keys = poly(DICT_KEYS, vec![ty_tp(union)]);
         Ok(ValueObj::builtin_type(union).into())
     } else {
-        Ok(ValueObj::Array(slf.into_keys().collect::<Vec<_>>().into()).into())
+        Ok(ValueObj::List(slf.into_keys().collect::<Vec<_>>().into()).into())
     }
 }
 
@@ -396,7 +396,7 @@ pub(crate) fn dict_values(mut args: ValueArgs, ctx: &Context) -> EvalValueResult
         // let values = poly(DICT_VALUES, vec![ty_tp(union)]);
         Ok(ValueObj::builtin_type(union).into())
     } else {
-        Ok(ValueObj::Array(slf.into_values().collect::<Vec<_>>().into()).into())
+        Ok(ValueObj::List(slf.into_values().collect::<Vec<_>>().into()).into())
     }
 }
 
@@ -423,7 +423,7 @@ pub(crate) fn dict_items(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
         // let items = poly(DICT_ITEMS, vec![ty_tp(union)]);
         Ok(ValueObj::builtin_type(union).into())
     } else {
-        Ok(ValueObj::Array(
+        Ok(ValueObj::List(
             slf.into_iter()
                 .map(|(k, v)| ValueObj::Tuple(vec![k, v].into()))
                 .collect::<Vec<_>>()
@@ -468,12 +468,12 @@ pub(crate) fn dict_diff(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<
 }
 
 /// `[Int, Str].union() == Int or Str`
-pub(crate) fn array_union(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+pub(crate) fn list_union(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let slf = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
-    let ValueObj::Array(slf) = slf else {
-        return Err(type_mismatch("Array", slf, "Self"));
+    let ValueObj::List(slf) = slf else {
+        return Err(type_mismatch("List", slf, "Self"));
     };
     let slf = slf
         .iter()
@@ -485,15 +485,15 @@ pub(crate) fn array_union(mut args: ValueArgs, ctx: &Context) -> EvalValueResult
     Ok(ValueObj::builtin_type(union).into())
 }
 
-fn _arr_shape(arr: ValueObj, ctx: &Context) -> Result<Vec<TyParam>, String> {
+fn _lis_shape(arr: ValueObj, ctx: &Context) -> Result<Vec<TyParam>, String> {
     let mut shape = vec![];
     let mut arr = arr;
     loop {
         match arr {
-            ValueObj::Array(a) => {
+            ValueObj::List(a) => {
                 shape.push(ValueObj::from(a.len()).into());
                 match a.first() {
-                    Some(arr_ @ (ValueObj::Array(_) | ValueObj::Type(_))) => {
+                    Some(arr_ @ (ValueObj::List(_) | ValueObj::Type(_))) => {
                         arr = arr_.clone();
                     }
                     _ => {
@@ -501,7 +501,7 @@ fn _arr_shape(arr: ValueObj, ctx: &Context) -> Result<Vec<TyParam>, String> {
                     }
                 }
             }
-            ValueObj::Type(ref t) if &t.typ().qual_name()[..] == "Array" => {
+            ValueObj::Type(ref t) if &t.typ().qual_name()[..] == "List" => {
                 let mut tps = t.typ().typarams();
                 let elem = match ctx.convert_tp_into_type(tps.remove(0)) {
                     Ok(elem) => elem,
@@ -522,23 +522,23 @@ fn _arr_shape(arr: ValueObj, ctx: &Context) -> Result<Vec<TyParam>, String> {
 }
 
 /// ```erg
-/// Array(Int, 2).shape() == [2,]
-/// Array(Array(Int, 2), N).shape() == [N, 2]
+/// List(Int, 2).shape() == [2,]
+/// List(List(Int, 2), N).shape() == [N, 2]
 /// [1, 2].shape() == [2,]
 /// [[1, 2], [3, 4], [5, 6]].shape() == [3, 2]
 /// ```
-pub(crate) fn array_shape(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
-    let arr = args
+pub(crate) fn list_shape(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let val = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
-    let res = _arr_shape(arr, ctx).unwrap();
-    let arr = TyParam::Array(res);
-    Ok(arr)
+    let res = _lis_shape(val, ctx).unwrap();
+    let lis = TyParam::List(res);
+    Ok(lis)
 }
 
-fn _array_scalar_type(mut typ: Type, ctx: &Context) -> Result<Type, String> {
+fn _list_scalar_type(mut typ: Type, ctx: &Context) -> Result<Type, String> {
     loop {
-        if matches!(&typ.qual_name()[..], "Array" | "Array!" | "UnsizedArray") {
+        if matches!(&typ.qual_name()[..], "List" | "List!" | "UnsizedList") {
             let tp = typ.typarams().remove(0);
             match ctx.convert_tp_into_type(tp) {
                 Ok(typ_) => {
@@ -554,21 +554,21 @@ fn _array_scalar_type(mut typ: Type, ctx: &Context) -> Result<Type, String> {
     }
 }
 
-pub(crate) fn array_scalar_type(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+pub(crate) fn list_scalar_type(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let slf = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
     let Ok(slf) = ctx.convert_value_into_type(slf.clone()) else {
         return Err(type_mismatch("Type", slf, "Self"));
     };
-    let res = _array_scalar_type(slf, ctx).unwrap();
+    let res = _list_scalar_type(slf, ctx).unwrap();
     Ok(TyParam::t(res))
 }
 
 fn _scalar_type(mut value: ValueObj, _ctx: &Context) -> Result<Type, String> {
     loop {
         match value {
-            ValueObj::Array(a) => match a.first() {
+            ValueObj::List(a) => match a.first() {
                 Some(elem) => {
                     value = elem.clone();
                 }
@@ -592,7 +592,7 @@ fn _scalar_type(mut value: ValueObj, _ctx: &Context) -> Result<Type, String> {
                     return Ok(Type::Never);
                 }
             },
-            ValueObj::UnsizedArray(a) => {
+            ValueObj::UnsizedList(a) => {
                 value = *a.clone();
             }
             other => {
@@ -608,17 +608,17 @@ fn _scalar_type(mut value: ValueObj, _ctx: &Context) -> Result<Type, String> {
 /// ```
 #[allow(unused)]
 pub(crate) fn scalar_type(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
-    let arr = args
+    let val = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
-    let res = _scalar_type(arr, ctx).unwrap();
-    let arr = TyParam::t(res);
-    Ok(arr)
+    let res = _scalar_type(val, ctx).unwrap();
+    let lis = TyParam::t(res);
+    Ok(lis)
 }
 
-fn _array_sum(arr: ValueObj, _ctx: &Context) -> Result<ValueObj, String> {
+fn _list_sum(arr: ValueObj, _ctx: &Context) -> Result<ValueObj, String> {
     match arr {
-        ValueObj::Array(a) => {
+        ValueObj::List(a) => {
             let mut sum = 0f64;
             for v in a.iter() {
                 match v {
@@ -657,18 +657,18 @@ fn _array_sum(arr: ValueObj, _ctx: &Context) -> Result<ValueObj, String> {
 /// ```erg
 /// [1, 2].sum() == [3,]
 /// ```
-pub(crate) fn array_sum(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
-    let arr = args
+pub(crate) fn list_sum(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let val = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
-    let res = _array_sum(arr, ctx).unwrap();
-    let arr = TyParam::Value(res);
-    Ok(arr)
+    let res = _list_sum(val, ctx).unwrap();
+    let lis = TyParam::Value(res);
+    Ok(lis)
 }
 
-fn _array_prod(arr: ValueObj, _ctx: &Context) -> Result<ValueObj, String> {
-    match arr {
-        ValueObj::Array(a) => {
+fn _list_prod(lis: ValueObj, _ctx: &Context) -> Result<ValueObj, String> {
+    match lis {
+        ValueObj::List(a) => {
             let mut prod = 1f64;
             for v in a.iter() {
                 match v {
@@ -700,63 +700,63 @@ fn _array_prod(arr: ValueObj, _ctx: &Context) -> Result<ValueObj, String> {
                 Ok(ValueObj::Float(prod))
             }
         }
-        _ => Err(format!("Cannot prod {arr}")),
+        _ => Err(format!("Cannot prod {lis}")),
     }
 }
 
 /// ```erg
 /// [1, 2].prod() == [2,]
 /// ```
-pub(crate) fn array_prod(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
-    let arr = args
+pub(crate) fn list_prod(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let val = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
-    let res = _array_prod(arr, ctx).unwrap();
-    let arr = TyParam::Value(res);
-    Ok(arr)
+    let res = _list_prod(val, ctx).unwrap();
+    let lis = TyParam::Value(res);
+    Ok(lis)
 }
 
-fn _array_reversed(arr: ValueObj, _ctx: &Context) -> Result<ValueObj, String> {
-    match arr {
-        ValueObj::Array(a) => {
+fn _list_reversed(lis: ValueObj, _ctx: &Context) -> Result<ValueObj, String> {
+    match lis {
+        ValueObj::List(a) => {
             let mut vec = a.to_vec();
             vec.reverse();
-            Ok(ValueObj::Array(vec.into()))
+            Ok(ValueObj::List(vec.into()))
         }
-        _ => Err(format!("Cannot reverse {arr}")),
+        _ => Err(format!("Cannot reverse {lis}")),
     }
 }
 
-pub(crate) fn array_reversed(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
-    let arr = args
+pub(crate) fn list_reversed(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let val = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
-    let res = _array_reversed(arr, ctx).unwrap();
-    let arr = TyParam::Value(res);
-    Ok(arr)
+    let res = _list_reversed(val, ctx).unwrap();
+    let lis = TyParam::Value(res);
+    Ok(lis)
 }
 
-fn _array_insert_at(
-    arr: ValueObj,
+fn _list_insert_at(
+    lis: ValueObj,
     index: usize,
     value: ValueObj,
     _ctx: &Context,
 ) -> Result<ValueObj, String> {
-    match arr {
-        ValueObj::Array(a) => {
+    match lis {
+        ValueObj::List(a) => {
             let mut a = a.to_vec();
             if index > a.len() {
                 return Err(format!("Index out of range: {index}"));
             }
             a.insert(index, value);
-            Ok(ValueObj::Array(a.into()))
+            Ok(ValueObj::List(a.into()))
         }
-        _ => Err(format!("Cannot insert into {arr}")),
+        _ => Err(format!("Cannot insert into {lis}")),
     }
 }
 
-pub(crate) fn array_insert_at(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
-    let arr = args
+pub(crate) fn list_insert_at(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let lis = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
     let index = args
@@ -768,27 +768,27 @@ pub(crate) fn array_insert_at(mut args: ValueArgs, ctx: &Context) -> EvalValueRe
     let Ok(index) = usize::try_from(&index) else {
         return Err(type_mismatch("Nat", index, "Index"));
     };
-    let res = _array_insert_at(arr, index, value, ctx).unwrap();
-    let arr = TyParam::Value(res);
-    Ok(arr)
+    let res = _list_insert_at(lis, index, value, ctx).unwrap();
+    let lis = TyParam::Value(res);
+    Ok(lis)
 }
 
-fn _array_remove_at(arr: ValueObj, index: usize, _ctx: &Context) -> Result<ValueObj, String> {
-    match arr {
-        ValueObj::Array(a) => {
+fn _list_remove_at(lis: ValueObj, index: usize, _ctx: &Context) -> Result<ValueObj, String> {
+    match lis {
+        ValueObj::List(a) => {
             let mut a = a.to_vec();
             if index >= a.len() {
                 return Err(format!("Index out of range: {index}"));
             }
             a.remove(index);
-            Ok(ValueObj::Array(a.into()))
+            Ok(ValueObj::List(a.into()))
         }
-        _ => Err(format!("Cannot remove from {arr}")),
+        _ => Err(format!("Cannot remove from {lis}")),
     }
 }
 
-pub(crate) fn array_remove_at(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
-    let arr = args
+pub(crate) fn list_remove_at(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let val = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
     let index = args
@@ -797,32 +797,32 @@ pub(crate) fn array_remove_at(mut args: ValueArgs, ctx: &Context) -> EvalValueRe
     let Ok(index) = usize::try_from(&index) else {
         return Err(type_mismatch("Nat", index, "Index"));
     };
-    let res = _array_remove_at(arr, index, ctx).unwrap();
-    let arr = TyParam::Value(res);
-    Ok(arr)
+    let res = _list_remove_at(val, index, ctx).unwrap();
+    let lis = TyParam::Value(res);
+    Ok(lis)
 }
 
-fn _array_remove_all(arr: ValueObj, value: ValueObj, _ctx: &Context) -> Result<ValueObj, String> {
-    match arr {
-        ValueObj::Array(a) => {
+fn _list_remove_all(lis: ValueObj, value: ValueObj, _ctx: &Context) -> Result<ValueObj, String> {
+    match lis {
+        ValueObj::List(a) => {
             let mut a = a.to_vec();
             a.retain(|v| v != &value);
-            Ok(ValueObj::Array(a.into()))
+            Ok(ValueObj::List(a.into()))
         }
-        _ => Err(format!("Cannot remove from {arr}")),
+        _ => Err(format!("Cannot remove from {lis}")),
     }
 }
 
-pub(crate) fn array_remove_all(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
-    let arr = args
+pub(crate) fn list_remove_all(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let val = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
     let value = args
         .remove_left_or_key("Value")
         .ok_or_else(|| not_passed("Value"))?;
-    let res = _array_remove_all(arr, value, ctx).unwrap();
-    let arr = TyParam::Value(res);
-    Ok(arr)
+    let res = _list_remove_all(val, value, ctx).unwrap();
+    let lis = TyParam::Value(res);
+    Ok(lis)
 }
 
 pub(crate) fn __range_getitem__(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
@@ -1058,7 +1058,7 @@ pub(crate) fn str_join(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<T
         return Err(type_mismatch("Str", slf, "self"));
     };
     let arr = match iterable {
-        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::List(a) => a.to_vec(),
         ValueObj::Tuple(t) => t.to_vec(),
         ValueObj::Set(s) => s.into_iter().collect(),
         ValueObj::Dict(d) => d.into_keys().collect(),
@@ -1136,7 +1136,7 @@ pub(crate) fn all_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<T
         .remove_left_or_key("iterable")
         .ok_or_else(|| not_passed("iterable"))?;
     let arr = match iterable {
-        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::List(a) => a.to_vec(),
         ValueObj::Tuple(t) => t.to_vec(),
         ValueObj::Set(s) => s.into_iter().collect(),
         _ => {
@@ -1162,7 +1162,7 @@ pub(crate) fn any_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<T
         .remove_left_or_key("iterable")
         .ok_or_else(|| not_passed("iterable"))?;
     let arr = match iterable {
-        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::List(a) => a.to_vec(),
         ValueObj::Tuple(t) => t.to_vec(),
         ValueObj::Set(s) => s.into_iter().collect(),
         _ => {
@@ -1191,7 +1191,7 @@ pub(crate) fn filter_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult
         .remove_left_or_key("iterable")
         .ok_or_else(|| not_passed("iterable"))?;
     let arr = match iterable {
-        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::List(a) => a.to_vec(),
         ValueObj::Tuple(t) => t.to_vec(),
         ValueObj::Set(s) => s.into_iter().collect(),
         _ => {
@@ -1223,7 +1223,7 @@ pub(crate) fn filter_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult
             }
         }
     }
-    Ok(TyParam::Value(ValueObj::Array(filtered.into())))
+    Ok(TyParam::Value(ValueObj::List(filtered.into())))
 }
 
 pub(crate) fn len_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
@@ -1231,7 +1231,7 @@ pub(crate) fn len_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<T
         .remove_left_or_key("iterable")
         .ok_or_else(|| not_passed("iterable"))?;
     let len = match container {
-        ValueObj::Array(a) => a.len(),
+        ValueObj::List(a) => a.len(),
         ValueObj::Tuple(t) => t.len(),
         ValueObj::Set(s) => s.len(),
         ValueObj::Dict(d) => d.len(),
@@ -1252,7 +1252,7 @@ pub(crate) fn map_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<Ty
         .remove_left_or_key("iterable")
         .ok_or_else(|| not_passed("iterable"))?;
     let arr = match iterable {
-        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::List(a) => a.to_vec(),
         ValueObj::Tuple(t) => t.to_vec(),
         ValueObj::Set(s) => s.into_iter().collect(),
         _ => {
@@ -1277,7 +1277,7 @@ pub(crate) fn map_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<Ty
             }
         }
     }
-    Ok(TyParam::Array(mapped))
+    Ok(TyParam::List(mapped))
 }
 
 pub(crate) fn max_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
@@ -1285,7 +1285,7 @@ pub(crate) fn max_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<T
         .remove_left_or_key("iterable")
         .ok_or_else(|| not_passed("iterable"))?;
     let arr = match iterable {
-        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::List(a) => a.to_vec(),
         ValueObj::Tuple(t) => t.to_vec(),
         ValueObj::Set(s) => s.into_iter().collect(),
         _ => {
@@ -1320,7 +1320,7 @@ pub(crate) fn min_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<T
         .remove_left_or_key("iterable")
         .ok_or_else(|| not_passed("iterable"))?;
     let arr = match iterable {
-        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::List(a) => a.to_vec(),
         ValueObj::Tuple(t) => t.to_vec(),
         ValueObj::Set(s) => s.into_iter().collect(),
         _ => {
@@ -1365,7 +1365,7 @@ pub(crate) fn reversed_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueRes
         .remove_left_or_key("reversible")
         .ok_or_else(|| not_passed("reversible"))?;
     let arr = match reversible {
-        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::List(a) => a.to_vec(),
         ValueObj::Tuple(t) => t.to_vec(),
         _ => {
             return Err(type_mismatch("Reversible", reversible, "reversible"));
@@ -1375,7 +1375,7 @@ pub(crate) fn reversed_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueRes
     for v in arr.into_iter().rev() {
         reversed.push(v);
     }
-    Ok(TyParam::Value(ValueObj::Array(reversed.into())))
+    Ok(TyParam::Value(ValueObj::List(reversed.into())))
 }
 
 pub(crate) fn str_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
@@ -1390,7 +1390,7 @@ pub(crate) fn sum_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<T
         .remove_left_or_key("iterable")
         .ok_or_else(|| not_passed("iterable"))?;
     let arr = match iterable {
-        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::List(a) => a.to_vec(),
         ValueObj::Tuple(t) => t.to_vec(),
         ValueObj::Set(s) => s.into_iter().collect(),
         ValueObj::Dict(d) => d.into_keys().collect(),
@@ -1502,7 +1502,7 @@ pub(crate) fn zip_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<T
         .remove_left_or_key("iterable2")
         .ok_or_else(|| not_passed("iterable2"))?;
     let iterable1 = match iterable1 {
-        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::List(a) => a.to_vec(),
         ValueObj::Tuple(t) => t.to_vec(),
         ValueObj::Set(s) => s.into_iter().collect(),
         _ => {
@@ -1510,7 +1510,7 @@ pub(crate) fn zip_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<T
         }
     };
     let iterable2 = match iterable2 {
-        ValueObj::Array(a) => a.to_vec(),
+        ValueObj::List(a) => a.to_vec(),
         ValueObj::Tuple(t) => t.to_vec(),
         ValueObj::Set(s) => s.into_iter().collect(),
         _ => {
@@ -1521,7 +1521,7 @@ pub(crate) fn zip_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<T
     for (v1, v2) in iterable1.into_iter().zip(iterable2.into_iter()) {
         zipped.push(ValueObj::Tuple(vec![v1, v2].into()));
     }
-    Ok(TyParam::Value(ValueObj::Array(zipped.into())))
+    Ok(TyParam::Value(ValueObj::List(zipped.into())))
 }
 
 /// ```erg

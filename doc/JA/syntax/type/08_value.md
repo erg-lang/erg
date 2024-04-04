@@ -14,7 +14,7 @@ Value = (
     or Bool
     or Str
     or NoneType
-    or Array Const
+    or List Const
     or Tuple Const
     or Set Const
     or ConstFunc(Const, _)

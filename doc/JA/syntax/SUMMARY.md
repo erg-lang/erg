@@ -15,7 +15,7 @@
 - [副作用とプロシージャ](./07_side_effect.md)
 - [プロシージャ](./08_procedure.md)
 - [組み込みプロシージャ](./09_builtin_procs.md)
-- [配列](./10_array.md)
+- [リスト](./10_list.md)
 - [辞書](./11_dict.md)
 - [添字アクセス](./12_container_ownership.md)
 - [タプル](./13_tuple.md)

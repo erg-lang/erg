@@ -118,5 +118,5 @@ assert Y in U. attaches
 表示这是一个测试子例程。测试子程序使用`erg test`命令运行
 
 <p align='center'>
-    <a href='./29_spread_syntax.md'>上一页</a> | <a href='./31_error_handling.md'>下一页</a>
+    <a href='./29_spread_syntax.md'>上一页</a> | <a href='./32_error_handling.md'>下一页</a>
 </p>

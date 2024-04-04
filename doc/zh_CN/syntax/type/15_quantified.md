@@ -101,7 +101,7 @@ Iterator T = Trait {
 }
 
 it = [1, 2, 3].iter().map i -> i + 1
-it.collect(Array) # [2, 3, 4].
+it.collect(List) # [2, 3, 4].
 ```
 
 类型变量只能在 `||` 期间声明。但是，一旦声明，它们就可以在任何地方使用，直到它们退出作用域
@@ -280,6 +280,7 @@ DepFn.
 assert (Int -> Int).type() == Int # 由 DepFn
 assert DepFn(Int).type() == Int # 由 DepFn
 ```
+
 <p align='center'>
     <a href='./14_dependent.md'>上一页</a> | <a href='./16_subtyping.md'>下一页</a>
 </p>

@@ -40,19 +40,19 @@ Erg 的類型推斷主要使用 Hindley-Milner 類型推斷算法(盡管已經�
 第 1 行。Def{sig: v, block: ![]}
     獲取塊類型:
         獲取 UnaryOp 類型:
-            getArray 類型: `['T; 0]`
+            getList 類型: `['T; 0]`
             實例化: `[?T; 0]`
             (替代，評估被省略)
     更新: `Γ: {v: [?T; 0]！}`
     表達式 返回`NoneType`: OK
 
 第 2 行 CallMethod {obj: v, name: push!, args: [1]}
-    獲取 obj 類型: `Array!(?T, 0)`
-        搜索: `Γ Array!(?T, 0).push!({1})`
-        得到: `= Array!('T ~> 'T, 'N ~> 'N+1).push!('T) => NoneType`
-        實例化: `Array!(?T, ?N).push!(?T) => NoneType`
-        替代(`S: {?T --> Nat, ?N --> 0}`): `Array!(Nat ~> Nat, 0 ~> 0+1).push!(Nat) => NoneType`
-        評估: `Array!(Nat, 0 ~> 1).push!({1}) => NoneType`
+    獲取 obj 類型: `List!(?T, 0)`
+        搜索: `Γ List!(?T, 0).push!({1})`
+        得到: `= List!('T ~> 'T, 'N ~> 'N+1).push!('T) => NoneType`
+        實例化: `List!(?T, ?N).push!(?T) => NoneType`
+        替代(`S: {?T --> Nat, ?N --> 0}`): `List!(Nat ~> Nat, 0 ~> 0+1).push!(Nat) => NoneType`
+        評估: `List!(Nat, 0 ~> 1).push!({1}) => NoneType`
         更新: `Γ: {v: [Nat; 1]！}`
     表達式 返回`NoneType`: OK
 

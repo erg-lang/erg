@@ -27,11 +27,11 @@ impl Parser {
                 debug_exit_info!(self);
                 Ok(Signature::Subr(subr))
             }
-            Expr::Array(array) => {
-                let array_pat = self
-                    .convert_array_to_array_pat(array)
+            Expr::List(list) => {
+                let list_pat = self
+                    .convert_list_to_list_pat(list)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
-                let var = VarSignature::new(VarPattern::Array(array_pat), None);
+                let var = VarSignature::new(VarPattern::List(list_pat), None);
                 debug_exit_info!(self);
                 Ok(Signature::Var(var))
             }
@@ -96,12 +96,12 @@ impl Parser {
         }
     }
 
-    fn convert_array_to_array_pat(&mut self, array: Array) -> ParseResult<VarArrayPattern> {
+    fn convert_list_to_list_pat(&mut self, list: List) -> ParseResult<VarListPattern> {
         debug_call_info!(self);
-        match array {
-            Array::Normal(arr) => {
+        match list {
+            List::Normal(lis) => {
                 let mut vars = Vars::empty();
-                for elem in arr.elems.pos_args {
+                for elem in lis.elems.pos_args {
                     let pat = self
                         .convert_rhs_to_sig(elem.expr)
                         .map_err(|_| self.stack_dec(fn_name!()))?;
@@ -117,7 +117,7 @@ impl Parser {
                         }
                     }
                 }
-                if let Some(var) = arr.elems.var_args {
+                if let Some(var) = lis.elems.var_args {
                     let pat = self
                         .convert_rhs_to_sig(var.expr)
                         .map_err(|_| self.stack_dec(fn_name!()))?;
@@ -133,21 +133,21 @@ impl Parser {
                         }
                     }
                 }
-                let pat = VarArrayPattern::new(arr.l_sqbr, vars, arr.r_sqbr);
+                let pat = VarListPattern::new(lis.l_sqbr, vars, lis.r_sqbr);
                 debug_exit_info!(self);
                 Ok(pat)
             }
-            Array::Comprehension(arr) => {
-                let err = ParseError::simple_syntax_error(line!() as usize, arr.loc());
+            List::Comprehension(lis) => {
+                let err = ParseError::simple_syntax_error(line!() as usize, lis.loc());
                 self.errs.push(err);
                 debug_exit_info!(self);
                 Err(())
             }
-            Array::WithLength(arr) => {
+            List::WithLength(lis) => {
                 let err = ParseError::feature_error(
                     line!() as usize,
-                    arr.loc(),
-                    "array-with-length pattern",
+                    lis.loc(),
+                    "list-with-length pattern",
                 );
                 self.errs.push(err);
                 debug_exit_info!(self);
@@ -480,11 +480,11 @@ impl Parser {
                 debug_exit_info!(self);
                 Ok(param)
             }
-            Expr::Array(array) => {
-                let array_pat = self
-                    .convert_array_to_param_array_pat(array)
+            Expr::List(list) => {
+                let list_pat = self
+                    .convert_list_to_param_list_pat(list)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
-                let pat = ParamPattern::Array(array_pat);
+                let pat = ParamPattern::List(list_pat);
                 let param = NonDefaultParamSignature::new(pat, None);
                 debug_exit_info!(self);
                 Ok(param)
@@ -570,17 +570,17 @@ impl Parser {
         Ok(param)
     }
 
-    fn convert_array_to_param_array_pat(&mut self, array: Array) -> ParseResult<ParamArrayPattern> {
+    fn convert_list_to_param_list_pat(&mut self, list: List) -> ParseResult<ParamListPattern> {
         debug_call_info!(self);
-        match array {
-            Array::Normal(arr) => {
+        match list {
+            List::Normal(lis) => {
                 let mut params = vec![];
-                for arg in arr.elems.into_iters().0 {
+                for arg in lis.elems.into_iters().0 {
                     params.push(self.convert_pos_arg_to_non_default_param(arg, false)?);
                 }
                 let params = Params::new(params, None, vec![], None, None);
                 debug_exit_info!(self);
-                Ok(ParamArrayPattern::new(arr.l_sqbr, params, arr.r_sqbr))
+                Ok(ParamListPattern::new(lis.l_sqbr, params, lis.r_sqbr))
             }
             other => {
                 let err = ParseError::feature_error(line!() as usize, other.loc(), "?");
@@ -717,11 +717,11 @@ impl Parser {
                 debug_exit_info!(self);
                 Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))
             }
-            Expr::Array(array) => {
-                let arr = self
-                    .convert_array_to_param_array_pat(array)
+            Expr::List(list) => {
+                let lis = self
+                    .convert_list_to_param_list_pat(list)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
-                let param = NonDefaultParamSignature::new(ParamPattern::Array(arr), None);
+                let param = NonDefaultParamSignature::new(ParamPattern::List(lis), None);
                 let params = Params::single(param);
                 debug_exit_info!(self);
                 Ok(LambdaSignature::new(params, None, TypeBoundSpecs::empty()))

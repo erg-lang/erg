@@ -1,11 +1,13 @@
-IntList = Class NoneType or { .node = Int; .next = IntList }
-IntList.
-    null = IntList None
-    insert self, node = IntList { .node; .next = self }
-    fst self =
-        match self::base:
-            { node; next = _ } => node
-            None => None
+arr = [0, 1, 2]
+zeros = [0; 3]
 
-l = IntList.null.insert 1
-assert l.fst() == 1
+assert arr[0] == 0
+assert zeros[2] == 0
+
+print! arr[3] # This will result in a compile-time error!
+
+mut_arr = ![]
+for! 0..<10, i =>
+    mut_arr.push! i
+
+assert sum(mut_arr) == 45

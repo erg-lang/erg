@@ -44,7 +44,7 @@ impl Context {
         expected: &Type,
         found: &Type,
     ) -> Option<String> {
-        if &callee_t.qual_name()[..] == "Array" && attr == Some("__getitem__") && nth == 1 {
+        if &callee_t.qual_name()[..] == "List" && attr == Some("__getitem__") && nth == 1 {
             let len = &callee_t.typarams().get(1).cloned()?;
             let (_, _, pred) = found.clone().deconstruct_refinement().ok()?;
             if let Predicate::Equal { rhs: accessed, .. } = pred {
@@ -58,10 +58,10 @@ impl Context {
                     accessed.clone()
                 };
                 return Some(switch_lang! {
-                    "japanese" => format!("配列の長さは{len}ですが、{accessed}番目の要素にアクセスしようとしています"),
+                    "japanese" => format!("リストの長さは{len}ですが、{accessed}番目の要素にアクセスしようとしています"),
                     "simplified_chinese" => format!("数组长度为{len}但尝试访问第{accessed}个元素"),
                     "traditional_chinese" => format!("陣列長度為{len}但嘗試訪問第{accessed}個元素"),
-                    "english" => format!("Array length is {len} but tried to access the {accessed}th element"),
+                    "english" => format!("List length is {len} but tried to access the {accessed}th element"),
                 });
             }
         }

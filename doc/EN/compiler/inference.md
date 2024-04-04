@@ -50,19 +50,19 @@ The specific operations are as follows.
 line 1. Def{sig: v, block: ![]}
     get block type:
         get UnaryOp type:
-            getArray type: `['T; 0]`
+            getList type: `['T; 0]`
             instantiate: `[?T; 0]`
             (substitute, eval are omitted)
     result: `Γ: {v: [?T; 0]!}`
     expr returns `NoneType`: OK
 
 line 2. CallMethod {obj: v, name: push!, args: [1]}
-    get obj type: `Array!(?T, 0)`
-        search: `Γ Array!(?T, 0).push!(Nat)`
-        get: `Array!('T ~> 'T, 'N ~> 'N+1).push!: 'T => NoneType`
-        instantiate: `Array!(?T, ?N).push!(?T) => NoneType`
-        substitute(`S: {?T --> Nat, ?N --> 0}`): `Array!(Nat ~> Nat, 0 ~> 0+1).push!: Nat => NoneType`
-        eval: `Array!(Nat, 0 ~> 1).push!: Nat => NoneType`
+    get obj type: `List!(?T, 0)`
+        search: `Γ List!(?T, 0).push!(Nat)`
+        get: `List!('T ~> 'T, 'N ~> 'N+1).push!: 'T => NoneType`
+        instantiate: `List!(?T, ?N).push!(?T) => NoneType`
+        substitute(`S: {?T --> Nat, ?N --> 0}`): `List!(Nat ~> Nat, 0 ~> 0+1).push!: Nat => NoneType`
+        eval: `List!(Nat, 0 ~> 1).push!: Nat => NoneType`
     result: `Γ: {v: [Nat; 1]!}`
     expr returns `NoneType`: OK
 

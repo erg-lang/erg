@@ -80,7 +80,7 @@ impl Context {
         );
         readable.register_builtin_decl(
             PROC_READLINES,
-            pr0_met(ref_mut(Slf, None), unknown_len_array_t(Str)),
+            pr0_met(ref_mut(Slf, None), unknown_len_list_t(Str)),
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_READLINES),
         );
@@ -263,7 +263,7 @@ impl Context {
         );
         let ret_t = poly(
             TUPLE,
-            vec![TyParam::Array(vec![ty_tp(Nat), ty_tp(T.clone())])],
+            vec![TyParam::List(vec![ty_tp(Nat), ty_tp(T.clone())])],
         );
         let t_enumerate = fn0_met(Slf.clone(), poly(ITERATOR, vec![ty_tp(ret_t)])).quantify();
         iterable.register_builtin_decl(
@@ -362,10 +362,10 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some("Function::iterable_chain"),
         );
-        let t_into_array = fn0_met(Slf.clone(), unknown_len_array_t(T.clone())).quantify();
+        let t_to_list = fn0_met(Slf.clone(), unknown_len_list_t(T.clone())).quantify();
         iterable.register_builtin_decl(
-            FUNC_INTO_ARRAY,
-            t_into_array,
+            FUNC_TO_LIST,
+            t_to_list,
             Visibility::BUILTIN_PUBLIC,
             Some("Function::list"),
         );
@@ -514,8 +514,8 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         /* HasShape */
-        let S = mono_q_tp(TY_S, instanceof(unknown_len_array_t(Nat)));
-        let params = vec![PS::named_nd("S", unknown_len_array_t(Nat))];
+        let S = mono_q_tp(TY_S, instanceof(unknown_len_list_t(Nat)));
+        let params = vec![PS::named_nd("S", unknown_len_list_t(Nat))];
         let has_shape = Self::builtin_poly_trait(HAS_SHAPE, params.clone(), 2);
         /* HasScalarType */
         let Ty = mono_q_tp(TY_T, instanceof(Type));

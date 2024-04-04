@@ -35,10 +35,10 @@ Also, input that is valid according to the specification but deemed undesirable 
 ## Why doesn't Tuple have a constructor (`__call__`)?
 
 Erg tuples must have a compile-time length. Therefore, a tuple is constructed almost only by a tuple literal.
-If the length is not known until runtime, an immutable array (`Array`) can be used instead.
+If the length is not known until runtime, an immutable array (`List`) can be used instead.
 
 ```erg
-arr = Array map(int, input!().split " ")
+arr = List map(int, input!().split " ")
 ```
 
 ## I got runtime errors in Erg that I did not get in Python. What could be the cause?

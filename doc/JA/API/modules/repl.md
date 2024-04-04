@@ -22,5 +22,5 @@ provides REPL(Read-Eval-Print-Loop)-related APIs.
 
 ```python
 1.guess((1,), 2) # <Int.__add__ method>
-[1, 2].guess((3, 4), [1, 2, 3, 4]) # <Array(T, N).concat method>
+[1, 2].guess((3, 4), [1, 2, 3, 4]) # <List(T, N).concat method>
 ```

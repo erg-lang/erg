@@ -2,7 +2,6 @@
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/11_dict.md%26commit_hash%3De598201a939e24a41d3c26a828fdee01ad18eaf8)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/11_dict.md&commit_hash=e598201a939e24a41d3c26a828fdee01ad18eaf8)
 
-
 Dict 是键/值对的集合
 
 ```python
@@ -66,5 +65,5 @@ valid2: {Int: Int or Str} = {1: "a", 2: 2}
 ```
 
 <p align='center'>
-    <a href='./10_array.md'>上一页</a> | <a href='./12_container_ownership.md'>下一页</a>
+    <a href='./10_list.md'>上一页</a> | <a href='./12_container_ownership.md'>下一页</a>
 </p>

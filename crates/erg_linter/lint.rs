@@ -8,7 +8,7 @@ use erg_common::traits::{BlockKind, ExitStatus, Locational, New, Runnable, Strea
 use erg_compiler::artifact::{Buildable, ErrorArtifact};
 use erg_compiler::build_package::PackageBuilder;
 use erg_compiler::error::{CompileError, CompileErrors, CompileWarnings};
-use erg_compiler::hir::{Accessor, Array, Def, Dict, Expr, Set, Signature, Tuple};
+use erg_compiler::hir::{Accessor, Def, Dict, Expr, List, Set, Signature, Tuple};
 use erg_compiler::module::SharedCompilerResource;
 
 use erg_parser::ParserRunner;
@@ -189,21 +189,21 @@ impl Linter {
                     }
                 }
             }
-            Expr::Array(array) => match array {
-                Array::Normal(arr) => {
-                    for elem in arr.elems.pos_args.iter() {
+            Expr::List(list) => match list {
+                List::Normal(lis) => {
+                    for elem in lis.elems.pos_args.iter() {
                         lint_fn(self, &elem.expr);
                     }
                 }
-                Array::WithLength(arr) => {
-                    lint_fn(self, &arr.elem);
-                    if let Some(len) = &arr.len {
+                List::WithLength(lis) => {
+                    lint_fn(self, &lis.elem);
+                    if let Some(len) = &lis.len {
                         lint_fn(self, len);
                     }
                 }
-                Array::Comprehension(arr) => {
-                    lint_fn(self, &arr.elem);
-                    lint_fn(self, &arr.guard);
+                List::Comprehension(lis) => {
+                    lint_fn(self, &lis.elem);
+                    lint_fn(self, &lis.guard);
                 }
             },
             Expr::Tuple(tuple) => match tuple {

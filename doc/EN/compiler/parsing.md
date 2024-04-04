@@ -21,8 +21,8 @@ In fact, there is (very confusingly) a right-sided value on the left side of `=`
 There can even be a left-side value within a right-side value.
 
 ```python
-# i is the left-hand side value, Array(Int) and [1, 2, 3] are the right-hand side values
-i: Array(Int) = [1, 2, 3]
+# i is the left-hand side value, List(Int) and [1, 2, 3] are the right-hand side values
+i: List(Int) = [1, 2, 3]
 # `[1, 2, 3].iter().map i -> i + 1` is the right-hand side value, but i to the left of -> is the left-hand side value
 a = [1, 2, 3].iter().map i -> i + 1
 # {x = 1; y = 2} is the right side value, but x, y are the left side values

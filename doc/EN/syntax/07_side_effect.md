@@ -28,7 +28,7 @@ C!.
         x
 ```
 
-Procedural methods can also take [ownership](./19_ownership.md) of `self`. Remove `ref` or `ref!` from the method definition.
+Procedural methods can also take [ownership](./20_ownership.md) of `self`. Remove `ref` or `ref!` from the method definition.
 
 ```python,compile_fail
 n = 1

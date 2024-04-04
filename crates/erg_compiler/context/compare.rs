@@ -192,7 +192,7 @@ impl Context {
                     ..
                 }),
             ) if &n[..] == "GenericProc" => (Absolutely, true),
-            (Mono(l), Poly { name: r, .. }) if &l[..] == "GenericArray" && &r[..] == "Array" => {
+            (Mono(l), Poly { name: r, .. }) if &l[..] == "GenericList" && &r[..] == "List" => {
                 (Absolutely, true)
             }
             (Mono(l), Poly { name: r, .. }) if &l[..] == "GenericDict" && &r[..] == "Dict" => {
@@ -494,8 +494,8 @@ impl Context {
                 } else if let Some(lfvt) = lfv.get_type() {
                     // e.g. lfv: ?L(: Int) is unreachable
                     // but
-                    // ?L(: Array(Type, 3)) :> Array(Int, 3)
-                    //   => Array(Type, 3) :> Array(Typeof(Int), 3)
+                    // ?L(: List(Type, 3)) :> List(Int, 3)
+                    //   => List(Type, 3) :> List(Typeof(Int), 3)
                     //   => true
                     let rhs_meta = self.meta_type(rhs);
                     self.supertype_of(&lfvt, &rhs_meta)
@@ -568,7 +568,7 @@ impl Context {
                 self.convert_tp_into_value(params[0].clone()).is_ok()
             }
             (ty @ (Type | ClassType | TraitType), Poly { name, params })
-                if &name[..] == "Array" || &name[..] == "UnsizedArray" || &name[..] == "Set" =>
+                if &name[..] == "List" || &name[..] == "UnsizedList" || &name[..] == "Set" =>
             {
                 let Ok(elem_t) = self.convert_tp_into_type(params[0].clone()) else {
                     return false;
@@ -666,8 +666,8 @@ impl Context {
             // Int :> {I: Str| ...} == false
             // Bool :> {1} == true
             // Bool :> {2} == false
-            // [2, 3]: {A: Array(Nat) | A.prod() == 6}
-            // Array({1, 2}, _) :> {[3, 4]} == false
+            // [2, 3]: {A: List(Nat) | A.prod() == 6}
+            // List({1, 2}, _) :> {[3, 4]} == false
             (l, Refinement(r)) => {
                 // Type / {S: Set(Str) | S == {"a", "b"}}
                 // TODO: GeneralEq
@@ -698,7 +698,7 @@ impl Context {
             // {N: Nat | ...} :> Int) == false
             // ({I: Int | I >= 0} :> Int) == false
             // {U(: Type)} :> { .x = {Int} }(== {{ .x = Int }}) == true
-            // {[1]} == Array({1}, 1) :> Array({1}, _) == true
+            // {[1]} == List({1}, 1) :> List({1}, _) == true
             (Refinement(l), r) => {
                 if let Some(r) = r.to_singleton() {
                     return self.structural_supertype_of(lhs, &Type::Refinement(r));
@@ -804,7 +804,7 @@ impl Context {
                     return false;
                 }
                 // [Int; 2] :> [Int; 3]
-                if &ln[..] == "Array" || &ln[..] == "Set" {
+                if &ln[..] == "List" || &ln[..] == "Set" {
                     let Ok(lt) = self.convert_tp_into_type(lparams[0].clone()) else {
                         return false;
                     };
@@ -941,7 +941,7 @@ impl Context {
                     self.supertype_of(&self.get_tp_t(sup_p).unwrap_or(Obj), t)
                 }
             },
-            (TyParam::Array(sup), TyParam::Array(sub))
+            (TyParam::List(sup), TyParam::List(sub))
             | (TyParam::Tuple(sup), TyParam::Tuple(sub)) => {
                 if sup.len() > sub.len() || (variance.is_invariant() && sup.len() != sub.len()) {
                     return false;
@@ -991,7 +991,7 @@ impl Context {
                 }
                 true
             }
-            (TyParam::UnsizedArray(sup), TyParam::UnsizedArray(sub)) => {
+            (TyParam::UnsizedList(sup), TyParam::UnsizedList(sub)) => {
                 self.supertype_of_tp(sup, sub, variance)
             }
             (TyParam::Type(sup), TyParam::Type(sub)) => match variance {
@@ -1308,8 +1308,8 @@ impl Context {
     /// union(Nat, Int) == Int
     /// union(Int, Str) == Int or Str
     /// union(?T(<: Str), ?U(<: Int)) == ?T or ?U
-    /// union(Array(Int, 2), Array(Str, 2)) == Array(Int or Str, 2)
-    /// union(Array(Int, 2), Array(Str, 3)) == Array(Int, 2) or Array(Int, 3)
+    /// union(List(Int, 2), List(Str, 2)) == List(Int or Str, 2)
+    /// union(List(Int, 2), List(Str, 3)) == List(Int, 2) or List(Int, 3)
     /// union({ .a = Int }, { .a = Str }) == { .a = Int or Str }
     /// union({ .a = Int }, { .a = Int; .b = Int }) == { .a = Int } or { .a = Int; .b = Int } # not to lost `b` information
     /// union((A and B) or C) == (A or C) and (B or C)
@@ -1387,7 +1387,7 @@ impl Context {
                 t
             }
             (t, Type::Never) | (Type::Never, t) => t.clone(),
-            // Array({1, 2}, 2), Array({3, 4}, 2) ==> Array({1, 2, 3, 4}, 2)
+            // List({1, 2}, 2), List({3, 4}, 2) ==> List({1, 2, 3, 4}, 2)
             (
                 Type::Poly {
                     name: ln,
@@ -1430,7 +1430,7 @@ impl Context {
                 Some(TyParam::t(self.union(l, r.typ())))
             }
             (TyParam::Type(l), TyParam::Type(r)) => Some(TyParam::t(self.union(l, r))),
-            (TyParam::Array(l), TyParam::Array(r)) => {
+            (TyParam::List(l), TyParam::List(r)) => {
                 let mut tps = vec![];
                 for (l, r) in l.iter().zip(r.iter()) {
                     if let Some(tp) = self.union_tp(l, r) {
@@ -1439,7 +1439,7 @@ impl Context {
                         return None;
                     }
                 }
-                Some(TyParam::Array(tps))
+                Some(TyParam::List(tps))
             }
             (fv @ TyParam::FreeVar(f), other) | (other, fv @ TyParam::FreeVar(f))
                 if f.is_unbound() =>
@@ -2195,7 +2195,7 @@ impl Context {
         }
     }
 
-    /// {[]} == {A: Array(Never, _) | A == []} => Array(Never, 0)
+    /// {[]} == {A: List(Never, _) | A == []} => List(Never, 0)
     pub(crate) fn refinement_to_poly(&self, refine: &RefinementType) -> Option<Type> {
         if refine.t.is_monomorphic() {
             return None;
@@ -2207,7 +2207,7 @@ impl Context {
             return None;
         }
         match &refine.t.qual_name()[..] {
-            "Array" => self.get_tp_t(rhs).ok().map(|t| t.derefine()),
+            "List" => self.get_tp_t(rhs).ok().map(|t| t.derefine()),
             _ => None,
         }
     }

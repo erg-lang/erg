@@ -30,10 +30,10 @@ It succeeds only if the only type with `co_consts` in the namespace is `Code` (o
 Erg closes function type checking within a module, so even if a type with `co_consts` is defined outside the module, passing an instance of it to the `consts` function will result in an error (to make this possible, you must use `Structural`, described below). This constraint allows the `consts` function to infer.
 
 When a class attribute is defined, the type inferrer keeps track of the "attribute" and "defining class, attribute type" pairs.
-In the case of ``co_consts``, this pair is `{co_consts: {Code, Array(Obj, _)}}`.
+In the case of ``co_consts``, this pair is `{co_consts: {Code, List(Obj, _)}}`.
 
 ```erg
-method_to_classes: {co_consts: [{Code, Array(Obj, _)}], real: [{Int, Int}], times!: [{Nat, (self: Nat, proc!: () => NoneType) => NoneType}], ...}
+method_to_classes: {co_consts: [{Code, List(Obj, _)}], real: [{Int, Int}], times!: [{Nat, (self: Nat, proc!: () => NoneType) => NoneType}], ...}
 ```
 
 Note that the value of the key-value pair is an array. Only if this array is of length 1, or has the smallest type element, the key is uniquely determined (otherwise a type error will occur).
@@ -41,11 +41,11 @@ Note that the value of the key-value pair is an array. Only if this array is of 
 Once the key is identified, the definition type is back-propagated to the type of ``?2``.
 
 ```erg
-?2(<: Code).co_consts: Array(Obj, _)
+?2(<: Code).co_consts: List(Obj, _)
 ```
 
-Finally, the type of `consts` is `Code -> Array(Obj, _)`.
+Finally, the type of `consts` is `Code -> List(Obj, _)`.
 
 ```erg
-consts(c: Code): Array(Obj, _) = c.co_consts
+consts(c: Code): List(Obj, _) = c.co_consts
 ```

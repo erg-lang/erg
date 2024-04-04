@@ -64,8 +64,8 @@ name = match num:
 
 ```python,check_ignore
 # この２つは同じ
-Array(T, N: {N | N >= 3})
-Array(T, N | N >= 3)
+List(T, N: {N | N >= 3})
+List(T, N | N >= 3)
 
 f M, N | M >= 0, N >= 1 = ...
 f(1, 0) # TypeError: N (2nd parameter) must be 1 or more
@@ -84,7 +84,7 @@ right(_, r) = r
 
 ### 可変長パターン
 
-後述するタプル/配列/レコードパターンと組み合わせて使います。
+後述するタプル/リスト/レコードパターンと組み合わせて使います。
 
 ```python,check_ignore
 [i, ...j] = [1, 2, 3, 4]
@@ -104,7 +104,7 @@ m, n = 1, 2
 f(x, y) = ...
 ```
 
-### 配列パターン
+### リストパターン
 
 ```python,check_ignore
 [i, j] = [1, 2]

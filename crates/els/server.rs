@@ -272,12 +272,12 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             lsp_log!("failed to get packages: {}", artifact.ast);
             return cfg;
         };
-        let Some(ast::Expr::Array(ast::Array::Normal(arr))) = pkgs.body.block.first() else {
+        let Some(ast::Expr::List(ast::List::Normal(lis))) = pkgs.body.block.first() else {
             lsp_log!("packages must be an array: {pkgs}");
             return cfg;
         };
         let mut packages = vec![];
-        for rec in arr.iter() {
+        for rec in lis.iter() {
             let ast::Expr::Record(rec) = rec else {
                 lsp_log!("packages must be records: {rec}");
                 break;

@@ -99,7 +99,7 @@ Iterator T = Trait {
 }
 
 it = [1, 2, 3].iter().map i -> i + 1
-it.collect(Array) # [2, 3, 4].
+it.collect(List) # [2, 3, 4].
 ```
 
 Type variables can only be declared during `||`. However, once declared, they can be used anywhere until they exit scope.

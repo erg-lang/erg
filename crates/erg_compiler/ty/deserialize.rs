@@ -12,7 +12,7 @@ use erg_common::{fn_name, switch_lang};
 use erg_common::{ArcArray, Str};
 
 use super::codeobj::{CodeObj, FastKind};
-use super::constructors::array_t;
+use super::constructors::list_t;
 use super::typaram::TyParam;
 use super::value::ValueObj;
 use super::{HasType, Type};
@@ -140,7 +140,7 @@ impl Deserializer {
     }
 
     fn get_cached_arr(&mut self, arr: &[ValueObj]) -> ValueObj {
-        ValueObj::Array(self.arr_cache.get(arr))
+        ValueObj::List(self.arr_cache.get(arr))
     }
 
     pub fn vec_to_bytes<const LEN: usize>(vector: Vec<u8>) -> [u8; LEN] {
@@ -226,7 +226,7 @@ impl Deserializer {
         field: Option<&str>,
     ) -> DeserializeResult<Vec<ValueObj>> {
         match self.deserialize_const(v, python_ver)? {
-            ValueObj::Array(arr) => Ok(arr.to_vec()),
+            ValueObj::List(lis) => Ok(lis.to_vec()),
             other => Err(DeserializeError::type_error(
                 field,
                 &Type::Str,
@@ -242,7 +242,7 @@ impl Deserializer {
         field: Option<&str>,
     ) -> DeserializeResult<ArcArray<ValueObj>> {
         match self.deserialize_const(v, python_ver)? {
-            ValueObj::Array(arr) => Ok(arr),
+            ValueObj::List(lis) => Ok(lis),
             other => Err(DeserializeError::type_error(
                 field,
                 &Type::Str,
@@ -273,16 +273,16 @@ impl Deserializer {
         field: Option<&str>,
     ) -> DeserializeResult<Vec<Str>> {
         match self.deserialize_const(v, python_ver)? {
-            ValueObj::Array(arr) | ValueObj::Tuple(arr) => {
-                let mut strs = Vec::with_capacity(arr.len());
-                for c in arr.iter().cloned() {
+            ValueObj::List(lis) | ValueObj::Tuple(lis) => {
+                let mut strs = Vec::with_capacity(lis.len());
+                for c in lis.iter().cloned() {
                     strs.push(self.try_into_str(c)?);
                 }
                 Ok(strs)
             }
             other => Err(DeserializeError::type_error(
                 field,
-                &array_t(Type::Str, TyParam::erased(Type::Nat)),
+                &list_t(Type::Str, TyParam::erased(Type::Nat)),
                 &other.class(),
             )),
         }

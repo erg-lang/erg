@@ -4,7 +4,7 @@
 
 一切都在 Erg 中輸入。類型本身也不例外。__kind__ 表示"類型的類型"。例如，`Int` 屬于 `Type`，就像 `1` 屬于 `Int`。`Type` 是最簡單的一種，__atomic kind__。在類型論符號中，`Type` 對應于 `*`
 
-在Kind的概念中，實際上重要的是一種或多種Kind(多項式Kind)。單項類型，例如`Option`，屬于它。一元Kind表示為 `Type -> Type` [<sup id="f1">1</sup>](#1)。諸如 `Array` 或 `Option` 之類的 __container__ 特別是一種以類型作為參數的多項式類型
+在Kind的概念中，實際上重要的是一種或多種Kind(多項式Kind)。單項類型，例如`Option`，屬于它。一元Kind表示為 `Type -> Type` [<sup id="f1">1</sup>](#1)。諸如 `List` 或 `Option` 之類的 __container__ 特別是一種以類型作為參數的多項式類型
 正如符號 `Type -> Type` 所表明的，`Option` 實際上是一個接收類型 `T` 并返回類型 `Option T` 的函數。但是，由于這個函數不是通常意義上的函數，所以通常稱為一元類
 
 注意`->`本身，它是一個匿名函數操作符，當它接收一個類型并返回一個類型時，也可以看作是一Kind型
@@ -30,7 +30,7 @@ K(T).
     baz self, x = ... # OK
 ```
 
-二進制或更高類型的示例是 `{T: U}`(: `(Type, Type) -> Type`), `(T, U, V)`(: `(Type, Type, Type) - > Type `), ... 等等
+二進制或更高類型的示例是 `{T: U}`(: `(Type, Type) -> Type`), `(T, U, V)`(: `(Type, Type, Type) - > Type`), ... 等等
 
 還有一個零項類型`() -> Type`。這有時等同于類型論中的原子類型，但在 Erg 中有所區別。一個例子是`類`
 
@@ -131,6 +131,7 @@ Fn2(T, U).
 
 (Int -> Int).f() # 選擇了哪一個?
 ```
+
 在上面的示例中，方法 `f` 會選擇哪個補丁?
 天真，似乎選擇了`Fn T`，但是`Fn2 T，U`也是可以的，`Option T`原樣包含`T`，所以任何類型都適用，`Container K，T`也匹配`->(Int, Int)`，即 `Container(`->`, Int)` 為 `Int -> Int`。因此，上述所有四個修復程序都是可能的選擇
 

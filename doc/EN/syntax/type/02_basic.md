@@ -15,11 +15,11 @@ Type specifications are more useful when defining subroutines and types.
 
 ```python
 # Type specification for parameters
-f x, y: Array Int = ...
-T X, Y: Array Int = ...
+f x, y: List Int = ...
+T X, Y: List Int = ...
 ```
 
-Note that in the above case, `x, y` are both `Array Int`.
+Note that in the above case, `x, y` are both `List Int`.
 
 ```python
 # The value of a capital variable must be a constant expression
@@ -137,7 +137,7 @@ Types can be aliased. This allows long types, such as record types, to be shorte
 Id = Int
 Point3D = {x = Int; y = Int; z = Int}
 IorS = Int or Str
-Vector = Array Int
+Vector = List Int
 ```
 
 Also, when displaying errors, the compiler will use aliases for composite types (in the above example, right-hand-side types other than the first) if they are defined.
@@ -150,8 +150,8 @@ The purpose is also to prevent adding aliases on top of types that already have 
 Id = Int
 UserId = Int # TypeWarning: duplicate aliases: Id and UserId
 
-Ids = Array Id
-Ints = Array Int # TypeWarning: duplicate aliases: Isd and Ints
+Ids = List Id
+Ints = List Int # TypeWarning: duplicate aliases: Isd and Ints
 
 IorS = Int or Str
 IorSorB = IorS or Bool

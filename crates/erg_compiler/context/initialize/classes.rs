@@ -489,7 +489,7 @@ impl Context {
                 BYTES,
                 or(
                     mono(BYTES),
-                    array_t(Type::from(value(0)..=value(255)), TyParam::erased(Nat)),
+                    list_t(Type::from(value(0)..=value(255)), TyParam::erased(Nat)),
                 ),
             )],
             vec![kw(
@@ -954,7 +954,7 @@ impl Context {
                 None,
                 vec![kw(KW_MAXSPLIT, Nat)],
                 None,
-                unknown_len_array_t(Str),
+                unknown_len_list_t(Str),
             ),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
@@ -968,7 +968,7 @@ impl Context {
                 None,
                 vec![kw(KW_KEEPENDS, Bool)],
                 None,
-                unknown_len_array_t(Str),
+                unknown_len_list_t(Str),
             ),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
@@ -1356,14 +1356,14 @@ impl Context {
         type_.register_superclass(Obj, &obj);
         type_.register_builtin_erg_impl(
             FUNC_MRO,
-            fn0_met(Type, array_t(Type, TyParam::erased(Nat))),
+            fn0_met(Type, list_t(Type, TyParam::erased(Nat))),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
         // TODO: PolyType
         type_.register_builtin_erg_impl(
             FUNDAMENTAL_ARGS,
-            array_t(Type, TyParam::erased(Nat)),
+            list_t(Type, TyParam::erased(Nat)),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
@@ -1424,31 +1424,31 @@ impl Context {
         );
         code.register_builtin_erg_impl(
             FUNC_CO_VARNAMES,
-            array_t(Str, TyParam::erased(Nat)),
+            list_t(Str, TyParam::erased(Nat)),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
         code.register_builtin_erg_impl(
             FUNC_CO_CONSTS,
-            array_t(Obj, TyParam::erased(Nat)),
+            list_t(Obj, TyParam::erased(Nat)),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
         code.register_builtin_erg_impl(
             FUNC_CO_NAMES,
-            array_t(Str, TyParam::erased(Nat)),
+            list_t(Str, TyParam::erased(Nat)),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
         code.register_builtin_erg_impl(
             FUNC_CO_FREEVARS,
-            array_t(Str, TyParam::erased(Nat)),
+            list_t(Str, TyParam::erased(Nat)),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
         code.register_builtin_erg_impl(
             FUNC_CO_CELLVARS,
-            array_t(Str, TyParam::erased(Nat)),
+            list_t(Str, TyParam::erased(Nat)),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
@@ -1566,100 +1566,100 @@ impl Context {
         if ERG_MODE {
             py_module.register_superclass(g_module_t.clone(), &generic_module);
         }
-        /* GenericArray */
-        let mut generic_array = Self::builtin_mono_class(GENERIC_ARRAY, 1);
-        generic_array.register_superclass(Obj, &obj);
+        /* GenericList */
+        let mut generic_list = Self::builtin_mono_class(GENERIC_LIST, 1);
+        generic_list.register_superclass(Obj, &obj);
         let mut arr_eq = Self::builtin_methods(Some(mono(EQ)), 2);
         arr_eq.register_builtin_erg_impl(
             OP_EQ,
-            fn1_met(mono(GENERIC_ARRAY), mono(GENERIC_ARRAY), Bool),
+            fn1_met(mono(GENERIC_LIST), mono(GENERIC_LIST), Bool),
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        generic_array.register_trait_methods(mono(GENERIC_ARRAY), arr_eq);
+        generic_list.register_trait_methods(mono(GENERIC_LIST), arr_eq);
         let t_call = func1(
             poly(ITERABLE, vec![ty_tp(T.clone())]),
-            array_t(T.clone(), TyParam::erased(Nat)),
+            list_t(T.clone(), TyParam::erased(Nat)),
         )
         .quantify();
-        generic_array.register_builtin_erg_impl(
+        generic_list.register_builtin_erg_impl(
             FUNDAMENTAL_CALL,
             t_call,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
-        let mut array_hash = Self::builtin_methods(Some(mono(HASH)), 1);
-        array_hash.register_builtin_erg_impl(
+        let mut list_hash = Self::builtin_methods(Some(mono(HASH)), 1);
+        list_hash.register_builtin_erg_impl(
             OP_HASH,
-            fn0_met(mono(GENERIC_ARRAY), Int),
+            fn0_met(mono(GENERIC_LIST), Int),
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        generic_array.register_trait_methods(mono(GENERIC_ARRAY), array_hash);
-        let unsized_array_t = poly(UNSIZED_ARRAY, vec![ty_tp(T.clone())]);
-        let mut unsized_array =
-            Self::builtin_poly_class(UNSIZED_ARRAY, vec![ParamSpec::t_nd(TY_T)], 1);
-        unsized_array.register_superclass(Obj, &obj);
-        unsized_array.register_builtin_decl(KW_ELEM, T.clone(), vis.clone(), Some(KW_ELEM));
-        /* Array */
-        let mut array_ =
-            Self::builtin_poly_class(ARRAY, vec![PS::t_nd(TY_T), PS::default(TY_N, Nat)], 10);
-        array_.register_superclass(mono(GENERIC_ARRAY), &generic_array);
-        array_
+        generic_list.register_trait_methods(mono(GENERIC_LIST), list_hash);
+        let unsized_list_t = poly(UNSIZED_LIST, vec![ty_tp(T.clone())]);
+        let mut unsized_list =
+            Self::builtin_poly_class(UNSIZED_LIST, vec![ParamSpec::t_nd(TY_T)], 1);
+        unsized_list.register_superclass(Obj, &obj);
+        unsized_list.register_builtin_decl(KW_ELEM, T.clone(), vis.clone(), Some(KW_ELEM));
+        /* List */
+        let mut list_ =
+            Self::builtin_poly_class(LIST, vec![PS::t_nd(TY_T), PS::default(TY_N, Nat)], 10);
+        list_.register_superclass(mono(GENERIC_LIST), &generic_list);
+        list_
             .register_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
             .unwrap();
-        let arr_t = array_t(T.clone(), N.clone());
+        let lis_t = list_t(T.clone(), N.clone());
         let t = no_var_fn_met(
-            arr_t.clone(),
-            vec![kw(KW_RHS, array_t(T.clone(), M.clone()))],
+            lis_t.clone(),
+            vec![kw(KW_RHS, list_t(T.clone(), M.clone()))],
             vec![],
-            array_t(T.clone(), N.clone() + M.clone()),
+            list_t(T.clone(), N.clone() + M.clone()),
         )
         .quantify();
-        array_.register_py_builtin(FUNC_CONCAT, t.clone(), Some(OP_ADD), 9);
+        list_.register_py_builtin(FUNC_CONCAT, t.clone(), Some(OP_ADD), 9);
         let t_count =
-            no_var_fn_met(arr_t.clone(), vec![kw(KW_X, T.clone())], vec![], Nat).quantify();
-        array_.register_py_builtin(FUNC_COUNT, t_count, Some(FUNC_COUNT), 17);
+            no_var_fn_met(lis_t.clone(), vec![kw(KW_X, T.clone())], vec![], Nat).quantify();
+        list_.register_py_builtin(FUNC_COUNT, t_count, Some(FUNC_COUNT), 17);
         let t_get = no_var_fn_met(
-            arr_t.clone(),
+            lis_t.clone(),
             vec![pos(Nat)],
             vec![ParamTy::kw_default(KW_DEFAULT.into(), U.clone(), NoneType)],
             or(T.clone(), U.clone()),
         )
         .quantify();
-        array_.register_builtin_erg_impl(FUNC_GET, t_get, Immutable, Visibility::BUILTIN_PUBLIC);
-        // Array(T, N)|<: Add(Array(T, M))|.
-        //     Output = Array(T, N + M)
-        //     __add__: (self: Array(T, N), other: Array(T, M)) -> Array(T, N + M) = Array.concat
-        let mut array_add = Self::builtin_methods(
-            Some(poly(ADD, vec![ty_tp(array_t(T.clone(), M.clone()))])),
+        list_.register_builtin_erg_impl(FUNC_GET, t_get, Immutable, Visibility::BUILTIN_PUBLIC);
+        // List(T, N)|<: Add(List(T, M))|.
+        //     Output = List(T, N + M)
+        //     __add__: (self: List(T, N), other: List(T, M)) -> List(T, N + M) = List.concat
+        let mut list_add = Self::builtin_methods(
+            Some(poly(ADD, vec![ty_tp(list_t(T.clone(), M.clone()))])),
             2,
         );
-        array_add.register_builtin_erg_impl(OP_ADD, t, Immutable, Visibility::BUILTIN_PUBLIC);
-        let out_t = array_t(T.clone(), N.clone() + M.clone());
-        array_add.register_builtin_const(
+        list_add.register_builtin_erg_impl(OP_ADD, t, Immutable, Visibility::BUILTIN_PUBLIC);
+        let out_t = list_t(T.clone(), N.clone() + M.clone());
+        list_add.register_builtin_const(
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
             None,
             ValueObj::builtin_class(out_t),
         );
-        array_.register_trait_methods(arr_t.clone(), array_add);
+        list_.register_trait_methods(lis_t.clone(), list_add);
         let t = no_var_fn_met(
-            arr_t.clone(),
+            lis_t.clone(),
             vec![kw(KW_ELEM, T.clone())],
             vec![],
-            array_t(T.clone(), N.clone() + value(1usize)),
+            list_t(T.clone(), N.clone() + value(1usize)),
         )
         .quantify();
-        array_.register_builtin_erg_impl(FUNC_PUSH, t, Immutable, Visibility::BUILTIN_PUBLIC);
+        list_.register_builtin_erg_impl(FUNC_PUSH, t, Immutable, Visibility::BUILTIN_PUBLIC);
         let repeat_t = no_var_fn_met(
-            arr_t.clone(),
+            lis_t.clone(),
             vec![pos(singleton(Nat, M.clone()))],
             vec![],
-            array_t(T.clone(), N.clone() * M.clone()),
+            list_t(T.clone(), N.clone() * M.clone()),
         )
         .quantify();
-        array_.register_builtin_erg_impl(
+        list_.register_builtin_erg_impl(
             FUNC_REPEAT,
             repeat_t,
             Immutable,
@@ -1667,15 +1667,15 @@ impl Context {
         );
         // [T; N].MutType! = [T; !N] (neither [T!; N] nor [T; N]!)
         let mut_type =
-            ValueObj::builtin_class(poly(MUT_ARRAY, vec![TyParam::t(T.clone()), N.clone()]));
-        let mut array_mutizable = Self::builtin_methods(Some(mono(MUTIZABLE)), 2);
-        array_mutizable.register_builtin_const(
+            ValueObj::builtin_class(poly(MUT_LIST, vec![TyParam::t(T.clone()), N.clone()]));
+        let mut list_mutizable = Self::builtin_methods(Some(mono(MUTIZABLE)), 2);
+        list_mutizable.register_builtin_const(
             MUTABLE_MUT_TYPE,
             Visibility::BUILTIN_PUBLIC,
             None,
             mut_type,
         );
-        array_.register_trait_methods(arr_t.clone(), array_mutizable);
+        list_.register_trait_methods(lis_t.clone(), list_mutizable);
         let var = FRESH_GEN.fresh_varname();
         let input = refinement(
             var.clone(),
@@ -1684,259 +1684,254 @@ impl Context {
         );
         // __getitem__: |T, N|(self: [T; N], _: {I: Nat | I <= N}) -> T
         //              and (self: [T; N], _: Range(Int)) -> [T; _]
-        let array_getitem_t = (fn1_kw_met(
-            array_t(T.clone(), N.clone()),
-            anon(input.clone()),
-            T.clone(),
-        ) & fn1_kw_met(
-            array_t(T.clone(), N.clone()),
-            anon(poly(RANGE, vec![ty_tp(Int)])),
-            unknown_len_array_t(T.clone()),
-        ))
-        .quantify();
+        let list_getitem_t =
+            (fn1_kw_met(list_t(T.clone(), N.clone()), anon(input.clone()), T.clone())
+                & fn1_kw_met(
+                    list_t(T.clone(), N.clone()),
+                    anon(poly(RANGE, vec![ty_tp(Int)])),
+                    unknown_len_list_t(T.clone()),
+                ))
+            .quantify();
         let get_item = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNDAMENTAL_GETITEM,
-            __array_getitem__,
-            array_getitem_t,
+            __list_getitem__,
+            list_getitem_t,
             None,
         )));
-        array_.register_builtin_const(
+        list_.register_builtin_const(
             FUNDAMENTAL_GETITEM,
             Visibility::BUILTIN_PUBLIC,
             None,
             get_item,
         );
-        let array_insert_t = no_var_fn_met(
-            array_t(T.clone(), N.clone()),
+        let list_insert_t = no_var_fn_met(
+            list_t(T.clone(), N.clone()),
             vec![pos(Nat), kw(KW_ELEM, T.clone())],
             vec![],
-            array_t(T.clone(), N.clone() + value(1usize)),
+            list_t(T.clone(), N.clone() + value(1usize)),
         )
         .quantify();
-        let array_insert = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+        let list_insert = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_INSERT,
-            array_insert_at,
-            array_insert_t.clone(),
+            list_insert_at,
+            list_insert_t.clone(),
             None,
         )));
-        array_._register_builtin_const(
+        list_._register_builtin_const(
             FUNC_INSERT,
             Visibility::BUILTIN_PUBLIC,
-            Some(array_insert_t),
-            array_insert,
+            Some(list_insert_t),
+            list_insert,
             Some(FUNC_INSERT_AT.into()),
         );
-        let array_remove_at_t = no_var_fn_met(
-            array_t(T.clone(), N.clone()),
+        let list_remove_at_t = no_var_fn_met(
+            list_t(T.clone(), N.clone()),
             vec![pos(Nat)],
             vec![],
-            array_t(T.clone(), N.clone() - value(1usize)),
+            list_t(T.clone(), N.clone() - value(1usize)),
         )
         .quantify();
-        let array_remove_at = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+        let list_remove_at = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_REMOVE_AT,
-            array_remove_at,
-            array_remove_at_t.clone(),
+            list_remove_at,
+            list_remove_at_t.clone(),
             None,
         )));
-        array_.register_builtin_const(
+        list_.register_builtin_const(
             FUNC_REMOVE_AT,
             Visibility::BUILTIN_PUBLIC,
-            Some(array_remove_at_t),
-            array_remove_at,
+            Some(list_remove_at_t),
+            list_remove_at,
         );
-        let array_remove_all_t = no_var_fn_met(
-            array_t(T.clone(), N.clone()),
+        let list_remove_all_t = no_var_fn_met(
+            list_t(T.clone(), N.clone()),
             vec![kw(KW_ELEM, T.clone())],
             vec![],
-            array_t(T.clone(), TyParam::erased(Nat)),
+            list_t(T.clone(), TyParam::erased(Nat)),
         )
         .quantify();
-        let array_remove_all = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+        let list_remove_all = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_REMOVE_ALL,
-            array_remove_all,
-            array_remove_all_t.clone(),
+            list_remove_all,
+            list_remove_all_t.clone(),
             None,
         )));
-        array_.register_builtin_const(
+        list_.register_builtin_const(
             FUNC_REMOVE_ALL,
             Visibility::BUILTIN_PUBLIC,
-            Some(array_remove_all_t),
-            array_remove_all,
+            Some(list_remove_all_t),
+            list_remove_all,
         );
-        array_
+        list_
             .register_trait(self, poly(INDEXABLE, vec![ty_tp(input), ty_tp(T.clone())]))
             .unwrap();
-        array_
+        list_
             .register_trait(
                 self,
                 poly(
                     HAS_SHAPE,
-                    vec![ty_tp(arr_t.clone()).proj_call(FUNC_SHAPE.into(), vec![])],
+                    vec![ty_tp(lis_t.clone()).proj_call(FUNC_SHAPE.into(), vec![])],
                 ),
             )
             .unwrap();
-        array_
+        list_
             .register_trait(
                 self,
                 poly(
                     HAS_SCALAR_TYPE,
-                    vec![ty_tp(arr_t.clone()).proj_call(FUNC_SCALAR_TYPE.into(), vec![])],
+                    vec![ty_tp(lis_t.clone()).proj_call(FUNC_SCALAR_TYPE.into(), vec![])],
                 ),
             )
             .unwrap();
-        let mut array_sized = Self::builtin_methods(Some(mono(SIZED)), 2);
-        array_sized.register_builtin_erg_impl(
+        let mut list_sized = Self::builtin_methods(Some(mono(SIZED)), 2);
+        list_sized.register_builtin_erg_impl(
             FUNDAMENTAL_LEN,
-            fn0_met(arr_t.clone(), Nat).quantify(),
+            fn0_met(lis_t.clone(), Nat).quantify(),
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        array_.register_trait_methods(arr_t.clone(), array_sized);
+        list_.register_trait_methods(lis_t.clone(), list_sized);
         // union: (self: [Type; _]) -> Type
-        let array_union_t = fn0_met(array_t(Type, TyParam::erased(Nat)), Type).quantify();
+        let list_union_t = fn0_met(list_t(Type, TyParam::erased(Nat)), Type).quantify();
         let union = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_UNION,
-            array_union,
-            array_union_t,
+            list_union,
+            list_union_t,
             None,
         )));
-        array_.register_builtin_const(FUNC_UNION, Visibility::BUILTIN_PUBLIC, None, union);
+        list_.register_builtin_const(FUNC_UNION, Visibility::BUILTIN_PUBLIC, None, union);
         // shape: (self: [Type; _]) -> [Nat; _]
-        let array_shape_t = fn0_met(
-            array_t(Type, TyParam::erased(Nat)),
-            unknown_len_array_t(Nat),
-        )
-        .quantify();
+        let list_shape_t =
+            fn0_met(list_t(Type, TyParam::erased(Nat)), unknown_len_list_t(Nat)).quantify();
         let shape = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_SHAPE,
-            array_shape,
-            array_shape_t,
+            list_shape,
+            list_shape_t,
             None,
         )));
-        array_.register_builtin_const(FUNC_SHAPE, Visibility::BUILTIN_PUBLIC, None, shape);
-        let array_scalar_type_t = fn0_met(Type, Type).quantify();
-        let array_scalar_type = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+        list_.register_builtin_const(FUNC_SHAPE, Visibility::BUILTIN_PUBLIC, None, shape);
+        let list_scalar_type_t = fn0_met(Type, Type).quantify();
+        let list_scalar_type = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_SCALAR_TYPE,
-            array_scalar_type,
-            array_scalar_type_t,
+            list_scalar_type,
+            list_scalar_type_t,
             None,
         )));
-        array_.register_builtin_const(
+        list_.register_builtin_const(
             FUNC_SCALAR_TYPE,
             Visibility::BUILTIN_PUBLIC,
             None,
-            array_scalar_type,
+            list_scalar_type,
         );
-        let mut array_eq = Self::builtin_methods(Some(mono(EQ)), 2);
-        array_eq.register_builtin_erg_impl(
+        let mut list_eq = Self::builtin_methods(Some(mono(EQ)), 2);
+        list_eq.register_builtin_erg_impl(
             OP_EQ,
-            fn1_met(arr_t.clone(), arr_t.clone(), Bool).quantify(),
+            fn1_met(lis_t.clone(), lis_t.clone(), Bool).quantify(),
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        array_.register_trait_methods(arr_t.clone(), array_eq);
-        array_
+        list_.register_trait_methods(lis_t.clone(), list_eq);
+        list_
             .register_trait(self, poly(SEQUENCE, vec![ty_tp(T.clone())]))
             .unwrap();
-        array_.unregister_trait(&poly(INDEXABLE, vec![ty_tp(Nat), ty_tp(T.clone())]));
-        let mut array_show = Self::builtin_methods(Some(mono(SHOW)), 1);
-        array_show.register_builtin_py_impl(
+        list_.unregister_trait(&poly(INDEXABLE, vec![ty_tp(Nat), ty_tp(T.clone())]));
+        let mut list_show = Self::builtin_methods(Some(mono(SHOW)), 1);
+        list_show.register_builtin_py_impl(
             FUNDAMENTAL_STR,
-            fn0_met(arr_t.clone(), Str).quantify(),
+            fn0_met(lis_t.clone(), Str).quantify(),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some(FUNDAMENTAL_STR),
         );
-        array_.register_trait_methods(arr_t.clone(), array_show);
-        let mut array_iterable =
+        list_.register_trait_methods(lis_t.clone(), list_show);
+        let mut list_iterable =
             Self::builtin_methods(Some(poly(ITERABLE, vec![ty_tp(T.clone())])), 2);
-        let array_iter = poly(ARRAY_ITERATOR, vec![ty_tp(T.clone())]);
-        let t = fn0_met(array_t(T.clone(), TyParam::erased(Nat)), array_iter.clone()).quantify();
-        array_iterable.register_builtin_py_impl(
+        let list_iter = poly(LIST_ITERATOR, vec![ty_tp(T.clone())]);
+        let t = fn0_met(list_t(T.clone(), TyParam::erased(Nat)), list_iter.clone()).quantify();
+        list_iterable.register_builtin_py_impl(
             FUNC_ITER,
             t,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some(FUNDAMENTAL_ITER),
         );
-        array_iterable.register_builtin_const(
+        list_iterable.register_builtin_const(
             ITERATOR,
             vis.clone(),
             None,
-            ValueObj::builtin_class(array_iter),
+            ValueObj::builtin_class(list_iter),
         );
-        array_.register_trait_methods(arr_t.clone(), array_iterable);
-        let mut array_collection =
+        list_.register_trait_methods(lis_t.clone(), list_iterable);
+        let mut list_collection =
             Self::builtin_methods(Some(poly(COLLECTION, vec![ty_tp(T.clone())])), 4);
-        array_collection.register_builtin_erg_impl(
+        list_collection.register_builtin_erg_impl(
             FUNDAMENTAL_CONTAINS,
-            fn1_met(arr_t.clone(), T.clone(), Bool).quantify(),
+            fn1_met(lis_t.clone(), T.clone(), Bool).quantify(),
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        array_.register_trait_methods(arr_t.clone(), array_collection);
-        array_
+        list_.register_trait_methods(lis_t.clone(), list_collection);
+        list_
             .register_trait(self, poly(COLLECTION, vec![ty_tp(T.clone())]))
             .unwrap();
         let t = fn1_met(
-            array_t(T.clone(), TyParam::erased(Nat)),
+            list_t(T.clone(), TyParam::erased(Nat)),
             func1(T.clone(), Bool),
             tuple_t(vec![
-                array_t(T.clone(), TyParam::erased(Nat)),
-                array_t(T.clone(), TyParam::erased(Nat)),
+                list_t(T.clone(), TyParam::erased(Nat)),
+                list_t(T.clone(), TyParam::erased(Nat)),
             ]),
         );
-        array_.register_py_builtin(FUNC_PARTITION, t.quantify(), Some(FUNC_PARTITION), 37);
+        list_.register_py_builtin(FUNC_PARTITION, t.quantify(), Some(FUNC_PARTITION), 37);
         let t = no_var_fn_met(
-            array_t(T.clone(), TyParam::erased(Nat)),
+            list_t(T.clone(), TyParam::erased(Nat)),
             vec![],
             vec![kw(
                 KW_SAME_BUCKET,
                 or(func2(T.clone(), T.clone(), Bool), NoneType),
             )],
-            array_t(T.clone(), TyParam::erased(Nat)),
+            list_t(T.clone(), TyParam::erased(Nat)),
         );
-        array_.register_py_builtin(FUNC_DEDUP, t.quantify(), Some(FUNC_DEDUP), 28);
+        list_.register_py_builtin(FUNC_DEDUP, t.quantify(), Some(FUNC_DEDUP), 28);
         let sum_t = no_var_fn_met(
-            array_t(T.clone(), TyParam::erased(Nat)),
+            list_t(T.clone(), TyParam::erased(Nat)),
             vec![],
             vec![kw(KW_START, T.clone())],
             T.clone(),
         );
         let sum = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_SUM,
-            array_sum,
+            list_sum,
             sum_t.quantify(),
             None,
         )));
-        array_.register_builtin_const(FUNC_SUM, Visibility::BUILTIN_PUBLIC, None, sum);
+        list_.register_builtin_const(FUNC_SUM, Visibility::BUILTIN_PUBLIC, None, sum);
         let prod_t = no_var_fn_met(
-            array_t(T.clone(), TyParam::erased(Nat)),
+            list_t(T.clone(), TyParam::erased(Nat)),
             vec![],
             vec![kw(KW_START, T.clone())],
             T.clone(),
         );
         let prod = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_PROD,
-            array_prod,
+            list_prod,
             prod_t.quantify(),
             None,
         )));
-        array_.register_builtin_const(FUNC_PROD, Visibility::BUILTIN_PUBLIC, None, prod);
+        list_.register_builtin_const(FUNC_PROD, Visibility::BUILTIN_PUBLIC, None, prod);
         let reversed_t = no_var_fn_met(
-            array_t(T.clone(), TyParam::erased(Nat)),
+            list_t(T.clone(), TyParam::erased(Nat)),
             vec![],
             vec![],
-            array_t(T.clone(), TyParam::erased(Nat)),
+            list_t(T.clone(), TyParam::erased(Nat)),
         );
         let reversed = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_REVERSED,
-            array_reversed,
+            list_reversed,
             reversed_t.quantify(),
             None,
         )));
-        array_.register_builtin_const(FUNC_REVERSED, Visibility::BUILTIN_PUBLIC, None, reversed);
+        list_.register_builtin_const(FUNC_REVERSED, Visibility::BUILTIN_PUBLIC, None, reversed);
         /* Slice */
         let mut slice = Self::builtin_mono_class(SLICE, 3);
         slice.register_superclass(Obj, &obj);
@@ -2284,7 +2279,7 @@ impl Context {
         /* GenericTuple */
         let mut generic_tuple = Self::builtin_mono_class(GENERIC_TUPLE, 1);
         generic_tuple.register_superclass(Obj, &obj);
-        // tuple doesn't have a constructor, use `Array` instead
+        // tuple doesn't have a constructor, use `List` instead
         let mut tuple_eq = Self::builtin_methods(Some(mono(EQ)), 2);
         tuple_eq.register_builtin_erg_impl(
             OP_EQ,
@@ -2302,14 +2297,11 @@ impl Context {
         );
         generic_tuple.register_trait_methods(mono(GENERIC_TUPLE), tuple_hash);
         generic_tuple.register_trait(self, mono(EQ_HASH)).unwrap();
-        let Ts = mono_q_tp(TY_TS, instanceof(array_t(Type, N.clone())));
-        // Ts <: GenericArray
+        let Ts = mono_q_tp(TY_TS, instanceof(list_t(Type, N.clone())));
+        // Ts <: GenericList
         let _tuple_t = poly(TUPLE, vec![Ts.clone()]);
-        let mut tuple_ = Self::builtin_poly_class(
-            TUPLE,
-            vec![PS::named_nd(TY_TS, array_t(Type, N.clone()))],
-            2,
-        );
+        let mut tuple_ =
+            Self::builtin_poly_class(TUPLE, vec![PS::named_nd(TY_TS, list_t(Type, N.clone()))], 2);
         tuple_.register_superclass(mono(GENERIC_TUPLE), &generic_tuple);
         tuple_
             .register_trait(self, poly(OUTPUT, vec![Ts.clone()]))
@@ -2498,12 +2490,12 @@ impl Context {
         str_iterator
             .register_trait(self, poly(OUTPUT, vec![ty_tp(Str)]))
             .unwrap();
-        let mut array_iterator = Self::builtin_poly_class(ARRAY_ITERATOR, vec![PS::t_nd(TY_T)], 1);
-        array_iterator.register_superclass(Obj, &obj);
-        array_iterator
+        let mut list_iterator = Self::builtin_poly_class(LIST_ITERATOR, vec![PS::t_nd(TY_T)], 1);
+        list_iterator.register_superclass(Obj, &obj);
+        list_iterator
             .register_trait(self, poly(ITERABLE, vec![ty_tp(T.clone())]))
             .unwrap();
-        array_iterator
+        list_iterator
             .register_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
             .unwrap();
         let mut set_iterator = Self::builtin_poly_class(SET_ITERATOR, vec![PS::t_nd(TY_T)], 1);
@@ -3004,16 +2996,16 @@ impl Context {
         file_mut
             .register_trait(self, mono(CONTEXT_MANAGER))
             .unwrap();
-        /* Array! */
-        let array_mut_t = poly(MUT_ARRAY, vec![ty_tp(T.clone()), N.clone()]);
-        let mut array_mut_ =
-            Self::builtin_poly_class(MUT_ARRAY, vec![PS::t_nd(TY_T), PS::default(TY_N, Nat)], 2);
-        array_mut_.register_superclass(arr_t.clone(), &array_);
+        /* List! */
+        let list_mut_t = poly(MUT_LIST, vec![ty_tp(T.clone()), N.clone()]);
+        let mut list_mut_ =
+            Self::builtin_poly_class(MUT_LIST, vec![PS::t_nd(TY_T), PS::default(TY_N, Nat)], 2);
+        list_mut_.register_superclass(lis_t.clone(), &list_);
         let t = pr_met(
             ref_mut(
-                array_mut_t.clone(),
+                list_mut_t.clone(),
                 Some(poly(
-                    MUT_ARRAY,
+                    MUT_LIST,
                     vec![ty_tp(T.clone()), N.clone() + value(1usize)],
                 )),
             ),
@@ -3023,18 +3015,15 @@ impl Context {
             NoneType,
         )
         .quantify();
-        array_mut_.register_py_builtin(PROC_PUSH, t, Some(FUNC_APPEND), 15);
-        let t_copy = fn0_met(ref_(array_mut_t.clone()), array_mut_t.clone()).quantify();
-        let mut array_mut_copy = Self::builtin_methods(Some(mono(COPY)), 2);
-        array_mut_copy.register_py_builtin(FUNC_COPY, t_copy, Some(FUNC_COPY), 116);
-        array_mut_.register_trait_methods(array_mut_t.clone(), array_mut_copy);
+        list_mut_.register_py_builtin(PROC_PUSH, t, Some(FUNC_APPEND), 15);
+        let t_copy = fn0_met(ref_(list_mut_t.clone()), list_mut_t.clone()).quantify();
+        let mut list_mut_copy = Self::builtin_methods(Some(mono(COPY)), 2);
+        list_mut_copy.register_py_builtin(FUNC_COPY, t_copy, Some(FUNC_COPY), 116);
+        list_mut_.register_trait_methods(list_mut_t.clone(), list_mut_copy);
         let t_extend = pr_met(
             ref_mut(
-                array_mut_t.clone(),
-                Some(poly(
-                    MUT_ARRAY,
-                    vec![ty_tp(T.clone()), TyParam::erased(Nat)],
-                )),
+                list_mut_t.clone(),
+                Some(poly(MUT_LIST, vec![ty_tp(T.clone()), TyParam::erased(Nat)])),
             ),
             vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
             None,
@@ -3042,12 +3031,12 @@ impl Context {
             NoneType,
         )
         .quantify();
-        array_mut_.register_py_builtin(PROC_EXTEND, t_extend, Some(FUNC_EXTEND), 24);
+        list_mut_.register_py_builtin(PROC_EXTEND, t_extend, Some(FUNC_EXTEND), 24);
         let t_insert = pr_met(
             ref_mut(
-                array_mut_t.clone(),
+                list_mut_t.clone(),
                 Some(poly(
-                    MUT_ARRAY,
+                    MUT_LIST,
                     vec![ty_tp(T.clone()), N.clone() + value(1usize)],
                 )),
             ),
@@ -3057,12 +3046,12 @@ impl Context {
             NoneType,
         )
         .quantify();
-        array_mut_.register_py_builtin(PROC_INSERT, t_insert, Some(FUNC_INSERT), 33);
+        list_mut_.register_py_builtin(PROC_INSERT, t_insert, Some(FUNC_INSERT), 33);
         let t_remove = pr_met(
             ref_mut(
-                array_mut_t.clone(),
+                list_mut_t.clone(),
                 Some(poly(
-                    MUT_ARRAY,
+                    MUT_LIST,
                     vec![ty_tp(T.clone()), N.clone() - value(1usize)],
                 )),
             ),
@@ -3072,12 +3061,12 @@ impl Context {
             NoneType,
         )
         .quantify();
-        array_mut_.register_py_builtin(PROC_REMOVE, t_remove, Some(FUNC_REMOVE), 42);
+        list_mut_.register_py_builtin(PROC_REMOVE, t_remove, Some(FUNC_REMOVE), 42);
         let t_pop = pr_met(
             ref_mut(
-                array_mut_t.clone(),
+                list_mut_t.clone(),
                 Some(poly(
-                    MUT_ARRAY,
+                    MUT_LIST,
                     vec![ty_tp(T.clone()), N.clone() - value(1usize)],
                 )),
             ),
@@ -3087,18 +3076,18 @@ impl Context {
             T.clone(),
         )
         .quantify();
-        array_mut_.register_py_builtin(PROC_POP, t_pop, Some(FUNC_POP), 52);
+        list_mut_.register_py_builtin(PROC_POP, t_pop, Some(FUNC_POP), 52);
         let t_clear = pr0_met(
             ref_mut(
-                array_mut_t.clone(),
-                Some(poly(MUT_ARRAY, vec![ty_tp(T.clone()), value(0usize)])),
+                list_mut_t.clone(),
+                Some(poly(MUT_LIST, vec![ty_tp(T.clone()), value(0usize)])),
             ),
             NoneType,
         )
         .quantify();
-        array_mut_.register_py_builtin(PROC_CLEAR, t_clear, Some(FUNC_CLEAR), 61);
+        list_mut_.register_py_builtin(PROC_CLEAR, t_clear, Some(FUNC_CLEAR), 61);
         let t_sort = pr_met(
-            ref_mut(array_mut_t.clone(), None),
+            ref_mut(list_mut_t.clone(), None),
             vec![],
             None,
             vec![kw(
@@ -3108,77 +3097,77 @@ impl Context {
             NoneType,
         )
         .quantify();
-        array_mut_.register_py_builtin(PROC_SORT, t_sort, Some(FUNC_SORT), 78);
-        let t_reverse = pr0_met(ref_mut(array_mut_t.clone(), None), NoneType).quantify();
-        array_mut_.register_py_builtin(PROC_REVERSE, t_reverse, Some(FUNC_REVERSE), 87);
+        list_mut_.register_py_builtin(PROC_SORT, t_sort, Some(FUNC_SORT), 78);
+        let t_reverse = pr0_met(ref_mut(list_mut_t.clone(), None), NoneType).quantify();
+        list_mut_.register_py_builtin(PROC_REVERSE, t_reverse, Some(FUNC_REVERSE), 87);
         let t = pr_met(
-            array_mut_t.clone(),
+            list_mut_t.clone(),
             vec![kw(KW_FUNC, nd_func(vec![anon(T.clone())], None, T.clone()))],
             None,
             vec![],
             NoneType,
         )
         .quantify();
-        array_mut_.register_py_builtin(PROC_STRICT_MAP, t, None, 96);
+        list_mut_.register_py_builtin(PROC_STRICT_MAP, t, None, 96);
         let t_update_nth = pr_met(
-            ref_mut(array_mut_t.clone(), None),
+            ref_mut(list_mut_t.clone(), None),
             vec![kw(KW_IDX, Nat), kw(KW_FUNC, func1(T.clone(), T.clone()))],
             None,
             vec![],
             NoneType,
         )
         .quantify();
-        array_mut_.register_py_builtin(PROC_UPDATE_NTH, t_update_nth, Some(FUNC_UPDATE_NTH), 105);
+        list_mut_.register_py_builtin(PROC_UPDATE_NTH, t_update_nth, Some(FUNC_UPDATE_NTH), 105);
         let f_t = kw(
             KW_FUNC,
-            no_var_func(vec![kw(KW_OLD, arr_t.clone())], vec![], arr_t.clone()),
+            no_var_func(vec![kw(KW_OLD, lis_t.clone())], vec![], lis_t.clone()),
         );
         let t = pr_met(
-            ref_mut(array_mut_t.clone(), None),
+            ref_mut(list_mut_t.clone(), None),
             vec![f_t],
             None,
             vec![],
             NoneType,
         )
         .quantify();
-        let mut array_mut_mutable = Self::builtin_methods(Some(mono(MUTABLE)), 2);
-        array_mut_mutable.register_builtin_py_impl(
+        let mut list_mut_mutable = Self::builtin_methods(Some(mono(MUTABLE)), 2);
+        list_mut_mutable.register_builtin_py_impl(
             PROC_UPDATE,
             t,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_UPDATE),
         );
-        array_mut_.register_trait_methods(array_mut_t.clone(), array_mut_mutable);
+        list_mut_.register_trait_methods(list_mut_t.clone(), list_mut_mutable);
         /* ByteArray! */
-        let bytearray_mut_t = mono(BYTEARRAY);
-        let mut bytearray_mut = Self::builtin_mono_class(BYTEARRAY, 2);
+        let bytelist_mut_t = mono(BYTEARRAY);
+        let mut bytelist_mut = Self::builtin_mono_class(BYTEARRAY, 2);
         let t_append = pr_met(
-            ref_mut(bytearray_mut_t.clone(), None),
+            ref_mut(bytelist_mut_t.clone(), None),
             vec![kw(KW_ELEM, int_interval(IntervalOp::Closed, 0, 255))],
             None,
             vec![],
             NoneType,
         );
-        bytearray_mut.register_builtin_py_impl(
+        bytelist_mut.register_builtin_py_impl(
             PROC_PUSH,
             t_append,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_APPEND),
         );
-        let t_copy = fn0_met(ref_(bytearray_mut_t.clone()), bytearray_mut_t.clone());
-        let mut bytearray_mut_copy = Self::builtin_methods(Some(mono(COPY)), 2);
-        bytearray_mut_copy.register_builtin_py_impl(
+        let t_copy = fn0_met(ref_(bytelist_mut_t.clone()), bytelist_mut_t.clone());
+        let mut bytelist_mut_copy = Self::builtin_methods(Some(mono(COPY)), 2);
+        bytelist_mut_copy.register_builtin_py_impl(
             FUNC_COPY,
             t_copy,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_COPY),
         );
-        bytearray_mut.register_trait_methods(bytearray_mut_t.clone(), bytearray_mut_copy);
+        bytelist_mut.register_trait_methods(bytelist_mut_t.clone(), bytelist_mut_copy);
         let t_extend = pr_met(
-            ref_mut(bytearray_mut_t.clone(), None),
+            ref_mut(bytelist_mut_t.clone(), None),
             vec![kw(
                 KW_ITERABLE,
                 poly(
@@ -3190,7 +3179,7 @@ impl Context {
             vec![],
             NoneType,
         );
-        bytearray_mut.register_builtin_py_impl(
+        bytelist_mut.register_builtin_py_impl(
             PROC_EXTEND,
             t_extend,
             Immutable,
@@ -3198,7 +3187,7 @@ impl Context {
             Some(FUNC_EXTEND),
         );
         let t_insert = pr_met(
-            ref_mut(bytearray_mut_t.clone(), None),
+            ref_mut(bytelist_mut_t.clone(), None),
             vec![
                 kw(KW_INDEX, Nat),
                 kw(KW_ELEM, int_interval(IntervalOp::Closed, 0, 255)),
@@ -3207,7 +3196,7 @@ impl Context {
             vec![],
             NoneType,
         );
-        bytearray_mut.register_builtin_py_impl(
+        bytelist_mut.register_builtin_py_impl(
             PROC_INSERT,
             t_insert,
             Immutable,
@@ -3215,18 +3204,18 @@ impl Context {
             Some(FUNC_INSERT),
         );
         let t_pop = pr0_met(
-            ref_mut(bytearray_mut_t.clone(), None),
+            ref_mut(bytelist_mut_t.clone(), None),
             int_interval(IntervalOp::Closed, 0, 255),
         );
-        bytearray_mut.register_builtin_py_impl(
+        bytelist_mut.register_builtin_py_impl(
             PROC_POP,
             t_pop,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_POP),
         );
-        let t_reverse = pr0_met(ref_mut(bytearray_mut_t.clone(), None), NoneType);
-        bytearray_mut.register_builtin_py_impl(
+        let t_reverse = pr0_met(ref_mut(bytelist_mut_t.clone(), None), NoneType);
+        bytelist_mut.register_builtin_py_impl(
             PROC_REVERSE,
             t_reverse,
             Immutable,
@@ -3445,7 +3434,7 @@ impl Context {
         base_exception.register_superclass(Obj, &obj);
         base_exception.register_builtin_erg_impl(
             ATTR_ARGS,
-            unknown_len_array_t(Str),
+            unknown_len_list_t(Str),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
@@ -3695,20 +3684,20 @@ impl Context {
             Some(MODULE_TYPE),
         );
         self.register_builtin_type(
-            mono(GENERIC_ARRAY),
-            generic_array,
+            mono(GENERIC_LIST),
+            generic_list,
             vis.clone(),
             Const,
-            Some(ARRAY),
+            Some(LIST),
         );
         self.register_builtin_type(
-            unsized_array_t,
-            unsized_array,
+            unsized_list_t,
+            unsized_list,
             vis.clone(),
             Const,
-            Some(UNSIZED_ARRAY),
+            Some(UNSIZED_LIST),
         );
-        self.register_builtin_type(arr_t, array_, vis.clone(), Const, Some(ARRAY));
+        self.register_builtin_type(lis_t, list_, vis.clone(), Const, Some(LIST));
         self.register_builtin_type(mono(SLICE), slice, vis.clone(), Const, Some(FUNC_SLICE));
         self.register_builtin_type(
             mono(GENERIC_SET),
@@ -3753,11 +3742,11 @@ impl Context {
             Some(FUNC_STR_ITERATOR),
         );
         self.register_builtin_type(
-            poly(ARRAY_ITERATOR, vec![ty_tp(T.clone())]),
-            array_iterator,
+            poly(LIST_ITERATOR, vec![ty_tp(T.clone())]),
+            list_iterator,
             Visibility::BUILTIN_PRIVATE,
             Const,
-            Some(FUNC_ARRAY_ITERATOR),
+            Some(FUNC_LIST_ITERATOR),
         );
         self.register_builtin_type(
             poly(SET_ITERATOR, vec![ty_tp(T.clone())]),
@@ -3851,10 +3840,10 @@ impl Context {
             Some(MEMORYVIEW),
         );
         self.register_builtin_type(mono(MUT_FILE), file_mut, vis.clone(), Const, Some(FILE));
-        self.register_builtin_type(array_mut_t, array_mut_, vis.clone(), Const, Some(ARRAY));
+        self.register_builtin_type(list_mut_t, list_mut_, vis.clone(), Const, Some(LIST));
         self.register_builtin_type(
-            bytearray_mut_t,
-            bytearray_mut,
+            bytelist_mut_t,
+            bytelist_mut,
             vis.clone(),
             Const,
             Some(BYTEARRAY),
