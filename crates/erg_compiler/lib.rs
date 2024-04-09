@@ -55,9 +55,11 @@ struct _Compiler {
 #[pymethods]
 impl _Compiler {
     #[new]
-    fn new(deps: Vec<Package>) -> Self {
+    fn new(deps: Vec<Package>, path: Option<String>) -> Self {
+        let input = path.map_or(Input::repl(), |path| Input::file(path.into()));
         let cfg = ErgConfig {
             packages: erg_common::ArcArray::from(deps),
+            input,
             ..ErgConfig::default()
         };
         Self {
@@ -148,8 +150,9 @@ fn _compile_with_dependencies(
     code: String,
     mode: &str,
     pkgs: Vec<Package>,
+    path: Option<String>,
 ) -> Result<PyObject, error::CompileErrors> {
-    let mut compiler = _Compiler::new(pkgs);
+    let mut compiler = _Compiler::new(pkgs, path);
     compiler._compile(py, code, mode)
 }
 
@@ -160,8 +163,13 @@ fn _compile_with_dependencies(
 #[cfg(feature = "pylib")]
 #[pyfunction]
 #[pyo3(name = "compile")]
-fn _compile(py: Python<'_>, code: String, mode: &str) -> Result<PyObject, error::CompileErrors> {
-    _compile_with_dependencies(py, code, mode, vec![])
+fn _compile(
+    py: Python<'_>,
+    code: String,
+    mode: &str,
+    path: Option<String>,
+) -> Result<PyObject, error::CompileErrors> {
+    _compile_with_dependencies(py, code, mode, vec![], path)
 }
 
 /// compile_ast_with_dependencies(ast: erg_parser.AST, mode: str, pkgs: list[Package]) -> code
@@ -176,8 +184,9 @@ fn _compile_ast_with_dependencies(
     ast: erg_parser::ast::AST,
     mode: &str,
     pkgs: Vec<Package>,
+    path: Option<String>,
 ) -> Result<PyObject, error::CompileErrors> {
-    let mut compiler = _Compiler::new(pkgs);
+    let mut compiler = _Compiler::new(pkgs, path);
     compiler._compile_ast(py, ast, mode)
 }
 
@@ -192,8 +201,9 @@ fn _compile_ast(
     py: Python<'_>,
     ast: erg_parser::ast::AST,
     mode: &str,
+    path: Option<String>,
 ) -> Result<PyObject, error::CompileErrors> {
-    _compile_ast_with_dependencies(py, ast, mode, vec![])
+    _compile_ast_with_dependencies(py, ast, mode, vec![], path)
 }
 
 /// compile_file_with_dependencies(path: str, pkgs: list[Package]) -> code
@@ -209,7 +219,7 @@ fn _compile_file_with_dependencies(
     pkgs: Vec<Package>,
 ) -> Result<PyObject, error::CompileErrors> {
     let code = std::fs::read_to_string(&path).unwrap_or_else(|err| panic!("{err}, path: {path}"));
-    _compile_with_dependencies(py, code, "exec", pkgs)
+    _compile_with_dependencies(py, code, "exec", pkgs, Some(path))
 }
 
 /// compile_file(path: str) -> code
@@ -235,8 +245,9 @@ fn _exec_with_dependencies(
     py: Python<'_>,
     code: String,
     pkgs: Vec<Package>,
+    path: Option<String>,
 ) -> Result<PyObject, error::CompileErrors> {
-    let code = _compile_with_dependencies(py, code, "exec", pkgs)?;
+    let code = _compile_with_dependencies(py, code, "exec", pkgs, path)?;
     let module = pyo3::types::PyModule::new(py, "<erg>").unwrap();
     let dic = [("code", code), ("dict", PyObject::from(module.dict()))].into_py_dict(py);
     py.run("exec(code, dict)", None, Some(dic)).unwrap();
@@ -250,8 +261,12 @@ fn _exec_with_dependencies(
 #[cfg(feature = "pylib")]
 #[pyfunction]
 #[pyo3(name = "exec")]
-fn _exec(py: Python<'_>, code: String) -> Result<PyObject, error::CompileErrors> {
-    _exec_with_dependencies(py, code, vec![])
+fn _exec(
+    py: Python<'_>,
+    code: String,
+    path: Option<String>,
+) -> Result<PyObject, error::CompileErrors> {
+    _exec_with_dependencies(py, code, vec![], path)
 }
 
 /// exec_with_dependencies(code: str, pkgs: list[Package]) -> module
@@ -267,7 +282,7 @@ fn _exec_file_with_dependencies(
     pkgs: Vec<Package>,
 ) -> Result<PyObject, error::CompileErrors> {
     let code = std::fs::read_to_string(&path).unwrap_or_else(|err| panic!("{err}, path: {path}"));
-    _exec_with_dependencies(py, code, pkgs)
+    _exec_with_dependencies(py, code, pkgs, Some(path))
 }
 
 /// exec_file(path: str) -> module
@@ -292,8 +307,9 @@ fn _exec_ast_with_dependencies(
     py: Python<'_>,
     ast: erg_parser::ast::AST,
     pkgs: Vec<Package>,
+    path: Option<String>,
 ) -> Result<PyObject, error::CompileErrors> {
-    let code = _compile_ast_with_dependencies(py, ast, "exec", pkgs)?;
+    let code = _compile_ast_with_dependencies(py, ast, "exec", pkgs, path)?;
     let module = pyo3::types::PyModule::new(py, "<erg>").unwrap();
     let dic = [("code", code), ("dict", PyObject::from(module.dict()))].into_py_dict(py);
     py.run("exec(code, dict)", None, Some(dic)).unwrap();
@@ -307,8 +323,12 @@ fn _exec_ast_with_dependencies(
 #[cfg(feature = "pylib")]
 #[pyfunction]
 #[pyo3(name = "exec_ast")]
-fn _exec_ast(py: Python<'_>, ast: erg_parser::ast::AST) -> Result<PyObject, error::CompileErrors> {
-    _exec_ast_with_dependencies(py, ast, vec![])
+fn _exec_ast(
+    py: Python<'_>,
+    ast: erg_parser::ast::AST,
+    path: Option<String>,
+) -> Result<PyObject, error::CompileErrors> {
+    _exec_ast_with_dependencies(py, ast, vec![], path)
 }
 
 /// __import__(name: str) -> module
@@ -321,7 +341,7 @@ fn _exec_ast(py: Python<'_>, ast: erg_parser::ast::AST) -> Result<PyObject, erro
 fn _import(py: Python<'_>, name: String) -> Result<PyObject, error::CompileErrors> {
     let path = format!("{name}.er");
     let code = std::fs::read_to_string(&path).unwrap_or_else(|err| panic!("{err}, path: {path}"));
-    _exec(py, code)
+    _exec(py, code, Some(path))
 }
 
 #[cfg(feature = "pylib")]
