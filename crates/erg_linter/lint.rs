@@ -8,12 +8,14 @@ use erg_common::traits::{BlockKind, ExitStatus, Locational, New, Runnable, Strea
 use erg_compiler::artifact::{Buildable, ErrorArtifact};
 use erg_compiler::build_package::PackageBuilder;
 use erg_compiler::error::{CompileError, CompileErrors, CompileWarnings};
-use erg_compiler::hir::{Accessor, Def, Dict, Expr, List, Set, Signature, Tuple};
+use erg_compiler::hir::{Accessor, Def, Dict, Expr, List, Literal, Set, Signature, Tuple};
 use erg_compiler::module::SharedCompilerResource;
+use erg_compiler::ty::ValueObj;
 
+use erg_parser::token::TokenKind;
 use erg_parser::ParserRunner;
 
-use crate::warn::too_many_params;
+use crate::warn::*;
 
 #[derive(Debug)]
 pub struct Linter {
@@ -147,13 +149,14 @@ impl Linter {
         self.warns.extend(art.warns);
         for chunk in art.object.module.iter() {
             self.lint_too_many_params(chunk);
+            self.lint_bool_comparison(chunk);
         }
         log!(info "Finished linting");
         Ok(self.warns.take())
     }
 
-    fn lint_too_many_params(&mut self, chunk: &Expr) {
-        match chunk {
+    fn lint_too_many_params(&mut self, expr: &Expr) {
+        match expr {
             Expr::Def(Def {
                 sig: Signature::Subr(subr),
                 body,
@@ -169,7 +172,42 @@ impl Linter {
                     self.lint_too_many_params(chunk);
                 }
             }
-            _ => self.check_recursively(&Self::lint_too_many_params, chunk),
+            _ => self.check_recursively(&Self::lint_too_many_params, expr),
+        }
+    }
+
+    fn lint_bool_comparison(&mut self, expr: &Expr) {
+        match expr {
+            Expr::BinOp(binop) => {
+                let lhs = <&Literal>::try_from(binop.lhs.as_ref()).map(|lit| &lit.value);
+                let rhs = <&Literal>::try_from(binop.rhs.as_ref()).map(|lit| &lit.value);
+                let lhs_or_rhs = lhs.or(rhs);
+                let func = match (binop.op.kind, lhs_or_rhs) {
+                    (TokenKind::DblEq, Ok(ValueObj::Bool(true))) => true_comparison,
+                    (TokenKind::DblEq, Ok(ValueObj::Bool(false))) => false_comparison,
+                    (TokenKind::NotEq, Ok(ValueObj::Bool(true))) => false_comparison,
+                    (TokenKind::NotEq, Ok(ValueObj::Bool(false))) => true_comparison,
+                    _ => {
+                        self.lint_bool_comparison(&binop.lhs);
+                        self.lint_bool_comparison(&binop.rhs);
+                        return;
+                    }
+                };
+                let expr = if lhs.is_ok_and(|val| val.is_bool()) {
+                    binop.rhs.as_ref()
+                } else if rhs.is_ok_and(|val| val.is_bool()) {
+                    binop.lhs.as_ref()
+                } else {
+                    self.lint_bool_comparison(&binop.lhs);
+                    self.lint_bool_comparison(&binop.rhs);
+                    return;
+                };
+                let warn = func(expr, self.input(), self.caused_by(), binop.loc());
+                self.warns.push(warn);
+                self.lint_bool_comparison(&binop.lhs);
+                self.lint_bool_comparison(&binop.rhs);
+            }
+            _ => self.check_recursively(&Self::lint_bool_comparison, expr),
         }
     }
 

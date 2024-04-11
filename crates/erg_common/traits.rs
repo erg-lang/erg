@@ -1289,6 +1289,15 @@ macro_rules! impl_try_from_trait_for_enum {
                     }
                 }
             }
+            impl<'x> TryFrom<&'x $Enum> for &'x $Variant {
+                type Error = &'x $Enum;
+                fn try_from(from: &'x $Enum) -> Result<Self, Self::Error> {
+                    match from {
+                        Expr::$Variant(to) => Ok(to),
+                        _ => Err(from),
+                    }
+                }
+            }
         )*
     }
 }
