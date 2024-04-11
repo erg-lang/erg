@@ -6,6 +6,8 @@ cd ../erg_parser
 cargo publish
 cd ../erg_compiler
 cargo publish
+cd ../erg_linter
+cargo publish
 cd ../els
 cargo publish
 cd ../../

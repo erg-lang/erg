@@ -13,6 +13,9 @@ if %~dp0 == C:%homepath%\GitHub\erg\ (
     cd ../erg_compiler
     echo publish erg_compiler ...
     cargo publish
+    cd ../erg_linter
+    echo publish erg_linter ...
+    cargo publish
     cd ../els
     echo publish els ...
     cargo publish
