@@ -1,11 +1,20 @@
+.Error = 'error': ClassType
+.Error <: Exception
+
 .Struct: ClassType
 .Struct.
     __call__: (format: Str) -> .Struct
     format: Str
     size: Nat
     pack: (self: .Struct, *values: Obj) -> Bytes
-    unpack: (self: .Struct, bytes: Bytes) -> Obj
+    pack_into!: (self: .Struct, buffer: RefMut(ByteArray!), offset: Nat, *values: Obj) => NoneType
+    unpack: (self: .Struct, buffer: Bytes) -> Obj
+    unpack_from: (self: .Struct, buffer: Bytes, offset := Nat) -> [Obj; _]
+    iter_unpack: (self: .Struct, buffer: Bytes) -> Iterator [Obj; _]
 
 .pack: (format: Str, *values: Obj) -> Bytes
+.pack_into!: (format: Str, buffer: RefMut(ByteArray!), offset: Nat, *values: Obj) => NoneType
 .unpack: (format: Str, bytes: Bytes) -> Obj
+.unpack_from: (format: Str, buffer: Bytes, offset := Nat) -> [Obj; _]
+.iter_unpack: (format: Str, buffer: Bytes) -> Iterator [Obj; _]
 .calcsize: (format: Str) -> Nat

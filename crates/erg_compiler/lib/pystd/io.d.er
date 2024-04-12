@@ -1,5 +1,10 @@
 .DEFAULT_BUFFER_SIZE: {8192}
 
+.BlockingIOError = BlockingIOError
+.UnsupportedOperation: ClassType
+.UnsupportedOperation <: OSError
+.UnsupportedOperation <: ValueError
+
 .IOBase!: ClassType
 .IOBase! <: FileLike!
 .IOBase!.
@@ -101,3 +106,4 @@
 
 .open!: (file: PathLike, mode := Str, buffering := Nat, encoding := Str or NoneType) -> File!
 .open_code!: (path: PathLike) -> File!
+.text_encoding: (encoding: Str or NoneType, stacklevel := Nat) -> Str
