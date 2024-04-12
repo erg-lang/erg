@@ -98,6 +98,7 @@ version = "0.1.47-nightly.0"
 dependencies = [
  "erg_common",
  "erg_compiler",
+ "erg_linter",
  "erg_proc_macros",
  "lsp-types",
  "molc",

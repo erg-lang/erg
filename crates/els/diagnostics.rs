@@ -117,6 +117,18 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let mut checker = self.get_checker(path.clone());
         let (artifact, status) = match checker.build(code.into(), mode) {
             Ok(artifact) => {
+                #[cfg(feature = "lint")]
+                let mut artifact = artifact;
+                #[cfg(feature = "lint")]
+                if self
+                    .opt_features
+                    .contains(&crate::server::OptionalFeatures::Lint)
+                {
+                    use erg_common::traits::Stream;
+                    let mut linter = erg_linter::Linter::new(self.cfg.inherit(path.clone()));
+                    let warns = linter.lint(&artifact.object);
+                    artifact.warns.extend(warns);
+                }
                 _log!(
                     self,
                     "checking {uri} passed, found warns: {}",

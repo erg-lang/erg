@@ -8,7 +8,7 @@ use erg_common::traits::{BlockKind, ExitStatus, Locational, New, Runnable, Strea
 use erg_compiler::artifact::{Buildable, ErrorArtifact};
 use erg_compiler::build_package::PackageBuilder;
 use erg_compiler::error::{CompileError, CompileErrors, CompileWarnings};
-use erg_compiler::hir::{Accessor, Def, Dict, Expr, List, Literal, Set, Signature, Tuple};
+use erg_compiler::hir::{Accessor, Def, Dict, Expr, List, Literal, Set, Signature, Tuple, HIR};
 use erg_compiler::module::SharedCompilerResource;
 use erg_compiler::ty::ValueObj;
 
@@ -83,7 +83,7 @@ impl Runnable for Linter {
     }
 
     fn eval(&mut self, src: String) -> Result<String, CompileErrors> {
-        let warns = self.lint(src).map_err(|eart| {
+        let warns = self.lint_from_string(src).map_err(|eart| {
             eart.warns.write_all_stderr();
             eart.errors
         })?;
@@ -140,19 +140,24 @@ impl Linter {
 
     pub fn lint_module(&mut self) -> Result<CompileWarnings, ErrorArtifact> {
         let src = self.input().read();
-        self.lint(src)
+        self.lint_from_string(src)
     }
 
-    pub fn lint(&mut self, src: String) -> Result<CompileWarnings, ErrorArtifact> {
-        log!(info "Start linting");
+    pub fn lint_from_string(&mut self, src: String) -> Result<CompileWarnings, ErrorArtifact> {
         let art = self.builder.build(src, "exec")?;
         self.warns.extend(art.warns);
-        for chunk in art.object.module.iter() {
+        let warns = self.lint(&art.object);
+        Ok(warns)
+    }
+
+    pub fn lint(&mut self, hir: &HIR) -> CompileWarnings {
+        log!(info "Start linting");
+        for chunk in hir.module.iter() {
             self.lint_too_many_params(chunk);
             self.lint_bool_comparison(chunk);
         }
         log!(info "Finished linting");
-        Ok(self.warns.take())
+        self.warns.take()
     }
 
     fn lint_too_many_params(&mut self, expr: &Expr) {

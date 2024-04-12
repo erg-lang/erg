@@ -126,12 +126,14 @@ impl From<&str> for DefaultFeatures {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum OptionalFeatures {
     CheckOnType,
+    Lint,
 }
 
 impl From<&str> for OptionalFeatures {
     fn from(s: &str) -> Self {
         match s {
             "checkontype" | "checkOnType" | "check-on-type" => OptionalFeatures::CheckOnType,
+            "lint" | "linting" => OptionalFeatures::Lint,
             _ => panic!("unknown feature: {s}"),
         }
     }
