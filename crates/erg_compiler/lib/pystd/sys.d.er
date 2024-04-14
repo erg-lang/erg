@@ -1,5 +1,8 @@
 io = pyimport "io"
 
+.__stdin__: io.TextIOWrapper!
+.__stdout__: io.TextIOWrapper!
+.__stderr__: io.TextIOWrapper!
 .abiflags: Str
 .api_version: Nat
 .argv: [Str; _]
@@ -8,6 +11,7 @@ io = pyimport "io"
 .builtin_module_names: [Str; _]
 .byteorder: Str
 .dont_write_bytecode: Bool
+.dllhandle: Int
 .copyright: Str
 .exec_prefix: Str
 .executable: Str
@@ -56,6 +60,25 @@ io = pyimport "io"
     .seed_bits = Nat;
     .cutoff = Int;
 }
+.hex_version: Nat
+.int_info: NamedTuple {
+    .bits_per_digit = Nat;
+    .sizeof_digit = Nat;
+    .default_max_str_digits = Nat;
+    .str_dights_check_threshold = Nat;
+}
+.implementation: NamedTuple {
+    .name = Str;
+    .cache_tag = Str;
+    # TODO: version_info
+    .version = Obj;
+    .hexversion = Nat;
+    ._multiarch = Str;
+}
+.maxsize: Nat
+.maxunicode: Nat
+.meta_path: List!(Str, _)
+.modules: Dict!({Str: Module})
 .path: List!(Str, _)
 '''
 * AIX -> 'aix'
@@ -86,11 +109,20 @@ io = pyimport "io"
     .serial = Nat;
 }
 
+._clear_type_cache!: () => NoneType
+._current_frames!: () => {Int: Frame}
 .addaudithook!: (hook: (Str, *Obj) => NoneType) => NoneType
 .audit!: (event: Str, *args: Obj) => NoneType
+.breakpointhook!: () => NoneType
+.displayhook!: (value: Obj) => NoneType
+.exception!: () => Exception or NoneType
+.exc_info!: () => (Type or NoneType, Exception or NoneType, Traceback or NoneType)
 .exit: Obj -> Never
 .getdefaultencoding!: () => Str
 .getrecursionlimit!: () => Nat
 .getrefcount!: (obj: Obj) => Nat
 .getsizeof: (obj: Obj) -> Nat
+.getswitchinterval!: () => Float
+.intern: (string: Str) -> Str
+.is_finalizing!: () => Bool
 .setrecursionlimit!: Nat => NoneType

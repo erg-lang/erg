@@ -58,10 +58,50 @@ The name of the operating system dependent module imported. The following names 
 .supports_fd: Set Subroutine, _
 .supports_follow_symlinks: Set Subroutine, _
 
+.EFD_CLOEXEC: Nat
+.EFD_NONBLOCK: Nat
+.EFD_SEMAPHORE: Nat
+
+.EX_OK: Nat
+.EX_USAGE: Nat
+.EX_DATAERR: Nat
+.EX_NOINPUT: Nat
+.EX_NOUSER: Nat
+.EX_NOHOST: Nat
+.EX_UNAVAILABLE: Nat
+.EX_SOFTWARE: Nat
+.EX_OSERR: Nat
+.EX_OSFILE: Nat
+.EX_CANTCREAT: Nat
+.EX_IOERR: Nat
+.EX_TEMPFAIL: Nat
+.EX_PROTOCOL: Nat
+.EX_NOPERM: Nat
+.EX_CONFIG: Nat
+.EX_NOTFOUND: Nat
+
 .F_LOCK: Nat
 .F_TLOCK: Nat
 .F_ULOCK: Nat
 .F_TEST: Nat
+
+.MFD_CLOEXEC: Nat
+.MFD_ALLOW_SEALING: Nat
+.MFD_HUGETLB: Nat
+.MFD_HUGE_SHIFT: Nat
+.MFD_HUGE_MASK: Nat
+.MFD_HUGE_64KB: Nat
+.MFD_HUGE_512KB: Nat
+.MFD_HUGE_1MB: Nat
+.MFD_HUGE_2MB: Nat
+.MFD_HUGE_8MB: Nat
+.MFD_HUGE_16MB: Nat
+.MFD_HUGE_32MB: Nat
+.MFD_HUGE_256MB: Nat
+.MFD_HUGE_512MB: Nat
+.MFD_HUGE_1GB: Nat
+.MFD_HUGE_2GB: Nat
+.MFD_HUGE_16GB: Nat
 
 .O_RDONLY: Nat
 .O_WRONLY: Nat
@@ -130,6 +170,12 @@ The name of the operating system dependent module imported. The following names 
 .SF_NODISKIO: Nat
 .SF_SYNC: Nat
 
+.XATTR_CREATE: Nat
+.XATTR_REPLACE: Nat
+.XATTR_SIZE_MAX: Nat
+
+._exit!: (n: Nat) => NoneType
+.abort!: () => NoneType
 .access!: (
     path: PathLike,
     mode: Nat,
@@ -137,6 +183,7 @@ The name of the operating system dependent module imported. The following names 
     effective_ids := Bool,
     follow_symlinks := Bool,
 ) => Bool
+.add_dll_directory!: (path: PathLike) => NoneType
 .close!: (fd: Nat or FileDescriptor) => NoneType
 .closerange!: (fd_low: Nat, fd_high: Nat) => NoneType
 .ctermid!: () => Str
@@ -155,11 +202,24 @@ The name of the operating system dependent module imported. The following names 
 .device_encoding: (fd: Nat or FileDescriptor) -> Str or NoneType
 .dup!: (fd: Nat or FileDescriptor) => Nat
 .dup2!: (fd: Nat or FileDescriptor, fd2: Nat, inheritable := Bool) => Nat
+.eventfd!: (initval: Nat, flags := Nat) => Nat
+.eventfd_read!: (fd: Nat or FileDescriptor) => Nat
+.eventfd_write!: (fd: Nat or FileDescriptor, value: Nat) => NoneType
+.execl!: (path: PathLike, *args: Obj) => NoneType
+.execle!: (path: PathLike, *args: Obj, env := {Str: Str}) => NoneType
+.execlp!: (file: Str, *args: Obj) => NoneType
+.execlpe!: (file: Str, *args: Obj, env := {Str: Str}) => NoneType
+.execv!: (path: PathLike, args: Sequence(Str)) => NoneType
+.execve!: (path: PathLike, args: Sequence(Str), env: {Str: Str}) => NoneType
+.execvp!: (file: Str, args: Sequence(Str)) => NoneType
+.execvpe!: (file: Str, args: Sequence(Str), env: {Str: Str}) => NoneType
 .fchdir!: (fd: Nat or FileDescriptor) => NoneType
 .fchmod!: (fd: Nat or FileDescriptor, mode: Nat) => NoneType
 .fchown!: (fd: Nat or FileDescriptor, uid: Nat, gid: Nat) => NoneType
 .fdatasync!: (fd: Nat or FileDescriptor) => NoneType
 .fdopen!: (fd: Nat or FileDescriptor, *args: Obj, **kwargs: Obj) => File!
+.fork!: () => Nat
+.forkpty!: () => (Nat, Nat)
 .fpathconf!: (fd: Nat or FileDescriptor, name: Nat) => Nat
 .fsdecode: (filename: Bytes) -> Str
 .fsencode: (filename: Str) -> Bytes
@@ -203,8 +263,11 @@ The name of the operating system dependent module imported. The following names 
 .getresuid!: () => (Nat, Nat, Nat)
 .getsid!: (pid: Nat) => Nat
 .getuid!: () => Nat
+.getxattr!: (path: PathLike, attribute: Str, follow_symlinks := Bool) => Bytes
 .initgroups!: (username: Str, gid: Nat) => NoneType
 .isatty!: (fd: Nat or FileDescriptor) => Bool
+.kill!: (pid: Nat, sig: Nat) => NoneType
+.killpg!: (pgrp: Nat, sig: Nat) => NoneType
 .lchmod!: (path: PathLike, mode: Nat) => NoneType
 .lchown!: (path: PathLike, uid: Nat, gid: Nat) => NoneType
 .link!: (
@@ -218,6 +281,7 @@ The name of the operating system dependent module imported. The following names 
 .listdrives!: () => [Str; _]
 .listmounts!: (volume: PathLike) => [Str; _]
 .listvolumes!: () => [Str; _]
+.listxattr!: (path: PathLike, follow_symlinks := Bool) => [Str; _]
 .lockf!: (fd: Nat or FileDescriptor, cmd: Nat, len := Nat) => NoneType
 .login_tty!: (fd: Nat or FileDescriptor) => NoneType
 .lseek!: (fd: Nat or FileDescriptor, pos: Nat, whence: Nat) => Nat
@@ -227,16 +291,31 @@ The name of the operating system dependent module imported. The following names 
 .makedirs!: (path: PathLike, mode := Nat, exist_ok := Bool) => NoneType
 .makefifo!: (path: PathLike, mode := Nat, dir_fd := Nat or FileDescriptor) => NoneType
 .major!: (device: Nat) => Nat
+.memfd_create!: (name: Str, flags: Nat) => Nat
 .minor!: (device: Nat) => Nat
 .mknod!: (path: PathLike, mode: Nat, device := Nat, dir_fd := Nat or FileDescriptor) => NoneType
+.nice!: (increment: Nat) => NoneType
 .open!: (path: PathLike, flags: Nat, mode := Nat, dir_fd := Nat or FileDescriptor) => Nat
 .openpty!: () => (Nat, Nat)
 .pathconf!: (path: PathLike, name: Str or Nat) => Nat
+.pidfd_open!: (pid: Nat, flags := Nat) => Nat
 .pipe!: () => (Nat, Nat)
 .pipe2!: (flags: Nat) => (Nat, Nat)
+.plock!: (op: Nat) => NoneType
+.popen!: (cmd: Str, mode := Str, buffering := Nat or {-1}) => File!
 # TODO: only on linux
 .posix_fallocate!: (fd: Nat or FileDescriptor, offset: Nat, len: Nat) => NoneType
 .posix_fadvise!: (fd: Nat or FileDescriptor, offset: Nat, len: Nat, advice: Nat) => NoneType
+.posix_spawn!: (
+    path: PathLike,
+    argv: Sequence(Str),
+    env := {Str: Str},
+) => Nat
+.posix_spawnp!: (
+    path: PathLike,
+    argv: Sequence(Str),
+    env := {Str: Str},
+) => Nat
 .pread!: (fd: Nat or FileDescriptor, n: Nat, offset: Nat) => Bytes
 .preadv!: (fd: Nat or FileDescriptor, buffers: RefMut(ByteArray!), offset: Nat, flags := Nat) => Nat
 .putenv!: (key: Str, value: Str) => NoneType
@@ -245,8 +324,10 @@ The name of the operating system dependent module imported. The following names 
 .read!: (fd: Nat or FileDescriptor, n: Nat) => Bytes
 .readlink!: (path: PathLike, dir_fd := Nat or FileDescriptor) => Str
 .readv!: (fd: Nat or FileDescriptor, buffers: RefMut(ByteArray!)) => Nat
+.register_at_fork!: (before := Subroutine, after_in_parent := Subroutine, after_in_child := Subroutine) => NoneType
 .remove!: (path: PathLike,) => NoneType
 .removedirs!: (path: PathLike,) => NoneType
+.removexattr!: (path: PathLike, attribute: Str, follow_symlinks := Bool) => NoneType
 .rename!: (src: PathLike, dst: PathLike) => NoneType
 .renames!: (old: PathLike, new: PathLike) => NoneType
 .replace!: (src: PathLike, dst: PathLike) => NoneType
@@ -270,7 +351,18 @@ The name of the operating system dependent module imported. The following names 
 .setreuid!: (ruid: Nat, euid: Nat) => NoneType
 .setsid!: () => Nat
 .setuid!: (uid: Nat) => NoneType
+.setxattr!: (path: PathLike, attribute: PathLike or Bytes, value: PathLike or Bytes, flags := Nat, follow_symlinks := Bool) => NoneType
+.spawnl!: (mode: Str, path: PathLike, *args: Obj) => NoneType
+.spawnle!: (mode: Str, path: PathLike, *args: Obj, env := {Str: Str}) => NoneType
+.spawnlp!: (mode: Str, file: Str, *args: Obj) => NoneType
+.spawnlpe!: (mode: Str, file: Str, *args: Obj, env := {Str: Str}) => NoneType
+.spawnv!: (mode: Str, path: PathLike, args: Sequence(Str)) => NoneType
+.spawnve!: (mode: Str, path: PathLike, args: Sequence(Str), env: {Str: Str}) => NoneType
+.spawnvp!: (mode: Str, file: Str, args: Sequence(Str)) => NoneType
+.spawnvpe!: (mode: Str, file: Str, args: Sequence(Str), env: {Str: Str}) => NoneType
 .splice!: (src: Nat or FileDescriptor, dst: Nat or FileDescriptor, count: Nat, offset_src := Nat, offset_dst := Nat) => NoneType
+.startfile!: ((path: PathLike) => NoneType) \
+    and ((path: Str, operation: Str, arguments: Str, cwd: PathLike, show_cmd: Int) => NoneType)
 .statvfs!: (path: PathLike) => NamedTuple {
     .f_bsize = Nat;
     .f_frsize = Nat;
@@ -287,8 +379,15 @@ The name of the operating system dependent module imported. The following names 
 .strerror: (code: Nat) -> Str
 .symlink!: (src: PathLike, dst: PathLike, target_is_directory := Bool, dir_fd := Nat or FileDescriptor) => NoneType
 .sync!: () => NoneType
+.system!: (command: Str) => Nat
 .tcgetpgrp!: (fd: Nat or FileDescriptor) => Nat
 .tcsetpgrp!: (fd: Nat or FileDescriptor, pgrp: Nat) => NoneType
+.times!: () => NamedTuple {
+    .user = Float;
+    .system = Float;
+    .children_user = Float;
+    .children_system = Float;
+}
 .ttyname!: (fd: Nat or FileDescriptor) => Str
 
 .umask!: (mask: Nat) => Nat
@@ -307,6 +406,17 @@ The name of the operating system dependent module imported. The following names 
 .urandom!: (size: Nat) => Bytes
 .utime!: (path: PathLike, times := (Float, Float)) => NoneType
 
+.wait!: () => NamedTuple {
+    .pid = Nat;
+    .status = Nat;
+}
+.waitid!: (idtype: Nat, id: Nat, options: Nat) => NamedTuple {
+    .si_pid = Nat;
+    .si_uid = Nat;
+    .si_signo = Nat;
+    .si_status = Nat;
+    .si_code = Nat;
+}
 .walk!: (
     top: PathLike,
     topdown := Bool,
