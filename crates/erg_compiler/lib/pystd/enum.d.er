@@ -1,0 +1,31 @@
+.EnumType: ClassType
+.EnumType <: Type
+
+.Enum: ClassType
+.Enum <: Show
+.Enum.
+    name: Str
+    value: Obj
+
+.IntEnum: ClassType
+.IntEnum <: Enum
+.IntEnum <: Int
+.IntEnum.
+    value: Int
+
+.StrEnum: ClassType
+.StrEnum <: Enum
+.StrEnum <: Str
+.StrEnum.
+    value: Str
+
+.Flag: ClassType
+.Flag <: Enum
+
+.IntFlag: ClassType
+.IntFlag <: Flag
+
+.ReprEnum: ClassType
+.ReprEnum <: Enum
+
+.Auto = 'auto': ClassType

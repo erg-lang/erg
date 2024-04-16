@@ -1,3 +1,100 @@
+.http = pyimport "http"
+
+.HTTP_PORT: Nat
+.HTTPS_PORT: Nat
+.responses: {.http.HTTPStatus: Str}
+
+.HTTPConnection!: ClassType
+.HTTPConnection!.
+    __call__: (
+        host: Str,
+        port := Nat,
+        timeout := Float,
+        source_address := (Str, Nat),
+        blocksize := Nat,
+    ) -> HTTPConnection!
+    blocksize: Nat
+    request!: (
+        self: Ref(.HTTPConnection!),
+        method: Str,
+        url: Str,
+        body := Str,
+        headers := {Str: Str},
+        encode_chunked := Bool,
+    ) => NoneType
+    get_proxy_response_headers: (self: Ref(.HTTPConnection!)) -> {Str: Str}
+    getresponse!: (self: Ref(.HTTPConnection!),) => .HTTPResponse
+    set_debuglevel!: (self: RefMut(.HTTPConnection!), level: Nat) => NoneType
+    set_tunnel!: (
+        self: RefMut(.HTTPConnection!),
+        host: Str,
+        port := Nat,
+        headers := {Str: Str},
+    ) => NoneType
+    connect!: (self: RefMut(.HTTPConnection!),) => NoneType
+    close!: (self: RefMut(.HTTPConnection!),) => NoneType
+    putrequest!: (self: Ref(.HTTPConnection!), method: Str, url: Str, skip_host := Bool, skip_accept_encoding := Bool) => NoneType
+    putheader!: (self: Ref(.HTTPConnection!), header: Str, argument: Str) => NoneType
+    endheaders!: (self: Ref(.HTTPConnection!), message_body := Str, encode_chunked := Bool) => NoneType
+    send!: (self: RefMut(.HTTPConnection!), data: Str) => NoneType
+
+.HTTPSConnection!: ClassType
+.HTTPSConnection! <: HTTPConnection!
+.HTTPSConnection!.
+    __call__: (
+        host: Str,
+        port := Nat,
+        timeout := Float,
+        source_address := (Str, Nat),
+        blocksize := Nat,
+    ) -> HTTPSConnection!
+
+.HTTPException: ClassType
+.HTTPException <: Exception
+.NotConnected: ClassType
+.NotConnected <: HTTPException
+.InvalidURL: ClassType
+.InvalidURL <: HTTPException
+.UnknownProtocol: ClassType
+.UnknownProtocol <: HTTPException
+.UnknownTransferEncoding: ClassType
+.UnknownTransferEncoding <: HTTPException
+.UnimplementedFileMode: ClassType
+.UnimplementedFileMode <: HTTPException
+.IncompleteRead: ClassType
+.IncompleteRead <: HTTPException
+.ImproperConnectionState: ClassType
+.ImproperConnectionState <: HTTPException
+.CannotSendRequest: ClassType
+.CannotSendRequest <: HTTPException
+.CannotSendHeader: ClassType
+.CannotSendHeader <: HTTPException
+.ResponseNotReady: ClassType
+.ResponseNotReady <: HTTPException
+.BadStatusLine: ClassType
+.BadStatusLine <: HTTPException
+.LineTooLong: ClassType
+.LineTooLong <: HTTPException
+.RemoteDisconnected: ClassType
+.RemoteDisconnected <: BadStatusLine
+.RemoteDisconnected <: ConnectionResetError
+
 .HTTPResponse: ClassType
 .HTTPResponse <: FileLike!
-.HTTPResponse.read!: (self: RefMut(.HTTPResponse),) => Bytes
+.HTTPResponse.
+    msg: Str
+    version: Str
+    url: Str
+    headers: {Str: Str}
+    status: Nat
+    reason: Str
+    debuglevel: Nat
+    closed: Bool
+    read!: (self: RefMut(.HTTPResponse),) => Bytes
+    readinto!: (self: RefMut(.HTTPResponse), b: RefMut ByteArray!) => Nat
+    getheader: (self: Ref(.HTTPResponse), name: Str, default := Str) -> Str
+    getheaders: (self: Ref(.HTTPResponse)) -> [(Str, Str); _]
+    fileno: (self: Ref(.HTTPResponse)) -> Nat
+
+# TODO: <: email.message.Message
+.HTTPMessage: ClassType

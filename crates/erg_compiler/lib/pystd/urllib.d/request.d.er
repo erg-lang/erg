@@ -1,5 +1,55 @@
 http = pyimport "http"
 
-.Request: ClassType
-.Request.data: Bytes
-.urlopen!: (url: Str or .Request, data: Bytes or NoneType := NoneType, timeout: Nat or NoneType := NoneType) -> http.client.HTTPResponse
+.OpenerDirector!: ClassType
+.OpenerDirector!.
+    add_handler!: (self: RefMut OpenerDirector!, handler: BaseHandler!) => NoneType
+    open!: (self: Ref OpenerDirector!, url: Str or .Request!, data: Bytes or NoneType := NoneType, timeout: Nat or NoneType := NoneType) -> http.client.HTTPResponse
+.BaseHandler!: ClassType
+.BaseHandler!.
+    parent: BaseHandler! or NoneType
+    add_parent!: (self: RefMut BaseHandler!, parent: BaseHandler!) => NoneType
+    close!: (self: RefMut BaseHandler!) => NoneType
+.HTTPDefaultErrorHandler: ClassType
+.HTTPRedirectHandler: ClassType
+.HTTPCookieProcessor: ClassType
+.HTTPProxyHandler: ClassType
+.HTTPPasswordMgr: ClassType
+.HTTPPasswordMgrWithDefaultRealm: ClassType
+.HTTPPasswordMgrWithPriorAuth: ClassType
+
+.AbstractBasicAuthHandler: ClassType
+.HTTPBasicAuthHandler: ClassType
+.ProxyBasicAuthHandler: ClassType
+.AbstractDigestAuthHandler: ClassType
+.HTTPDigestAuthHandler: ClassType
+.ProxyDigestAuthHandler: ClassType
+.HTTPHandler: ClassType
+.HTTPSHandler: ClassType
+.FileHandler: ClassType
+.DataHandler: ClassType
+.FTPHandler: ClassType
+.CacheFTPHandler: ClassType
+.UnknownHandler: ClassType
+.HTTPErrorProcessor: ClassType
+
+.Request!: ClassType
+.Request!.
+    full_url: Str
+    type: Str
+    host: Str
+    origin_req_host: Str
+    selector: Str
+    data: Bytes or NoneType
+    unverifiable: Bool
+    method: Str
+    get_method: (self: Ref Request!) -> Str
+    get_full_url: (self: Ref Request!) -> Str
+    get_header: (self: Ref Request!, header: Str, default := Str) -> Str or NoneType
+    has_header: (self: Ref Request!, header: Str) -> Bool
+    header_items: (self: Ref Request!) -> [(Str, Str); _]
+    add_header!: (self: RefMut Request!, key: Str, val: Str) => NoneType
+    remove_header!: (self: RefMut Request!, header: Str) => NoneType
+
+.urlopen!: (url: Str or .Request!, data: Bytes or NoneType := NoneType, timeout: Nat or NoneType := NoneType) -> http.client.HTTPResponse
+.install_opener!: (opener: OpenerDirector!) => NoneType
+.build_opener!: (handler: BaseHandler!) => OpenerDirector!

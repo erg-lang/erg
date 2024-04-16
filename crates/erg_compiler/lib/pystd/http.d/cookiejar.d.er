@@ -1,0 +1,20 @@
+.LoadError: ClassType
+.LoadError <: OSError
+
+.CookiePolicy: ClassType
+.CookiePolicy <: InheritableType
+
+.DefaultCookiePolicy: ClassType
+.DefaultCookiePolicy <: CookiePolicy
+
+.CookieJar: ClassType
+.CookieJar <: InheritableType
+.CookieJar.
+    __call__: (policy := CookiePolicy) -> CookieJar
+
+.FileCookieJar: ClassType
+.FileCookieJar <: CookieJar
+.FileCookieJar.
+    __call__: (filename := Str, policy := CookiePolicy) -> FileCookieJar
+
+.Cookie: ClassType
