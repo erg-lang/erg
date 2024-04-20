@@ -500,7 +500,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         match maybe_len {
             Ok(v @ ValueObj::Nat(_)) => list_t(elem.t(), TyParam::Value(v)),
             Ok(other) => todo!("{other} is not a Nat object"),
-            Err(err) => todo!("{err}"),
+            Err((_, err)) => todo!("{err}"),
         }
     }
 
@@ -555,29 +555,42 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
     fn lower_normal_record(
         &mut self,
         record: ast::NormalRecord,
-        _expect: Option<&Type>,
+        expect: Option<&Type>,
     ) -> LowerResult<hir::Record> {
         log!(info "entered {}({record})", fn_name!());
+        let expect_record = expect.and_then(|t| {
+            if let Type::Record(rec) = t {
+                Some(rec)
+            } else {
+                None
+            }
+        });
         let mut hir_record =
             hir::Record::new(record.l_brace, record.r_brace, hir::RecordAttrs::empty());
+        let mut errs = LowerErrors::empty();
         self.module
             .context
             .grow("<record>", ContextKind::Dummy, Private, None);
         for attr in record.attrs.iter() {
             if attr.sig.is_const() {
-                self.module.context.register_def(attr).map_err(|errs| {
-                    self.pop_append_errs();
-                    errs
-                })?;
+                if let Err(es) = self.module.context.register_def(attr) {
+                    errs.extend(es);
+                }
             }
         }
         for attr in record.attrs.into_iter() {
-            let attr = self.lower_def(attr).map_err(|errs| {
-                self.pop_append_errs();
-                errs
-            })?;
+            let expect =
+                expect_record.and_then(|rec| attr.sig.ident().and_then(|id| rec.get(id.inspect())));
+            let attr = match self.lower_def(attr, expect) {
+                Ok(def) => def,
+                Err(es) => {
+                    errs.extend(es);
+                    continue;
+                }
+            };
             hir_record.push(attr);
         }
+        self.errs.extend(errs);
         self.pop_append_errs();
         Ok(hir_record)
     }
@@ -1067,24 +1080,24 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         match op.kind {
             // l in T -> T contains l
             TokenKind::ContainsOp => {
-                let to = self.module.context.expr_to_type(lhs.clone())?;
+                let to = self.module.context.expr_to_type(lhs.clone()).ok()?;
                 Some(guard(namespace, target, to))
             }
             TokenKind::Symbol if &op.content[..] == "isinstance" => {
-                let to = self.module.context.expr_to_type(rhs.clone())?;
+                let to = self.module.context.expr_to_type(rhs.clone()).ok()?;
                 Some(guard(namespace, target, to))
             }
             TokenKind::IsOp | TokenKind::DblEq => {
-                let rhs = self.module.context.expr_to_value(rhs.clone())?;
+                let rhs = self.module.context.expr_to_value(rhs.clone()).ok()?;
                 Some(guard(namespace, target, v_enum(set! { rhs })))
             }
             TokenKind::IsNotOp | TokenKind::NotEq => {
-                let rhs = self.module.context.expr_to_value(rhs.clone())?;
+                let rhs = self.module.context.expr_to_value(rhs.clone()).ok()?;
                 let ty = guard(namespace, target, v_enum(set! { rhs }));
                 Some(self.module.context.complement(&ty))
             }
             TokenKind::Gre => {
-                let rhs = self.module.context.expr_to_tp(rhs.clone())?;
+                let rhs = self.module.context.expr_to_tp(rhs.clone()).ok()?;
                 let t = self.module.context.get_tp_t(&rhs).unwrap_or(Type::Obj);
                 let varname = self.fresh_gen.fresh_varname();
                 let pred = Predicate::gt(varname.clone(), rhs);
@@ -1092,7 +1105,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 Some(guard(namespace, target, refine))
             }
             TokenKind::GreEq => {
-                let rhs = self.module.context.expr_to_tp(rhs.clone())?;
+                let rhs = self.module.context.expr_to_tp(rhs.clone()).ok()?;
                 let t = self.module.context.get_tp_t(&rhs).unwrap_or(Type::Obj);
                 let varname = self.fresh_gen.fresh_varname();
                 let pred = Predicate::ge(varname.clone(), rhs);
@@ -1100,7 +1113,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 Some(guard(namespace, target, refine))
             }
             TokenKind::Less => {
-                let rhs = self.module.context.expr_to_tp(rhs.clone())?;
+                let rhs = self.module.context.expr_to_tp(rhs.clone()).ok()?;
                 let t = self.module.context.get_tp_t(&rhs).unwrap_or(Type::Obj);
                 let varname = self.fresh_gen.fresh_varname();
                 let pred = Predicate::lt(varname.clone(), rhs);
@@ -1108,7 +1121,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 Some(guard(namespace, target, refine))
             }
             TokenKind::LessEq => {
-                let rhs = self.module.context.expr_to_tp(rhs.clone())?;
+                let rhs = self.module.context.expr_to_tp(rhs.clone()).ok()?;
                 let t = self.module.context.get_tp_t(&rhs).unwrap_or(Type::Obj);
                 let varname = self.fresh_gen.fresh_varname();
                 let pred = Predicate::le(varname.clone(), rhs);
@@ -1663,7 +1676,9 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         }
         for guard in params.guards.into_iter() {
             let lowered = match guard {
-                ast::GuardClause::Bind(bind) => self.lower_def(bind).map(hir::GuardClause::Bind),
+                ast::GuardClause::Bind(bind) => {
+                    self.lower_def(bind, None).map(hir::GuardClause::Bind)
+                }
                 // TODO: no fake
                 ast::GuardClause::Condition(cond) => {
                     self.fake_lower_expr(cond).map(hir::GuardClause::Condition)
@@ -1900,7 +1915,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         ))
     }
 
-    fn lower_def(&mut self, def: ast::Def) -> LowerResult<hir::Def> {
+    fn lower_def(&mut self, def: ast::Def, expect_body: Option<&Type>) -> LowerResult<hir::Def> {
         log!(info "entered {}({})", fn_name!(), def.sig);
         if def.def_kind().is_class_or_trait() && self.module.context.kind != ContextKind::Module {
             self.module
@@ -1976,7 +1991,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             }
             ast::Signature::Var(sig) => {
                 self.module.context.grow(&name, kind, vis, None);
-                self.lower_var_def(sig, def.body)
+                self.lower_var_def(sig, def.body, expect_body)
             }
         };
         // TODO: Context上の関数に型境界情報を追加
@@ -1990,6 +2005,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         &mut self,
         sig: ast::VarSignature,
         body: ast::DefBody,
+        expect_body: Option<&Type>,
     ) -> LowerResult<hir::Def> {
         log!(info "entered {}({sig})", fn_name!());
         if let Err(errs) = self.module.context.register_const(&body.block) {
@@ -1999,18 +2015,23 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         let expect_body_t = sig
             .t_spec
             .as_ref()
-            .and_then(|t_spec| {
-                self.module
+            .map(|t_spec| {
+                match self
+                    .module
                     .context
                     .instantiate_var_sig_t(Some(&t_spec.t_spec), RegistrationMode::PreRegister)
-                    .ok()
+                {
+                    Ok(t) => t,
+                    // REVIEW:
+                    Err((t, _errs)) => t,
+                }
             })
             .or_else(|| {
                 sig.ident()
                     .and_then(|ident| outer.get_current_scope_var(&ident.name))
                     .map(|vi| vi.t.clone())
             });
-        match self.lower_block(body.block, expect_body_t.as_ref()) {
+        match self.lower_block(body.block, expect_body.or(expect_body_t.as_ref())) {
             Ok(block) => {
                 let found_body_t = block.ref_t();
                 let ident = match &sig.pat {
@@ -2046,8 +2067,20 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 )?;
                 let ident = hir::Identifier::new(ident, None, vi);
                 let t_spec = if let Some(ts) = sig.t_spec {
-                    let spec_t = self.module.context.instantiate_typespec(&ts.t_spec)?;
-                    let expr = self.fake_lower_expr(*ts.t_spec_as_expr.clone())?;
+                    let spec_t = match self.module.context.instantiate_typespec(&ts.t_spec) {
+                        Ok(spec_t) => spec_t,
+                        Err((spec_t, errs)) => {
+                            self.errs.extend(errs);
+                            spec_t
+                        }
+                    };
+                    let expr = match self.fake_lower_expr(*ts.t_spec_as_expr.clone()) {
+                        Ok(expr) => expr,
+                        Err(errs) => {
+                            self.errs.extend(errs);
+                            hir::Expr::Dummy(hir::Dummy::empty())
+                        }
+                    };
                     Some(hir::TypeSpecWithOp::new(ts, expr, spec_t))
                 } else {
                     None
@@ -2121,7 +2154,13 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 let block = self.lower_block(body.block, None)?;
                 let ident = hir::Identifier::bare(sig.ident);
                 let ret_t_spec = if let Some(ts) = sig.return_t_spec {
-                    let spec_t = self.module.context.instantiate_typespec(&ts.t_spec)?;
+                    let spec_t = match self.module.context.instantiate_typespec(&ts.t_spec) {
+                        Ok(spec_t) => spec_t,
+                        Err((spec_t, errs)) => {
+                            self.errs.extend(errs);
+                            spec_t
+                        }
+                    };
                     let expr = self.fake_lower_expr(*ts.t_spec_as_expr.clone())?;
                     Some(hir::TypeSpecWithOp::new(ts, expr, spec_t))
                 } else {
@@ -2150,11 +2189,13 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         decorators: Set<hir::Expr>,
         body: ast::DefBody,
     ) -> LowerResult<hir::Def> {
+        log!(err "errs: {}", self.errs.len());
         let params = self.lower_params(
             sig.params.clone(),
             sig.bounds.clone(),
             Some(&registered_subr_t),
         )?;
+        log!(err "errs: {}", self.errs.len());
         if let Err(errs) = self.module.context.register_const(&body.block) {
             self.errs.extend(errs);
         }
@@ -2180,8 +2221,20 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 };
                 let ident = hir::Identifier::new(sig.ident, None, vi);
                 let ret_t_spec = if let Some(ts) = sig.return_t_spec {
-                    let spec_t = self.module.context.instantiate_typespec(&ts.t_spec)?;
-                    let expr = self.fake_lower_expr(*ts.t_spec_as_expr.clone())?;
+                    let spec_t = match self.module.context.instantiate_typespec(&ts.t_spec) {
+                        Ok(spec_t) => spec_t,
+                        Err((spec_t, errs)) => {
+                            self.errs.extend(errs);
+                            spec_t
+                        }
+                    };
+                    let expr = match self.fake_lower_expr(*ts.t_spec_as_expr.clone()) {
+                        Ok(expr) => expr,
+                        Err(errs) => {
+                            self.errs.extend(errs);
+                            hir::Expr::Dummy(hir::Dummy::empty())
+                        }
+                    };
                     Some(hir::TypeSpecWithOp::new(ts, expr, spec_t))
                 } else {
                     None
@@ -2215,7 +2268,13 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 };
                 let ident = hir::Identifier::new(sig.ident, None, vi);
                 let ret_t_spec = if let Some(ts) = sig.return_t_spec {
-                    let spec_t = self.module.context.instantiate_typespec(&ts.t_spec)?;
+                    let spec_t = match self.module.context.instantiate_typespec(&ts.t_spec) {
+                        Ok(spec_t) => spec_t,
+                        Err((spec_t, errs)) => {
+                            self.errs.extend(errs);
+                            spec_t
+                        }
+                    };
                     let expr = self.fake_lower_expr(*ts.t_spec_as_expr.clone())?;
                     Some(hir::TypeSpecWithOp::new(ts, expr, spec_t))
                 } else {
@@ -2239,7 +2298,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
 
     fn lower_class_def(&mut self, class_def: ast::ClassDef) -> LowerResult<hir::ClassDef> {
         log!(info "entered {}({class_def})", fn_name!());
-        let mut hir_def = self.lower_def(class_def.def)?;
+        let mut hir_def = self.lower_def(class_def.def, None)?;
         let mut hir_methods_list = vec![];
         for methods in class_def.methods_list.into_iter() {
             let mut hir_methods = hir::Block::empty();
@@ -2307,7 +2366,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             }
             for attr in methods.attrs.into_iter() {
                 match attr {
-                    ast::ClassAttr::Def(def) => match self.lower_def(def) {
+                    ast::ClassAttr::Def(def) => match self.lower_def(def, None) {
                         Ok(def) => {
                             hir_methods.push(hir::Expr::Def(def));
                         }
@@ -2405,9 +2464,15 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             };
             let base_t_expr = call.args.get_left_or_key("Base").unwrap();
             let spec = Parser::expr_to_type_spec(base_t_expr.clone()).unwrap();
-            self.module.context.instantiate_typespec(&spec)?
+            match self.module.context.instantiate_typespec(&spec) {
+                Ok(t) => t,
+                Err((t, errs)) => {
+                    self.errs.extend(errs);
+                    t
+                }
+            }
         };
-        let mut hir_def = self.lower_def(class_def.def)?;
+        let mut hir_def = self.lower_def(class_def.def, None)?;
         let base = Self::get_require_or_sup_or_base(hir_def.body.block.remove(0)).unwrap();
         let mut hir_methods = hir::Block::empty();
         for mut methods in class_def.methods_list.into_iter() {
@@ -2439,7 +2504,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             }
             for attr in methods.attrs.into_iter() {
                 match attr {
-                    ast::ClassAttr::Def(def) => match self.lower_def(def) {
+                    ast::ClassAttr::Def(def) => match self.lower_def(def, None) {
                         Ok(def) => {
                             hir_methods.push(hir::Expr::Def(def));
                         }
@@ -2797,9 +2862,9 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             .instantiate_typespec(&tasc.t_spec.t_spec)
         {
             Ok(spec_t) => spec_t,
-            Err(errs) => {
+            Err((t, errs)) => {
                 self.errs.extend(errs);
-                Type::Failure
+                t
             }
         };
         let expect = expect.map_or(Some(&spec_t), |exp| {
@@ -2851,10 +2916,17 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
     fn lower_decl(&mut self, tasc: ast::TypeAscription) -> LowerResult<hir::TypeAscription> {
         log!(info "entered {}({tasc})", fn_name!());
         let kind = tasc.kind();
-        let spec_t = self
+        let spec_t = match self
             .module
             .context
-            .instantiate_typespec(&tasc.t_spec.t_spec)?;
+            .instantiate_typespec(&tasc.t_spec.t_spec)
+        {
+            Ok(spec_t) => spec_t,
+            Err((t, errs)) => {
+                self.errs.extend(errs);
+                t
+            }
+        };
         let ast::Expr::Accessor(ast::Accessor::Ident(ident)) = *tasc.expr else {
             return Err(LowerErrors::from(LowerError::syntax_error(
                 self.cfg.input.clone(),
@@ -2995,7 +3067,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
     ) -> LowerResult<hir::Expr> {
         log!(info "entered {}", fn_name!());
         match chunk {
-            ast::Expr::Def(def) => Ok(hir::Expr::Def(self.lower_def(def)?)),
+            ast::Expr::Def(def) => Ok(hir::Expr::Def(self.lower_def(def, None)?)),
             ast::Expr::ClassDef(defs) => Ok(hir::Expr::ClassDef(self.lower_class_def(defs)?)),
             ast::Expr::PatchDef(defs) => Ok(hir::Expr::PatchDef(self.lower_patch_def(defs)?)),
             ast::Expr::ReDef(redef) => Ok(hir::Expr::ReDef(self.lower_redef(redef)?)),

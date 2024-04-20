@@ -33,7 +33,7 @@ use crate::ty::{
 
 use crate::context::instantiate_spec::ParamKind;
 use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode};
-use crate::error::{EvalError, EvalErrors, EvalResult, SingleEvalResult};
+use crate::error::{EvalError, EvalErrors, EvalResult, Failable, SingleEvalResult};
 use crate::varinfo::{AbsLocation, VarInfo};
 
 use super::instantiate::TyVarCache;
@@ -464,12 +464,19 @@ impl Context {
         }
     }
 
-    fn eval_const_acc(&self, acc: &Accessor) -> EvalResult<ValueObj> {
+    fn eval_const_acc(&self, acc: &Accessor) -> Failable<ValueObj> {
         match acc {
-            Accessor::Ident(ident) => self.eval_const_ident(ident),
+            Accessor::Ident(ident) => self
+                .eval_const_ident(ident)
+                .map_err(|err| (ValueObj::Failure, err)),
             Accessor::Attr(attr) => match self.eval_const_expr(&attr.obj) {
-                Ok(obj) => Ok(self.eval_attr(obj, &attr.ident)?),
-                Err(err) => {
+                Ok(obj) => Ok(self
+                    .eval_attr(obj, &attr.ident)
+                    .map_err(|e| (ValueObj::Failure, e.into()))?),
+                Err((obj, err)) => {
+                    if let Ok(attr) = self.eval_attr(obj.clone(), &attr.ident) {
+                        return Err((attr, err));
+                    }
                     if let Expr::Accessor(acc) = attr.obj.as_ref() {
                         if let Some(mod_ctx) = self.get_mod_ctx_from_acc(acc) {
                             if let Ok(obj) = mod_ctx.eval_const_ident(&attr.ident) {
@@ -477,12 +484,11 @@ impl Context {
                             }
                         }
                     }
-                    Err(err)
+                    Err((obj, err))
                 }
             },
-            other => {
-                feature_error!(self, other.loc(), &format!("eval {other}")).map_err(Into::into)
-            }
+            other => feature_error!(self, other.loc(), &format!("eval {other}"))
+                .map_err(|err| (ValueObj::Failure, err)),
         }
     }
 
@@ -532,7 +538,7 @@ impl Context {
     fn eval_attr(&self, obj: ValueObj, ident: &Identifier) -> SingleEvalResult<ValueObj> {
         let field = self
             .instantiate_field(ident)
-            .map_err(|mut errs| errs.remove(0))?;
+            .map_err(|(_, mut errs)| errs.remove(0))?;
         if let Some(val) = obj.try_get_attr(&field) {
             return Ok(val);
         }
@@ -561,107 +567,184 @@ impl Context {
         ))
     }
 
-    fn eval_const_bin(&self, bin: &BinOp) -> EvalResult<ValueObj> {
+    fn eval_const_bin(&self, bin: &BinOp) -> Failable<ValueObj> {
         let lhs = self.eval_const_expr(&bin.args[0])?;
         let rhs = self.eval_const_expr(&bin.args[1])?;
-        let op = self.try_get_op_kind_from_token(&bin.op)?;
+        let op = self
+            .try_get_op_kind_from_token(&bin.op)
+            .map_err(|e| (ValueObj::Failure, e))?;
         self.eval_bin(op, lhs, rhs)
+            .map_err(|e| (ValueObj::Failure, e))
     }
 
-    fn eval_const_unary(&self, unary: &UnaryOp) -> EvalResult<ValueObj> {
+    fn eval_const_unary(&self, unary: &UnaryOp) -> Failable<ValueObj> {
         let val = self.eval_const_expr(&unary.args[0])?;
-        let op = self.try_get_op_kind_from_token(&unary.op)?;
+        let op = self
+            .try_get_op_kind_from_token(&unary.op)
+            .map_err(|e| (ValueObj::Failure, e))?;
         self.eval_unary_val(op, val)
+            .map_err(|e| (ValueObj::Failure, e))
     }
 
-    fn eval_args(&self, args: &Args) -> EvalResult<ValueArgs> {
+    fn eval_args(&self, args: &Args) -> Failable<ValueArgs> {
+        let mut errs = EvalErrors::empty();
         let mut evaluated_pos_args = vec![];
         for arg in args.pos_args().iter() {
-            let val = self.eval_const_expr(&arg.expr)?;
-            evaluated_pos_args.push(val);
+            match self.eval_const_expr(&arg.expr) {
+                Ok(val) => evaluated_pos_args.push(val),
+                Err((val, es)) => {
+                    evaluated_pos_args.push(val);
+                    errs.extend(es);
+                }
+            }
         }
         let mut evaluated_kw_args = dict! {};
         for arg in args.kw_args().iter() {
-            let val = self.eval_const_expr(&arg.expr)?;
-            evaluated_kw_args.insert(arg.keyword.inspect().clone(), val);
+            match self.eval_const_expr(&arg.expr) {
+                Ok(val) => {
+                    evaluated_kw_args.insert(arg.keyword.inspect().clone(), val);
+                }
+                Err((val, es)) => {
+                    evaluated_kw_args.insert(arg.keyword.inspect().clone(), val);
+                    errs.extend(es);
+                }
+            }
         }
-        Ok(ValueArgs::new(evaluated_pos_args, evaluated_kw_args))
+        let args = ValueArgs::new(evaluated_pos_args, evaluated_kw_args);
+        if errs.is_empty() {
+            Ok(args)
+        } else {
+            Err((args, errs))
+        }
     }
 
-    fn eval_const_call(&self, call: &Call) -> EvalResult<ValueObj> {
-        let tp = self.tp_eval_const_call(call)?;
-        ValueObj::try_from(tp).map_err(|_| {
-            EvalErrors::from(EvalError::not_const_expr(
-                self.cfg.input.clone(),
-                line!() as usize,
-                call.loc(),
-                self.caused_by(),
-            ))
-        })
+    fn eval_const_call(&self, call: &Call) -> Failable<ValueObj> {
+        let (tp, errs) = match self.tp_eval_const_call(call) {
+            Ok(tp) => (tp, EvalErrors::empty()),
+            Err((tp, errs)) => (tp, errs),
+        };
+        match ValueObj::try_from(tp) {
+            Ok(val) => {
+                if errs.is_empty() {
+                    Ok(val)
+                } else {
+                    Err((val, errs))
+                }
+            }
+            Err(()) => {
+                if errs.is_empty() {
+                    Err((
+                        ValueObj::Failure,
+                        EvalErrors::from(EvalError::not_const_expr(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            call.loc(),
+                            self.caused_by(),
+                        )),
+                    ))
+                } else {
+                    Err((ValueObj::Failure, errs))
+                }
+            }
+        }
     }
 
-    fn tp_eval_const_call(&self, call: &Call) -> EvalResult<TyParam> {
+    fn tp_eval_const_call(&self, call: &Call) -> Failable<TyParam> {
         if let Expr::Accessor(acc) = call.obj.as_ref() {
             match acc {
                 Accessor::Ident(ident) => {
                     let obj = self.rec_get_const_obj(ident.inspect()).ok_or_else(|| {
-                        EvalError::not_comptime_fn_error(
-                            self.cfg.input.clone(),
-                            line!() as usize,
-                            ident.loc(),
-                            self.caused_by(),
-                            ident.inspect(),
-                            self.get_similar_name(ident.inspect()),
-                        )
-                    })?;
-                    let subr = option_enum_unwrap!(obj, ValueObj::Subr)
-                        .ok_or_else(|| {
-                            EvalError::type_mismatch_error(
+                        (
+                            TyParam::Failure,
+                            EvalError::not_comptime_fn_error(
                                 self.cfg.input.clone(),
                                 line!() as usize,
                                 ident.loc(),
                                 self.caused_by(),
                                 ident.inspect(),
-                                None,
-                                &mono("Subroutine"),
-                                &obj.t(),
-                                self.get_candidates(&obj.t()),
-                                None,
+                                self.get_similar_name(ident.inspect()),
+                            )
+                            .into(),
+                        )
+                    })?;
+                    let subr = option_enum_unwrap!(obj, ValueObj::Subr)
+                        .ok_or_else(|| {
+                            (
+                                TyParam::Failure,
+                                EvalError::type_mismatch_error(
+                                    self.cfg.input.clone(),
+                                    line!() as usize,
+                                    ident.loc(),
+                                    self.caused_by(),
+                                    ident.inspect(),
+                                    None,
+                                    &mono("Subroutine"),
+                                    &obj.t(),
+                                    self.get_candidates(&obj.t()),
+                                    None,
+                                )
+                                .into(),
                             )
                         })?
                         .clone();
-                    let args = self.eval_args(&call.args)?;
-                    self.call(subr, args, call.loc())
+                    let (args, mut errs) = match self.eval_args(&call.args) {
+                        Ok(args) => (args, EvalErrors::empty()),
+                        Err((args, es)) => (args, es),
+                    };
+                    let tp = match self.call(subr, args, call.loc()) {
+                        Ok(tp) => tp,
+                        Err((tp, es)) => {
+                            errs.extend(es);
+                            tp
+                        }
+                    };
+                    if errs.is_empty() {
+                        Ok(tp)
+                    } else {
+                        Err((tp, errs))
+                    }
                 }
                 // TODO: eval attr
-                Accessor::Attr(_attr) => Err(EvalErrors::from(EvalError::not_const_expr(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    call.loc(),
-                    self.caused_by(),
-                ))),
+                Accessor::Attr(_attr) => Err((
+                    TyParam::Failure,
+                    EvalErrors::from(EvalError::not_const_expr(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        call.loc(),
+                        self.caused_by(),
+                    )),
+                )),
                 // TODO: eval type app
-                Accessor::TypeApp(_type_app) => Err(EvalErrors::from(EvalError::not_const_expr(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    call.loc(),
-                    self.caused_by(),
-                ))),
-                other => Err(EvalErrors::from(EvalError::feature_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    other.loc(),
-                    &format!("const call: {other}"),
-                    self.caused_by(),
-                ))),
+                Accessor::TypeApp(_type_app) => Err((
+                    TyParam::Failure,
+                    EvalErrors::from(EvalError::not_const_expr(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        call.loc(),
+                        self.caused_by(),
+                    )),
+                )),
+                other => Err((
+                    TyParam::Failure,
+                    EvalErrors::from(EvalError::feature_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        other.loc(),
+                        &format!("const call: {other}"),
+                        self.caused_by(),
+                    )),
+                )),
             }
         } else {
-            Err(EvalErrors::from(EvalError::not_const_expr(
-                self.cfg.input.clone(),
-                line!() as usize,
-                call.loc(),
-                self.caused_by(),
-            )))
+            Err((
+                TyParam::Failure,
+                EvalErrors::from(EvalError::not_const_expr(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    call.loc(),
+                    self.caused_by(),
+                )),
+            ))
         }
     }
 
@@ -670,9 +753,10 @@ impl Context {
         subr: ConstSubr,
         args: ValueArgs,
         loc: impl Locational,
-    ) -> EvalResult<TyParam> {
+    ) -> Failable<TyParam> {
         match subr {
             ConstSubr::User(user) => {
+                let mut errs = EvalErrors::empty();
                 // HACK: should avoid cloning
                 let mut subr_ctx = Context::instant(
                     user.name.clone(),
@@ -688,13 +772,14 @@ impl Context {
                     .zip(user.params.non_defaults.iter())
                 {
                     let Some(symbol) = sig.inspect() else {
-                        return Err(EvalErrors::from(EvalError::feature_error(
+                        errs.push(EvalError::feature_error(
                             self.cfg.input.clone(),
                             line!() as usize,
                             loc.loc(),
                             "_",
                             self.caused_by(),
-                        )));
+                        ));
+                        continue;
                     };
                     let name = VarName::from_str(symbol.clone());
                     subr_ctx.consts.insert(name, arg);
@@ -702,45 +787,67 @@ impl Context {
                 for (name, arg) in args.kw_args.into_iter() {
                     subr_ctx.consts.insert(VarName::from_str(name), arg);
                 }
-                subr_ctx.eval_const_block(&user.block()).map(TyParam::value)
+                let tp = match subr_ctx.eval_const_block(&user.block()) {
+                    Ok(val) => TyParam::Value(val),
+                    Err((val, es)) => {
+                        errs.extend(es);
+                        TyParam::value(val)
+                    }
+                };
+                if errs.is_empty() {
+                    Ok(tp)
+                } else {
+                    Err((tp, errs))
+                }
             }
             ConstSubr::Builtin(builtin) => builtin.call(args, self).map_err(|mut e| {
                 if e.0.loc.is_unknown() {
                     e.0.loc = loc.loc();
                 }
-                EvalErrors::from(EvalError::new(
-                    *e.0,
-                    self.cfg.input.clone(),
-                    self.caused_by(),
-                ))
+                (
+                    TyParam::Failure,
+                    EvalErrors::from(EvalError::new(
+                        *e.0,
+                        self.cfg.input.clone(),
+                        self.caused_by(),
+                    )),
+                )
             }),
             ConstSubr::Gen(gen) => gen.call(args, self).map_err(|mut e| {
                 if e.0.loc.is_unknown() {
                     e.0.loc = loc.loc();
                 }
-                EvalErrors::from(EvalError::new(
-                    *e.0,
-                    self.cfg.input.clone(),
-                    self.caused_by(),
-                ))
+                (
+                    TyParam::Failure,
+                    EvalErrors::from(EvalError::new(
+                        *e.0,
+                        self.cfg.input.clone(),
+                        self.caused_by(),
+                    )),
+                )
             }),
         }
     }
 
-    fn eval_const_def(&mut self, def: &Def) -> EvalResult<ValueObj> {
+    fn eval_const_def(&mut self, def: &Def) -> Failable<ValueObj> {
         if def.is_const() {
             let mut errs = EvalErrors::empty();
             let Some(ident) = def.sig.ident() else {
-                return Err(EvalErrors::from(EvalError::feature_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    def.sig.loc(),
-                    "complex pattern const-def",
-                    self.caused_by(),
-                )));
+                return Err((
+                    ValueObj::None,
+                    EvalErrors::from(EvalError::feature_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        def.sig.loc(),
+                        "complex pattern const-def",
+                        self.caused_by(),
+                    )),
+                ));
             };
             let __name__ = ident.inspect();
-            let vis = self.instantiate_vis_modifier(def.sig.vis())?;
+            let vis = self
+                .instantiate_vis_modifier(def.sig.vis())
+                .map_err(|es| (ValueObj::None, es))?;
             let tv_cache = match &def.sig {
                 Signature::Subr(subr) => {
                     let ty_cache =
@@ -769,123 +876,217 @@ impl Context {
             };
             let (_ctx, es) = self.check_decls_and_pop();
             errs.extend(es);
-            self.register_gen_const(ident, obj, call, def.def_kind().is_other())?;
+            if let Err(es) = self.register_gen_const(ident, obj, call, def.def_kind().is_other()) {
+                errs.extend(es);
+            }
             if errs.is_empty() {
                 Ok(ValueObj::None)
             } else {
-                Err(errs)
+                Err((ValueObj::None, errs))
             }
         } else {
-            Err(EvalErrors::from(EvalError::not_const_expr(
-                self.cfg.input.clone(),
-                line!() as usize,
-                def.body.block.loc(),
-                self.caused_by(),
-            )))
+            Err((
+                ValueObj::None,
+                EvalErrors::from(EvalError::not_const_expr(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    def.body.block.loc(),
+                    self.caused_by(),
+                )),
+            ))
         }
     }
 
-    pub(crate) fn eval_const_normal_list(&self, lis: &NormalList) -> EvalResult<ValueObj> {
+    pub(crate) fn eval_const_normal_list(&self, lis: &NormalList) -> Failable<ValueObj> {
+        let mut errs = EvalErrors::empty();
         let mut elems = vec![];
         for elem in lis.elems.pos_args().iter() {
-            let elem = self.eval_const_expr(&elem.expr)?;
-            elems.push(elem);
+            match self.eval_const_expr(&elem.expr) {
+                Ok(val) => elems.push(val),
+                Err((val, es)) => {
+                    elems.push(val);
+                    errs.extend(es);
+                }
+            }
         }
-        Ok(ValueObj::List(ArcArray::from(elems)))
+        let list = ValueObj::List(ArcArray::from(elems));
+        if errs.is_empty() {
+            Ok(list)
+        } else {
+            Err((list, errs))
+        }
     }
 
-    fn eval_const_list(&self, lis: &List) -> EvalResult<ValueObj> {
+    fn eval_const_list(&self, lis: &List) -> Failable<ValueObj> {
         match lis {
             List::Normal(lis) => self.eval_const_normal_list(lis),
             List::WithLength(lis) => {
-                let elem = self.eval_const_expr(&lis.elem.expr)?;
-                match lis.len.as_ref() {
+                let mut errs = EvalErrors::empty();
+                let elem = match self.eval_const_expr(&lis.elem.expr) {
+                    Ok(val) => val,
+                    Err((val, es)) => {
+                        errs.extend(es);
+                        val
+                    }
+                };
+                let list = match lis.len.as_ref() {
                     Expr::Accessor(Accessor::Ident(ident)) if ident.is_discarded() => {
-                        Ok(ValueObj::UnsizedList(Box::new(elem)))
+                        ValueObj::UnsizedList(Box::new(elem))
                     }
                     other => {
-                        let len = self.eval_const_expr(other)?;
-                        let len = usize::try_from(&len).map_err(|_| {
-                            EvalError::type_mismatch_error(
-                                self.cfg.input.clone(),
-                                line!() as usize,
-                                other.loc(),
-                                self.caused_by(),
-                                "_",
-                                None,
-                                &Type::Nat,
-                                &len.t(),
-                                None,
-                                None,
-                            )
-                        })?;
+                        let len = match self.eval_const_expr(other) {
+                            Ok(val) => val,
+                            Err((val, es)) => {
+                                errs.extend(es);
+                                val
+                            }
+                        };
+                        let len = match usize::try_from(&len) {
+                            Ok(len) => len,
+                            Err(_) => {
+                                errs.push(EvalError::type_mismatch_error(
+                                    self.cfg.input.clone(),
+                                    line!() as usize,
+                                    other.loc(),
+                                    self.caused_by(),
+                                    "_",
+                                    None,
+                                    &Type::Nat,
+                                    &len.t(),
+                                    self.get_candidates(&len.t()),
+                                    None,
+                                ));
+                                0
+                            }
+                        };
                         let arr = vec![elem; len];
-                        Ok(ValueObj::List(ArcArray::from(arr)))
+                        ValueObj::List(ArcArray::from(arr))
                     }
+                };
+                if errs.is_empty() {
+                    Ok(list)
+                } else {
+                    Err((list, errs))
                 }
             }
-            _ => Err(EvalErrors::from(EvalError::not_const_expr(
-                self.cfg.input.clone(),
-                line!() as usize,
-                lis.loc(),
-                self.caused_by(),
-            ))),
+            _ => Err((
+                ValueObj::Failure,
+                EvalErrors::from(EvalError::not_const_expr(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    lis.loc(),
+                    self.caused_by(),
+                )),
+            )),
         }
     }
 
-    fn eval_const_set(&self, set: &AstSet) -> EvalResult<ValueObj> {
+    fn eval_const_set(&self, set: &AstSet) -> Failable<ValueObj> {
+        let mut errs = EvalErrors::empty();
         let mut elems = vec![];
         match set {
             AstSet::Normal(lis) => {
                 for elem in lis.elems.pos_args().iter() {
-                    let elem = self.eval_const_expr(&elem.expr)?;
-                    elems.push(elem);
+                    match self.eval_const_expr(&elem.expr) {
+                        Ok(val) => elems.push(val),
+                        Err((val, es)) => {
+                            elems.push(val);
+                            errs.extend(es);
+                        }
+                    }
                 }
-                Ok(ValueObj::Set(Set::from(elems)))
+                let set = ValueObj::Set(Set::from(elems));
+                if errs.is_empty() {
+                    Ok(set)
+                } else {
+                    Err((set, errs))
+                }
             }
-            _ => Err(EvalErrors::from(EvalError::not_const_expr(
-                self.cfg.input.clone(),
-                line!() as usize,
-                set.loc(),
-                self.caused_by(),
-            ))),
+            _ => Err((
+                ValueObj::Failure,
+                EvalErrors::from(EvalError::not_const_expr(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    set.loc(),
+                    self.caused_by(),
+                )),
+            )),
         }
     }
 
-    fn eval_const_dict(&self, dict: &AstDict) -> EvalResult<ValueObj> {
+    fn eval_const_dict(&self, dict: &AstDict) -> Failable<ValueObj> {
+        let mut errs = EvalErrors::empty();
         let mut elems = dict! {};
         match dict {
             AstDict::Normal(dic) => {
                 for elem in dic.kvs.iter() {
-                    let key = self.eval_const_expr(&elem.key)?;
-                    let value = self.eval_const_expr(&elem.value)?;
-                    elems.insert(key, value);
+                    match (
+                        self.eval_const_expr(&elem.key),
+                        self.eval_const_expr(&elem.value),
+                    ) {
+                        (Ok(key), Ok(value)) => {
+                            elems.insert(key, value);
+                        }
+                        (Ok(key), Err((value, es))) => {
+                            elems.insert(key, value);
+                            errs.extend(es);
+                        }
+                        (Err((key, es)), Ok(value)) => {
+                            elems.insert(key, value);
+                            errs.extend(es);
+                        }
+                        (Err((key, es1)), Err((value, es2))) => {
+                            elems.insert(key, value);
+                            errs.extend(es1);
+                            errs.extend(es2);
+                        }
+                    }
                 }
-                Ok(ValueObj::Dict(elems))
+                let dict = ValueObj::Dict(elems);
+                if errs.is_empty() {
+                    Ok(dict)
+                } else {
+                    Err((dict, errs))
+                }
             }
-            _ => Err(EvalErrors::from(EvalError::not_const_expr(
-                self.cfg.input.clone(),
-                line!() as usize,
-                dict.loc(),
-                self.caused_by(),
-            ))),
+            _ => Err((
+                ValueObj::Failure,
+                EvalErrors::from(EvalError::not_const_expr(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    dict.loc(),
+                    self.caused_by(),
+                )),
+            )),
         }
     }
 
-    fn eval_const_tuple(&self, tuple: &Tuple) -> EvalResult<ValueObj> {
+    fn eval_const_tuple(&self, tuple: &Tuple) -> Failable<ValueObj> {
+        let mut errs = EvalErrors::empty();
         let mut elems = vec![];
         match tuple {
             Tuple::Normal(lis) => {
                 for elem in lis.elems.pos_args().iter() {
-                    let elem = self.eval_const_expr(&elem.expr)?;
+                    let elem = match self.eval_const_expr(&elem.expr) {
+                        Ok(val) => val,
+                        Err((val, es)) => {
+                            errs.extend(es);
+                            val
+                        }
+                    };
                     elems.push(elem);
                 }
             }
         }
-        Ok(ValueObj::Tuple(ArcArray::from(elems)))
+        let tuple = ValueObj::Tuple(ArcArray::from(elems));
+        if errs.is_empty() {
+            Ok(tuple)
+        } else {
+            Err((tuple, errs))
+        }
     }
 
-    fn eval_const_record(&self, record: &Record) -> EvalResult<ValueObj> {
+    fn eval_const_record(&self, record: &Record) -> Failable<ValueObj> {
         match record {
             Record::Normal(rec) => self.eval_const_normal_record(rec),
             Record::Mixed(mixed) => self.eval_const_normal_record(
@@ -894,7 +1095,8 @@ impl Context {
         }
     }
 
-    fn eval_const_normal_record(&self, record: &NormalRecord) -> EvalResult<ValueObj> {
+    fn eval_const_normal_record(&self, record: &NormalRecord) -> Failable<ValueObj> {
+        let mut errs = EvalErrors::empty();
         let mut attrs = vec![];
         // HACK: should avoid cloning
         let mut record_ctx = Context::instant(
@@ -906,16 +1108,44 @@ impl Context {
         );
         for attr in record.attrs.iter() {
             // let name = attr.sig.ident().map(|i| i.inspect());
-            let elem = record_ctx.eval_const_block(&attr.body.block)?;
+            let elem = match record_ctx.eval_const_block(&attr.body.block) {
+                Ok(val) => val,
+                Err((val, es)) => {
+                    errs.extend(es);
+                    val
+                }
+            };
             let ident = match &attr.sig {
                 Signature::Var(var) => match &var.pat {
-                    VarPattern::Ident(ident) => record_ctx.instantiate_field(ident)?,
+                    VarPattern::Ident(ident) => match record_ctx.instantiate_field(ident) {
+                        Ok(field) => field,
+                        Err((field, es)) => {
+                            errs.extend(es);
+                            field
+                        }
+                    },
                     other => {
-                        return feature_error!(self, other.loc(), &format!("record field: {other}"))
+                        let err = EvalError::feature_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            other.loc(),
+                            &format!("record field: {other}"),
+                            self.caused_by(),
+                        );
+                        errs.push(err);
+                        continue;
                     }
                 },
                 other => {
-                    return feature_error!(self, other.loc(), &format!("record field: {other}"))
+                    let err = EvalError::feature_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        other.loc(),
+                        &format!("record field: {other}"),
+                        self.caused_by(),
+                    );
+                    errs.push(err);
+                    continue;
                 }
             };
             let name = VarName::from_str(ident.symbol.clone());
@@ -929,17 +1159,28 @@ impl Context {
                 record_ctx.consts.insert(name.clone(), elem.clone());
             }
             let t = v_enum(set! { elem.clone() });
-            let vis = record_ctx.instantiate_vis_modifier(attr.sig.vis())?;
+            let vis = match record_ctx.instantiate_vis_modifier(attr.sig.vis()) {
+                Ok(vis) => vis,
+                Err(es) => {
+                    errs.extend(es);
+                    continue;
+                }
+            };
             let vis = Visibility::new(vis, record_ctx.name.clone());
             let vi = VarInfo::record_field(t, record_ctx.absolutize(attr.sig.loc()), vis);
             record_ctx.locals.insert(name, vi);
             attrs.push((ident, elem));
         }
-        Ok(ValueObj::Record(attrs.into_iter().collect()))
+        let rec = ValueObj::Record(attrs.into_iter().collect());
+        if errs.is_empty() {
+            Ok(rec)
+        } else {
+            Err((rec, errs))
+        }
     }
 
     /// FIXME: grow
-    fn eval_const_lambda(&self, lambda: &Lambda) -> EvalResult<ValueObj> {
+    fn eval_const_lambda(&self, lambda: &Lambda) -> Failable<ValueObj> {
         let mut errs = EvalErrors::empty();
         let mut tmp_tv_cache =
             match self.instantiate_ty_bounds(&lambda.sig.bounds, RegistrationMode::Normal) {
@@ -1066,15 +1307,20 @@ impl Context {
             kw_var_params,
             return_t,
         );
-        let block =
-            erg_parser::Parser::validate_const_block(lambda.body.clone()).map_err(|_| {
-                EvalErrors::from(EvalError::not_const_expr(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    lambda.loc(),
-                    self.caused_by(),
-                ))
-            })?;
+        let block = match erg_parser::Parser::validate_const_block(lambda.body.clone()) {
+            Ok(block) => block,
+            Err(_) => {
+                return Err((
+                    ValueObj::Failure,
+                    EvalErrors::from(EvalError::not_const_expr(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        lambda.loc(),
+                        self.caused_by(),
+                    )),
+                ));
+            }
+        };
         let sig_t = self.generalize_t(sig_t);
         let subr = ConstSubr::User(UserConstSubr::new(
             Str::ever("<lambda>"),
@@ -1082,10 +1328,11 @@ impl Context {
             block,
             sig_t,
         ));
+        let subr = ValueObj::Subr(subr);
         if errs.is_empty() {
-            Ok(ValueObj::Subr(subr))
+            Ok(subr)
         } else {
-            Err(errs)
+            Err((subr, errs))
         }
     }
 
@@ -1102,9 +1349,9 @@ impl Context {
         })
     }
 
-    pub(crate) fn eval_const_expr(&self, expr: &Expr) -> EvalResult<ValueObj> {
+    pub(crate) fn eval_const_expr(&self, expr: &Expr) -> Failable<ValueObj> {
         match expr {
-            Expr::Literal(lit) => self.eval_lit(lit),
+            Expr::Literal(lit) => self.eval_lit(lit).map_err(|e| (ValueObj::Failure, e)),
             Expr::Accessor(acc) => self.eval_const_acc(acc),
             Expr::BinOp(bin) => self.eval_const_bin(bin),
             Expr::UnaryOp(unary) => self.eval_const_unary(unary),
@@ -1117,12 +1364,15 @@ impl Context {
             Expr::Lambda(lambda) => self.eval_const_lambda(lambda),
             // FIXME: type check
             Expr::TypeAscription(tasc) => self.eval_const_expr(&tasc.expr),
-            other => Err(EvalErrors::from(EvalError::not_const_expr(
-                self.cfg.input.clone(),
-                line!() as usize,
-                other.loc(),
-                self.caused_by(),
-            ))),
+            other => Err((
+                ValueObj::Failure,
+                EvalErrors::from(EvalError::not_const_expr(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    other.loc(),
+                    self.caused_by(),
+                )),
+            )),
         }
     }
 
@@ -1130,11 +1380,11 @@ impl Context {
     // Return Err if it cannot be evaluated at compile time
     // ConstExprを評価するのではなく、コンパイル時関数の式(AST上ではただのExpr)を評価する
     // コンパイル時評価できないならNoneを返す
-    pub(crate) fn eval_const_chunk(&mut self, expr: &Expr) -> EvalResult<ValueObj> {
+    pub(crate) fn eval_const_chunk(&mut self, expr: &Expr) -> Failable<ValueObj> {
         match expr {
             // TODO: ClassDef, PatchDef
             Expr::Def(def) => self.eval_const_def(def),
-            Expr::Literal(lit) => self.eval_lit(lit),
+            Expr::Literal(lit) => self.eval_lit(lit).map_err(|e| (ValueObj::Failure, e)),
             Expr::Accessor(acc) => self.eval_const_acc(acc),
             Expr::BinOp(bin) => self.eval_const_bin(bin),
             Expr::UnaryOp(unary) => self.eval_const_unary(unary),
@@ -1146,16 +1396,19 @@ impl Context {
             Expr::Record(rec) => self.eval_const_record(rec),
             Expr::Lambda(lambda) => self.eval_const_lambda(lambda),
             Expr::TypeAscription(tasc) => self.eval_const_expr(&tasc.expr),
-            other => Err(EvalErrors::from(EvalError::not_const_expr(
-                self.cfg.input.clone(),
-                line!() as usize,
-                other.loc(),
-                self.caused_by(),
-            ))),
+            other => Err((
+                ValueObj::Failure,
+                EvalErrors::from(EvalError::not_const_expr(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    other.loc(),
+                    self.caused_by(),
+                )),
+            )),
         }
     }
 
-    pub(crate) fn eval_const_block(&mut self, block: &Block) -> EvalResult<ValueObj> {
+    pub(crate) fn eval_const_block(&mut self, block: &Block) -> Failable<ValueObj> {
         for chunk in block.iter().rev().skip(1).rev() {
             self.eval_const_chunk(chunk)?;
         }
@@ -1395,7 +1648,7 @@ impl Context {
             } => ValueObj::builtin_trait(self.complement(&t)),
             TypeObj::Builtin { t, meta_t: _ } => ValueObj::builtin_type(self.complement(&t)),
             // FIXME:
-            _ => ValueObj::Illegal,
+            _ => ValueObj::Failure,
         }
     }
 
@@ -1519,7 +1772,7 @@ impl Context {
         }
     }
 
-    pub(crate) fn eval_app(&self, name: Str, args: Vec<TyParam>) -> EvalResult<TyParam> {
+    pub(crate) fn eval_app(&self, name: Str, args: Vec<TyParam>) -> Failable<TyParam> {
         if let Ok(value_args) = args
             .iter()
             .map(|tp| self.convert_tp_into_value(tp.clone()))
@@ -1540,102 +1793,230 @@ impl Context {
 
     /// Quantified variables, etc. are returned as is.
     /// 量化変数などはそのまま返す
-    pub(crate) fn eval_tp(&self, p: TyParam) -> EvalResult<TyParam> {
-        match p {
+    pub(crate) fn eval_tp(&self, p: TyParam) -> Failable<TyParam> {
+        let mut errs = EvalErrors::empty();
+        let tp = match p {
             TyParam::FreeVar(fv) if fv.is_linked() => {
                 let tp = fv.crack().clone();
-                self.eval_tp(tp)
+                match self.eval_tp(tp) {
+                    Ok(tp) => tp,
+                    Err((tp, es)) => {
+                        errs.extend(es);
+                        tp
+                    }
+                }
             }
-            TyParam::FreeVar(_) => Ok(p),
-            TyParam::Mono(name) => self
+            TyParam::FreeVar(_) => p,
+            TyParam::Mono(name) => match self
                 .rec_get_const_obj(&name)
                 .map(|v| TyParam::value(v.clone()))
-                .ok_or_else(|| {
-                    EvalErrors::from(EvalError::no_var_error(
+            {
+                Some(tp) => tp,
+                None => {
+                    errs.push(EvalError::no_var_error(
                         self.cfg.input.clone(),
                         line!() as usize,
                         Location::Unknown,
                         self.caused_by(),
                         &name,
                         None,
-                    ))
-                }),
-            TyParam::App { name, args } => self.eval_app(name, args),
-            TyParam::BinOp { op, lhs, rhs } => self.eval_bin_tp(op, *lhs, *rhs),
-            TyParam::UnaryOp { op, val } => self.eval_unary_tp(op, *val),
+                    ));
+                    TyParam::mono(name)
+                }
+            },
+            TyParam::App { name, args } => match self.eval_app(name, args) {
+                Ok(tp) => tp,
+                Err((tp, es)) => {
+                    errs.extend(es);
+                    tp
+                }
+            },
+            TyParam::BinOp { op, lhs, rhs } => match self.eval_bin_tp(op, *lhs, *rhs) {
+                Ok(tp) => tp,
+                Err(es) => {
+                    errs.extend(es);
+                    return Err((TyParam::Failure, errs));
+                }
+            },
+            TyParam::UnaryOp { op, val } => match self.eval_unary_tp(op, *val) {
+                Ok(tp) => tp,
+                Err(es) => {
+                    errs.extend(es);
+                    return Err((TyParam::Failure, errs));
+                }
+            },
             TyParam::List(tps) => {
                 let mut new_tps = Vec::with_capacity(tps.len());
                 for tp in tps {
-                    new_tps.push(self.eval_tp(tp)?);
+                    match self.eval_tp(tp) {
+                        Ok(tp) => new_tps.push(tp),
+                        Err((tp, es)) => {
+                            new_tps.push(tp);
+                            errs.extend(es);
+                        }
+                    }
                 }
-                Ok(TyParam::List(new_tps))
+                TyParam::List(new_tps)
             }
             TyParam::UnsizedList(elem) => {
-                let elem = self.eval_tp(*elem)?;
-                Ok(TyParam::UnsizedList(Box::new(elem)))
+                let elem = match self.eval_tp(*elem) {
+                    Ok(tp) => tp,
+                    Err((tp, es)) => {
+                        errs.extend(es);
+                        tp
+                    }
+                };
+                TyParam::UnsizedList(Box::new(elem))
             }
             TyParam::Tuple(tps) => {
                 let mut new_tps = Vec::with_capacity(tps.len());
                 for tp in tps {
-                    new_tps.push(self.eval_tp(tp)?);
+                    match self.eval_tp(tp) {
+                        Ok(tp) => new_tps.push(tp),
+                        Err((tp, es)) => {
+                            new_tps.push(tp);
+                            errs.extend(es);
+                        }
+                    }
                 }
-                Ok(TyParam::Tuple(new_tps))
+                TyParam::Tuple(new_tps)
             }
             TyParam::Dict(dic) => {
                 let mut new_dic = dict! {};
                 for (k, v) in dic.into_iter() {
-                    new_dic.insert(self.eval_tp(k)?, self.eval_tp(v)?);
+                    match (self.eval_tp(k), self.eval_tp(v)) {
+                        (Ok(k), Ok(v)) => {
+                            new_dic.insert(k, v);
+                        }
+                        (Ok(k), Err((v, es))) => {
+                            new_dic.insert(k, v);
+                            errs.extend(es);
+                        }
+                        (Err((k, es)), Ok(v)) => {
+                            new_dic.insert(k, v);
+                            errs.extend(es);
+                        }
+                        (Err((k, es1)), Err((v, es2))) => {
+                            new_dic.insert(k, v);
+                            errs.extend(es1);
+                            errs.extend(es2);
+                        }
+                    }
                 }
-                Ok(TyParam::Dict(new_dic))
+                TyParam::Dict(new_dic)
             }
             TyParam::Set(set) => {
                 let mut new_set = set! {};
                 for v in set.into_iter() {
-                    new_set.insert(self.eval_tp(v)?);
+                    match self.eval_tp(v) {
+                        Ok(v) => {
+                            new_set.insert(v);
+                        }
+                        Err((v, es)) => {
+                            new_set.insert(v);
+                            errs.extend(es);
+                        }
+                    }
                 }
-                Ok(TyParam::Set(new_set))
+                TyParam::Set(new_set)
             }
             TyParam::Record(dict) => {
                 let mut fields = dict! {};
                 for (name, tp) in dict.into_iter() {
-                    fields.insert(name, self.eval_tp(tp)?);
+                    match self.eval_tp(tp) {
+                        Ok(tp) => {
+                            fields.insert(name, tp);
+                        }
+                        Err((tp, es)) => {
+                            fields.insert(name, tp);
+                            errs.extend(es);
+                        }
+                    }
                 }
-                Ok(TyParam::Record(fields))
+                TyParam::Record(fields)
             }
-            TyParam::Type(t) => self
-                .eval_t_params(*t, self.level, &())
-                .map(TyParam::t)
-                .map_err(|(_, errs)| errs),
-            TyParam::Erased(t) => self
-                .eval_t_params(*t, self.level, &())
-                .map(TyParam::erased)
-                .map_err(|(_, errs)| errs),
+            TyParam::Type(t) => match self.eval_t_params(*t, self.level, &()) {
+                Ok(t) => TyParam::t(t),
+                Err((t, es)) => {
+                    errs.extend(es);
+                    TyParam::t(t)
+                }
+            },
+            TyParam::Erased(t) => match self.eval_t_params(*t, self.level, &()) {
+                Ok(t) => TyParam::erased(t),
+                Err((t, es)) => {
+                    errs.extend(es);
+                    TyParam::erased(t)
+                }
+            },
             TyParam::Value(ValueObj::Type(mut t)) => {
-                t.try_map_t(|t| {
-                    self.eval_t_params(t, self.level, &())
-                        .map_err(|(_, errs)| errs)
-                })?;
-                Ok(TyParam::Value(ValueObj::Type(t)))
+                match t.try_map_t(|t| self.eval_t_params(t, self.level, &())) {
+                    Ok(_) => {}
+                    Err((_t, es)) => {
+                        errs.extend(es);
+                        *t.typ_mut() = _t;
+                    }
+                }
+                TyParam::Value(ValueObj::Type(t))
             }
-            TyParam::ProjCall { obj, attr, args } => self.eval_proj_call(*obj, attr, args, &()),
-            TyParam::Proj { obj, attr } => self.eval_tp_proj(*obj, attr, &()),
-            TyParam::Value(_) => Ok(p.clone()),
-            other => feature_error!(self, Location::Unknown, &format!("evaluating {other}")),
+            TyParam::ProjCall { obj, attr, args } => {
+                match self.eval_proj_call(*obj, attr, args, &()) {
+                    Ok(tp) => tp,
+                    Err(es) => {
+                        errs.extend(es);
+                        return Err((TyParam::Failure, errs));
+                    }
+                }
+            }
+            TyParam::Proj { obj, attr } => match self.eval_tp_proj(*obj, attr, &()) {
+                Ok(tp) => tp,
+                Err(es) => {
+                    errs.extend(es);
+                    return Err((TyParam::Failure, errs));
+                }
+            },
+            TyParam::Value(_) => p.clone(),
+            other => {
+                errs.push(EvalError::feature_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    Location::Unknown,
+                    &format!("evaluating {other}"),
+                    self.caused_by(),
+                ));
+                other
+            }
+        };
+        if errs.is_empty() {
+            Ok(tp)
+        } else {
+            Err((tp, errs))
         }
     }
 
-    fn eval_tp_into_value(&self, tp: TyParam) -> EvalResult<ValueObj> {
-        self.eval_tp(tp).and_then(|tp| {
-            self.convert_tp_into_value(tp).map_err(|err| {
-                EvalErrors::from(EvalError::feature_error(
+    fn eval_tp_into_value(&self, tp: TyParam) -> Failable<ValueObj> {
+        let (tp, mut errs) = match self.eval_tp(tp) {
+            Ok(tp) => (tp, EvalErrors::empty()),
+            Err((tp, errs)) => (tp, errs),
+        };
+        let val = match self.convert_tp_into_value(tp) {
+            Ok(val) => val,
+            Err(err) => {
+                errs.push(EvalError::feature_error(
                     self.cfg.input.clone(),
                     line!() as usize,
                     Location::Unknown,
                     &format!("convert {err} into a value"),
                     self.caused_by(),
-                ))
-            })
-        })
+                ));
+                return Err((ValueObj::Failure, errs));
+            }
+        };
+        if errs.is_empty() {
+            Ok(val)
+        } else {
+            Err((val, errs))
+        }
     }
 
     /// Evaluate `substituted`.
@@ -1645,7 +2026,8 @@ impl Context {
         substituted: Type,
         level: usize,
         t_loc: &impl Locational,
-    ) -> Result<Type, (Type, EvalErrors)> {
+    ) -> Failable<Type> {
+        let mut errs = EvalErrors::empty();
         match substituted {
             Type::FreeVar(fv) if fv.is_linked() => {
                 let t = fv.crack().clone();
@@ -1723,9 +2105,13 @@ impl Context {
             }
             Type::Refinement(refine) => {
                 if refine.pred.variables().is_empty() {
-                    let pred = self
-                        .eval_pred(*refine.pred)
-                        .map_err(|errs| (Failure, errs))?;
+                    let pred = match self.eval_pred(*refine.pred) {
+                        Ok(pred) => pred,
+                        Err((pred, es)) => {
+                            errs.extend(es);
+                            pred
+                        }
+                    };
                     Ok(refinement(refine.var, *refine.t, pred))
                 } else {
                     Ok(Type::Refinement(refine))
@@ -1772,9 +2158,9 @@ impl Context {
                 for p in params.iter_mut() {
                     *p = match self.eval_tp(mem::take(p)) {
                         Ok(p) => p,
-                        Err(errs) => {
-                            // TODO: detoxify `p`
-                            return Err((poly(name, params), errs));
+                        Err((p, es)) => {
+                            errs.extend(es);
+                            p
                         }
                     };
                 }
@@ -1787,7 +2173,12 @@ impl Context {
                         }
                     }
                 }
-                Ok(poly(name, params))
+                let t = poly(name, params);
+                if errs.is_empty() {
+                    Ok(t)
+                } else {
+                    Err((t, errs))
+                }
             }
             Type::And(l, r) => {
                 let l = match self.eval_t_params(*l, level, t_loc) {
@@ -2228,6 +2619,7 @@ impl Context {
 
     pub(crate) fn convert_value_into_type(&self, val: ValueObj) -> Result<Type, ValueObj> {
         match val {
+            ValueObj::Failure => Ok(Type::Failure),
             ValueObj::Ellipsis => Ok(Type::Ellipsis),
             ValueObj::Type(t) => Ok(t.into_typ()),
             ValueObj::Record(rec) => {
@@ -2603,7 +2995,7 @@ impl Context {
     ) -> EvalResult<TyParam> {
         if let ValueObj::Subr(subr) = obj {
             let args = self.convert_args(Some(lhs), &subr, args, t_loc)?;
-            let tp = self.call(subr, args, t_loc.loc())?;
+            let tp = self.call(subr, args, t_loc.loc()).map_err(|(_, e)| e)?;
             Ok(tp)
         } else {
             feature_error!(self, t_loc.loc(), "do_proj_call: ??")
@@ -2791,7 +3183,7 @@ impl Context {
             }*/
             TyParam::Value(ValueObj::Subr(subr)) => {
                 let args = self.convert_args(None, &subr, args, t_loc)?;
-                self.call(subr, args, t_loc.loc())
+                self.call(subr, args, t_loc.loc()).map_err(|(_, e)| e)
             }
             other => Err(EvalErrors::from(EvalError::type_mismatch_error(
                 self.cfg.input.clone(),
@@ -2808,92 +3200,225 @@ impl Context {
         }
     }
 
-    pub(crate) fn bool_eval_pred(&self, p: Predicate) -> EvalResult<bool> {
-        let evaled = self.eval_pred(p)?;
-        Ok(matches!(evaled, Predicate::Value(ValueObj::Bool(true))))
+    pub(crate) fn bool_eval_pred(&self, p: Predicate) -> Failable<bool> {
+        match self.eval_pred(p) {
+            Ok(evaled) => Ok(matches!(evaled, Predicate::Value(ValueObj::Bool(true)))),
+            Err((evaled, errs)) => Err((
+                matches!(evaled, Predicate::Value(ValueObj::Bool(true))),
+                errs,
+            )),
+        }
     }
 
-    pub(crate) fn eval_pred(&self, p: Predicate) -> EvalResult<Predicate> {
-        match p {
-            Predicate::Value(_) | Predicate::Const(_) => Ok(p),
+    pub(crate) fn eval_pred(&self, p: Predicate) -> Failable<Predicate> {
+        let mut errs = EvalErrors::empty();
+        let pred = match p {
+            Predicate::Value(_) | Predicate::Const(_) | Predicate::Failure => p,
             Predicate::Call {
                 receiver,
                 name,
                 args,
             } => {
-                let receiver = self.eval_tp(receiver)?;
+                let receiver = match self.eval_tp(receiver) {
+                    Ok(tp) => tp,
+                    Err((tp, es)) => {
+                        errs.extend(es);
+                        tp
+                    }
+                };
                 let mut new_args = vec![];
                 for arg in args {
-                    new_args.push(self.eval_tp(arg)?);
+                    match self.eval_tp(arg) {
+                        Ok(tp) => new_args.push(tp),
+                        Err((tp, es)) => {
+                            errs.extend(es);
+                            new_args.push(tp);
+                        }
+                    }
                 }
-                let tp = if let Some(name) = name {
-                    self.eval_proj_call(receiver, name, new_args, &())?
+                let res = if let Some(name) = name {
+                    self.eval_proj_call(receiver, name, new_args, &())
                 } else {
-                    self.eval_call(receiver, new_args, &())?
+                    self.eval_call(receiver, new_args, &())
+                };
+                let tp = match res {
+                    Ok(tp) => tp,
+                    Err(es) => {
+                        errs.extend(es);
+                        return Err((Predicate::Failure, errs));
+                    }
                 };
                 if let Ok(v) = self.convert_tp_into_value(tp) {
-                    Ok(Predicate::Value(v))
+                    Predicate::Value(v)
                 } else {
-                    feature_error!(self, Location::Unknown, "eval_pred: Predicate::Call")
+                    errs.push(EvalError::feature_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        Location::Unknown,
+                        "eval_pred: Predicate::Call",
+                        self.caused_by(),
+                    ));
+                    Predicate::Failure
                 }
             }
             Predicate::Attr { receiver, name } => {
-                let receiver = self.eval_tp(receiver)?;
-                Ok(Predicate::attr(receiver, name))
+                let receiver = match self.eval_tp(receiver) {
+                    Ok(tp) => tp,
+                    Err((tp, es)) => {
+                        errs.extend(es);
+                        tp
+                    }
+                };
+                Predicate::attr(receiver, name)
             }
             Predicate::GeneralEqual { lhs, rhs } => {
                 match (self.eval_pred(*lhs)?, self.eval_pred(*rhs)?) {
                     (Predicate::Value(lhs), Predicate::Value(rhs)) => {
-                        Ok(Predicate::Value(ValueObj::Bool(lhs == rhs)))
+                        Predicate::Value(ValueObj::Bool(lhs == rhs))
                     }
-                    (lhs, rhs) => Ok(Predicate::general_eq(lhs, rhs)),
+                    (lhs, rhs) => Predicate::general_eq(lhs, rhs),
                 }
             }
             Predicate::GeneralNotEqual { lhs, rhs } => {
                 match (self.eval_pred(*lhs)?, self.eval_pred(*rhs)?) {
                     (Predicate::Value(lhs), Predicate::Value(rhs)) => {
-                        Ok(Predicate::Value(ValueObj::Bool(lhs != rhs)))
+                        Predicate::Value(ValueObj::Bool(lhs != rhs))
                     }
-                    (lhs, rhs) => Ok(Predicate::general_ne(lhs, rhs)),
+                    (lhs, rhs) => Predicate::general_ne(lhs, rhs),
                 }
             }
             Predicate::GeneralGreaterEqual { lhs, rhs } => {
                 match (self.eval_pred(*lhs)?, self.eval_pred(*rhs)?) {
                     (Predicate::Value(lhs), Predicate::Value(rhs)) => {
                         let Some(ValueObj::Bool(res)) = lhs.try_ge(rhs) else {
-                            // TODO:
-                            return feature_error!(self, Location::Unknown, "evaluating >=");
+                            errs.push(EvalError::feature_error(
+                                self.cfg.input.clone(),
+                                line!() as usize,
+                                Location::Unknown,
+                                "evaluating >=",
+                                self.caused_by(),
+                            ));
+                            return Err((Predicate::Failure, errs));
                         };
-                        Ok(Predicate::Value(ValueObj::Bool(res)))
+                        Predicate::Value(ValueObj::Bool(res))
                     }
-                    (lhs, rhs) => Ok(Predicate::general_ge(lhs, rhs)),
+                    (lhs, rhs) => Predicate::general_ge(lhs, rhs),
                 }
             }
             Predicate::GeneralLessEqual { lhs, rhs } => {
                 match (self.eval_pred(*lhs)?, self.eval_pred(*rhs)?) {
                     (Predicate::Value(lhs), Predicate::Value(rhs)) => {
                         let Some(ValueObj::Bool(res)) = lhs.try_le(rhs) else {
-                            return feature_error!(self, Location::Unknown, "evaluating <=");
+                            errs.push(EvalError::feature_error(
+                                self.cfg.input.clone(),
+                                line!() as usize,
+                                Location::Unknown,
+                                "evaluating <=",
+                                self.caused_by(),
+                            ));
+                            return Err((Predicate::Failure, errs));
                         };
-                        Ok(Predicate::Value(ValueObj::Bool(res)))
+                        Predicate::Value(ValueObj::Bool(res))
                     }
-                    (lhs, rhs) => Ok(Predicate::general_le(lhs, rhs)),
+                    (lhs, rhs) => Predicate::general_le(lhs, rhs),
                 }
             }
-            Predicate::Equal { lhs, rhs } => Ok(Predicate::eq(lhs, self.eval_tp(rhs)?)),
-            Predicate::NotEqual { lhs, rhs } => Ok(Predicate::ne(lhs, self.eval_tp(rhs)?)),
-            Predicate::LessEqual { lhs, rhs } => Ok(Predicate::le(lhs, self.eval_tp(rhs)?)),
-            Predicate::GreaterEqual { lhs, rhs } => Ok(Predicate::ge(lhs, self.eval_tp(rhs)?)),
-            Predicate::And(l, r) => Ok(self.eval_pred(*l)? & self.eval_pred(*r)?),
-            Predicate::Or(l, r) => Ok(self.eval_pred(*l)? | self.eval_pred(*r)?),
-            Predicate::Not(pred) => Ok(!self.eval_pred(*pred)?),
+            Predicate::Equal { lhs, rhs } => {
+                let rhs = match self.eval_tp(rhs) {
+                    Ok(tp) => tp,
+                    Err((tp, es)) => {
+                        errs.extend(es);
+                        tp
+                    }
+                };
+                Predicate::eq(lhs, rhs)
+            }
+            Predicate::NotEqual { lhs, rhs } => {
+                let rhs = match self.eval_tp(rhs) {
+                    Ok(tp) => tp,
+                    Err((tp, es)) => {
+                        errs.extend(es);
+                        tp
+                    }
+                };
+                Predicate::ne(lhs, rhs)
+            }
+            Predicate::LessEqual { lhs, rhs } => {
+                let rhs = match self.eval_tp(rhs) {
+                    Ok(tp) => tp,
+                    Err((tp, es)) => {
+                        errs.extend(es);
+                        tp
+                    }
+                };
+                Predicate::le(lhs, rhs)
+            }
+            Predicate::GreaterEqual { lhs, rhs } => {
+                let rhs = match self.eval_tp(rhs) {
+                    Ok(tp) => tp,
+                    Err((tp, es)) => {
+                        errs.extend(es);
+                        tp
+                    }
+                };
+                Predicate::ge(lhs, rhs)
+            }
+            Predicate::And(l, r) => {
+                let lhs = match self.eval_pred(*l) {
+                    Ok(pred) => pred,
+                    Err((pred, es)) => {
+                        errs.extend(es);
+                        pred
+                    }
+                };
+                let rhs = match self.eval_pred(*r) {
+                    Ok(pred) => pred,
+                    Err((pred, es)) => {
+                        errs.extend(es);
+                        pred
+                    }
+                };
+                lhs & rhs
+            }
+            Predicate::Or(l, r) => {
+                let lhs = match self.eval_pred(*l) {
+                    Ok(pred) => pred,
+                    Err((pred, es)) => {
+                        errs.extend(es);
+                        pred
+                    }
+                };
+                let rhs = match self.eval_pred(*r) {
+                    Ok(pred) => pred,
+                    Err((pred, es)) => {
+                        errs.extend(es);
+                        pred
+                    }
+                };
+                lhs | rhs
+            }
+            Predicate::Not(pred) => {
+                let pred = match self.eval_pred(*pred) {
+                    Ok(pred) => pred,
+                    Err((pred, es)) => {
+                        errs.extend(es);
+                        pred
+                    }
+                };
+                !pred
+            }
+        };
+        if errs.is_empty() {
+            Ok(pred)
+        } else {
+            Err((pred, errs))
         }
     }
 
     pub(crate) fn get_tp_t(&self, p: &TyParam) -> EvalResult<Type> {
         let p = self
             .eval_tp(p.clone())
-            .inspect_err(|errs| log!(err "{errs}"))
+            .inspect_err(|(tp, errs)| log!(err "{tp} / {errs}"))
             .unwrap_or(p.clone());
         match p {
             TyParam::Value(v) => Ok(v_enum(set![v])),
@@ -3058,7 +3583,14 @@ impl Context {
     }
 
     pub(crate) fn _get_tp_class(&self, p: &TyParam) -> EvalResult<Type> {
-        let p = self.eval_tp(p.clone())?;
+        let p = match self.eval_tp(p.clone()) {
+            Ok(tp) => tp,
+            // TODO: handle errs
+            Err((tp, errs)) => {
+                log!(err "{tp} / {errs}");
+                tp
+            }
+        };
         match p {
             TyParam::Value(v) => Ok(v.class()),
             TyParam::Erased(t) => Ok((*t).clone()),

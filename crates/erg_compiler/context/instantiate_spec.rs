@@ -4,7 +4,7 @@ use erg_common::levenshtein::get_similar_name;
 #[allow(unused)]
 use erg_common::log;
 use erg_common::traits::{Locational, Stream};
-use erg_common::{assume_unreachable, dict, failable_map_mut, set, Str};
+use erg_common::{assume_unreachable, dict, failable_map_mut, fn_name, set, Str};
 
 use ast::{
     NonDefaultParamSignature, ParamTySpec, PreDeclTypeSpec, TypeBoundSpec, TypeBoundSpecs, TypeSpec,
@@ -131,20 +131,56 @@ impl Context {
                 tv_cache.push_or_init_tyvar(name, &tv, self)
             }
             TypeBoundSpec::NonDefault { lhs, spec } => {
+                let mut errs = TyCheckErrors::empty();
                 let constr = match spec.op.kind {
-                    TokenKind::SubtypeOf => Constraint::new_subtype_of(
-                        self.instantiate_typespec_full(&spec.t_spec, None, tv_cache, mode, true)?,
-                    ),
-                    TokenKind::SupertypeOf => Constraint::new_supertype_of(
-                        self.instantiate_typespec_full(&spec.t_spec, None, tv_cache, mode, true)?,
-                    ),
-                    TokenKind::Colon => Constraint::new_type_of(self.instantiate_typespec_full(
-                        &spec.t_spec,
-                        None,
-                        tv_cache,
-                        mode,
-                        true,
-                    )?),
+                    TokenKind::SubtypeOf => {
+                        let sup = match self.instantiate_typespec_full(
+                            &spec.t_spec,
+                            None,
+                            tv_cache,
+                            mode,
+                            true,
+                        ) {
+                            Ok(sup) => sup,
+                            Err((sup, es)) => {
+                                errs.extend(es);
+                                sup
+                            }
+                        };
+                        Constraint::new_subtype_of(sup)
+                    }
+                    TokenKind::SupertypeOf => {
+                        let sub = match self.instantiate_typespec_full(
+                            &spec.t_spec,
+                            None,
+                            tv_cache,
+                            mode,
+                            true,
+                        ) {
+                            Ok(sub) => sub,
+                            Err((sub, es)) => {
+                                errs.extend(es);
+                                sub
+                            }
+                        };
+                        Constraint::new_supertype_of(sub)
+                    }
+                    TokenKind::Colon => {
+                        let t = match self.instantiate_typespec_full(
+                            &spec.t_spec,
+                            None,
+                            tv_cache,
+                            mode,
+                            true,
+                        ) {
+                            Ok(t) => t,
+                            Err((t, es)) => {
+                                errs.extend(es);
+                                t
+                            }
+                        };
+                        Constraint::new_type_of(t)
+                    }
                     _ => unreachable!(),
                 };
                 if constr.get_sub_sup().is_none() {
@@ -154,7 +190,11 @@ impl Context {
                     let tv = named_free_var(lhs.inspect().clone(), self.level, constr);
                     tv_cache.push_or_init_tyvar(lhs, &tv, self)?;
                 }
-                Ok(())
+                if errs.is_empty() {
+                    Ok(())
+                } else {
+                    Err(errs)
+                }
             }
             TypeBoundSpec::WithDefault { .. } => type_feature_error!(
                 self,
@@ -211,7 +251,7 @@ impl Context {
         &self,
         t_spec: Option<&TypeSpec>,
         mode: RegistrationMode,
-    ) -> TyCheckResult<Type> {
+    ) -> Failable<Type> {
         let mut tmp_tv_cache = TyVarCache::new(self.level, self);
         let spec_t = if let Some(t_spec) = t_spec {
             self.instantiate_typespec_full(t_spec, None, &mut tmp_tv_cache, mode, false)?
@@ -237,11 +277,7 @@ impl Context {
             Some(Type::Subr(subr)) => Some(subr),
             Some(Type::FreeVar(fv)) if fv.is_unbound() => return Ok(Type::FreeVar(fv)),
             Some(other) => {
-                let err = TyCheckError::unreachable(
-                    self.cfg.input.clone(),
-                    "instantiate_sub_sig_t",
-                    line!(),
-                );
+                let err = TyCheckError::unreachable(self.cfg.input.clone(), fn_name!(), line!());
                 return Err((other, TyCheckErrors::from(err)));
             }
             None => None,
@@ -357,9 +393,9 @@ impl Context {
                         .filter_map(|pt| pt.name());
                     self.recover_guard(ty, params)
                 }
-                Err(es) => {
+                Err((ty, es)) => {
                     errs.extend(es);
-                    Type::Failure
+                    ty
                 }
             }
         } else {
@@ -406,6 +442,7 @@ impl Context {
         kind: ParamKind,
         not_found_is_qvar: bool,
     ) -> Failable<Type> {
+        let mut errs = TyCheckErrors::empty();
         let gen_free_t = || {
             let level = if mode.is_preregister() {
                 self.level
@@ -415,24 +452,22 @@ impl Context {
             free_var(level, Constraint::new_type_of(Type))
         };
         let spec_t = if let Some(spec_with_op) = &sig.t_spec {
-            self.instantiate_typespec_full(
+            match self.instantiate_typespec_full(
                 &spec_with_op.t_spec,
                 opt_decl_t,
                 tmp_tv_cache,
                 mode,
                 not_found_is_qvar,
-            )
-            .map_err(|errs| {
-                (
-                    opt_decl_t.map_or(Type::Failure, |pt| pt.typ().clone()),
-                    // Ignore errors if `mode == Normal`, because the errors have already been collected.
+            ) {
+                Ok(t) => t,
+                Err((t, es)) => {
+                    // prevent double error reporting
                     if mode.is_normal() {
-                        TyCheckErrors::empty()
-                    } else {
-                        errs
-                    },
-                )
-            })?
+                        errs.extend(es);
+                    }
+                    t
+                }
+            }
         } else {
             match &sig.pat {
                 ast::ParamPattern::Lit(lit) => {
@@ -450,24 +485,28 @@ impl Context {
         if let Some(decl_pt) = opt_decl_t {
             if kind.is_var_params() {
                 let spec_t = unknown_len_list_t(spec_t.clone());
-                self.sub_unify(
+                if let Err(es) = self.sub_unify(
                     decl_pt.typ(),
                     &spec_t,
                     &sig.t_spec.as_ref().ok_or(sig),
                     None,
-                )
-                .map_err(|errs| (spec_t, errs))?;
-            } else {
-                self.sub_unify(
-                    decl_pt.typ(),
-                    &spec_t,
-                    &sig.t_spec.as_ref().ok_or(sig),
-                    None,
-                )
-                .map_err(|errs| (spec_t.clone(), errs))?;
+                ) {
+                    return Err((spec_t, errs.concat(es)));
+                }
+            } else if let Err(es) = self.sub_unify(
+                decl_pt.typ(),
+                &spec_t,
+                &sig.t_spec.as_ref().ok_or(sig),
+                None,
+            ) {
+                return Err((spec_t, errs.concat(es)));
             }
         }
-        Ok(spec_t)
+        if errs.is_empty() {
+            Ok(spec_t)
+        } else {
+            Err((spec_t, errs))
+        }
     }
 
     /// Given the type `T -> U`, if `T` is a known type, then this is a function type that takes `T` and returns `U`.
@@ -538,24 +577,24 @@ impl Context {
         opt_decl_t: Option<&ParamTy>,
         tmp_tv_cache: &mut TyVarCache,
         not_found_is_qvar: bool,
-    ) -> TyCheckResult<Type> {
+    ) -> Failable<Type> {
         self.inc_ref_predecl_typespec(predecl, self, tmp_tv_cache);
         match predecl {
-            ast::PreDeclTypeSpec::Mono(simple) => {
-                self.instantiate_mono_t(simple, opt_decl_t, tmp_tv_cache, not_found_is_qvar)
-            }
+            ast::PreDeclTypeSpec::Mono(simple) => self
+                .instantiate_mono_t(simple, opt_decl_t, tmp_tv_cache, not_found_is_qvar)
+                .map_err(|errs| (Type::Failure, errs)),
             ast::PreDeclTypeSpec::Poly(poly) => match &poly.acc {
-                ast::ConstAccessor::Local(local) => self
-                    .instantiate_local_poly_t(
-                        local,
-                        &poly.args,
-                        opt_decl_t,
-                        tmp_tv_cache,
-                        not_found_is_qvar,
-                    )
-                    .map_err(|(_, err)| err),
+                ast::ConstAccessor::Local(local) => self.instantiate_local_poly_t(
+                    local,
+                    &poly.args,
+                    opt_decl_t,
+                    tmp_tv_cache,
+                    not_found_is_qvar,
+                ),
                 ast::ConstAccessor::Attr(attr) => {
-                    let ctxs = self.get_singular_ctxs(&attr.obj.clone().downgrade(), self)?;
+                    let ctxs = self
+                        .get_singular_ctxs(&attr.obj.clone().downgrade(), self)
+                        .map_err(|errs| (Type::Failure, errs.into()))?;
                     for ctx in ctxs {
                         if let Ok(typ) = ctx.instantiate_local_poly_t(
                             &attr.name,
@@ -567,16 +606,20 @@ impl Context {
                             return Ok(typ);
                         }
                     }
-                    Err(TyCheckErrors::from(TyCheckError::no_var_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        attr.loc(),
-                        self.caused_by(),
-                        attr.name.inspect(),
-                        self.get_similar_name(attr.name.inspect()),
-                    )))
+                    Err((
+                        Type::Failure,
+                        TyCheckErrors::from(TyCheckError::no_var_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            attr.loc(),
+                            self.caused_by(),
+                            attr.name.inspect(),
+                            self.get_similar_name(attr.name.inspect()),
+                        )),
+                    ))
                 }
-                _ => type_feature_error!(self, poly.loc(), &format!("instantiating type {poly}")),
+                _ => type_feature_error!(self, poly.loc(), &format!("instantiating type {poly}"))
+                    .map_err(|errs| (Type::Failure, errs)),
             },
             ast::PreDeclTypeSpec::Attr { namespace, t } => {
                 if let Ok(receiver) = Parser::validate_const_expr(namespace.as_ref().clone()) {
@@ -586,38 +629,42 @@ impl Context {
                         tmp_tv_cache,
                         not_found_is_qvar,
                     ) {
-                        return self.eval_proj(
-                            receiver_t,
-                            t.inspect().clone(),
-                            self.level,
-                            predecl,
-                        );
+                        return self
+                            .eval_proj(receiver_t, t.inspect().clone(), self.level, predecl)
+                            .map_err(|errs| (Type::Failure, errs));
                     }
                 }
-                let ctxs = self.get_singular_ctxs(namespace.as_ref(), self)?;
+                let ctxs = self
+                    .get_singular_ctxs(namespace.as_ref(), self)
+                    .map_err(|errs| (Type::Failure, errs.into()))?;
                 for ctx in ctxs {
                     if let Some(ctx) = ctx.rec_local_get_type(t.inspect()) {
                         // TODO: visibility check
                         return Ok(ctx.typ.clone());
                     }
                 }
-                Err(TyCheckErrors::from(TyCheckError::no_var_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    t.loc(),
-                    self.caused_by(),
-                    t.inspect(),
-                    self.get_similar_name(t.inspect()),
-                )))
+                Err((
+                    Type::Failure,
+                    TyCheckErrors::from(TyCheckError::no_var_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        t.loc(),
+                        self.caused_by(),
+                        t.inspect(),
+                        self.get_similar_name(t.inspect()),
+                    )),
+                ))
             }
-            other => type_feature_error!(self, other.loc(), &format!("instantiating type {other}")),
+            other => type_feature_error!(self, other.loc(), &format!("instantiating type {other}"))
+                .map_err(|errs| (Type::Failure, errs)),
         }
     }
 
+    /// `opt_decl_pt` is a fallback, but it is used only if its type is not `Failure`.
     pub(crate) fn instantiate_mono_t(
         &self,
         ident: &Identifier,
-        opt_decl_t: Option<&ParamTy>,
+        opt_decl_pt: Option<&ParamTy>,
         tmp_tv_cache: &mut TyVarCache,
         not_found_is_qvar: bool,
     ) -> TyCheckResult<Type> {
@@ -670,9 +717,12 @@ impl Context {
                     return Ok(typ);
                 }
                 if let Some(outer) = &self.outer {
-                    if let Ok(t) =
-                        outer.instantiate_mono_t(ident, opt_decl_t, tmp_tv_cache, not_found_is_qvar)
-                    {
+                    if let Ok(t) = outer.instantiate_mono_t(
+                        ident,
+                        opt_decl_pt,
+                        tmp_tv_cache,
+                        not_found_is_qvar,
+                    ) {
                         return Ok(t);
                     }
                 }
@@ -685,7 +735,9 @@ impl Context {
                     let tyvar = named_free_var(Str::rc(other), self.level, Constraint::Uninited);
                     tmp_tv_cache.push_or_init_tyvar(&ident.name, &tyvar, self)?;
                     Ok(tyvar)
-                } else if let Some(decl_t) = opt_decl_t {
+                } else if let Some(decl_t) =
+                    opt_decl_pt.and_then(|decl| (!decl.typ().is_failure()).then_some(decl))
+                {
                     Ok(decl_t.typ().clone())
                 } else {
                     Err(TyCheckErrors::from(TyCheckError::no_type_error(
@@ -709,6 +761,7 @@ impl Context {
         tmp_tv_cache: &mut TyVarCache,
         not_found_is_qvar: bool,
     ) -> Failable<Type> {
+        let mut errs = TyCheckErrors::empty();
         match name.inspect().trim_start_matches([':', '.']) {
             "List" => {
                 let ctx = &self
@@ -718,26 +771,39 @@ impl Context {
                 // TODO: kw
                 let mut pos_args = args.pos_args();
                 if let Some(first) = pos_args.next() {
-                    let t = self
-                        .instantiate_const_expr_as_type(
-                            &first.expr,
-                            Some((ctx, 0)),
-                            tmp_tv_cache,
-                            not_found_is_qvar,
-                        )
-                        .map_err(|err| (Type::Failure, err))?;
+                    let t = match self.instantiate_const_expr_as_type(
+                        &first.expr,
+                        Some((ctx, 0)),
+                        tmp_tv_cache,
+                        not_found_is_qvar,
+                    ) {
+                        Ok(t) => t,
+                        Err((t, es)) => {
+                            errs.extend(es);
+                            t
+                        }
+                    };
                     let len = if let Some(len) = pos_args.next() {
-                        self.instantiate_const_expr(
+                        match self.instantiate_const_expr(
                             &len.expr,
                             Some((ctx, 1)),
                             tmp_tv_cache,
                             not_found_is_qvar,
-                        )
-                        .map_err(|err| (Type::Failure, err))?
+                        ) {
+                            Ok(len) => len,
+                            Err((len, es)) => {
+                                errs.extend(es);
+                                len
+                            }
+                        }
                     } else {
                         TyParam::erased(Nat)
                     };
-                    Ok(list_t(t, len))
+                    if errs.is_empty() {
+                        Ok(list_t(t, len))
+                    } else {
+                        Err((list_t(t, len), errs))
+                    }
                 } else {
                     Ok(mono("GenericList"))
                 }
@@ -757,15 +823,23 @@ impl Context {
                         )),
                     ));
                 };
-                let t = self
-                    .instantiate_const_expr_as_type(
-                        &first.expr,
-                        None,
-                        tmp_tv_cache,
-                        not_found_is_qvar,
-                    )
-                    .map_err(|err| (Type::Failure, err))?;
-                Ok(ref_(t))
+                let t = match self.instantiate_const_expr_as_type(
+                    &first.expr,
+                    None,
+                    tmp_tv_cache,
+                    not_found_is_qvar,
+                ) {
+                    Ok(t) => t,
+                    Err((t, es)) => {
+                        errs.extend(es);
+                        t
+                    }
+                };
+                if errs.is_empty() {
+                    Ok(ref_(t))
+                } else {
+                    Err((ref_(t), errs))
+                }
             }
             "RefMut" => {
                 // TODO after
@@ -783,15 +857,23 @@ impl Context {
                         )),
                     ));
                 };
-                let t = self
-                    .instantiate_const_expr_as_type(
-                        &first.expr,
-                        None,
-                        tmp_tv_cache,
-                        not_found_is_qvar,
-                    )
-                    .map_err(|err| (Type::Failure, err))?;
-                Ok(ref_mut(t, None))
+                let t = match self.instantiate_const_expr_as_type(
+                    &first.expr,
+                    None,
+                    tmp_tv_cache,
+                    not_found_is_qvar,
+                ) {
+                    Ok(t) => t,
+                    Err((t, es)) => {
+                        errs.extend(es);
+                        t
+                    }
+                };
+                if errs.is_empty() {
+                    Ok(ref_mut(t, None))
+                } else {
+                    Err((ref_mut(t, None), errs))
+                }
             }
             "Structural" => {
                 let mut pos_args = args.pos_args();
@@ -808,15 +890,23 @@ impl Context {
                         )),
                     ));
                 };
-                let t = self
-                    .instantiate_const_expr_as_type(
-                        &first.expr,
-                        None,
-                        tmp_tv_cache,
-                        not_found_is_qvar,
-                    )
-                    .map_err(|err| (Type::Failure, err))?;
-                Ok(t.structuralize())
+                let t = match self.instantiate_const_expr_as_type(
+                    &first.expr,
+                    None,
+                    tmp_tv_cache,
+                    not_found_is_qvar,
+                ) {
+                    Ok(t) => t,
+                    Err((t, es)) => {
+                        errs.extend(es);
+                        t
+                    }
+                };
+                if errs.is_empty() {
+                    Ok(t.structuralize())
+                } else {
+                    Err((t.structuralize(), errs))
+                }
             }
             "NamedTuple" => {
                 let mut pose_args = args.pos_args();
@@ -844,14 +934,12 @@ impl Context {
                             "NamedTuple",
                             None,
                             &mono("Record"),
-                            &self
-                                .instantiate_const_expr_as_type(
-                                    &first.expr,
-                                    None,
-                                    tmp_tv_cache,
-                                    not_found_is_qvar,
-                                )
-                                .map_err(|err| (Type::Failure, err))?,
+                            &self.instantiate_const_expr_as_type(
+                                &first.expr,
+                                None,
+                                tmp_tv_cache,
+                                not_found_is_qvar,
+                            )?,
                             None,
                             None,
                         )),
@@ -859,20 +947,32 @@ impl Context {
                 };
                 let mut ts = vec![];
                 for def in fields.attrs.iter() {
-                    let t = self
-                        .instantiate_const_expr_as_type(
-                            &def.body.block[0],
-                            None,
-                            tmp_tv_cache,
-                            not_found_is_qvar,
-                        )
-                        .map_err(|err| (Type::Failure, err))?;
-                    let vis = self
-                        .instantiate_vis_modifier(&def.ident.vis)
-                        .map_err(|err| (Type::Failure, err))?;
+                    let t = match self.instantiate_const_expr_as_type(
+                        &def.body.block[0],
+                        None,
+                        tmp_tv_cache,
+                        not_found_is_qvar,
+                    ) {
+                        Ok(t) => t,
+                        Err((t, es)) => {
+                            errs.extend(es);
+                            t
+                        }
+                    };
+                    let vis = match self.instantiate_vis_modifier(&def.ident.vis) {
+                        Ok(vis) => vis,
+                        Err(es) => {
+                            errs.extend(es);
+                            VisibilityModifier::Public
+                        }
+                    };
                     ts.push((Field::new(vis, def.ident.inspect().clone()), t));
                 }
-                Ok(Type::NamedTuple(ts))
+                if errs.is_empty() {
+                    Ok(Type::NamedTuple(ts))
+                } else {
+                    Err((Type::NamedTuple(ts), errs))
+                }
             }
             other => {
                 let Some(ctx) = self.get_type_ctx(other).or_else(|| {
@@ -1045,24 +1145,25 @@ impl Context {
         tmp_tv_cache: &mut TyVarCache,
         not_found_is_qvar: bool,
     ) -> Failable<TyParam> {
+        let mut errs = TyCheckErrors::empty();
         let param =
             self.instantiate_const_expr(arg, Some((ctx, i)), tmp_tv_cache, not_found_is_qvar);
-        let param = param
-            .or_else(|e| {
-                if not_found_is_qvar {
-                    let name = arg.to_string();
-                    // FIXME: handle `::` as a right way
-                    let name = Str::rc(name.trim_start_matches("::"));
-                    let tp =
-                        TyParam::named_free_var(name.clone(), self.level, Constraint::Uninited);
-                    let varname = VarName::from_str(name);
-                    tmp_tv_cache.push_or_init_typaram(&varname, &tp, self)?;
-                    Ok(tp)
-                } else {
-                    Err(e)
+        let param = param.unwrap_or_else(|(tp, e)| {
+            errs.extend(e);
+            if not_found_is_qvar {
+                let name = arg.to_string();
+                // FIXME: handle `::` as a right way
+                let name = Str::rc(name.trim_start_matches("::"));
+                let tp = TyParam::named_free_var(name.clone(), self.level, Constraint::Uninited);
+                let varname = VarName::from_str(name);
+                if let Err(es) = tmp_tv_cache.push_or_init_typaram(&varname, &tp, self) {
+                    errs.extend(es);
                 }
-            })
-            .map_err(|err| (TyParam::Failure, err))?;
+                tp
+            } else {
+                tp
+            }
+        });
         let arg_t = self
             .get_tp_t(&param)
             .map_err(|err| {
@@ -1071,10 +1172,14 @@ impl Context {
             })
             .unwrap_or(Obj);
         if self.subtype_of(&arg_t, &param_vi.t) {
-            Ok(param)
+            if errs.is_empty() {
+                Ok(param)
+            } else {
+                Err((param, errs))
+            }
         } else {
             let tp = TyParam::erased(param_vi.t.clone());
-            let errs = TyCheckError::type_mismatch_error(
+            let err = TyCheckError::type_mismatch_error(
                 self.cfg.input.clone(),
                 line!() as usize,
                 arg.loc(),
@@ -1085,8 +1190,8 @@ impl Context {
                 &arg_t,
                 None,
                 None,
-            )
-            .into();
+            );
+            errs.push(err);
             Err((tp, errs))
         }
     }
@@ -1097,7 +1202,7 @@ impl Context {
         erased_idx: Option<(&Context, usize)>,
         tmp_tv_cache: &mut TyVarCache,
         not_found_is_qvar: bool,
-    ) -> TyCheckResult<TyParam> {
+    ) -> Failable<TyParam> {
         self.inc_ref_acc(&acc.clone().downgrade(), self, tmp_tv_cache);
         match acc {
             ast::ConstAccessor::Attr(attr) => match self.instantiate_const_expr(
@@ -1107,7 +1212,7 @@ impl Context {
                 not_found_is_qvar,
             ) {
                 Ok(obj) => Ok(obj.proj(attr.name.inspect())),
-                Err(errs) => {
+                Err((_obj, errs)) => {
                     if let Ok(ctxs) = self.get_singular_ctxs(&attr.obj.clone().downgrade(), self) {
                         for ctx in ctxs {
                             if let Some(value) = ctx.rec_get_const_obj(attr.name.inspect()) {
@@ -1115,17 +1220,18 @@ impl Context {
                             }
                         }
                     }
-                    Err(errs)
+                    Err((TyParam::Failure, errs))
                 }
             },
-            ast::ConstAccessor::Local(local) => {
-                self.instantiate_local(local, erased_idx, tmp_tv_cache, local, not_found_is_qvar)
-            }
+            ast::ConstAccessor::Local(local) => self
+                .instantiate_local(local, erased_idx, tmp_tv_cache, local, not_found_is_qvar)
+                .map_err(|errs| (TyParam::Failure, errs)),
             other => type_feature_error!(
                 self,
                 other.loc(),
                 &format!("instantiating const expression {other}")
-            ),
+            )
+            .map_err(|errs| (TyParam::Failure, errs)),
         }
     }
 
@@ -1190,7 +1296,8 @@ impl Context {
         erased_idx: Option<(&Context, usize)>,
         tmp_tv_cache: &mut TyVarCache,
         not_found_is_qvar: bool,
-    ) -> TyCheckResult<TyParam> {
+    ) -> Failable<TyParam> {
+        let mut errs = TyCheckErrors::empty();
         match self.instantiate_const_expr(&app.obj, erased_idx, tmp_tv_cache, not_found_is_qvar) {
             Ok(obj) => {
                 let ctx = self
@@ -1204,47 +1311,76 @@ impl Context {
                     .unwrap_or(self);
                 let mut args = vec![];
                 for (i, arg) in app.args.pos_args().enumerate() {
-                    let arg_t = self.instantiate_const_expr(
+                    let arg_t = match self.instantiate_const_expr(
                         &arg.expr,
                         Some((ctx, i)),
                         tmp_tv_cache,
                         not_found_is_qvar,
-                    )?;
+                    ) {
+                        Ok(arg_t) => arg_t,
+                        Err((arg_t, es)) => {
+                            errs.extend(es);
+                            arg_t
+                        }
+                    };
                     args.push(arg_t);
                 }
-                if let Some(attr_name) = app.attr_name.as_ref() {
-                    Ok(obj.proj_call(attr_name.inspect().clone(), args))
+                let tp = if let Some(attr_name) = app.attr_name.as_ref() {
+                    obj.proj_call(attr_name.inspect().clone(), args)
                 } else if ctx.kind.is_type() && !ctx.params.is_empty() {
-                    Ok(TyParam::t(poly(ctx.name.clone(), args)))
+                    TyParam::t(poly(ctx.name.clone(), args))
                 } else {
                     let ast::ConstExpr::Accessor(ast::ConstAccessor::Local(ident)) =
                         app.obj.as_ref()
                     else {
-                        return type_feature_error!(self, app.loc(), "instantiating const callee");
+                        return type_feature_error!(self, app.loc(), "instantiating const callee")
+                            .map_err(|es| {
+                                errs.extend(es);
+                                (TyParam::Failure, errs)
+                            });
                     };
-                    Ok(TyParam::app(ident.inspect().clone(), args))
+                    TyParam::app(ident.inspect().clone(), args)
+                };
+                if errs.is_empty() {
+                    Ok(tp)
+                } else {
+                    Err((tp, errs))
                 }
             }
-            Err(errs) => {
+            Err((_tp, es)) => {
+                errs.extend(es);
                 let Some(attr_name) = app.attr_name.as_ref() else {
-                    return Err(errs);
+                    return Err((TyParam::Failure, errs));
                 };
                 let acc = app.obj.clone().attr(attr_name.clone());
                 let attr =
                     self.instantiate_acc(&acc, erased_idx, tmp_tv_cache, not_found_is_qvar)?;
-                let ctxs = self.get_singular_ctxs(&acc.downgrade().into(), self)?;
+                let ctxs = self
+                    .get_singular_ctxs(&acc.downgrade().into(), self)
+                    .map_err(|es| (TyParam::Failure, es.into()))?;
                 let ctx = ctxs.first().copied().unwrap_or(self);
                 let mut args = vec![];
                 for (i, arg) in app.args.pos_args().enumerate() {
-                    let arg_t = self.instantiate_const_expr(
+                    let arg_t = match self.instantiate_const_expr(
                         &arg.expr,
                         Some((ctx, i)),
                         tmp_tv_cache,
                         not_found_is_qvar,
-                    )?;
+                    ) {
+                        Ok(arg_t) => arg_t,
+                        Err((arg_t, es)) => {
+                            errs.extend(es);
+                            arg_t
+                        }
+                    };
                     args.push(arg_t);
                 }
-                Ok(TyParam::app(attr.qual_name().unwrap(), args))
+                let app = TyParam::app(attr.qual_name().unwrap(), args);
+                if errs.is_empty() {
+                    Ok(app)
+                } else {
+                    Err((app, errs))
+                }
             }
         }
     }
@@ -1257,12 +1393,16 @@ impl Context {
         erased_idx: Option<(&Context, usize)>,
         tmp_tv_cache: &mut TyVarCache,
         not_found_is_qvar: bool,
-    ) -> TyCheckResult<TyParam> {
+    ) -> Failable<TyParam> {
+        let mut errs = TyCheckErrors::empty();
         if let Ok(value) = self.eval_const_expr(&expr.clone().downgrade()) {
             return Ok(TyParam::Value(value));
         }
         match expr {
-            ast::ConstExpr::Lit(lit) => Ok(TyParam::Value(self.eval_lit(lit)?)),
+            ast::ConstExpr::Lit(lit) => {
+                let v = self.eval_lit(lit).map_err(|e| (TyParam::Failure, e))?;
+                Ok(TyParam::Value(v))
+            }
             ast::ConstExpr::Accessor(acc) => {
                 self.instantiate_acc(acc, erased_idx, tmp_tv_cache, not_found_is_qvar)
             }
@@ -1272,15 +1412,26 @@ impl Context {
             ast::ConstExpr::List(ConstList::Normal(list)) => {
                 let mut tp_lis = vec![];
                 for (i, elem) in list.elems.pos_args().enumerate() {
-                    let el = self.instantiate_const_expr(
+                    let el = match self.instantiate_const_expr(
                         &elem.expr,
                         Some((self, i)),
                         tmp_tv_cache,
                         not_found_is_qvar,
-                    )?;
+                    ) {
+                        Ok(el) => el,
+                        Err((el, es)) => {
+                            errs.extend(es);
+                            el
+                        }
+                    };
                     tp_lis.push(el);
                 }
-                Ok(TyParam::List(tp_lis))
+                let list = TyParam::List(tp_lis);
+                if errs.is_empty() {
+                    Ok(list)
+                } else {
+                    Err((list, errs))
+                }
             }
             ast::ConstExpr::List(ConstList::WithLength(lis)) => {
                 let elem = self.instantiate_const_expr(
@@ -1305,19 +1456,34 @@ impl Context {
                     lis.loc(),
                     &format!("instantiating const expression {expr}")
                 )
+                .map_err(|es| {
+                    errs.extend(es);
+                    (TyParam::Failure, errs)
+                })
             }
             ast::ConstExpr::Set(ConstSet::Normal(set)) => {
                 let mut tp_set = set! {};
                 for (i, elem) in set.elems.pos_args().enumerate() {
-                    let el = self.instantiate_const_expr(
+                    let el = match self.instantiate_const_expr(
                         &elem.expr,
                         Some((self, i)),
                         tmp_tv_cache,
                         not_found_is_qvar,
-                    )?;
+                    ) {
+                        Ok(el) => el,
+                        Err((el, es)) => {
+                            errs.extend(es);
+                            el
+                        }
+                    };
                     tp_set.insert(el);
                 }
-                Ok(TyParam::Set(tp_set))
+                let set = TyParam::Set(tp_set);
+                if errs.is_empty() {
+                    Ok(set)
+                } else {
+                    Err((set, errs))
+                }
             }
             ast::ConstExpr::Set(ConstSet::Comprehension(set)) => {
                 if set.layout.is_none() && set.generators.len() == 1 && set.guard.is_some() {
@@ -1328,10 +1494,22 @@ impl Context {
                         tmp_tv_cache,
                         not_found_is_qvar,
                     )?;
-                    let pred =
-                        self.instantiate_pred_from_expr(set.guard.as_ref().unwrap(), tmp_tv_cache)?;
+                    let pred = match self
+                        .instantiate_pred_from_expr(set.guard.as_ref().unwrap(), tmp_tv_cache)
+                    {
+                        Ok(pred) => pred,
+                        Err((pred, es)) => {
+                            errs.extend(es);
+                            pred
+                        }
+                    };
                     if let Ok(t) = self.instantiate_tp_as_type(iter, set) {
-                        return Ok(TyParam::t(refinement(ident.inspect().clone(), t, pred)));
+                        let tp = TyParam::t(refinement(ident.inspect().clone(), t, pred));
+                        if errs.is_empty() {
+                            return Ok(tp);
+                        } else {
+                            return Err((tp, errs));
+                        }
                     }
                 }
                 type_feature_error!(
@@ -1339,52 +1517,98 @@ impl Context {
                     set.loc(),
                     &format!("instantiating const expression {expr}")
                 )
+                .map_err(|es| (TyParam::Failure, es))
             }
             ast::ConstExpr::Dict(dict) => {
                 let mut tp_dict = dict! {};
                 for (i, elem) in dict.kvs.iter().enumerate() {
-                    let key = self.instantiate_const_expr(
+                    let key = match self.instantiate_const_expr(
                         &elem.key,
                         Some((self, i)),
                         tmp_tv_cache,
                         not_found_is_qvar,
-                    )?;
-                    let val = self.instantiate_const_expr(
+                    ) {
+                        Ok(key) => key,
+                        Err((key, es)) => {
+                            errs.extend(es);
+                            key
+                        }
+                    };
+                    let val = match self.instantiate_const_expr(
                         &elem.value,
                         Some((self, i)),
                         tmp_tv_cache,
                         not_found_is_qvar,
-                    )?;
+                    ) {
+                        Ok(val) => val,
+                        Err((val, es)) => {
+                            errs.extend(es);
+                            val
+                        }
+                    };
                     tp_dict.insert(key, val);
                 }
-                Ok(TyParam::Dict(tp_dict))
+                let dict = TyParam::Dict(tp_dict);
+                if errs.is_empty() {
+                    Ok(dict)
+                } else {
+                    Err((dict, errs))
+                }
             }
             ast::ConstExpr::Tuple(tuple) => {
                 let mut tp_tuple = vec![];
                 for (i, elem) in tuple.elems.pos_args().enumerate() {
-                    let el = self.instantiate_const_expr(
+                    let el = match self.instantiate_const_expr(
                         &elem.expr,
                         Some((self, i)),
                         tmp_tv_cache,
                         not_found_is_qvar,
-                    )?;
+                    ) {
+                        Ok(el) => el,
+                        Err((el, es)) => {
+                            errs.extend(es);
+                            el
+                        }
+                    };
                     tp_tuple.push(el);
                 }
-                Ok(TyParam::Tuple(tp_tuple))
+                let tuple = TyParam::Tuple(tp_tuple);
+                if errs.is_empty() {
+                    Ok(tuple)
+                } else {
+                    Err((tuple, errs))
+                }
             }
             ast::ConstExpr::Record(rec) => {
                 let mut tp_rec = dict! {};
                 for attr in rec.attrs.iter() {
-                    let field = self.instantiate_field(&attr.ident)?;
-                    let val = self.instantiate_const_expr(
+                    let field = match self.instantiate_field(&attr.ident) {
+                        Ok(field) => field,
+                        Err((field, es)) => {
+                            errs.extend(es);
+                            field
+                        }
+                    };
+                    let val = match self.instantiate_const_expr(
                         attr.body.block.get(0).unwrap(),
                         None,
                         tmp_tv_cache,
                         not_found_is_qvar,
-                    )?;
+                    ) {
+                        Ok(val) => val,
+                        Err((val, es)) => {
+                            errs.extend(es);
+                            val
+                        }
+                    };
                     tp_rec.insert(field, val);
                 }
-                Ok(TyParam::Record(tp_rec))
+                let tp_rec = TyParam::Record(tp_rec);
+                if errs.is_empty() {
+                    Ok(tp_rec)
+                } else {
+                    Err((tp_rec, errs))
+                }
             }
             ast::ConstExpr::Lambda(lambda) => {
                 let mut errs = TyCheckErrors::empty();
@@ -1439,7 +1663,13 @@ impl Context {
                 };
                 let mut d_params = Vec::with_capacity(lambda.sig.params.defaults.len());
                 for sig in lambda.sig.params.defaults.iter() {
-                    let expr = self.eval_const_expr(&sig.default_val)?;
+                    let expr = match self.eval_const_expr(&sig.default_val) {
+                        Ok(val) => val,
+                        Err((val, es)) => {
+                            errs.extend(es);
+                            val
+                        }
+                    };
                     let pt = match self.instantiate_param_ty(
                         &sig.sig,
                         None,
@@ -1522,17 +1752,18 @@ impl Context {
                     body.push(param);
                 }
                 tmp_tv_cache.purge(&_tmp_tv_cache);
+                let lambda = TyParam::Lambda(TyParamLambda::new(
+                    lambda.clone(),
+                    nd_params,
+                    var_params,
+                    d_params,
+                    kw_var_params,
+                    body,
+                ));
                 if errs.is_empty() {
-                    Ok(TyParam::Lambda(TyParamLambda::new(
-                        lambda.clone(),
-                        nd_params,
-                        var_params,
-                        d_params,
-                        kw_var_params,
-                        body,
-                    )))
+                    Ok(lambda)
                 } else {
-                    Err(errs)
+                    Err((lambda, errs))
                 }
             }
             ast::ConstExpr::BinOp(bin) => {
@@ -1541,21 +1772,41 @@ impl Context {
                         self,
                         bin.loc(),
                         &format!("instantiating const expression {bin}")
-                    );
+                    )
+                    .map_err(|es| {
+                        errs.extend(es);
+                        (TyParam::Failure, errs)
+                    });
                 };
-                let lhs = self.instantiate_const_expr(
+                let lhs = match self.instantiate_const_expr(
                     &bin.lhs,
                     erased_idx,
                     tmp_tv_cache,
                     not_found_is_qvar,
-                )?;
-                let rhs = self.instantiate_const_expr(
+                ) {
+                    Ok(lhs) => lhs,
+                    Err((lhs, es)) => {
+                        errs.extend(es);
+                        lhs
+                    }
+                };
+                let rhs = match self.instantiate_const_expr(
                     &bin.rhs,
                     erased_idx,
                     tmp_tv_cache,
                     not_found_is_qvar,
-                )?;
-                Ok(TyParam::bin(op, lhs, rhs))
+                ) {
+                    Ok(rhs) => rhs,
+                    Err((rhs, es)) => {
+                        errs.extend(es);
+                        rhs
+                    }
+                };
+                if errs.is_empty() {
+                    Ok(TyParam::bin(op, lhs, rhs))
+                } else {
+                    Err((TyParam::bin(op, lhs, rhs), errs))
+                }
             }
             ast::ConstExpr::UnaryOp(unary) => {
                 let Some(op) = token_kind_to_op_kind(unary.op.kind) else {
@@ -1563,15 +1814,29 @@ impl Context {
                         self,
                         unary.loc(),
                         &format!("instantiating const expression {unary}")
-                    );
+                    )
+                    .map_err(|es| {
+                        errs.extend(es);
+                        (TyParam::Failure, errs)
+                    });
                 };
-                let val = self.instantiate_const_expr(
+                let val = match self.instantiate_const_expr(
                     &unary.expr,
                     erased_idx,
                     tmp_tv_cache,
                     not_found_is_qvar,
-                )?;
-                Ok(TyParam::unary(op, val))
+                ) {
+                    Ok(val) => val,
+                    Err((val, es)) => {
+                        errs.extend(es);
+                        val
+                    }
+                };
+                if errs.is_empty() {
+                    Ok(TyParam::unary(op, val))
+                } else {
+                    Err((TyParam::unary(op, val), errs))
+                }
             }
             ast::ConstExpr::TypeAsc(tasc) => {
                 let tp = self.instantiate_const_expr(
@@ -1580,31 +1845,47 @@ impl Context {
                     tmp_tv_cache,
                     not_found_is_qvar,
                 )?;
-                let spec_t = self.instantiate_typespec_full(
+                let spec_t = match self.instantiate_typespec_full(
                     &tasc.t_spec.t_spec,
                     None,
                     tmp_tv_cache,
                     RegistrationMode::Normal,
                     false,
-                )?;
-                if self.subtype_of(&self.get_tp_t(&tp)?, &spec_t) {
+                ) {
+                    Ok(t) => t,
+                    Err((t, es)) => {
+                        errs.extend(es);
+                        t
+                    }
+                };
+                let tp_t = match self.get_tp_t(&tp) {
+                    Ok(t) => t,
+                    Err(es) => {
+                        errs.extend(es);
+                        return Err((tp, errs));
+                    }
+                };
+                if self.subtype_of(&tp_t, &spec_t) {
                     Ok(tp)
                 } else {
-                    Err(TyCheckErrors::from(TyCheckError::subtyping_error(
+                    let err = TyCheckError::subtyping_error(
                         self.cfg.input.clone(),
                         line!() as usize,
-                        &self.get_tp_t(&tp)?,
+                        &tp_t,
                         &spec_t,
                         tasc.loc(),
                         self.caused_by(),
-                    )))
+                    );
+                    errs.push(err);
+                    Err((tp, errs))
                 }
             }
             other => type_feature_error!(
                 self,
                 other.loc(),
                 &format!("instantiating const expression {other}")
-            ),
+            )
+            .map_err(|es| (TyParam::Failure, es)),
         }
     }
 
@@ -1614,12 +1895,21 @@ impl Context {
         erased_idx: Option<(&Context, usize)>,
         tmp_tv_cache: &mut TyVarCache,
         not_found_is_qvar: bool,
-    ) -> TyCheckResult<Type> {
-        let tp = self.instantiate_const_expr(expr, erased_idx, tmp_tv_cache, not_found_is_qvar)?;
-        self.instantiate_tp_as_type(tp, expr)
+    ) -> Failable<Type> {
+        match self.instantiate_const_expr(expr, erased_idx, tmp_tv_cache, not_found_is_qvar) {
+            Ok(tp) => self.instantiate_tp_as_type(tp, expr),
+            Err((tp, mut errs)) => match self.instantiate_tp_as_type(tp, expr) {
+                Ok(t) => Err((t, errs)),
+                Err((t, es)) => {
+                    errs.extend(es);
+                    Err((t, errs))
+                }
+            },
+        }
     }
 
-    fn instantiate_tp_as_type(&self, tp: TyParam, loc: &impl Locational) -> TyCheckResult<Type> {
+    fn instantiate_tp_as_type(&self, tp: TyParam, loc: &impl Locational) -> Failable<Type> {
+        let mut errs = TyCheckErrors::empty();
         match tp {
             TyParam::FreeVar(fv) if fv.is_linked() => {
                 let tp = fv.crack().clone();
@@ -1632,18 +1922,28 @@ impl Context {
             }
             TyParam::App { name, args } => Ok(poly(name, args)),
             TyParam::Type(t) => Ok(*t),
-            #[allow(clippy::bind_instead_of_map)]
             TyParam::Value(value) => self.convert_value_into_type(value).or_else(|value| {
                 type_feature_error!(self, loc.loc(), &format!("instantiate `{value}` as type"))
+                    .map_err(|e| (Type::Failure, e))
             }),
             TyParam::List(lis) => {
                 let len = TyParam::value(lis.len());
                 let mut union = Type::Never;
                 for tp in lis {
-                    let t = self.instantiate_tp_as_type(tp, loc)?;
+                    let t = match self.instantiate_tp_as_type(tp, loc) {
+                        Ok(t) => t,
+                        Err((t, es)) => {
+                            errs.extend(es);
+                            t
+                        }
+                    };
                     union = self.union(&union, &t);
                 }
-                Ok(list_t(union, len))
+                if errs.is_empty() {
+                    Ok(list_t(union, len))
+                } else {
+                    Err((list_t(union, len), errs))
+                }
             }
             TyParam::Set(set) => {
                 let t = set
@@ -1656,18 +1956,38 @@ impl Context {
             TyParam::Tuple(ts) => {
                 let mut tps = vec![];
                 for tp in ts {
-                    let t = self.instantiate_tp_as_type(tp, loc)?;
+                    let t = match self.instantiate_tp_as_type(tp, loc) {
+                        Ok(t) => t,
+                        Err((t, es)) => {
+                            errs.extend(es);
+                            t
+                        }
+                    };
                     tps.push(t);
                 }
-                Ok(tuple_t(tps))
+                if errs.is_empty() {
+                    Ok(tuple_t(tps))
+                } else {
+                    Err((tuple_t(tps), errs))
+                }
             }
             TyParam::Record(rec) => {
                 let mut rec_t = dict! {};
                 for (field, tp) in rec {
-                    let t = self.instantiate_tp_as_type(tp, loc)?;
+                    let t = match self.instantiate_tp_as_type(tp, loc) {
+                        Ok(t) => t,
+                        Err((t, es)) => {
+                            errs.extend(es);
+                            t
+                        }
+                    };
                     rec_t.insert(field, t);
                 }
-                Ok(Type::Record(rec_t))
+                if errs.is_empty() {
+                    Ok(Type::Record(rec_t))
+                } else {
+                    Err((Type::Record(rec_t), errs))
+                }
             }
             TyParam::Lambda(lambda) => {
                 let return_t = self
@@ -1697,13 +2017,18 @@ impl Context {
                     self,
                     loc.loc(),
                     &format!("instantiate `{lhs} {op} {rhs}` as type")
-                ),
+                )
+                .map_err(|es| {
+                    errs.extend(es);
+                    (Type::Failure, errs)
+                }),
             },
             other =>
             {
                 #[allow(clippy::bind_instead_of_map)]
                 self.convert_tp_into_type(other).or_else(|tp| {
                     type_feature_error!(self, loc.loc(), &format!("instantiate `{tp}` as type"))
+                        .map_err(|e| (Type::Failure, e))
                 })
             }
         }
@@ -1727,9 +2052,9 @@ impl Context {
             not_found_is_qvar,
         ) {
             Ok(t) => t,
-            Err(es) => {
+            Err((t, es)) => {
                 errs.extend(es);
-                Type::Failure
+                t
             }
         };
         let pt = if let Some(default_t) = default_t {
@@ -1741,9 +2066,9 @@ impl Context {
                 not_found_is_qvar,
             ) {
                 Ok(t) => t,
-                Err(es) => {
+                Err((t, es)) => {
                     errs.extend(es);
-                    Type::Failure
+                    t
                 }
             };
             ParamTy::kw_default(p.name.as_ref().unwrap().inspect().to_owned(), t, default)
@@ -1761,37 +2086,70 @@ impl Context {
         &self,
         expr: &ast::ConstExpr,
         tmp_tv_cache: &mut TyVarCache,
-    ) -> TyCheckResult<Predicate> {
-        match expr {
+    ) -> Failable<Predicate> {
+        let mut errs = TyCheckErrors::empty();
+        let pred = match expr {
             ast::ConstExpr::Lit(lit) => {
-                let value = self.eval_lit(lit)?;
-                Ok(Predicate::Value(value))
+                let value = self.eval_lit(lit).map_err(|e| (Predicate::Failure, e))?;
+                Predicate::Value(value)
             }
             ast::ConstExpr::Accessor(ast::ConstAccessor::Local(local)) => {
                 self.inc_ref_local(local, self, tmp_tv_cache);
-                Ok(Predicate::Const(local.inspect().clone()))
+                Predicate::Const(local.inspect().clone())
             }
             ast::ConstExpr::Accessor(ast::ConstAccessor::Attr(attr)) => {
-                let obj = self.instantiate_const_expr(&attr.obj, None, tmp_tv_cache, false)?;
-                Ok(Predicate::attr(obj, attr.name.inspect().clone()))
+                let obj = match self.instantiate_const_expr(&attr.obj, None, tmp_tv_cache, false) {
+                    Ok(obj) => obj,
+                    Err((obj, es)) => {
+                        errs.extend(es);
+                        obj
+                    }
+                };
+                Predicate::attr(obj, attr.name.inspect().clone())
             }
             ast::ConstExpr::App(app) => {
-                let receiver = self.instantiate_const_expr(&app.obj, None, tmp_tv_cache, false)?;
+                let receiver =
+                    match self.instantiate_const_expr(&app.obj, None, tmp_tv_cache, false) {
+                        Ok(obj) => obj,
+                        Err((obj, es)) => {
+                            errs.extend(es);
+                            obj
+                        }
+                    };
                 let name = app.attr_name.as_ref().map(|n| n.inspect().to_owned());
                 let mut args = vec![];
                 for arg in app.args.pos_args() {
-                    let arg = self.instantiate_const_expr(&arg.expr, None, tmp_tv_cache, false)?;
+                    let arg =
+                        match self.instantiate_const_expr(&arg.expr, None, tmp_tv_cache, false) {
+                            Ok(arg) => arg,
+                            Err((arg, es)) => {
+                                errs.extend(es);
+                                arg
+                            }
+                        };
                     args.push(arg);
                 }
-                Ok(Predicate::Call {
+                Predicate::Call {
                     receiver,
                     name,
                     args,
-                })
+                }
             }
             ast::ConstExpr::BinOp(bin) => {
-                let lhs = self.instantiate_pred_from_expr(&bin.lhs, tmp_tv_cache)?;
-                let rhs = self.instantiate_pred_from_expr(&bin.rhs, tmp_tv_cache)?;
+                let lhs = match self.instantiate_pred_from_expr(&bin.lhs, tmp_tv_cache) {
+                    Ok(lhs) => lhs,
+                    Err((lhs, es)) => {
+                        errs.extend(es);
+                        lhs
+                    }
+                };
+                let rhs = match self.instantiate_pred_from_expr(&bin.rhs, tmp_tv_cache) {
+                    Ok(rhs) => rhs,
+                    Err((rhs, es)) => {
+                        errs.extend(es);
+                        rhs
+                    }
+                };
                 match bin.op.kind {
                     TokenKind::DblEq
                     | TokenKind::NotEq
@@ -1818,7 +2176,11 @@ impl Context {
                                     self,
                                     bin.loc(),
                                     &format!("instantiating predicate `{expr}`")
-                                );
+                                )
+                                .map_err(|es| {
+                                    errs.extend(es);
+                                    (Predicate::Failure, errs)
+                                });
                             }
                         };
                         let rhs = match rhs {
@@ -1841,10 +2203,14 @@ impl Context {
                                     self,
                                     bin.loc(),
                                     &format!("instantiating predicate `{expr}`")
-                                );
+                                )
+                                .map_err(|es| {
+                                    errs.extend(es);
+                                    (Predicate::Failure, errs)
+                                });
                             }
                         };
-                        let pred = match bin.op.kind {
+                        match bin.op.kind {
                             TokenKind::DblEq => Predicate::eq(var, rhs),
                             TokenKind::NotEq => Predicate::ne(var, rhs),
                             TokenKind::Less => Predicate::lt(var, rhs),
@@ -1852,34 +2218,62 @@ impl Context {
                             TokenKind::Gre => Predicate::gt(var, rhs),
                             TokenKind::GreEq => Predicate::ge(var, rhs),
                             _ => unreachable!(),
-                        };
-                        Ok(pred)
+                        }
                     }
-                    TokenKind::OrOp => Ok(lhs | rhs),
-                    TokenKind::AndOp => Ok(lhs & rhs),
-                    _ => type_feature_error!(
-                        self,
-                        bin.loc(),
-                        &format!("instantiating predicate `{expr}`")
-                    ),
+                    TokenKind::OrOp => lhs | rhs,
+                    TokenKind::AndOp => lhs & rhs,
+                    _ => {
+                        return type_feature_error!(
+                            self,
+                            bin.loc(),
+                            &format!("instantiating predicate `{expr}`")
+                        )
+                        .map_err(|e| {
+                            errs.extend(e);
+                            (Predicate::Failure, errs)
+                        })
+                    }
                 }
             }
             ast::ConstExpr::UnaryOp(unop) => {
-                let pred = self.instantiate_pred_from_expr(&unop.expr, tmp_tv_cache)?;
+                let pred = match self.instantiate_pred_from_expr(&unop.expr, tmp_tv_cache) {
+                    Ok(pred) => pred,
+                    Err((pred, es)) => {
+                        errs.extend(es);
+                        pred
+                    }
+                };
                 match unop.op.kind {
-                    TokenKind::PreBitNot => Ok(!pred),
-                    _ => type_feature_error!(
-                        self,
-                        unop.loc(),
-                        &format!("instantiating predicate `{expr}`")
-                    ),
+                    TokenKind::PreBitNot => !pred,
+                    _ => {
+                        return type_feature_error!(
+                            self,
+                            unop.loc(),
+                            &format!("instantiating predicate `{expr}`")
+                        )
+                        .map_err(|e| {
+                            errs.extend(e);
+                            (Predicate::Failure, errs)
+                        })
+                    }
                 }
             }
-            _ => type_feature_error!(
-                self,
-                expr.loc(),
-                &format!("instantiating predicate `{expr}`")
-            ),
+            _ => {
+                return type_feature_error!(
+                    self,
+                    expr.loc(),
+                    &format!("instantiating predicate `{expr}`")
+                )
+                .map_err(|e| {
+                    errs.extend(e);
+                    (Predicate::Failure, errs)
+                })
+            }
+        };
+        if errs.is_empty() {
+            Ok(pred)
+        } else {
+            Err((pred, errs))
         }
     }
 
@@ -1914,7 +2308,8 @@ impl Context {
         tmp_tv_cache: &mut TyVarCache,
         mode: RegistrationMode,
         not_found_is_qvar: bool,
-    ) -> TyCheckResult<Type> {
+    ) -> Failable<Type> {
+        let mut errs = TyCheckErrors::empty();
         match t_spec {
             TypeSpec::Infer(_) => Ok(free_var(self.level, Constraint::new_type_of(Type))),
             TypeSpec::PreDeclTy(predecl) => Ok(self.instantiate_predecl_t(
@@ -1923,22 +2318,39 @@ impl Context {
                 tmp_tv_cache,
                 not_found_is_qvar,
             )?),
-            TypeSpec::And(lhs, rhs) => Ok(self.intersection(
-                &self.instantiate_typespec_full(
+            TypeSpec::And(lhs, rhs) => {
+                let lhs = match self.instantiate_typespec_full(
                     lhs,
                     opt_decl_t,
                     tmp_tv_cache,
                     mode,
                     not_found_is_qvar,
-                )?,
-                &self.instantiate_typespec_full(
+                ) {
+                    Ok(t) => t,
+                    Err((t, es)) => {
+                        errs.extend(es);
+                        t
+                    }
+                };
+                let rhs = match self.instantiate_typespec_full(
                     rhs,
                     opt_decl_t,
                     tmp_tv_cache,
                     mode,
                     not_found_is_qvar,
-                )?,
-            )),
+                ) {
+                    Ok(t) => t,
+                    Err((t, es)) => {
+                        errs.extend(es);
+                        t
+                    }
+                };
+                if errs.is_empty() {
+                    Ok(self.intersection(&lhs, &rhs))
+                } else {
+                    Err((self.intersection(&lhs, &rhs), errs))
+                }
+            }
             TypeSpec::Or(lhs, rhs) => Ok(self.union(
                 &self.instantiate_typespec_full(
                     lhs,
@@ -1963,19 +2375,39 @@ impl Context {
                 not_found_is_qvar,
             )?)),
             TypeSpec::List(lis) => {
-                let elem_t = self.instantiate_typespec_full(
+                let elem_t = match self.instantiate_typespec_full(
                     &lis.ty,
                     opt_decl_t,
                     tmp_tv_cache,
                     mode,
                     not_found_is_qvar,
-                )?;
-                let mut len =
-                    self.instantiate_const_expr(&lis.len, None, tmp_tv_cache, not_found_is_qvar)?;
+                ) {
+                    Ok(t) => t,
+                    Err((t, es)) => {
+                        errs.extend(es);
+                        t
+                    }
+                };
+                let mut len = match self.instantiate_const_expr(
+                    &lis.len,
+                    None,
+                    tmp_tv_cache,
+                    not_found_is_qvar,
+                ) {
+                    Ok(len) => len,
+                    Err((len, es)) => {
+                        errs.extend(es);
+                        len
+                    }
+                };
                 if let TyParam::Erased(t) = &mut len {
                     *t.as_mut() = Type::Nat;
                 }
-                Ok(list_t(elem_t, len))
+                if errs.is_empty() {
+                    Ok(list_t(elem_t, len))
+                } else {
+                    Err((list_t(elem_t, len), errs))
+                }
             }
             TypeSpec::SetWithLen(set) => {
                 let elem_t = self.instantiate_typespec_full(
@@ -1985,63 +2417,117 @@ impl Context {
                     mode,
                     not_found_is_qvar,
                 )?;
-                let mut len =
-                    self.instantiate_const_expr(&set.len, None, tmp_tv_cache, not_found_is_qvar)?;
+                let mut len = match self.instantiate_const_expr(
+                    &set.len,
+                    None,
+                    tmp_tv_cache,
+                    not_found_is_qvar,
+                ) {
+                    Ok(len) => len,
+                    Err((len, es)) => {
+                        errs.extend(es);
+                        len
+                    }
+                };
                 if let TyParam::Erased(t) = &mut len {
                     *t.as_mut() = Type::Nat;
                 }
-                Ok(set_t(elem_t, len))
+                if errs.is_empty() {
+                    Ok(set_t(elem_t, len))
+                } else {
+                    Err((set_t(elem_t, len), errs))
+                }
             }
             TypeSpec::Tuple(tup) => {
                 let mut inst_tys = vec![];
                 for spec in tup.tys.iter() {
-                    inst_tys.push(self.instantiate_typespec_full(
+                    match self.instantiate_typespec_full(
                         spec,
                         opt_decl_t,
                         tmp_tv_cache,
                         mode,
                         not_found_is_qvar,
-                    )?);
+                    ) {
+                        Ok(t) => inst_tys.push(t),
+                        Err((t, es)) => {
+                            errs.extend(es);
+                            inst_tys.push(t);
+                        }
+                    }
                 }
-                Ok(tuple_t(inst_tys))
+                if errs.is_empty() {
+                    Ok(tuple_t(inst_tys))
+                } else {
+                    Err((tuple_t(inst_tys), errs))
+                }
             }
             TypeSpec::Dict(dict) => {
                 let mut inst_tys = dict! {};
                 for (k, v) in dict.kvs.iter() {
-                    inst_tys.insert(
-                        self.instantiate_typespec_full(
-                            k,
-                            opt_decl_t,
-                            tmp_tv_cache,
-                            mode,
-                            not_found_is_qvar,
-                        )?,
-                        self.instantiate_typespec_full(
-                            v,
-                            opt_decl_t,
-                            tmp_tv_cache,
-                            mode,
-                            not_found_is_qvar,
-                        )?,
-                    );
+                    let k = match self.instantiate_typespec_full(
+                        k,
+                        opt_decl_t,
+                        tmp_tv_cache,
+                        mode,
+                        not_found_is_qvar,
+                    ) {
+                        Ok(k) => k,
+                        Err((k, es)) => {
+                            errs.extend(es);
+                            k
+                        }
+                    };
+                    let v = match self.instantiate_typespec_full(
+                        v,
+                        opt_decl_t,
+                        tmp_tv_cache,
+                        mode,
+                        not_found_is_qvar,
+                    ) {
+                        Ok(v) => v,
+                        Err((v, es)) => {
+                            errs.extend(es);
+                            v
+                        }
+                    };
+                    inst_tys.insert(k, v);
                 }
-                Ok(dict_t(inst_tys.into()))
+                if errs.is_empty() {
+                    Ok(dict_t(inst_tys.into()))
+                } else {
+                    Err((dict_t(inst_tys.into()), errs))
+                }
             }
             TypeSpec::Record(rec) => {
                 let mut inst_tys = dict! {};
                 for (k, v) in rec.attrs.iter() {
-                    inst_tys.insert(
-                        self.instantiate_field(k)?,
-                        self.instantiate_typespec_full(
-                            v,
-                            opt_decl_t,
-                            tmp_tv_cache,
-                            mode,
-                            not_found_is_qvar,
-                        )?,
-                    );
+                    let v = match self.instantiate_typespec_full(
+                        v,
+                        opt_decl_t,
+                        tmp_tv_cache,
+                        mode,
+                        not_found_is_qvar,
+                    ) {
+                        Ok(v) => v,
+                        Err((v, es)) => {
+                            errs.extend(es);
+                            v
+                        }
+                    };
+                    let field = match self.instantiate_field(k) {
+                        Ok(field) => field,
+                        Err((field, es)) => {
+                            errs.extend(es);
+                            field
+                        }
+                    };
+                    inst_tys.insert(field, v);
                 }
-                Ok(Type::Record(inst_tys))
+                if errs.is_empty() {
+                    Ok(Type::Record(inst_tys))
+                } else {
+                    Err((Type::Record(inst_tys), errs))
+                }
             }
             // TODO: エラー処理(リテラルでない)はパーサーにやらせる
             TypeSpec::Enum(set) => {
@@ -2069,19 +2555,30 @@ impl Context {
                     }
                 }
                 for arg in set.pos_args() {
-                    new_set.insert(self.instantiate_const_expr(
+                    match self.instantiate_const_expr(
                         &arg.expr,
                         None,
                         tmp_tv_cache,
                         not_found_is_qvar,
-                    )?);
+                    ) {
+                        Ok(tp) => new_set.insert(tp),
+                        Err((tp, es)) => {
+                            errs.extend(es);
+                            new_set.insert(tp)
+                        }
+                    };
                 }
                 let ty = new_set.iter().fold(Type::Never, |t, tp| {
                     self.union(&t, &self.get_tp_t(tp).unwrap().derefine())
                 });
-                Ok(tp_enum(ty, new_set))
+                if errs.is_empty() {
+                    Ok(tp_enum(ty, new_set))
+                } else {
+                    Err((tp_enum(ty, new_set), errs))
+                }
             }
             TypeSpec::Interval { op, lhs, rhs } => {
+                let mut errs = TyCheckErrors::empty();
                 let op = match op.kind {
                     TokenKind::Closed => IntervalOp::Closed,
                     TokenKind::LeftOpen => IntervalOp::LeftOpen,
@@ -2089,17 +2586,48 @@ impl Context {
                     TokenKind::Open => IntervalOp::Open,
                     _ => assume_unreachable!(),
                 };
-                let l = self.instantiate_const_expr(lhs, None, tmp_tv_cache, not_found_is_qvar)?;
-                let l = self.eval_tp(l)?;
-                let r = self.instantiate_const_expr(rhs, None, tmp_tv_cache, not_found_is_qvar)?;
-                let r = self.eval_tp(r)?;
+                let l =
+                    match self.instantiate_const_expr(lhs, None, tmp_tv_cache, not_found_is_qvar) {
+                        Ok(tp) => tp,
+                        Err((tp, es)) => {
+                            errs.extend(es);
+                            tp
+                        }
+                    };
+                let l = match self.eval_tp(l) {
+                    Ok(tp) => tp,
+                    Err((tp, es)) => {
+                        errs.extend(es);
+                        tp
+                    }
+                };
+                let r =
+                    match self.instantiate_const_expr(rhs, None, tmp_tv_cache, not_found_is_qvar) {
+                        Ok(tp) => tp,
+                        Err((tp, es)) => {
+                            errs.extend(es);
+                            tp
+                        }
+                    };
+                let r = match self.eval_tp(r) {
+                    Ok(tp) => tp,
+                    Err((tp, es)) => {
+                        errs.extend(es);
+                        tp
+                    }
+                };
                 if let Some(Greater) = self.try_cmp(&l, &r) {
                     panic!("{l}..{r} is not a valid interval type (should be lhs <= rhs)")
                 }
                 let l_t = self.get_tp_t(&l).unwrap_or(Obj).derefine();
                 let r_t = self.get_tp_t(&r).unwrap_or(Obj).derefine();
                 let t = self.union(&l_t, &r_t);
-                Ok(interval(op, t, l, r))
+                let int = interval(op, t, l, r);
+                if errs.is_empty() {
+                    Ok(int)
+                } else {
+                    Err((int, errs))
+                }
             }
             TypeSpec::Subr(subr) => {
                 let mut errs = TyCheckErrors::empty();
@@ -2141,21 +2669,23 @@ impl Context {
                         v
                     }
                 };
-                let var_params = subr
-                    .var_params
-                    .as_ref()
-                    .map(|p| {
-                        self.instantiate_func_param_spec(
-                            p,
-                            opt_decl_t,
-                            None,
-                            tmp_tv_ctx,
-                            mode,
-                            not_found_is_qvar,
-                        )
-                        .map_err(|(_, es)| es)
-                    })
-                    .transpose()?;
+                let var_params = match subr.var_params.as_ref().map(|p| {
+                    self.instantiate_func_param_spec(
+                        p,
+                        opt_decl_t,
+                        None,
+                        tmp_tv_ctx,
+                        mode,
+                        not_found_is_qvar,
+                    )
+                }) {
+                    Some(Ok(pt)) => Some(pt),
+                    Some(Err((pt, es))) => {
+                        errs.extend(es);
+                        Some(pt)
+                    }
+                    None => None,
+                };
                 let defaults = failable_map_mut(subr.defaults.iter(), |p| {
                     self.instantiate_func_param_spec(
                         &p.param,
@@ -2174,21 +2704,23 @@ impl Context {
                 })
                 .into_iter()
                 .collect();
-                let kw_var_params = subr
-                    .kw_var_params
-                    .as_ref()
-                    .map(|p| {
-                        self.instantiate_func_param_spec(
-                            p,
-                            opt_decl_t,
-                            None,
-                            tmp_tv_ctx,
-                            mode,
-                            not_found_is_qvar,
-                        )
-                        .map_err(|(_, es)| es)
-                    })
-                    .transpose()?;
+                let kw_var_params = match subr.kw_var_params.as_ref().map(|p| {
+                    self.instantiate_func_param_spec(
+                        p,
+                        opt_decl_t,
+                        None,
+                        tmp_tv_ctx,
+                        mode,
+                        not_found_is_qvar,
+                    )
+                }) {
+                    Some(Ok(pt)) => Some(pt),
+                    Some(Err((pt, es))) => {
+                        errs.extend(es);
+                        Some(pt)
+                    }
+                    None => None,
+                };
                 let return_t = match self.instantiate_typespec_full(
                     &subr.return_t,
                     opt_decl_t,
@@ -2197,9 +2729,9 @@ impl Context {
                     not_found_is_qvar,
                 ) {
                     Ok(t) => t,
-                    Err(es) => {
+                    Err((t, es)) => {
                         errs.extend(es);
-                        Type::Failure
+                        t
                     }
                 };
                 let params = non_defaults
@@ -2210,51 +2742,65 @@ impl Context {
                     .filter_map(|pt| pt.name());
                 let return_t = self.recover_guard(return_t, params);
                 // no quantification at this point (in `generalize_t`)
+                let subr = subr_t(
+                    SubrKind::from(subr.arrow.kind),
+                    non_defaults,
+                    var_params,
+                    defaults,
+                    kw_var_params,
+                    return_t,
+                );
                 if errs.is_empty() {
-                    Ok(subr_t(
-                        SubrKind::from(subr.arrow.kind),
-                        non_defaults,
-                        var_params,
-                        defaults,
-                        kw_var_params,
-                        return_t,
-                    ))
+                    Ok(subr)
                 } else {
-                    Err(errs)
+                    Err((subr, errs))
                 }
             }
-            TypeSpec::TypeApp { spec, args } => {
-                type_feature_error!(
-                    self,
-                    t_spec.loc(),
-                    &format!("instantiating type spec {spec}{args}")
-                )
-            }
+            TypeSpec::TypeApp { spec, args } => type_feature_error!(
+                self,
+                t_spec.loc(),
+                &format!("instantiating type spec {spec}{args}")
+            )
+            .map_err(|es| {
+                errs.extend(es);
+                (Type::Failure, errs)
+            }),
             TypeSpec::Refinement(refine) => {
-                let t = self.instantiate_typespec_full(
+                let t = match self.instantiate_typespec_full(
                     &refine.typ,
                     opt_decl_t,
                     tmp_tv_cache,
                     mode,
                     not_found_is_qvar,
-                )?;
+                ) {
+                    Ok(t) => t,
+                    Err((t, es)) => {
+                        errs.extend(es);
+                        t
+                    }
+                };
                 let name = VarName::new(refine.var.clone());
                 tmp_tv_cache.push_refine_var(&name, t.clone(), self);
-                let pred = self
-                    .instantiate_pred_from_expr(&refine.pred, tmp_tv_cache)
-                    .map_err(|errs| {
-                        tmp_tv_cache.remove(name.inspect());
-                        errs
-                    })?;
+                let pred = match self.instantiate_pred_from_expr(&refine.pred, tmp_tv_cache) {
+                    Ok(pred) => pred,
+                    Err((pred, es)) => {
+                        errs.extend(es);
+                        pred
+                    }
+                };
                 tmp_tv_cache.remove(name.inspect());
                 let refine =
                     Type::Refinement(RefinementType::new(refine.var.inspect().clone(), t, pred));
-                Ok(refine)
+                if errs.is_empty() {
+                    Ok(refine)
+                } else {
+                    Err((refine, errs))
+                }
             }
         }
     }
 
-    pub(crate) fn instantiate_typespec(&self, t_spec: &ast::TypeSpec) -> TyCheckResult<Type> {
+    pub(crate) fn instantiate_typespec(&self, t_spec: &ast::TypeSpec) -> Failable<Type> {
         let mut dummy_tv_cache = TyVarCache::new(self.level, self);
         self.instantiate_typespec_with_tv_cache(t_spec, &mut dummy_tv_cache)
     }
@@ -2263,22 +2809,34 @@ impl Context {
         &self,
         t_spec: &ast::TypeSpec,
         tv_cache: &mut TyVarCache,
-    ) -> TyCheckResult<Type> {
-        let t = self.instantiate_typespec_full(
+    ) -> Failable<Type> {
+        let (t, errs) = match self.instantiate_typespec_full(
             t_spec,
             None,
             tv_cache,
             RegistrationMode::Normal,
             false,
-        )?;
+        ) {
+            Ok(t) => (t, TyCheckErrors::empty()),
+            Err((t, es)) => (t, es),
+        };
         t.lift();
         let t = self.generalize_t(t);
-        Ok(t)
+        if errs.is_empty() {
+            Ok(t)
+        } else {
+            Err((t, errs))
+        }
     }
 
-    pub(crate) fn instantiate_field(&self, ident: &Identifier) -> TyCheckResult<Field> {
-        let vis = self.instantiate_vis_modifier(&ident.vis)?;
-        Ok(Field::new(vis, ident.inspect().clone()))
+    pub(crate) fn instantiate_field(&self, ident: &Identifier) -> Failable<Field> {
+        match self.instantiate_vis_modifier(&ident.vis) {
+            Ok(vis) => Ok(Field::new(vis, ident.inspect().clone())),
+            Err(errs) => {
+                let field = Field::new(VisibilityModifier::Public, ident.inspect().clone());
+                Err((field, errs))
+            }
+        }
     }
 
     pub(crate) fn instantiate_vis_modifier(
@@ -2286,7 +2844,11 @@ impl Context {
         spec: &VisModifierSpec,
     ) -> TyCheckResult<VisibilityModifier> {
         match spec {
-            VisModifierSpec::Auto => unreachable!(),
+            VisModifierSpec::Auto => Err(TyCheckErrors::from(TyCheckError::unreachable(
+                self.cfg.input.clone(),
+                fn_name!(),
+                line!(),
+            ))),
             VisModifierSpec::Private | VisModifierSpec::ExplicitPrivate(_) => {
                 Ok(VisibilityModifier::Private)
             }
@@ -2321,30 +2883,59 @@ impl Context {
                     Ok(VisibilityModifier::Restricted(namespaces))
                 }
                 VisRestriction::SubtypeOf(typ) => {
-                    let t = self.instantiate_typespec(typ)?;
+                    let t = self.instantiate_typespec(typ).map_err(|(_, es)| es)?;
                     Ok(VisibilityModifier::SubtypeRestricted(t))
                 }
             },
         }
     }
 
-    pub(crate) fn expr_to_type(&self, expr: ast::Expr) -> Option<Type> {
-        let t_spec = Parser::expr_to_type_spec(expr).ok()?;
-        self.instantiate_typespec(&t_spec).ok()
+    pub(crate) fn expr_to_type(&self, expr: ast::Expr) -> Failable<Type> {
+        let t_spec = Parser::expr_to_type_spec(expr).map_err(|err| {
+            let err = TyCheckError::new(err.into(), self.cfg.input.clone(), self.caused_by());
+            (Type::Failure, TyCheckErrors::from(err))
+        })?;
+        self.instantiate_typespec(&t_spec)
     }
 
-    pub(crate) fn expr_to_value(&self, expr: ast::Expr) -> Option<ValueObj> {
-        let const_expr = Parser::validate_const_expr(expr).ok()?;
+    pub(crate) fn expr_to_value(&self, expr: ast::Expr) -> Failable<ValueObj> {
+        let const_expr = Parser::validate_const_expr(expr).map_err(|err| {
+            let err = TyCheckError::new(err.into(), self.cfg.input.clone(), self.caused_by());
+            (ValueObj::Failure, TyCheckErrors::from(err))
+        })?;
         let mut dummy = TyVarCache::new(self.level, self);
-        self.instantiate_const_expr(&const_expr, None, &mut dummy, false)
-            .ok()
-            .and_then(|tp| ValueObj::try_from(tp).ok())
+        match self.instantiate_const_expr(&const_expr, None, &mut dummy, false) {
+            Ok(tp) => ValueObj::try_from(tp).map_err(|_| {
+                let err = TyCheckError::not_const_expr(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    const_expr.loc(),
+                    self.caused_by(),
+                );
+                (ValueObj::Failure, TyCheckErrors::from(err))
+            }),
+            Err((tp, mut errs)) => match ValueObj::try_from(tp) {
+                Ok(value) => Err((value, errs)),
+                Err(_) => {
+                    let err = TyCheckError::not_const_expr(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        const_expr.loc(),
+                        self.caused_by(),
+                    );
+                    errs.push(err);
+                    Err((ValueObj::Failure, errs))
+                }
+            },
+        }
     }
 
-    pub(crate) fn expr_to_tp(&self, expr: ast::Expr) -> Option<TyParam> {
-        let const_expr = Parser::validate_const_expr(expr).ok()?;
+    pub(crate) fn expr_to_tp(&self, expr: ast::Expr) -> Failable<TyParam> {
+        let const_expr = Parser::validate_const_expr(expr).map_err(|err| {
+            let err = TyCheckError::new(err.into(), self.cfg.input.clone(), self.caused_by());
+            (TyParam::Failure, TyCheckErrors::from(err))
+        })?;
         let mut dummy = TyVarCache::new(self.level, self);
         self.instantiate_const_expr(&const_expr, None, &mut dummy, false)
-            .ok()
     }
 }

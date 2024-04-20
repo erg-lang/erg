@@ -1218,7 +1218,7 @@ pub(crate) fn filter_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult
                     return Err(type_mismatch("Bool", tp, "func"));
                 }
             },
-            Err(mut err) => {
+            Err((_res, mut err)) => {
                 return Err(EvalValueError::from(*err.remove(0).core));
             }
         }
@@ -1272,7 +1272,7 @@ pub(crate) fn map_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<Ty
             Ok(res) => {
                 mapped.push(res);
             }
-            Err(mut err) => {
+            Err((_res, mut err)) => {
                 return Err(EvalValueError::from(*err.remove(0).core));
             }
         }

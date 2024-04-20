@@ -1694,7 +1694,6 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
     /// unify(Int or Str, NoneType) == None
     /// ```
     fn unify(&self, lhs: &Type, rhs: &Type) -> Option<Type> {
-        #[allow(clippy::single_match)]
         match (lhs, rhs) {
             (Type::Or(l, r), other) | (other, Type::Or(l, r)) => {
                 if let Some(t) = self.unify(l, other) {

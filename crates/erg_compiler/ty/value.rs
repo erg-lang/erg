@@ -522,7 +522,7 @@ pub enum ValueObj {
     /// different from `Float.Inf`
     Inf,
     #[default]
-    Illegal, // to avoid conversions with TryFrom
+    Failure, // placeholder for illegal values
 }
 
 impl fmt::Debug for ValueObj {
@@ -604,7 +604,7 @@ impl fmt::Debug for ValueObj {
             Self::NotImplemented => write!(f, "NotImplemented"),
             Self::NegInf => write!(f, "-Inf"),
             Self::Inf => write!(f, "Inf"),
-            Self::Illegal => write!(f, "<illegal>"),
+            Self::Failure => write!(f, "<failure>"),
         }
     }
 }
@@ -787,7 +787,7 @@ impl Hash for ValueObj {
                 "literal".hash(state);
                 "Inf".hash(state)
             }
-            Self::Illegal => {
+            Self::Failure => {
                 "literal".hash(state);
                 "illegal".hash(state)
             }
@@ -1028,6 +1028,21 @@ impl ValueObj {
         }
     }
 
+    pub fn is_complete(&self) -> bool {
+        match self {
+            Self::List(elems) => elems.iter().all(Self::is_complete),
+            Self::Tuple(elems) => elems.iter().all(Self::is_complete),
+            Self::Set(st) => st.iter().all(Self::is_complete),
+            Self::Dict(dict) => dict.iter().all(|(k, v)| k.is_complete() && v.is_complete()),
+            Self::Record(rec) => rec.iter().all(|(_, v)| v.is_complete()),
+            Self::DataClass { fields, .. } => fields.iter().all(|(_, v)| v.is_complete()),
+            // TODO:
+            Self::Type(t) => !t.typ().is_failure(),
+            Self::Failure => false,
+            _ => true,
+        }
+    }
+
     pub const fn is_container(&self) -> bool {
         matches!(
             self,
@@ -1201,7 +1216,7 @@ impl ValueObj {
             Self::NotImplemented => Type::NotImplementedType,
             Self::Inf => Type::Inf,
             Self::NegInf => Type::NegInf,
-            Self::Illegal => Type::Failure,
+            Self::Failure => Type::Failure,
         }
     }
 

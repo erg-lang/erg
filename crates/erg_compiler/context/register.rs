@@ -31,7 +31,7 @@ use crate::ty::{
 };
 
 use crate::context::{ClassDefType, Context, ContextKind, DefaultInfo, RegistrationMode};
-use crate::error::{concat_result, readable_name};
+use crate::error::{concat_result, readable_name, Failable};
 use crate::error::{
     CompileError, CompileErrors, CompileResult, TyCheckError, TyCheckErrors, TyCheckResult,
 };
@@ -77,7 +77,8 @@ impl Context {
         }
     }
 
-    fn pre_define_var(&mut self, sig: &ast::VarSignature, id: Option<DefId>) -> TyCheckResult<()> {
+    fn pre_define_var(&mut self, sig: &ast::VarSignature, id: Option<DefId>) -> Failable<()> {
+        let mut errs = TyCheckErrors::empty();
         let muty = Mutability::from(&sig.inspect().unwrap_or(UBAR)[..]);
         let ident = match &sig.pat {
             ast::VarPattern::Ident(ident) => ident,
@@ -86,10 +87,23 @@ impl Context {
             }
             other => unreachable!("{other}"),
         };
-        let vis = self.instantiate_vis_modifier(&ident.vis)?;
+        let vis = match self.instantiate_vis_modifier(&ident.vis) {
+            Ok(vis) => vis,
+            Err(es) => {
+                errs.extend(es);
+                VisibilityModifier::Public
+            }
+        };
         let kind = id.map_or(VarKind::Declared, VarKind::Defined);
-        let sig_t =
-            self.instantiate_var_sig_t(sig.t_spec.as_ref().map(|ts| &ts.t_spec), PreRegister)?;
+        let sig_t = match self
+            .instantiate_var_sig_t(sig.t_spec.as_ref().map(|ts| &ts.t_spec), PreRegister)
+        {
+            Ok(t) => t,
+            Err((t, _es)) => {
+                // errs.extend(es);
+                t
+            }
+        };
         let py_name = if let ContextKind::PatchMethodDefs(_base) = &self.kind {
             Some(Str::from(format!("::{}{}", self.name, ident)))
         } else {
@@ -99,13 +113,14 @@ impl Context {
             .remove_class_attr(ident.name.inspect())
             .is_some_and(|(_, decl)| !decl.kind.is_auto())
         {
-            Err(TyCheckErrors::from(TyCheckError::duplicate_decl_error(
+            errs.push(TyCheckError::duplicate_decl_error(
                 self.cfg.input.clone(),
                 line!() as usize,
                 sig.loc(),
                 self.caused_by(),
                 ident.name.inspect(),
-            )))
+            ));
+            Err(((), errs))
         } else {
             let vi = VarInfo::new(
                 sig_t,
@@ -119,7 +134,11 @@ impl Context {
             );
             self.index().register(ident.inspect().clone(), &vi);
             self.future_defined_locals.insert(ident.name.clone(), vi);
-            Ok(())
+            if errs.is_empty() {
+                Ok(())
+            } else {
+                Err(((), errs))
+            }
         }
     }
 
@@ -272,8 +291,10 @@ impl Context {
         };
         let t = sig.t_spec.as_ref().map_or(body_t.clone(), |ts| {
             if ts.ascription_kind().is_force_cast() {
-                self.instantiate_typespec(&ts.t_spec)
-                    .unwrap_or(body_t.clone())
+                match self.instantiate_typespec(&ts.t_spec) {
+                    Ok(t) => t,
+                    Err((t, _)) => t,
+                }
             } else {
                 body_t.clone()
             }
@@ -900,6 +921,7 @@ impl Context {
         &mut self,
         class_spec: &'c ast::TypeSpec,
     ) -> TyCheckResult<(Type, Option<(Type, &'c TypeSpecWithOp)>)> {
+        let mut errs = TyCheckErrors::empty();
         let mut dummy_tv_cache = TyVarCache::new(self.level, self);
         match class_spec {
             ast::TypeSpec::TypeApp { spec, args } => {
@@ -907,16 +929,22 @@ impl Context {
                     ast::TypeAppArgsKind::Args(args) => {
                         let (impl_trait, t_spec) = match &args.pos_args().first().unwrap().expr {
                             // TODO: check `tasc.op`
-                            ast::Expr::TypeAscription(tasc) => (
-                                self.instantiate_typespec_full(
+                            ast::Expr::TypeAscription(tasc) => {
+                                let t = match self.instantiate_typespec_full(
                                     &tasc.t_spec.t_spec,
                                     None,
                                     &mut dummy_tv_cache,
                                     RegistrationMode::Normal,
                                     false,
-                                )?,
-                                &tasc.t_spec,
-                            ),
+                                ) {
+                                    Ok(t) => t,
+                                    Err((t, es)) => {
+                                        errs.extend(es);
+                                        t
+                                    }
+                                };
+                                (t, &tasc.t_spec)
+                            }
                             other => {
                                 return Err(TyCheckErrors::from(TyCheckError::syntax_error(
                                     self.cfg.input.clone(),
@@ -928,48 +956,80 @@ impl Context {
                                 )))
                             }
                         };
-                        Ok((
-                            self.instantiate_typespec_full(
-                                spec,
-                                None,
-                                &mut dummy_tv_cache,
-                                RegistrationMode::Normal,
-                                false,
-                            )?,
-                            Some((impl_trait, t_spec)),
-                        ))
+                        let class = match self.instantiate_typespec_full(
+                            spec,
+                            None,
+                            &mut dummy_tv_cache,
+                            RegistrationMode::Normal,
+                            false,
+                        ) {
+                            Ok(t) => t,
+                            Err((t, es)) => {
+                                errs.extend(es);
+                                t
+                            }
+                        };
+                        if errs.is_empty() {
+                            Ok((class, Some((impl_trait, t_spec))))
+                        } else {
+                            Err(errs)
+                        }
                     }
                     ast::TypeAppArgsKind::SubtypeOf(trait_spec) => {
-                        let impl_trait = self.instantiate_typespec_full(
+                        let impl_trait = match self.instantiate_typespec_full(
                             &trait_spec.t_spec,
                             None,
                             &mut dummy_tv_cache,
                             RegistrationMode::Normal,
                             false,
-                        )?;
-                        Ok((
-                            self.instantiate_typespec_full(
-                                spec,
-                                None,
-                                &mut dummy_tv_cache,
-                                RegistrationMode::Normal,
-                                false,
-                            )?,
-                            Some((impl_trait, trait_spec.as_ref())),
-                        ))
+                        ) {
+                            Ok(t) => t,
+                            Err((t, es)) => {
+                                errs.extend(es);
+                                t
+                            }
+                        };
+                        let class = match self.instantiate_typespec_full(
+                            spec,
+                            None,
+                            &mut dummy_tv_cache,
+                            RegistrationMode::Normal,
+                            false,
+                        ) {
+                            Ok(t) => t,
+                            Err((t, es)) => {
+                                errs.extend(es);
+                                t
+                            }
+                        };
+                        if errs.is_empty() {
+                            Ok((class, Some((impl_trait, trait_spec.as_ref()))))
+                        } else {
+                            Err(errs)
+                        }
                     }
                 }
             }
-            other => Ok((
-                self.instantiate_typespec_full(
+            other => {
+                let t = match self.instantiate_typespec_full(
                     other,
                     None,
                     &mut dummy_tv_cache,
                     RegistrationMode::Normal,
                     false,
-                )?,
-                None,
-            )),
+                ) {
+                    Ok(t) => t,
+                    Err((t, es)) => {
+                        errs.extend(es);
+                        t
+                    }
+                };
+                if errs.is_empty() {
+                    Ok((t, None))
+                } else {
+                    Err(errs)
+                }
+            }
         }
     }
 
@@ -1214,6 +1274,7 @@ impl Context {
         } else {
             None
         };
+        let mut errs = TyCheckErrors::empty();
         match &def.sig {
             ast::Signature::Subr(sig) => {
                 if sig.is_const() {
@@ -1224,25 +1285,26 @@ impl Context {
                     self.grow(__name__, ContextKind::Proc, vis, Some(tv_cache));
                     let (obj, const_t) = match self.eval_const_block(&def.body.block) {
                         Ok(obj) => (obj.clone(), v_enum(set! {obj})),
-                        Err(errs) => {
-                            self.pop();
-                            return Err(errs);
+                        Err((obj, es)) => {
+                            errs.extend(es);
+                            (obj.clone(), v_enum(set! {obj}))
                         }
                     };
                     if let Some(spec) = sig.return_t_spec.as_ref() {
                         let mut dummy_tv_cache = TyVarCache::new(self.level, self);
-                        let spec_t = self
-                            .instantiate_typespec_full(
-                                &spec.t_spec,
-                                None,
-                                &mut dummy_tv_cache,
-                                PreRegister,
-                                false,
-                            )
-                            .map_err(|errs| {
-                                self.pop();
-                                errs
-                            })?;
+                        let spec_t = match self.instantiate_typespec_full(
+                            &spec.t_spec,
+                            None,
+                            &mut dummy_tv_cache,
+                            PreRegister,
+                            false,
+                        ) {
+                            Ok(ty) => ty,
+                            Err((ty, es)) => {
+                                errs.extend(es);
+                                ty
+                            }
+                        };
                         self.sub_unify(&const_t, &spec_t, &def.body, None)
                             .map_err(|errs| {
                                 self.pop();
@@ -1267,25 +1329,26 @@ impl Context {
                     self.grow(__name__, kind, vis, None);
                     let (obj, const_t) = match self.eval_const_block(&def.body.block) {
                         Ok(obj) => (obj.clone(), v_enum(set! {obj})),
-                        Err(errs) => {
-                            self.pop();
-                            return Err(errs);
+                        Err((obj, es)) => {
+                            errs.extend(es);
+                            (obj.clone(), v_enum(set! {obj}))
                         }
                     };
                     if let Some(spec) = sig.t_spec.as_ref() {
                         let mut dummy_tv_cache = TyVarCache::new(self.level, self);
-                        let spec_t = self
-                            .instantiate_typespec_full(
-                                &spec.t_spec,
-                                None,
-                                &mut dummy_tv_cache,
-                                PreRegister,
-                                false,
-                            )
-                            .map_err(|errs| {
-                                self.pop();
-                                errs
-                            })?;
+                        let spec_t = match self.instantiate_typespec_full(
+                            &spec.t_spec,
+                            None,
+                            &mut dummy_tv_cache,
+                            PreRegister,
+                            false,
+                        ) {
+                            Ok(ty) => ty,
+                            Err((ty, es)) => {
+                                errs.extend(es);
+                                ty
+                            }
+                        };
                         self.sub_unify(&const_t, &spec_t, &def.body, None)
                             .map_err(|errs| {
                                 self.pop();
@@ -1296,12 +1359,16 @@ impl Context {
                     if let Some(ident) = sig.ident() {
                         self.register_gen_const(ident, obj, call, def.def_kind().is_other())?;
                     }
-                } else {
-                    self.pre_define_var(sig, id)?;
+                } else if let Err((_, es)) = self.pre_define_var(sig, id) {
+                    errs.extend(es);
                 }
             }
         }
-        Ok(())
+        if errs.is_empty() {
+            Ok(())
+        } else {
+            Err(errs)
+        }
     }
 
     /// e.g. .new
@@ -2710,8 +2777,8 @@ impl Context {
         namespace: &Context,
         tmp_tv_cache: &TyVarCache,
     ) -> bool {
-        #[allow(clippy::single_match)]
         match expr {
+            ast::Expr::Literal(_) => false,
             ast::Expr::Accessor(acc) => self.inc_ref_acc(acc, namespace, tmp_tv_cache),
             ast::Expr::BinOp(bin) => {
                 self.inc_ref_expr(&bin.args[0], namespace, tmp_tv_cache)

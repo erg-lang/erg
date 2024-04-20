@@ -63,6 +63,7 @@ pub enum Predicate {
     Or(Box<Predicate>, Box<Predicate>),
     And(Box<Predicate>, Box<Predicate>),
     Not(Box<Predicate>),
+    Failure,
 }
 
 impl fmt::Display for Predicate {
@@ -97,6 +98,7 @@ impl fmt::Display for Predicate {
             Self::Or(l, r) => write!(f, "({l}) or ({r})"),
             Self::And(l, r) => write!(f, "({l}) and ({r})"),
             Self::Not(p) => write!(f, "not ({p})"),
+            Self::Failure => write!(f, "<failure>"),
         }
     }
 }
@@ -181,6 +183,7 @@ impl LimitedDisplay for Predicate {
                 p.limited_fmt(f, limit - 1)?;
                 write!(f, ")")
             }
+            Self::Failure => write!(f, "<failure>"),
         }
     }
 }
@@ -264,7 +267,7 @@ impl StructuralEq for Predicate {
 impl HasLevel for Predicate {
     fn level(&self) -> Option<usize> {
         match self {
-            Self::Value(_) | Self::Const(_) => None,
+            Self::Value(_) | Self::Const(_) | Self::Failure => None,
             Self::Equal { rhs, .. }
             | Self::GreaterEqual { rhs, .. }
             | Self::LessEqual { rhs, .. }
@@ -289,7 +292,7 @@ impl HasLevel for Predicate {
 
     fn set_level(&self, level: usize) {
         match self {
-            Self::Value(_) | Self::Const(_) => {}
+            Self::Value(_) | Self::Const(_) | Self::Failure => {}
             Self::Call { receiver, args, .. } => {
                 receiver.set_level(level);
                 for arg in args {
@@ -647,7 +650,7 @@ impl Predicate {
 
     pub fn qvars(&self) -> Set<(Str, Constraint)> {
         match self {
-            Self::Value(_) | Self::Const(_) => set! {},
+            Self::Value(_) | Self::Const(_) | Self::Failure => set! {},
             Self::Call { receiver, args, .. } => {
                 let mut set = receiver.qvars();
                 for arg in args {
@@ -673,8 +676,7 @@ impl Predicate {
 
     pub fn has_qvar(&self) -> bool {
         match self {
-            Self::Value(_) => false,
-            Self::Const(_) => false,
+            Self::Value(_) | Self::Const(_) | Self::Failure => false,
             Self::Call { receiver, args, .. } => {
                 receiver.has_qvar() || args.iter().any(|a| a.has_qvar())
             }
@@ -694,8 +696,7 @@ impl Predicate {
 
     pub fn has_unbound_var(&self) -> bool {
         match self {
-            Self::Value(_) => false,
-            Self::Const(_) => false,
+            Self::Value(_) | Self::Const(_) | Self::Failure => false,
             Self::Call { receiver, args, .. } => {
                 receiver.has_unbound_var() || args.iter().any(|a| a.has_unbound_var())
             }
@@ -717,8 +718,7 @@ impl Predicate {
 
     pub fn has_undoable_linked_var(&self) -> bool {
         match self {
-            Self::Value(_) => false,
-            Self::Const(_) => false,
+            Self::Value(_) | Self::Const(_) | Self::Failure => false,
             Self::Call { receiver, args, .. } => {
                 receiver.has_undoable_linked_var()
                     || args.iter().any(|a| a.has_undoable_linked_var())
@@ -775,7 +775,7 @@ impl Predicate {
 
     pub fn typarams(&self) -> Vec<&TyParam> {
         match self {
-            Self::Value(_) | Self::Const(_) | Self::Attr { .. } => vec![],
+            Self::Value(_) | Self::Const(_) | Self::Attr { .. } | Self::Failure => vec![],
             // REVIEW: Should the receiver be included?
             Self::Call { args, .. } => {
                 let mut vec = vec![];
@@ -835,7 +835,7 @@ impl Predicate {
 
     pub fn variables(&self) -> Set<Str> {
         match self {
-            Self::Value(_) => set! {},
+            Self::Value(_) | Self::Failure => set! {},
             Self::Const(name) => set! { name.clone() },
             Self::Call { receiver, args, .. } => {
                 let mut set = receiver.variables();

@@ -1796,6 +1796,7 @@ impl Context {
                     Obj
                 }
             }
+            Predicate::Failure => Type::Failure,
         }
     }
 

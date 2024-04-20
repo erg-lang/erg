@@ -1,0 +1,10 @@
+C = Class {
+    .x = Iny; # ERR
+    .y = Int;
+}
+
+c = C.new todo()
+print! c.y.bit_count() # OK
+
+rec as { .x = Int; .y = Iny } = todo() # ERR
+print! rec.x.bit_count() # OK

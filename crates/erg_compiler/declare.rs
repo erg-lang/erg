@@ -39,7 +39,13 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             )));
         }
         let opt_spec_t = if let Some(t_spec) = &sig.t_spec {
-            let t = self.module.context.instantiate_typespec(&t_spec.t_spec)?;
+            let t = match self.module.context.instantiate_typespec(&t_spec.t_spec) {
+                Ok(t) => t,
+                Err((t, es)) => {
+                    self.errs.extend(es);
+                    t
+                }
+            };
             t.lift();
             Some(self.module.context.generalize_t(t))
         } else {
@@ -112,7 +118,13 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         ident.vi.py_name = py_name;
         ident.vi.def_loc = self.module.context.absolutize(ident.raw.name.loc());
         let t_spec = if let Some(ts) = sig.t_spec {
-            let spec_t = self.module.context.instantiate_typespec(&ts.t_spec)?;
+            let spec_t = match self.module.context.instantiate_typespec(&ts.t_spec) {
+                Ok(t) => t,
+                Err((t, es)) => {
+                    self.errs.extend(es);
+                    t
+                }
+            };
             let expr = self.fake_lower_expr(*ts.t_spec_as_expr.clone())?;
             Some(hir::TypeSpecWithOp::new(ts, expr, spec_t))
         } else {
@@ -368,7 +380,11 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 let ident = hir::Identifier::bare(subr.ident);
                 let params = self.fake_lower_params(subr.params)?;
                 let ret_t_spec = if let Some(ts) = subr.return_t_spec {
-                    let spec_t = self.module.context.instantiate_typespec(&ts.t_spec)?;
+                    let spec_t = self
+                        .module
+                        .context
+                        .instantiate_typespec(&ts.t_spec)
+                        .map_err(|(_, es)| es)?;
                     let expr = self.fake_lower_expr(*ts.t_spec_as_expr.clone())?;
                     Some(hir::TypeSpecWithOp::new(ts, expr, spec_t))
                 } else {
@@ -593,7 +609,8 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         let spec_t = self
             .module
             .context
-            .instantiate_typespec(&tasc.t_spec.t_spec)?;
+            .instantiate_typespec(&tasc.t_spec.t_spec)
+            .map_err(|(_, es)| es)?;
         let spec = hir::TypeSpecWithOp::new(tasc.t_spec, t_spec_as_expr, spec_t);
         Ok(hir::TypeAscription::new(expr, spec))
     }
@@ -643,10 +660,17 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         match *tasc.expr {
             ast::Expr::Accessor(ast::Accessor::Ident(ident)) => {
                 let py_name = Str::rc(ident.inspect().trim_end_matches('!'));
-                let t = self
+                let t = match self
                     .module
                     .context
-                    .instantiate_typespec(&tasc.t_spec.t_spec)?;
+                    .instantiate_typespec(&tasc.t_spec.t_spec)
+                {
+                    Ok(t) => t,
+                    Err((t, es)) => {
+                        self.errs.extend(es);
+                        t
+                    }
+                };
                 t.lift();
                 let t = self.module.context.generalize_t(t);
                 match kind {
@@ -693,19 +717,33 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 } else {
                     TyVarCache::new(self.module.context.level, &self.module.context)
                 };
-                let t = self
+                let t = match self
                     .module
                     .context
-                    .instantiate_typespec_with_tv_cache(&tasc.t_spec.t_spec, &mut tv_cache)?;
+                    .instantiate_typespec_with_tv_cache(&tasc.t_spec.t_spec, &mut tv_cache)
+                {
+                    Ok(t) => t,
+                    Err((t, es)) => {
+                        self.errs.extend(es);
+                        t
+                    }
+                };
                 let impl_trait = if let ast::Expr::Accessor(ast::Accessor::TypeApp(tapp)) =
                     attr.obj.as_ref()
                 {
                     match &tapp.type_args.args {
                         TypeAppArgsKind::SubtypeOf(typ) => {
-                            let trait_ = self
+                            let trait_ = match self
                                 .module
                                 .context
-                                .instantiate_typespec_with_tv_cache(&typ.t_spec, &mut tv_cache)?;
+                                .instantiate_typespec_with_tv_cache(&typ.t_spec, &mut tv_cache)
+                            {
+                                Ok(t) => t,
+                                Err((t, es)) => {
+                                    self.errs.extend(es);
+                                    t
+                                }
+                            };
                             if !self.module.context.is_trait(&trait_) {
                                 return Err(LowerErrors::from(LowerError::type_mismatch_error(
                                     self.cfg().input.clone(),
@@ -831,10 +869,17 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 };
                 let py_name = Str::rc(ident.inspect().trim_end_matches('!'));
                 let mut tv_cache = self.module.context.get_tv_ctx(&ident, &call.args);
-                let t = self
+                let t = match self
                     .module
                     .context
-                    .instantiate_typespec_with_tv_cache(&tasc.t_spec.t_spec, &mut tv_cache)?;
+                    .instantiate_typespec_with_tv_cache(&tasc.t_spec.t_spec, &mut tv_cache)
+                {
+                    Ok(t) => t,
+                    Err((t, es)) => {
+                        self.errs.extend(es);
+                        t
+                    }
+                };
                 match kind {
                     AscriptionKind::TypeOf | AscriptionKind::AsCast => {
                         self.declare_instance(&ident, &t, py_name)?;

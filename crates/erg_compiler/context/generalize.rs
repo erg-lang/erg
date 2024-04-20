@@ -323,7 +323,7 @@ impl Generalizer {
 
     fn generalize_pred(&mut self, pred: Predicate, uninit: bool) -> Predicate {
         match pred {
-            Predicate::Const(_) => pred,
+            Predicate::Const(_) | Predicate::Failure => pred,
             Predicate::Value(ValueObj::Type(mut typ)) => {
                 *typ.typ_mut() = self.generalize_t(mem::take(typ.typ_mut()), uninit);
                 Predicate::Value(ValueObj::Type(typ))

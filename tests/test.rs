@@ -559,6 +559,12 @@ fn exec_import_cyclic_err() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_incomplete_typespec() -> Result<(), ()> {
+    // TODO: errs: 2
+    expect_failure("tests/should_err/incomplete_typespec.er", 0, 3)
+}
+
+#[test]
 fn exec_infer_union_array() -> Result<(), ()> {
     expect_failure("tests/should_err/infer_union_array.er", 2, 1)
 }
