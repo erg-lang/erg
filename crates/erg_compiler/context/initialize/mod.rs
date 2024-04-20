@@ -19,6 +19,7 @@ use erg_common::env::{erg_core_decl_path, erg_pystd_path};
 use erg_common::error::Location;
 #[allow(unused_imports)]
 use erg_common::log;
+use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::Str;
 use erg_common::{set, unique_in_place};
 
@@ -1129,21 +1130,14 @@ impl Context {
 
     pub(crate) fn register_methods(&mut self, t: &Type, ctx: &Self) {
         for impl_trait in ctx.super_traits.iter() {
-            let declared_in = self.module_path().into();
+            let declared_in = NormalizedPathBuf::from(self.module_path());
+            let declared_in = declared_in.exists().then_some(declared_in);
             if let Some(mut impls) = self.trait_impls().get_mut(&impl_trait.qual_name()) {
-                impls.insert(TraitImpl::new(
-                    t.clone(),
-                    impl_trait.clone(),
-                    Some(declared_in),
-                ));
+                impls.insert(TraitImpl::new(t.clone(), impl_trait.clone(), declared_in));
             } else {
                 self.trait_impls().register(
                     impl_trait.qual_name(),
-                    set![TraitImpl::new(
-                        t.clone(),
-                        impl_trait.clone(),
-                        Some(declared_in)
-                    )],
+                    set![TraitImpl::new(t.clone(), impl_trait.clone(), declared_in)],
                 );
             }
         }
@@ -1334,7 +1328,6 @@ impl Context {
     }
 
     pub(crate) fn build_module_unsound(&self) {
-        use erg_common::pathutil::NormalizedPathBuf;
         use std::path::Path;
 
         use crate::hir::{

@@ -6,7 +6,7 @@ use erg_common::dict::Dict;
 use erg_common::env::is_pystd_main_module;
 use erg_common::erg_util::BUILTIN_ERG_MODS;
 use erg_common::levenshtein::get_similar_name;
-use erg_common::pathutil::{DirKind, FileKind};
+use erg_common::pathutil::{DirKind, FileKind, NormalizedPathBuf};
 use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream, StructuralEq};
@@ -1040,17 +1040,14 @@ impl Context {
         trait_loc: &impl Locational,
     ) -> TyCheckResult<()> {
         // TODO: polymorphic trait
-        let declared_in = self.module_path().into();
+        let declared_in = NormalizedPathBuf::from(self.module_path());
+        let declared_in = declared_in.exists().then_some(declared_in);
         if let Some(mut impls) = self.trait_impls().get_mut(&trait_.qual_name()) {
-            impls.insert(TraitImpl::new(
-                class.clone(),
-                trait_.clone(),
-                Some(declared_in),
-            ));
+            impls.insert(TraitImpl::new(class.clone(), trait_.clone(), declared_in));
         } else {
             self.trait_impls().register(
                 trait_.qual_name(),
-                set! {TraitImpl::new(class.clone(), trait_.clone(), Some(declared_in))},
+                set! {TraitImpl::new(class.clone(), trait_.clone(), declared_in)},
             );
         }
         let trait_ctx = if let Some(trait_ctx) = self.get_nominal_type_ctx(trait_) {

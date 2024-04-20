@@ -2,6 +2,7 @@ use std::mem;
 
 use erg_common::consts::PYTHON_MODE;
 use erg_common::error::Location;
+use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::traits::{Locational, Runnable, Stream};
 use erg_common::{fn_name, log, set, Str, Triple};
 
@@ -789,19 +790,20 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                                 ctx.level,
                             );
                             ctx.super_traits.push(impl_trait.clone());
-                            let declared_in = ctx.module_path().into();
+                            let declared_in = NormalizedPathBuf::from(ctx.module_path());
+                            let declared_in = declared_in.exists().then_some(declared_in);
                             if let Some(mut impls) =
                                 ctx.trait_impls().get_mut(&impl_trait.qual_name())
                             {
                                 impls.insert(TraitImpl::new(
                                     class.clone(),
                                     impl_trait.clone(),
-                                    Some(declared_in),
+                                    declared_in,
                                 ));
                             } else {
                                 ctx.trait_impls().register(
                                     impl_trait.qual_name(),
-                                    set! { TraitImpl::new(class.clone(), impl_trait.clone(), Some(declared_in)) },
+                                    set! { TraitImpl::new(class.clone(), impl_trait.clone(), declared_in) },
                                 );
                             }
                             ctx.methods_list.push(MethodContext::new(
