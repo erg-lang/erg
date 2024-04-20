@@ -1298,6 +1298,7 @@ impl Context {
         not_found_is_qvar: bool,
     ) -> Failable<TyParam> {
         let mut errs = TyCheckErrors::empty();
+        // this operation may fail but if is OK, it is recoverable
         match self.instantiate_const_expr(&app.obj, erased_idx, tmp_tv_cache, not_found_is_qvar) {
             Ok(obj) => {
                 let ctx = self
@@ -1348,10 +1349,11 @@ impl Context {
                 }
             }
             Err((_tp, es)) => {
-                errs.extend(es);
                 let Some(attr_name) = app.attr_name.as_ref() else {
+                    errs.extend(es);
                     return Err((TyParam::Failure, errs));
                 };
+                // recover process (`es` are cleared)
                 let acc = app.obj.clone().attr(attr_name.clone());
                 let attr =
                     self.instantiate_acc(&acc, erased_idx, tmp_tv_cache, not_found_is_qvar)?;
