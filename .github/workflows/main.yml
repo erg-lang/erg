@@ -34,7 +34,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
+        # M1 Mac does not support Python 3.7~3.9
+        os: [windows-latest, ubuntu-latest, macos-13]
         python-version: ['3.7', '3.8', '3.9', '3.10', '3.11.3']
     runs-on: ${{ matrix.os }}
     env:
@@ -59,7 +60,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
+        os: [windows-latest, ubuntu-latest, macos-13, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
