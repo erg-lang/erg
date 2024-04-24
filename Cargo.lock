@@ -290,9 +290,9 @@ dependencies = [
 
 [[package]]
 name = "molc"
-version = "0.2.8"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "518188a50ad95f57dd852ec777c4dfd65ed2402fdc0e20fa47628f98f215eee6"
+checksum = "4584f5f0dfee2be636c6413e44e0b73e23ea299d212fa7124d4c87696533c8a8"
 dependencies = [
  "lsp-types",
  "serde",
@@ -535,9 +535,9 @@ dependencies = [
 
 [[package]]
 name = "signal-hook-registry"
-version = "1.4.1"
+version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8229b473baa5980ac72ef434c4415e70c4b5e71b423043adb4ba059f89c99a1"
+checksum = "a9e9e0b4211b72e7b8b6e85c807d36c212bdb33ea8587f7569562a84df5465b1"
 dependencies = [
  "libc",
 ]
