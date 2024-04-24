@@ -3,7 +3,7 @@
 # erg bump_version.er -- major: 0.1.0 => 1.0.0
 # erg bump_version.er -- minor: 0.1.0 => 0.2.0
 # erg bump_version.er -- patch: 0.1.0 => 0.1.1
-# erg bump_version.er -- patch: 0.1.1-nightly.0 => 0.1.2
+# erg bump_version.er -- patch: 0.1.1-nightly.0 => 0.1.1
 # erg bump_version.er -- pre: 0.1.1-nightly.0 => 0.1.1-nightly.1
 # erg bump_version.er -- nightly: 0.1.1 => 0.1.2-nightly.0
 
@@ -37,7 +37,9 @@ new = match bumps:
     "minor" ->
         semver.SemVer.new ver.major, ver.minor + 1, 0, None
     "patch" ->
-        semver.SemVer.new ver.major, ver.minor, ver.patch + 1, None
+        if ver.pre != None:
+            do: semver.SemVer.new ver.major, ver.minor, ver.patch, None
+            do: semver.SemVer.new ver.major, ver.minor, ver.patch + 1, None
     "pre" ->
         assert ver.pre != None, "not a pre-release version: \{ver}"
         pre = semver.Identifier.new { .name = ver.pre.name; .num = ver.pre.num + 1; }
@@ -53,7 +55,9 @@ els_new = match bumps:
     "minor" ->
         semver.SemVer.new els_ver.major, els_ver.minor + 1, 0, None
     "patch" ->
-        semver.SemVer.new els_ver.major, els_ver.minor, els_ver.patch + 1, None
+        if els_ver.pre != None:
+            do: semver.SemVer.new els_ver.major, els_ver.minor, els_ver.patch, None
+            do: semver.SemVer.new els_ver.major, els_ver.minor, els_ver.patch + 1, None
     "pre" ->
         assert els_ver.pre != None, "not a pre-release version: \{els_ver}"
         pre = semver.Identifier.new { .name = els_ver.pre.name; .num = els_ver.pre.num + 1; }
