@@ -6,3 +6,5 @@ assert first(1, 2, 3) == "b" # ERR
 
 f = (*_: Int) -> None
 f "a", 1, 2
+
+_: (Int, Str) -> NoneType = f # ERR

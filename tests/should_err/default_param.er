@@ -1,0 +1,6 @@
+f x: Int, y: Int := 1, z: Nat := 2 = x + y + z
+_: (Int, Str) -> Int = f # ERR
+_: (Int, Int, Int) -> Int = f # ERR (contravariant)
+
+id_or_int x := 1 = x
+_: Int -> Str = id_or_int # ERR

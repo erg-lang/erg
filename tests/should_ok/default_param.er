@@ -9,3 +9,12 @@ i = id_or_int()
 s = id_or_int "a"
 assert i + 1 + 1 == 3
 assert s + "b" == "ab"
+
+_: (Int, y := Int, z := Nat) -> Int = f
+_: (Int, y := Int) -> Int = f
+_: Int -> Int = f
+_: (Int, Int) -> Int = f
+_: (Int, Int, Nat) -> Int = f
+_: (Int, Int, _: {1}) -> Int = f
+_: Int -> Int = id_or_int
+_: Str -> Str = id_or_int

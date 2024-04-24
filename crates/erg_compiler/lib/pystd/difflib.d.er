@@ -1,0 +1,62 @@
+.Differ: ClassType
+
+.HTMLDiff: ClassType
+
+.SequenceMatcher: ClassType
+
+.context_diff: (
+    a: Sequence(Str),
+    b: Sequence(Str),
+    fromfile := Str,
+    tofile := Str,
+    fromfiledate := Str,
+    tofiledate := Str,
+    n := Nat,
+    lineterm := Str,
+) -> Iterator Str
+.get_close_matches: (
+    word: Str,
+    possibilities: Sequence(Str),
+    n := Nat,
+    cutoff := Float,
+) -> [Str; _]
+.ndiff: (
+    a: Sequence(Str),
+    b: Sequence(Str),
+    linejunk := Str -> Bool,
+    charjunk := Str -> Bool,
+) -> Iterator Str
+.restore: (sequence: Iterator(Str), which: Nat) -> Str
+.unified_diff: (
+    a: Sequence(Str),
+    b: Sequence(Str),
+    fromfile := Str,
+    tofile := Str,
+    fromfiledate := Str,
+    tofiledate := Str,
+    n := Nat,
+    lineterm := Str,
+) -> Iterator Str
+.diff_bytes: (
+    dfunc: ((
+        a: Sequence(Str),
+        b: Sequence(Str),
+        fromfile: Str,
+        tofile: Str,
+        fromfiledate: Str,
+        tofiledate: Str,
+        n: Nat,
+        lineterm: Str,
+    ) -> Iterator Str),
+    a: Sequence(Bytes),
+    b: Sequence(Bytes),
+    fromfile := Bytes,
+    tofile := Bytes,
+    fromfiledate := Bytes,
+    tofiledate := Bytes,
+    n := Nat,
+    lineterm := Bytes,
+) -> Iterator Bytes
+
+.IS_LINE_JUNK: Str -> Bool
+.IS_CHARACTER_JUNK: Str -> Bool

@@ -1,4 +1,5 @@
 //! provides type-comparison
+use std::iter::repeat;
 use std::option::Option; // conflicting to Type::Option
 
 use erg_common::consts::DEBUG_MODE;
@@ -357,6 +358,7 @@ impl Context {
         match (lhs, rhs) {
             // Proc :> Func if params are compatible
             // * default params can be omitted (e.g. (Int, x := Int) -> Int <: (Int) -> Int)
+            // * and default params can be non-default (e.g. (Int, x := Int) -> Int <: (Int, Int) -> Int)
             (Subr(ls), Subr(rs)) if ls.kind == rs.kind || ls.kind.is_proc() => {
                 let default_check = || {
                     for lpt in ls.default_params.iter() {
@@ -376,8 +378,12 @@ impl Context {
                 };
                 // () -> Never <: () -> Int <: () -> Object
                 // (Object) -> Int <: (Int) -> Int <: (Never) -> Int
+                // (Int, n := Int) -> Int <: (Int, Int) -> Int
+                // (Int, n := Int, m := Int) -> Int <: (Int, Int) -> Int
+                // (Int, n := Int) -> Int <!: (Int, Int, Int) -> Int
                 // (*Int) -> Int <: (Int, Int) -> Int
-                let same_params_len = ls.non_default_params.len() == rs.non_default_params.len()
+                let len_judge = ls.non_default_params.len()
+                    <= rs.non_default_params.len() + rs.default_params.len()
                     || rs.var_params.is_some();
                 // && ls.default_params.len() <= rs.default_params.len();
                 let rhs_ret = rs
@@ -385,18 +391,24 @@ impl Context {
                     .clone()
                     .replace_params(rs.param_names(), ls.param_names());
                 let return_t_judge = self.supertype_of(&ls.return_t, &rhs_ret); // covariant
-                let non_defaults_judge = ls
-                    .non_default_params
-                    .iter()
-                    .zip(rs.non_default_params.iter())
-                    .all(|(l, r)| self.subtype_of(l.typ(), r.typ()));
+                let non_defaults_judge = if let Some(r_var) = rs.var_params.as_deref() {
+                    ls.non_default_params
+                        .iter()
+                        .zip(repeat(r_var))
+                        .all(|(l, r)| self.subtype_of(l.typ(), r.typ()))
+                } else {
+                    ls.non_default_params
+                        .iter()
+                        .zip(rs.non_default_params.iter().chain(rs.default_params.iter()))
+                        .all(|(l, r)| self.subtype_of(l.typ(), r.typ()))
+                };
                 let var_params_judge = ls
                     .var_params
                     .as_ref()
                     .zip(rs.var_params.as_ref())
                     .map(|(l, r)| self.subtype_of(l.typ(), r.typ()))
                     .unwrap_or(true);
-                same_params_len
+                len_judge
                     && return_t_judge
                     && non_defaults_judge
                     && var_params_judge

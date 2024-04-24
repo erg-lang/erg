@@ -1,4 +1,5 @@
 //! provides type variable related operations
+use std::iter::repeat;
 use std::mem;
 use std::option::Option;
 
@@ -1252,14 +1253,28 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 }
             }
             (Subr(sub_subr), Subr(sup_subr)) => {
-                sub_subr
-                    .non_default_params
-                    .iter()
-                    .zip(sup_subr.non_default_params.iter())
-                    .try_for_each(|(sub, sup)| {
-                        // contravariant
-                        self.sub_unify(sup.typ(), sub.typ())
-                    })?;
+                // (Int, *Int) -> ... <: (T, U, V) -> ...
+                if let Some(sub_var) = sub_subr.var_params.as_deref() {
+                    sub_subr
+                        .non_default_params
+                        .iter()
+                        .chain(repeat(sub_var))
+                        .zip(sup_subr.non_default_params.iter())
+                        .try_for_each(|(sub, sup)| {
+                            // contravariant
+                            self.sub_unify(sup.typ(), sub.typ())
+                        })?;
+                } else {
+                    sub_subr
+                        .non_default_params
+                        .iter()
+                        .chain(sub_subr.default_params.iter())
+                        .zip(sup_subr.non_default_params.iter())
+                        .try_for_each(|(sub, sup)| {
+                            // contravariant
+                            self.sub_unify(sup.typ(), sub.typ())
+                        })?;
+                }
                 sub_subr
                     .var_params
                     .iter()

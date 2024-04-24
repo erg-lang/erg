@@ -523,6 +523,11 @@ fn exec_collection_err() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_default_param_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/default_param.er", 0, 3)
+}
+
+#[test]
 fn exec_dependent_err() -> Result<(), ()> {
     expect_failure("tests/should_err/dependent.er", 0, 5)
 }
@@ -696,7 +701,7 @@ fn exec_refinement_class_err() -> Result<(), ()> {
 
 #[test]
 fn exec_var_args_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/var_args.er", 0, 3)
+    expect_failure("tests/should_err/var_args.er", 0, 4)
 }
 
 #[test]
