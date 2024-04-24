@@ -1640,8 +1640,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             None => None,
         };
         let mut hir_defaults = vec![];
-        for default in params.defaults.into_iter() {
-            match self.lower_expr(default.default_val, None) {
+        for (n, default) in params.defaults.into_iter().enumerate() {
+            let expect =
+                expect.and_then(|subr| subr.default_params.get(n).and_then(|pt| pt.default_typ()));
+            match self.lower_expr(default.default_val, expect) {
                 Ok(default_val) => {
                     let sig = self.lower_non_default_param(default.sig)?;
                     hir_defaults.push(hir::DefaultParamSignature::new(sig, default_val));
@@ -1756,7 +1758,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             }
             overwritten
         };
-        if let Err(errs) = self.module.context.register_const(&lambda.body) {
+        if let Err(errs) = self.module.context.register_defs(&lambda.body) {
             self.errs.extend(errs);
         }
         let body = self.lower_block(lambda.body, return_t).map_err(|errs| {
@@ -2008,7 +2010,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         expect_body: Option<&Type>,
     ) -> LowerResult<hir::Def> {
         log!(info "entered {}({sig})", fn_name!());
-        if let Err(errs) = self.module.context.register_const(&body.block) {
+        if let Err(errs) = self.module.context.register_defs(&body.block) {
             self.errs.extend(errs);
         }
         let outer = self.module.context.outer.as_ref().unwrap();
@@ -2142,7 +2144,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             }
             Type::Failure => {
                 let params = self.lower_params(sig.params, sig.bounds.clone(), None)?;
-                if let Err(errs) = self.module.context.register_const(&body.block) {
+                if let Err(errs) = self.module.context.register_defs(&body.block) {
                     self.errs.extend(errs);
                 }
                 self.module
@@ -2196,7 +2198,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             Some(&registered_subr_t),
         )?;
         log!(err "errs: {}", self.errs.len());
-        if let Err(errs) = self.module.context.register_const(&body.block) {
+        if let Err(errs) = self.module.context.register_defs(&body.block) {
             self.errs.extend(errs);
         }
         let return_t = registered_subr_t
@@ -3217,10 +3219,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             }
         }
         let mut module = hir::Module::with_capacity(ast.module.len());
-        if let Err(errs) = self.module.context.preregister_const(ast.module.block()) {
+        if let Err(errs) = self.module.context.preregister_consts(ast.module.block()) {
             self.errs.extend(errs);
         }
-        if let Err(errs) = self.module.context.register_const(ast.module.block()) {
+        if let Err(errs) = self.module.context.register_defs(ast.module.block()) {
             self.errs.extend(errs);
         }
         for chunk in ast.module.into_iter() {

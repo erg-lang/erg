@@ -214,6 +214,9 @@ impl Generalizer {
                 }
                 subr.default_params.iter_mut().for_each(|d_param| {
                     *d_param.typ_mut() = self.generalize_t(mem::take(d_param.typ_mut()), uninit);
+                    if let Some(default) = d_param.default_typ_mut() {
+                        *default = self.generalize_t(mem::take(default), uninit);
+                    }
                 });
                 self.variance = Covariant;
                 let return_t = self.generalize_t(*subr.return_t, uninit);
@@ -867,6 +870,12 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                                 self.pop_variance();
                                 e
                             })?;
+                    if let Some(default) = d_param.default_typ_mut() {
+                        *default = self.deref_tyvar(mem::take(default)).map_err(|e| {
+                            self.pop_variance();
+                            e
+                        })?;
+                    }
                     self.pop_variance();
                 }
                 self.push_variance(Covariant);
@@ -1139,6 +1148,12 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                     _self.pop_variance();
                     e
                 })?;
+            if let Some(default) = d_param.default_typ_mut() {
+                *default = _self.deref_tyvar(mem::take(default)).map_err(|e| {
+                    _self.pop_variance();
+                    e
+                })?;
+            }
             _self.pop_variance();
         }
         _self.push_variance(Covariant);

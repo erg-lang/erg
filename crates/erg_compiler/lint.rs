@@ -257,7 +257,7 @@ impl<ASTBuilder: ASTBuildable> GenericASTLowerer<ASTBuilder> {
             None,
         );
         let mut module = hir::Module::with_capacity(ast.module.len());
-        if let Err(errs) = self.module.context.register_const(ast.module.block()) {
+        if let Err(errs) = self.module.context.register_defs(ast.module.block()) {
             self.errs.extend(errs);
         }
         for chunk in ast.module.into_iter() {

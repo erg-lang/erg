@@ -5059,13 +5059,25 @@ impl fmt::Display for Params {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "({}", fmt_vec(&self.non_defaults))?;
         if let Some(var_params) = &self.var_params {
-            write!(f, ", *{var_params}")?;
+            if !self.non_defaults.is_empty() {
+                write!(f, ", ")?;
+            }
+            write!(f, "*{var_params}")?;
         }
         if !self.defaults.is_empty() {
-            write!(f, ", {}", fmt_vec(&self.defaults))?;
+            if !self.non_defaults.is_empty() || self.var_params.is_some() {
+                write!(f, ", ")?;
+            }
+            write!(f, "{}", fmt_vec(&self.defaults))?;
         }
         if let Some(kw_var_params) = &self.kw_var_params {
-            write!(f, ", **{kw_var_params}")?;
+            if !self.non_defaults.is_empty()
+                || self.var_params.is_some()
+                || !self.defaults.is_empty()
+            {
+                write!(f, ", ")?;
+            }
+            write!(f, "**{kw_var_params}")?;
         }
         if !self.guards.is_empty() {
             write!(f, " if ")?;

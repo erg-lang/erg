@@ -3,3 +3,9 @@ f x: Int, y: Int := 1, z: Nat := 2 = x + y + z
 assert f(1) == 4
 assert f(1, 2) == 5
 assert f(1, 2, 3) == 6
+
+id_or_int x := 1 = x
+i = id_or_int()
+s = id_or_int "a"
+assert i + 1 + 1 == 3
+assert s + "b" == "ab"

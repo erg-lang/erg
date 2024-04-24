@@ -264,7 +264,6 @@ impl Context {
     pub(crate) fn instantiate_sub_sig_t(
         &self,
         sig: &ast::SubrSignature,
-        default_ts: Vec<Type>,
         mode: RegistrationMode,
     ) -> Failable<Type> {
         let mut errs = TyCheckErrors::empty();
@@ -332,10 +331,12 @@ impl Context {
             None
         };
         let mut defaults = vec![];
-        for ((n, p), default_t) in sig.params.defaults.iter().enumerate().zip(default_ts) {
+        for (n, p) in sig.params.defaults.iter().enumerate() {
             let opt_decl_t = opt_decl_sig_t
                 .as_ref()
                 .and_then(|subr| subr.default_params.get(n));
+            // NOTE: We constrain this type variable later (in `ASTLowerer::lower_params`).
+            let default_t = free_var(self.level, Constraint::new_type_of(Type::Type));
             match self.instantiate_param_ty(
                 &p.sig,
                 opt_decl_t,

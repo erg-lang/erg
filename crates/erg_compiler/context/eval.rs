@@ -2073,6 +2073,12 @@ impl Context {
                         Ok(t) => t,
                         Err((_, errs)) => return Err((Subr(subr), errs)),
                     };
+                    if let Some(default) = pt.default_typ_mut() {
+                        *default = match self.eval_t_params(mem::take(default), level, t_loc) {
+                            Ok(t) => t,
+                            Err((_, errs)) => return Err((Subr(subr), errs)),
+                        };
+                    }
                 }
                 if let Some(kw_var_args) = subr.kw_var_params.as_mut() {
                     *kw_var_args.typ_mut() =

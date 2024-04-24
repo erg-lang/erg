@@ -248,6 +248,20 @@ impl ParamTy {
         }
     }
 
+    pub fn map_default_type<F>(self, f: F) -> Self
+    where
+        F: FnOnce(Type) -> Type,
+    {
+        match self {
+            Self::KwWithDefault { name, ty, default } => Self::KwWithDefault {
+                name,
+                ty,
+                default: f(default),
+            },
+            _ => self,
+        }
+    }
+
     pub fn try_map_type<F, E>(self, f: F) -> Result<Self, E>
     where
         F: FnOnce(Type) -> Result<Type, E>,
@@ -393,6 +407,15 @@ impl StructuralEq for SubrType {
                     if !lpt.typ().structural_eq(rpt.typ()) {
                         return false;
                     }
+                    match (lpt.default_typ(), rpt.default_typ()) {
+                        (Some(l), Some(r)) => {
+                            if !l.structural_eq(r) {
+                                return false;
+                            }
+                        }
+                        (None, None) => {}
+                        _ => return false,
+                    }
                 } else {
                     return false;
                 }
@@ -450,10 +473,10 @@ impl SubrType {
                 .var_params
                 .as_ref()
                 .map_or(false, |pt| pt.typ().contains_tvar(target))
-            || self
-                .default_params
-                .iter()
-                .any(|pt| pt.typ().contains_tvar(target))
+            || self.default_params.iter().any(|pt| {
+                pt.typ().contains_tvar(target)
+                    || pt.default_typ().is_some_and(|t| t.contains_tvar(target))
+            })
             || self.return_t.contains_tvar(target)
     }
 
@@ -465,10 +488,10 @@ impl SubrType {
                 .var_params
                 .as_ref()
                 .map_or(false, |pt| pt.typ().contains_type(target))
-            || self
-                .default_params
-                .iter()
-                .any(|pt| pt.typ().contains_type(target))
+            || self.default_params.iter().any(|pt| {
+                pt.typ().contains_type(target)
+                    || pt.default_typ().is_some_and(|t| t.contains_type(target))
+            })
             || self.return_t.contains_type(target)
     }
 
@@ -480,10 +503,10 @@ impl SubrType {
                 .var_params
                 .as_ref()
                 .map_or(false, |pt| pt.typ().contains_tp(target))
-            || self
-                .default_params
-                .iter()
-                .any(|pt| pt.typ().contains_tp(target))
+            || self.default_params.iter().any(|pt| {
+                pt.typ().contains_tp(target)
+                    || pt.default_typ().is_some_and(|t| t.contains_tp(target))
+            })
             || self.return_t.contains_tp(target)
     }
 
@@ -497,6 +520,9 @@ impl SubrType {
         }
         for pt in self.default_params.iter() {
             qvars.extend(pt.typ().qvars());
+            if let Some(default) = pt.default_typ() {
+                qvars.extend(default.qvars());
+            }
         }
         qvars.extend(self.return_t.qvars());
         qvars
@@ -521,6 +547,11 @@ impl SubrType {
             .map(|pt| pt.typ().qnames())
             .chain(self.var_params.iter().map(|pt| pt.typ().qnames()))
             .chain(self.default_params.iter().map(|pt| pt.typ().qnames()))
+            .chain(
+                self.default_params
+                    .iter()
+                    .flat_map(|pt| pt.default_typ().map(|t| t.qnames())),
+            )
             .chain([self.return_t.qnames()]);
         Set::multi_intersection(qnames_sets).extended(structural_qname)
     }
@@ -531,7 +562,10 @@ impl SubrType {
                 .var_params
                 .as_ref()
                 .map_or(false, |pt| pt.typ().has_qvar())
-            || self.default_params.iter().any(|pt| pt.typ().has_qvar())
+            || self
+                .default_params
+                .iter()
+                .any(|pt| pt.typ().has_qvar() || pt.default_typ().is_some_and(|t| t.has_qvar()))
             || self.return_t.has_qvar()
     }
 
@@ -543,10 +577,9 @@ impl SubrType {
                 .var_params
                 .as_ref()
                 .map_or(false, |pt| pt.typ().has_unbound_var())
-            || self
-                .default_params
-                .iter()
-                .any(|pt| pt.typ().has_unbound_var())
+            || self.default_params.iter().any(|pt| {
+                pt.typ().has_unbound_var() || pt.default_typ().is_some_and(|t| t.has_unbound_var())
+            })
             || self.return_t.has_unbound_var()
     }
 
@@ -558,10 +591,12 @@ impl SubrType {
                 .var_params
                 .as_ref()
                 .map_or(false, |pt| pt.typ().has_undoable_linked_var())
-            || self
-                .default_params
-                .iter()
-                .any(|pt| pt.typ().has_undoable_linked_var())
+            || self.default_params.iter().any(|pt| {
+                pt.typ().has_undoable_linked_var()
+                    || pt
+                        .default_typ()
+                        .is_some_and(|t| t.has_undoable_linked_var())
+            })
             || self.return_t.has_undoable_linked_var()
     }
 
@@ -579,6 +614,11 @@ impl SubrType {
             self.default_params
                 .iter()
                 .map(|pt| TyParam::t(pt.typ().clone()))
+                .collect(),
+            self.default_params
+                .iter()
+                .filter_map(|pt| pt.default_typ())
+                .map(|t| TyParam::t(t.clone()))
                 .collect(),
         ]
         .concat()
@@ -676,7 +716,11 @@ impl SubrType {
         let default_params = self
             .default_params
             .iter()
-            .map(|pt| pt.clone().map_type(|t| t.derefine()))
+            .map(|pt| {
+                pt.clone()
+                    .map_type(|t| t.derefine())
+                    .map_default_type(|t| t.derefine())
+            })
             .collect();
         let kw_var_params = self
             .kw_var_params
@@ -731,6 +775,9 @@ impl SubrType {
         }
         for d in self.default_params.iter_mut() {
             *d.typ_mut() = std::mem::take(d.typ_mut())._replace(target, to);
+            if let Some(default) = d.default_typ_mut() {
+                *default = std::mem::take(default)._replace(target, to);
+            }
         }
         self.return_t = Box::new(self.return_t._replace(target, to));
         self
@@ -1645,6 +1692,11 @@ impl HasType for Type {
                 .default_params
                 .iter()
                 .map(|pt| pt.typ().clone())
+                .chain(
+                    sub.default_params
+                        .iter()
+                        .flat_map(|pt| pt.default_typ().cloned()),
+                )
                 .chain(sub.var_params.as_deref().map(|pt| pt.typ().clone()))
                 .chain(sub.non_default_params.iter().map(|pt| pt.typ().clone()))
                 .chain([*sub.return_t.clone()])
@@ -1700,8 +1752,13 @@ impl HasLevel for Type {
                     .iter()
                     .filter_map(|p| p.typ().level())
                     .min();
+                let dv_min = subr
+                    .default_params
+                    .iter()
+                    .filter_map(|p| p.default_typ().and_then(|t| t.level()))
+                    .min();
                 let ret_min = subr.return_t.level();
-                [nd_min, v_min, d_min, ret_min]
+                [nd_min, v_min, d_min, dv_min, ret_min]
                     .iter()
                     .filter_map(|o| *o)
                     .min()
@@ -1788,6 +1845,9 @@ impl HasLevel for Type {
                 }
                 for pt in subr.default_params.iter() {
                     pt.typ().set_level(level);
+                    if let Some(t) = pt.default_typ() {
+                        t.set_level(level);
+                    }
                 }
                 subr.return_t.set_level(level);
             }
@@ -2275,6 +2335,11 @@ impl Type {
                 .map(|pt| pt.typ().union_size())
                 .chain(subr.var_params.as_ref().map(|pt| pt.typ().union_size()))
                 .chain(subr.default_params.iter().map(|pt| pt.typ().union_size()))
+                .chain(
+                    subr.default_params
+                        .iter()
+                        .flat_map(|pt| pt.default_typ().map(|t| t.union_size())),
+                )
                 .max()
                 .unwrap_or(1)
                 .max(subr.return_t.union_size()),
@@ -3314,10 +3379,10 @@ impl Type {
                         .as_ref()
                         .map(|pt| pt.typ().has_unbound_var())
                         .unwrap_or(false)
-                    || subr
-                        .default_params
-                        .iter()
-                        .any(|pt| pt.typ().has_unbound_var())
+                    || subr.default_params.iter().any(|pt| {
+                        pt.typ().has_unbound_var()
+                            || pt.default_typ().is_some_and(|t| t.has_unbound_var())
+                    })
                     || subr.return_t.has_unbound_var()
             }
             Self::Record(r) => r.values().any(|t| t.has_unbound_var()),
@@ -3715,6 +3780,7 @@ impl Type {
                     .map(|pt| {
                         pt.clone()
                             .map_type(|t| t.replace(&Self::Failure, &Self::Obj))
+                            .map_default_type(|t| t.replace(&Self::Failure, &Self::Obj))
                     })
                     .collect();
                 let kw_var_params = subr.kw_var_params.as_ref().map(|pt| {
@@ -3866,6 +3932,9 @@ impl Type {
                 }
                 for d in subr.default_params.iter_mut() {
                     *d.typ_mut() = std::mem::take(d.typ_mut()).normalize();
+                    if let Some(default) = d.default_typ_mut() {
+                        *default = std::mem::take(default).normalize();
+                    }
                 }
                 subr.return_t = Box::new(subr.return_t.normalize());
                 Self::Subr(subr)
@@ -4120,6 +4189,9 @@ impl Type {
                 }
                 for d in sub.default_params.iter() {
                     ts.extend(d.typ().contained_ts());
+                    if let Some(default) = d.default_typ() {
+                        ts.extend(default.contained_ts());
+                    }
                 }
                 ts.extend(sub.return_t.contained_ts());
                 ts
@@ -4179,6 +4251,9 @@ impl Type {
                 }
                 for d in sub.default_params.iter_mut() {
                     d.typ_mut().dereference();
+                    if let Some(default) = d.default_typ_mut() {
+                        default.dereference();
+                    }
                 }
                 sub.return_t.dereference();
             }
@@ -4282,6 +4357,9 @@ impl Type {
                 }
                 for d in sub.default_params.iter() {
                     set.extend(d.typ().variables());
+                    if let Some(default) = d.default_typ() {
+                        set.extend(default.variables());
+                    }
                 }
                 set.extend(sub.return_t.variables());
                 set
@@ -4358,6 +4436,9 @@ impl<'t> ReplaceTable<'t> {
                 }
                 for (ld, rd) in lsub.default_params.iter().zip(rsub.default_params.iter()) {
                     self.iterate(ld.typ(), rd.typ());
+                    if let (Some(ldefault), Some(rdefault)) = (ld.default_typ(), rd.default_typ()) {
+                        self.iterate(ldefault, rdefault);
+                    }
                 }
                 self.iterate(lsub.return_t.as_ref(), rsub.return_t.as_ref());
             }

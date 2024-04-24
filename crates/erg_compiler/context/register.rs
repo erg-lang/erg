@@ -20,10 +20,10 @@ use ast::{
 use erg_parser::ast::{self, ClassAttr, RecordAttrOrIdent, TypeSpecWithOp};
 
 use crate::ty::constructors::{
-    free_var, func, func0, func1, module, proc, py_module, ref_, ref_mut, str_dict_t, tp_enum,
+    func, func0, func1, module, proc, py_module, ref_, ref_mut, str_dict_t, tp_enum,
     unknown_len_list_t, v_enum,
 };
-use crate::ty::free::{Constraint, HasLevel};
+use crate::ty::free::HasLevel;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{
@@ -161,9 +161,7 @@ impl Context {
                 _ => None,
             })
             .collect::<Set<_>>();
-        let default_ts =
-            vec![free_var(self.level, Constraint::new_type_of(Type::Type)); sig.params.len()];
-        let (errs, t) = match self.instantiate_sub_sig_t(sig, default_ts, PreRegister) {
+        let (errs, t) = match self.instantiate_sub_sig_t(sig, PreRegister) {
             Ok(t) => (TyCheckErrors::empty(), t),
             Err((t, errs)) => (errs, t),
         };
@@ -1077,7 +1075,7 @@ impl Context {
     }
 
     /// Registers type definitions of types and constants; unlike `register_const`, this does not evaluate terms.
-    pub(crate) fn preregister_const(&mut self, block: &ast::Block) -> TyCheckResult<()> {
+    pub(crate) fn preregister_consts(&mut self, block: &ast::Block) -> TyCheckResult<()> {
         let mut total_errs = TyCheckErrors::empty();
         for expr in block.iter() {
             match expr {
@@ -1097,7 +1095,7 @@ impl Context {
                     }
                 }
                 ast::Expr::Dummy(dummy) => {
-                    if let Err(errs) = self.preregister_const(&dummy.exprs) {
+                    if let Err(errs) = self.preregister_consts(&dummy.exprs) {
                         total_errs.extend(errs);
                     }
                 }
@@ -1111,7 +1109,7 @@ impl Context {
         }
     }
 
-    pub(crate) fn register_const(&mut self, block: &ast::Block) -> TyCheckResult<()> {
+    pub(crate) fn register_defs(&mut self, block: &ast::Block) -> TyCheckResult<()> {
         let mut total_errs = TyCheckErrors::empty();
         for expr in block.iter() {
             match expr {
@@ -1175,7 +1173,7 @@ impl Context {
                     }
                 }
                 ast::Expr::Dummy(dummy) => {
-                    if let Err(errs) = self.register_const(&dummy.exprs) {
+                    if let Err(errs) = self.register_defs(&dummy.exprs) {
                         total_errs.extend(errs);
                     }
                 }

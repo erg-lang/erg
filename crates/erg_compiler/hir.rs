@@ -9,7 +9,7 @@ use erg_common::log;
 use erg_common::set::Set as HashSet;
 use erg_common::traits::{Locational, NestedDisplay, NoTypeDisplay, Stream};
 use erg_common::{
-    enum_unwrap, fmt_option, fmt_option_map, fmt_vec, fmt_vec_split_with, impl_display_for_enum,
+    enum_unwrap, fmt_option, fmt_option_map, fmt_vec, impl_display_for_enum,
     impl_display_from_nested, impl_locational, impl_locational_for_enum,
     impl_nested_display_for_chunk_enum, impl_nested_display_for_enum,
     impl_no_type_display_for_enum, impl_stream,
@@ -1872,19 +1872,38 @@ pub struct Params {
 
 impl fmt::Display for Params {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "({}, {}{}{})",
-            fmt_vec(&self.non_defaults),
-            fmt_option!("*", &self.var_params, ", "),
-            fmt_vec(&self.defaults),
-            fmt_option!(pre ", **", &self.kw_var_params),
-        )?;
-        if !self.guards.is_empty() {
-            write!(f, " if {}", fmt_vec_split_with(&self.guards, " and "))
-        } else {
-            Ok(())
+        write!(f, "({}", fmt_vec(&self.non_defaults))?;
+        if let Some(var_params) = &self.var_params {
+            if !self.non_defaults.is_empty() {
+                write!(f, ", ")?;
+            }
+            write!(f, "*{var_params}")?;
         }
+        if !self.defaults.is_empty() {
+            if !self.non_defaults.is_empty() || self.var_params.is_some() {
+                write!(f, ", ")?;
+            }
+            write!(f, "{}", fmt_vec(&self.defaults))?;
+        }
+        if let Some(kw_var_params) = &self.kw_var_params {
+            if !self.non_defaults.is_empty()
+                || self.var_params.is_some()
+                || !self.defaults.is_empty()
+            {
+                write!(f, ", ")?;
+            }
+            write!(f, "**{kw_var_params}")?;
+        }
+        if !self.guards.is_empty() {
+            write!(f, " if ")?;
+        }
+        for (i, guard) in self.guards.iter().enumerate() {
+            if i > 0 {
+                write!(f, " and ")?;
+            }
+            write!(f, "{guard}")?;
+        }
+        write!(f, ")")
     }
 }
 
