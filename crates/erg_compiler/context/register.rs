@@ -1031,7 +1031,7 @@ impl Context {
         }
     }
 
-    fn register_trait_impl(
+    pub(crate) fn register_trait_impl(
         &mut self,
         class: &Type,
         trait_: &Type,
@@ -1525,6 +1525,7 @@ impl Context {
     }
 
     /// Register that a class implements a trait and its super-traits.
+    /// This does not register the class-trait relationship to `shared.trait_impls` (use `register_trait_impl`).
     pub(crate) fn register_trait(&mut self, ctx: &Self, trait_: Type) -> CompileResult<()> {
         let trait_ctx = ctx.get_nominal_type_ctx(&trait_).ok_or_else(|| {
             CompileError::type_not_found(

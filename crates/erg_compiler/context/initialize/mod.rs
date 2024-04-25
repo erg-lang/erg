@@ -1129,15 +1129,23 @@ impl Context {
     }
 
     pub(crate) fn register_methods(&mut self, t: &Type, ctx: &Self) {
+        let declared_in = NormalizedPathBuf::from(self.module_path());
+        let declared_in = declared_in.exists().then_some(declared_in);
         for impl_trait in ctx.super_traits.iter() {
-            let declared_in = NormalizedPathBuf::from(self.module_path());
-            let declared_in = declared_in.exists().then_some(declared_in);
             if let Some(mut impls) = self.trait_impls().get_mut(&impl_trait.qual_name()) {
-                impls.insert(TraitImpl::new(t.clone(), impl_trait.clone(), declared_in));
+                impls.insert(TraitImpl::new(
+                    t.clone(),
+                    impl_trait.clone(),
+                    declared_in.clone(),
+                ));
             } else {
                 self.trait_impls().register(
                     impl_trait.qual_name(),
-                    set![TraitImpl::new(t.clone(), impl_trait.clone(), declared_in)],
+                    set![TraitImpl::new(
+                        t.clone(),
+                        impl_trait.clone(),
+                        declared_in.clone()
+                    )],
                 );
             }
         }
