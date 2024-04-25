@@ -1,0 +1,48 @@
+.FileInput: ClassType
+.FileInput.
+    __call__: (
+        files := Sequence(Str),
+        inplace := Bool,
+        backup := Str,
+        mode := Str,
+        openhook := GenericCallable,
+        encoding := Str,
+        errors := Str,
+    ) -> FileInput
+    filename!: (self: FileInput) => Str
+    fileno!: (self: FileInput) => Nat or {-1}
+    lineno!: (self: FileInput) => Nat
+    filelineno!: (self: FileInput) => Nat
+    isfirstline!: (self: FileInput) => Bool
+    isstdin!: (self: FileInput) => Bool
+    nextfile!: (self: FileInput) => NoneType
+    close!: (self: FileInput) => NoneType
+    readline!: (self: FileInput) => Str
+
+.input: (
+    files := Sequence(Str),
+    inplace := Bool,
+    backup := Str,
+    mode := Str,
+    openhook := GenericCallable,
+    encoding := Str,
+    errors := Str,
+) -> FileInput
+.filename!: () => Str
+.fileno!: () => Nat or {-1}
+.lineno!: () => Nat
+.filelineno!: () => Nat
+.isfirstline!: () => Bool
+.isstdin!: () => Bool
+.nextfile!: () => NoneType
+.close!: () => NoneType
+.hook_compressed!: (
+    filename: Str,
+    mode: Str,
+    encoding := Str,
+    errors := Str,
+) => NoneType
+.hook_encoded!: (
+    encoding := Str,
+    errors := Str,
+) => NoneType

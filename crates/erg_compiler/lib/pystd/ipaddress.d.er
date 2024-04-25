@@ -1,0 +1,175 @@
+.AddressValueError: ClassType
+.AddressValueError <: ValueError
+
+.NetmaskValueError: ClassType
+.NetmaskValueError <: ValueError
+
+._IPAddressBase: ClassType
+._IPAddressBase.
+    version: Str
+    compressed: Str
+    exploded: Str
+    reverse_pointer: Str
+
+._BaseAddress: ClassType
+._BaseAddress <: _IPAddressBase
+._BaseAddress <: ToInt
+
+._BaseNetwork: ClassType
+._BaseNetwork <: _IPAddressBase
+
+._BaseV4: ClassType
+._BaseV4.
+    version: Str
+    max_prefixlen: Nat
+
+._BaseV6: ClassType
+._BaseV6.
+    version: Str
+    max_prefixlen: Nat
+
+.IPv4Address: ClassType
+.IPv4Address|<: Add Nat|.
+    Output: {IPv4Address}
+.IPv4Address|<: Sub Nat|.
+    Output: {IPv4Address}
+.IPv4Address <: EqHash
+.IPv4Address <: PartialOrd
+.IPv4Address <: _BaseAddress
+.IPv4Address <: _BaseV4
+.IPv4Address.
+    __call__: (address: Str or Nat or Bytes) -> IPv4Address
+    packed: Bytes
+    is_multicast: Bool
+    is_private: Bool
+    is_global: Bool
+    is_unspecified: Bool
+    is_reserved: Bool
+    is_loopback: Bool
+    is_link_local: Bool
+    __format__: (self: IPv4Address, fmt: Str) -> Str
+
+.IPv6Address: ClassType
+.IPv6Address|<: Add Nat|.
+    Output: {IPv6Address}
+.IPv6Address|<: Sub Nat|.
+    Output: {IPv6Address}
+.IPv6Address <: EqHash
+.IPv6Address <: PartialOrd
+.IPv6Address <: _BaseAddress
+.IPv6Address <: _BaseV6
+.IPv6Address.
+    __call__: (address: Str or Nat or Bytes) -> IPv6Address
+    packed: Bytes
+    is_multicast: Bool
+    is_private: Bool
+    is_global: Bool
+    is_unspecified: Bool
+    is_reserved: Bool
+    is_loopback: Bool
+    is_link_local: Bool
+    is_site_local: Bool
+    ipv4_mapped: IPv4Address or NoneType
+    scope_id: Str or NoneType
+    sixtofour: IPv4Address or NoneType
+    teredo: (IPv4Address, Nat) or NoneType
+    __format__: (self: IPv6Address, fmt: Str) -> Str
+
+.IPv4Network: ClassType
+.IPv4Network <: EqHash
+.IPv4Network <: PartialOrd
+.IPv4Network <: Sequence IPv4Address
+.IPv4Network <: _BaseNetwork
+.IPv4Network <: _BaseV4
+.IPv4Network.
+    __call__: (address: Str or Nat or Bytes or ((Str or Nat or Bytes or IPv4Address), Nat), strict := Bool) -> IPv4Network
+    max_prefixlen: Nat
+    is_multicast: Bool
+    is_private: Bool
+    is_unspecified: Bool
+    is_reserved: Bool
+    is_loopback: Bool
+    is_link_local: Bool
+    network_address: IPv4Address
+    broadcast_address: IPv4Address
+    hostmask: IPv4Address
+    netmask: IPv4Address
+    with_prefixlen: Str
+    compressed: Str
+    exploded: Str
+    with_netmask: Str
+    with_hostmask: Str
+    num_addresses: Nat
+    prefixlen: Nat
+    hosts: (self: IPv4Network) -> Iterator IPv4Address
+    overlaps: (self: IPv4Network, other: IPv4Network) -> Bool
+    address_exclude: (self: IPv4Network, network: IPv4Network) -> Iterator IPv4Network
+    subnets: (self: IPv4Network, prefixlen_diff := Nat, new_prefix := Nat) -> Iterator IPv4Network
+    supernet: (self: IPv4Network, prefixlen_diff := Nat) -> IPv4Network
+    subnet_of: (self: IPv4Network, other: IPv4Network) -> Bool
+    supernet_of: (self: IPv4Network, other: IPv4Network) -> Bool
+    compare_networks: (self: IPv4Network, other: IPv4Network) -> {-1, 0, 1}
+
+.IPv6Network: ClassType
+.IPv6Network <: EqHash
+.IPv6Network <: PartialOrd
+.IPv6Network <: Sequence IPv6Address
+.IPv6Network <: _BaseNetwork
+.IPv6Network <: _BaseV6
+.IPv6Network.
+    __call__: (address: Str or Nat or Bytes or ((Str or Nat or Bytes or IPv6Address), Nat), strict := Bool) -> IPv6Network
+    max_prefixlen: Nat
+    is_multicast: Bool
+    is_private: Bool
+    is_unspecified: Bool
+    is_reserved: Bool
+    is_loopback: Bool
+    is_link_local: Bool
+    is_site_local: Bool
+    network_address: IPv6Address
+    broadcast_address: IPv6Address
+    hostmask: IPv6Address
+    netmask: IPv6Address
+    with_prefixlen: Str
+    compressed: Str
+    exploded: Str
+    with_netmask: Str
+    with_hostmask: Str
+    num_addresses: Nat
+    prefixlen: Nat
+    hosts: (self: IPv6Network) -> Iterator IPv6Address
+    overlaps: (self: IPv6Network, other: IPv6Network) -> Bool
+    address_exclude: (self: IPv6Network, network: IPv6Network) -> Iterator IPv6Network
+    subnets: (self: IPv6Network, prefixlen_diff := Nat, new_prefix := Nat) -> Iterator IPv6Network
+    supernet: (self: IPv6Network, prefixlen_diff := Nat) -> IPv6Network
+    subnet_of: (self: IPv6Network, other: IPv6Network) -> Bool
+    supernet_of: (self: IPv6Network, other: IPv6Network) -> Bool
+    compare_networks: (self: IPv6Network, other: IPv6Network) -> {-1, 0, 1}
+
+.IPv4Interface: ClassType
+.IPv4Interface <: IPv4Address
+.IPv4Interface.
+    __call__: (address: Str or Nat or Bytes or ((Str or Nat or Bytes or IPv4Address), Nat)) -> IPv4Interface
+    ip: IPv4Address
+    network: IPv4Network
+    with_prefixlen: Str
+    with_netmask: Str
+    with_hostmask: Str
+
+.IPv6Interface: ClassType
+.IPv6Interface <: IPv6Address
+.IPv6Interface.
+    __call__: (address: Str or Nat or Bytes or ((Str or Nat or Bytes or IPv6Address), Nat)) -> IPv6Interface
+    ip: IPv6Address
+    network: IPv6Network
+    with_prefixlen: Str
+    with_netmask: Str
+    with_hostmask: Str
+
+.ip_address: (address: Str or Nat or Bytes) -> IPv4Address or IPv6Address
+.v4_int_to_packed: (address: Nat) -> Bytes
+.v6_int_to_packed: (address: Nat) -> Bytes
+.summarize_address_range: ((first: IPv4Address, last: IPv4Address) -> Iterator IPv4Network) \
+    and ((first: IPv6Address, last: IPv6Address) -> Iterator IPv6Network)
+.collapse_addresses: ((addresses: Sequence IPv4Network) -> Iterator IPv4Network) \
+    and ((addresses: Sequence IPv6Network) -> Iterator IPv6Network)
