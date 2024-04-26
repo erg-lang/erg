@@ -7,3 +7,13 @@ i.inc!()
 assert i == 4
 i.dec!()
 assert i == 3
+assert i.abs() == 3
+
+ss = !"abc"
+ss.push! "d"
+assert ss == "abcd"
+discard ss.pop!()
+assert ss == "abc"
+discard ss.remove! 0
+assert ss == "bc"
+assert ss.capitalize() == "Bc"

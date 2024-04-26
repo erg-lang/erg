@@ -59,3 +59,7 @@ def _isinstance(obj, classinfo) -> bool:
 
 class MutType:
     value: object
+
+    # This method is a fallback to implement pseudo-inheritance.
+    def __getattr__(self, name):
+        return object.__getattribute__(self.value, name)

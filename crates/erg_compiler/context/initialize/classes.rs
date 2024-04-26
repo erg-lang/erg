@@ -2875,7 +2875,7 @@ impl Context {
         );
         /* Str! */
         let mut str_mut = Self::builtin_mono_class(MUT_STR, 2);
-        str_mut.register_superclass(Str, &nonetype);
+        str_mut.register_superclass(Str, &str_);
         let mut str_mut_mutable = Self::builtin_methods(Some(mono(MUTABLE)), 2);
         str_mut_mutable.register_builtin_const(
             IMMUT_TYPE,
