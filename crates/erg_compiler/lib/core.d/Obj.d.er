@@ -7,3 +7,8 @@
     __repr__: (self: .Obj) -> Str
     __sizeof__: (self: .Obj) -> Nat
     __str__: (self: .Obj) -> Str
+    __class__: ClassType
+    __doc__: Str
+    __dir__: (self: .Obj) -> [Str; _]
+    __getattribute__: (self: .Obj, name: Str) -> .Obj
+    __format__: (self: .Obj, format_spec: Str) -> Str

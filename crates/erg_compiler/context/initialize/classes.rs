@@ -63,6 +63,26 @@ impl Context {
             8,
         );
         obj.register_py_builtin(FUNDAMENTAL_STR, fn0_met(Obj, Str), Some(FUNDAMENTAL_STR), 9);
+        obj.register_py_builtin(FUNDAMENTAL_CLASS, ClassType, Some(FUNDAMENTAL_CLASS), 10);
+        obj.register_py_builtin(FUNDAMENTAL_DOC, ClassType, Some(FUNDAMENTAL_DOC), 11);
+        obj.register_py_builtin(
+            FUNDAMENTAL_DIR,
+            fn0_met(Obj, unknown_len_list_t(Str)),
+            Some(FUNDAMENTAL_GETATTRIBUTE),
+            12,
+        );
+        obj.register_py_builtin(
+            FUNDAMENTAL_GETATTRIBUTE,
+            fn1_met(Obj, Str, Obj),
+            Some(FUNDAMENTAL_GETATTRIBUTE),
+            13,
+        );
+        obj.register_py_builtin(
+            FUNDAMENTAL_FORMAT,
+            fn1_met(Obj, Str, Str),
+            Some(FUNDAMENTAL_FORMAT),
+            14,
+        );
         // Obj does not implement Eq
         let mut complex = Self::builtin_mono_class(COMPLEX, 2);
         complex.register_superclass(Obj, &obj);
@@ -884,6 +904,20 @@ impl Context {
             ),
             Some(FUNC_ENCODE),
             60,
+        );
+        str_.register_py_builtin(FUNC_CASEFOLD, fn0_met(Str, Str), Some(FUNC_CASEFOLD), 23);
+        str_.register_py_builtin(
+            FUNC_CENTER,
+            fn_met(
+                Str,
+                vec![kw(KW_WIDTH, Nat)],
+                None,
+                vec![kw(KW_FILLCHAR, Str)],
+                None,
+                Str,
+            ),
+            Some(FUNC_CENTER),
+            33,
         );
         str_.register_builtin_erg_impl(
             FUNC_FORMAT,
