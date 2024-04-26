@@ -1402,7 +1402,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 //      List(Str) <: Iterable(Str)
                 //      Zip(T, U) <: Iterable(Tuple([T, U]))
                 if ln != rn {
-                    self.nominal_sub_unify(maybe_sub, maybe_sup, rps)?;
+                    self.nominal_sub_unify(maybe_sub, maybe_sup)?;
                 } else {
                     for (l_maybe_sub, r_maybe_sup) in lps.iter().zip(rps.iter()) {
                         self.sub_unify_tp(l_maybe_sub, r_maybe_sup, None, false)?;
@@ -1562,15 +1562,10 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 if maybe_sub.has_no_qvar() && maybe_sup.has_no_qvar() {
                     return Ok(());
                 }
-                self.nominal_sub_unify(maybe_sub, maybe_sup, &[])?;
+                self.nominal_sub_unify(maybe_sub, maybe_sup)?;
             }
-            (
-                _,
-                Poly {
-                    params: sup_params, ..
-                },
-            ) => {
-                self.nominal_sub_unify(maybe_sub, maybe_sup, sup_params)?;
+            (_, Poly { .. }) => {
+                self.nominal_sub_unify(maybe_sub, maybe_sup)?;
             }
             (Subr(_), Mono(name)) if &name[..] == "Subroutine" => {}
             _ => {
@@ -1590,12 +1585,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
     /// e.g. `maybe_sub: Vec, maybe_sup: Iterable T (Vec <: Iterable Int, T <: Int)`
     ///
     /// TODO: Current implementation is inefficient because coercion is performed twice with `subtype_of` in `sub_unify`
-    fn nominal_sub_unify(
-        &self,
-        maybe_sub: &Type,
-        maybe_sup: &Type,
-        sup_params: &[TyParam],
-    ) -> TyCheckResult<()> {
+    fn nominal_sub_unify(&self, maybe_sub: &Type, maybe_sup: &Type) -> TyCheckResult<()> {
         debug_assert_ne!(maybe_sub.qual_name(), maybe_sup.qual_name());
         if let Some(sub_ctx) = self.ctx.get_nominal_type_ctx(maybe_sub) {
             let sub_def_t = &sub_ctx.typ;
@@ -1604,7 +1594,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             // sub_def_t: Zip(T, U) ==> Zip(Int, Str)
             // super_traits: [Iterable((T, U)), ...] ==> [Iterable((Int, Str)), ...]
             let _substituter = Substituter::substitute_typarams(self.ctx, sub_def_t, maybe_sub)?;
-            let sups = if self.ctx.is_class(maybe_sup) {
+            let sups = if self.ctx.is_class(maybe_sup) || self.ctx.is_trait(maybe_sub) {
                 sub_ctx.super_classes.iter()
             } else {
                 sub_ctx.super_traits.iter()
@@ -1612,47 +1602,46 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             // A trait may be over-implemented.
             // Choose from the more specialized implementations,
             // but there may also be trait implementations that have no subtype relationship at all.
-            // e.g. Vector: Mul(Vector) and Mul(Nat)
+            // e.g. Vector <: Mul(Vector) and Mul(Nat)
             let mut compatibles = vec![];
             if sups.clone().count() == 0 {
                 compatibles.push(&sub_ctx.typ);
             }
-            for sup_ty in sups {
-                if sup_ty.qual_name() == maybe_sup.qual_name()
-                    && self.ctx.subtype_of(sup_ty, maybe_sup)
+            for sup_of_sub in sups {
+                if sup_of_sub.qual_name() == maybe_sup.qual_name()
+                    && self.ctx.subtype_of(sup_of_sub, maybe_sup)
                 {
                     if !compatibles.is_empty() {
                         let mut idx = compatibles.len();
                         for (i, comp) in compatibles.iter().enumerate() {
-                            if self.ctx.subtype_of(sup_ty, comp) {
+                            if self.ctx.subtype_of(sup_of_sub, comp) {
                                 idx = i;
                                 break;
                             }
                         }
-                        compatibles.insert(idx, sup_ty);
+                        compatibles.insert(idx, sup_of_sub);
                     } else {
-                        compatibles.push(sup_ty);
+                        compatibles.push(sup_of_sub);
                     }
                 }
             }
-            'l: for sup_ty in compatibles {
-                let _substituter = Substituter::substitute_self(sup_ty, maybe_sub, self.ctx);
-                let sub_instance = self.ctx.instantiate_def_type(sup_ty)?;
+            let sup_params = maybe_sup.typarams();
+            'l: for sup_of_sub in compatibles {
+                let _substituter = Substituter::substitute_self(sup_of_sub, maybe_sub, self.ctx);
+                let sub_instance = self.ctx.instantiate_def_type(sup_of_sub)?;
+                let sub_params = sub_instance.typarams();
                 let variances = self
                     .ctx
                     .get_nominal_type_ctx(&sub_instance)
                     .map(|ctx| ctx.type_params_variance().into_iter().map(Some).collect())
                     .unwrap_or(vec![None; sup_params.len()]);
                 let list = UndoableLinkedList::new();
-                for (l_maybe_sub, r_maybe_sup) in
-                    sub_instance.typarams().iter().zip(sup_params.iter())
-                {
+                for (l_maybe_sub, r_maybe_sup) in sub_params.iter().zip(sup_params.iter()) {
                     list.push_tp(l_maybe_sub);
                     list.push_tp(r_maybe_sup);
                 }
                 let unifier = Unifier::new(self.ctx, self.loc, Some(&list), false, None);
-                for ((l_maybe_sub, r_maybe_sup), variance) in sub_instance
-                    .typarams()
+                for ((l_maybe_sub, r_maybe_sup), variance) in sub_params
                     .iter()
                     .zip(sup_params.iter())
                     .zip(variances.iter())
@@ -1674,11 +1663,8 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     }
                 }
                 drop(list);
-                for ((l_maybe_sub, r_maybe_sup), variance) in sub_instance
-                    .typarams()
-                    .iter()
-                    .zip(sup_params.iter())
-                    .zip(variances)
+                for ((l_maybe_sub, r_maybe_sup), variance) in
+                    sub_params.iter().zip(sup_params.iter()).zip(variances)
                 {
                     self.sub_unify_tp(l_maybe_sub, r_maybe_sup, variance, false)?;
                 }

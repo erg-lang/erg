@@ -1042,7 +1042,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
         fv: &Free<Type>,
     ) -> TyCheckResult<Type> {
         let opt_res = self.ctx.shared().gen_cache.get(fv);
-        if opt_res.is_none() && self.ctx.is_trait(&super_t) {
+        if opt_res.is_none() && self.ctx.is_class(&sub_t) && self.ctx.is_trait(&super_t) {
             self.ctx
                 .check_trait_impl(&sub_t, &super_t, self.qnames, self.loc)?;
         }

@@ -286,6 +286,7 @@ const GENERIC_DICT: &str = "GenericDict";
 const DICT: &str = "Dict";
 const FUNC_DECODE: &str = "decode";
 const GENERIC_TUPLE: &str = "GenericTuple";
+const HOMOGENOUS_TUPLE: &str = "HomogenousTuple";
 const TUPLE: &str = "Tuple";
 const TUPLE_ITERATOR: &str = "TupleIterator";
 const RECORD: &str = "Record";
