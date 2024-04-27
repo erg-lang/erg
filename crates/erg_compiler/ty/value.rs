@@ -30,17 +30,23 @@ use super::typaram::{OpKind, TyParam};
 use super::{ConstSubr, Field, HasType, Predicate, Type};
 use super::{CONTAINER_OMIT_THRESHOLD, STR_OMIT_THRESHOLD};
 
-pub struct EvalValueError(pub Box<ErrorCore>);
+pub struct EvalValueError {
+    pub core: Box<ErrorCore>,
+    pub value: Option<ValueObj>,
+}
 
 impl From<ErrorCore> for EvalValueError {
     fn from(core: ErrorCore) -> Self {
-        Self(Box::new(core))
+        Self {
+            core: Box::new(core),
+            value: None,
+        }
     }
 }
 
 impl From<EvalValueError> for ErrorCore {
     fn from(err: EvalValueError) -> Self {
-        *err.0
+        *err.core
     }
 }
 

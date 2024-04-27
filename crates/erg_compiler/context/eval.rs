@@ -180,10 +180,10 @@ impl<'c> Substituter<'c> {
             }
         } else if qt.qual_name() != st.qual_name() || qtps.len() != stps.len() {
             // e.g. qt: Iterable(T), st: Vec(<: Iterable(Int))
-            /*if let Some(st_sups) = ctx.get_nominal_super_type_ctxs(st) {
+            /*if let Some(st_sups) = ctx.get_super_types(st) {
                 for sup in st_sups {
-                    if sup.typ.qual_name() == qt.qual_name() {
-                        return Self::substitute_typarams(ctx, qt, &sup.typ);
+                    if sup.qual_name() == qt.qual_name() {
+                        return Self::substitute_typarams(ctx, qt, &sup);
                     }
                 }
             }*/
@@ -801,26 +801,26 @@ impl Context {
                 }
             }
             ConstSubr::Builtin(builtin) => builtin.call(args, self).map_err(|mut e| {
-                if e.0.loc.is_unknown() {
-                    e.0.loc = loc.loc();
+                if e.core.loc.is_unknown() {
+                    e.core.loc = loc.loc();
                 }
                 (
                     TyParam::Failure,
                     EvalErrors::from(EvalError::new(
-                        *e.0,
+                        *e.core,
                         self.cfg.input.clone(),
                         self.caused_by(),
                     )),
                 )
             }),
             ConstSubr::Gen(gen) => gen.call(args, self).map_err(|mut e| {
-                if e.0.loc.is_unknown() {
-                    e.0.loc = loc.loc();
+                if e.core.loc.is_unknown() {
+                    e.core.loc = loc.loc();
                 }
                 (
                     TyParam::Failure,
                     EvalErrors::from(EvalError::new(
-                        *e.0,
+                        *e.core,
                         self.cfg.input.clone(),
                         self.caused_by(),
                     )),
@@ -2830,6 +2830,7 @@ impl Context {
     pub(crate) fn convert_value_into_list(&self, val: ValueObj) -> Result<Vec<ValueObj>, ValueObj> {
         match val {
             ValueObj::List(lis) => Ok(lis.to_vec()),
+            ValueObj::Tuple(ts) => Ok(ts.to_vec()),
             ValueObj::Type(t) => self
                 .convert_type_to_list(t.into_typ())
                 .map_err(ValueObj::builtin_type),

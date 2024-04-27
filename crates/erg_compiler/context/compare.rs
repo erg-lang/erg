@@ -560,7 +560,12 @@ impl Context {
             (Guard(lhs), Guard(rhs)) => {
                 lhs.target == rhs.target && self.supertype_of(&lhs.to, &rhs.to)
             }
-            (Mono(n), NamedTuple(_)) => &n[..] == "GenericNamedTuple" || &n[..] == "GenericTuple",
+            (Mono(n), NamedTuple(_)) => {
+                &n[..] == "Tuple"
+                    || &n[..] == "GenericNamedTuple"
+                    || &n[..] == "HomogenousTuple"
+                    || &n[..] == "GenericTuple"
+            }
             (Mono(n), Record(_)) => &n[..] == "Record",
             (ty @ (Type | ClassType | TraitType), Record(rec)) => {
                 for (_, t) in rec.iter() {

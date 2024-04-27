@@ -433,6 +433,11 @@ fn exec_tuple() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_tuple_test() -> Result<(), ()> {
+    expect_success("tests/should_ok/tuple.er", 0)
+}
+
+#[test]
 fn exec_unit_test() -> Result<(), ()> {
     expect_success("examples/unit_test.er", 0)
 }
@@ -642,6 +647,11 @@ fn exec_subtyping_err() -> Result<(), ()> {
 #[test]
 fn exec_tuple_err() -> Result<(), ()> {
     expect_failure("tests/should_err/tuple.er", 0, 1)
+}
+
+#[test]
+fn exec_trait_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/trait.er", 1, 1)
 }
 
 #[test]

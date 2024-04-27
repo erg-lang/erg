@@ -98,6 +98,7 @@ const TO_BOOL: &str = "ToBool";
 const TO_INT: &str = "ToInt";
 const TO_FLOAT: &str = "ToFloat";
 const ROUND: &str = "Round";
+const SEALED: &str = "Sealed";
 const INPUT: &str = "Input";
 const OUTPUT: &str = "Output";
 const POW_OUTPUT: &str = "PowOutput";

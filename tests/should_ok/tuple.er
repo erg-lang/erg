@@ -1,0 +1,3 @@
+i as Iterator((Int, Int)) = iter [(1, 2)]
+for! i, data =>
+    assert data.0 > 0

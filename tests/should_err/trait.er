@@ -1,0 +1,6 @@
+{Closed;} = import "sealed"
+
+C = Class()
+# ERR
+C|<: Closed|.
+    foo self = 1

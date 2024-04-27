@@ -2338,15 +2338,8 @@ impl Context {
             .register_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
             .unwrap();
         let homo_tuple_t = poly(HOMOGENOUS_TUPLE, vec![ty_tp(T.clone())]);
-        // __Tuple_getitem__: (self: HomogenousTuple(T), Nat) -> T
+        // __getitem__: (self: HomogenousTuple(T), Nat) -> T
         let tuple_getitem_t = fn1_met(homo_tuple_t.clone(), Nat, T.clone()).quantify();
-        homo_tuple.register_builtin_py_impl(
-            FUNDAMENTAL_TUPLE_GETITEM,
-            tuple_getitem_t.clone(),
-            Const,
-            Visibility::BUILTIN_PUBLIC,
-            Some(FUNDAMENTAL_GETITEM),
-        );
         homo_tuple.register_builtin_py_impl(
             FUNDAMENTAL_GETITEM,
             tuple_getitem_t,

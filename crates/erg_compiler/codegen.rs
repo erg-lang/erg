@@ -1247,7 +1247,7 @@ impl PyCodeGenerator {
     // class T(metaclass=ABCMeta):
     //    def f(): pass
     fn emit_trait_block(&mut self, kind: DefKind, sig: &Signature, mut block: Block) -> CodeObj {
-        debug_assert_eq!(kind, DefKind::Trait);
+        debug_assert!(kind.is_trait());
         let name = sig.ident().inspect().clone();
         let Expr::Call(mut trait_call) = block.remove(0) else {
             unreachable!()

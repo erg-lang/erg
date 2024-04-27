@@ -25,6 +25,7 @@ impl Context {
         } else {
             Visibility::BUILTIN_PRIVATE
         };
+        let sealed = Self::builtin_mono_trait(SEALED, 1);
         let unpack = Self::builtin_mono_trait(UNPACK, 2);
         let inheritable_type = Self::builtin_mono_trait(INHERITABLE_TYPE, 2);
         let mut named = Self::builtin_mono_trait(NAMED, 2);
@@ -626,6 +627,7 @@ impl Context {
         round.register_builtin_erg_decl(FUNDAMENTAL_FLOOR, op_t, Visibility::BUILTIN_PUBLIC);
         let op_t = fn0_met(_Slf.clone(), Int).quantify();
         round.register_builtin_erg_decl(FUNDAMENTAL_CEIL, op_t, Visibility::BUILTIN_PUBLIC);
+        self.register_builtin_type(mono(SEALED), sealed, vis.clone(), Const, None);
         self.register_builtin_type(mono(UNPACK), unpack, vis.clone(), Const, None);
         self.register_builtin_type(
             mono(INHERITABLE_TYPE),

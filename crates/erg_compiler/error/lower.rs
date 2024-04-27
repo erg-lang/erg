@@ -441,6 +441,33 @@ impl LowerError {
         )
     }
 
+    pub fn sealed_trait_error(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        caused_by: String,
+        name: &str,
+    ) -> Self {
+        let name = readable_name(name);
+        let found = StyledString::new(name, Some(ERR), Some(ATTR));
+        Self::new(
+            ErrorCore::new(
+                vec![SubMessage::only_loc(loc)],
+                switch_lang!(
+                    "japanese" => format!("{found}は外部から実装できないトレイトです"),
+                    "simplified_chinese" => format!("{found}是一个密封的特质，无法从外部实现"),
+                    "traditional_chinese" => format!("{found}是一個密封的特質，無法從外部實現"),
+                    "english" => format!("{found} is a sealed trait, so it cannot be implemented externally"),
+                ),
+                errno,
+                TypeError,
+                loc,
+            ),
+            input,
+            caused_by,
+        )
+    }
+
     pub fn type_not_found(
         input: Input,
         errno: usize,

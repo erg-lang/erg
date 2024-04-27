@@ -1,0 +1,7 @@
+.Closed = Subsume Sealed, Additional := {
+    foo = (self: Self) -> Int;
+}
+
+C = Class()
+C|<: Closed|.
+    foo self = 1 # OK

@@ -2806,7 +2806,7 @@ impl Context {
         Some(vec![ctx].into_iter().chain(sup_ctxs))
     }
 
-    pub(crate) fn _get_super_traits(&self, typ: &Type) -> Option<impl Iterator<Item = Type>> {
+    pub(crate) fn get_super_traits(&self, typ: &Type) -> Option<impl Iterator<Item = Type>> {
         self.get_nominal_type_ctx(typ)
             .map(|ctx| ctx.super_traits.clone().into_iter())
     }
@@ -2830,6 +2830,7 @@ impl Context {
         })
     }
 
+    /// include `typ` itself.
     pub(crate) fn _get_super_types(
         &self,
         typ: &Type,

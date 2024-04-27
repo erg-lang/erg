@@ -2656,6 +2656,21 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         class: &Type,
     ) -> SingleLowerResult<()> {
         if let Some((impl_trait, t_spec)) = impl_trait {
+            if let Some(mut sups) = self.module.context.get_super_traits(&impl_trait) {
+                let outer = self.module.context.get_outer_scope().unwrap();
+                let trait_ctx = outer.get_nominal_type_ctx(&impl_trait);
+                let external_trait =
+                    trait_ctx.map_or(true, |tr| !tr.name.starts_with(&outer.name[..]));
+                if sups.any(|t| t == mono("Sealed")) && external_trait {
+                    return Err(LowerError::sealed_trait_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        t_spec.loc(),
+                        self.module.context.caused_by(),
+                        &impl_trait.qual_name(),
+                    ));
+                }
+            }
             let impl_trait = impl_trait.normalize();
             let (unverified_names, mut errors) = if let Some(typ_ctx) = self
                 .module
@@ -2839,7 +2854,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             acc @ hir::Expr::Accessor(_) => Some(acc),
             hir::Expr::Call(mut call) => match call.obj.show_acc().as_ref().map(|s| &s[..]) {
                 Some("Class" | "Trait") => call.args.remove_left_or_key("Requirement"),
-                Some("Inherit") => call.args.remove_left_or_key("Super"),
+                Some("Inherit" | "Subsume") => call.args.remove_left_or_key("Super"),
                 Some("Inheritable") => {
                     Self::get_require_or_sup_or_base(call.args.remove_left_or_key("Class")?)
                 }
