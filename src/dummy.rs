@@ -441,7 +441,7 @@ impl PackageManagerRunner {
 
     pub fn run(cfg: ErgConfig) -> ExitStatus {
         if Command::new("poise").arg("--version").output().is_err() {
-            eprintln!("Error: poise is not installed");
+            eprintln!("Error: poise is not installed. Please install using ergup or manually from the repository (https://github.com/erg-lang/poise).");
             return ExitStatus::ERR1;
         }
         match Command::new("poise")
