@@ -512,6 +512,10 @@ pub fn poly<S: Into<Str>>(name: S, params: Vec<TyParam>) -> Type {
     }
 }
 
+pub fn type_poly<S: Into<Str>>(name: S, ts: Vec<Type>) -> Type {
+    poly(name, ts.into_iter().map(TyParam::t).collect())
+}
+
 #[inline]
 pub fn proj<S: Into<Str>>(lhs: Type, rhs: S) -> Type {
     Type::Proj {

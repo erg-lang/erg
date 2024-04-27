@@ -25,3 +25,7 @@ arr = []
 assert arr in []
 assert arr in [Int]
 assert arr in [Str]
+
+_ = isinstance(1, Int)
+t as HomogenousTuple ClassType = (Int, Str)
+_ = isinstance(1, t)
