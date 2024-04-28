@@ -93,6 +93,9 @@ fn _test_infer_types() -> Result<(), ()> {
     module
         .context
         .assert_var_type("ys", &unknown_len_list_t(Nat))?;
+    module
+        .context
+        .assert_var_type("ff!", &func1(Str | NoneType, NoneType))?;
     Ok(())
 }
 

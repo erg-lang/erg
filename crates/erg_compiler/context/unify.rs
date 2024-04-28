@@ -970,12 +970,22 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     .cmp(&sup_fv.level().unwrap_or(GENERIC_LEVEL))
                 {
                     std::cmp::Ordering::Less => {
-                        maybe_sub.update_tyvar(union, intersec, self.undoable, false);
-                        maybe_sup.link(maybe_sub, self.undoable);
+                        if sup_fv.level().unwrap_or(GENERIC_LEVEL) == GENERIC_LEVEL {
+                            maybe_sup.update_tyvar(union, intersec, self.undoable, false);
+                            maybe_sub.link(maybe_sup, self.undoable);
+                        } else {
+                            maybe_sub.update_tyvar(union, intersec, self.undoable, false);
+                            maybe_sup.link(maybe_sub, self.undoable);
+                        }
                     }
                     std::cmp::Ordering::Greater => {
-                        maybe_sup.update_tyvar(union, intersec, self.undoable, false);
-                        maybe_sub.link(maybe_sup, self.undoable);
+                        if sub_fv.level().unwrap_or(GENERIC_LEVEL) == GENERIC_LEVEL {
+                            maybe_sub.update_tyvar(union, intersec, self.undoable, false);
+                            maybe_sup.link(maybe_sub, self.undoable);
+                        } else {
+                            maybe_sup.update_tyvar(union, intersec, self.undoable, false);
+                            maybe_sub.link(maybe_sup, self.undoable);
+                        }
                     }
                     std::cmp::Ordering::Equal => {
                         // choose named one

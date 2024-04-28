@@ -41,3 +41,10 @@ val = val!()
 
 xs as [Nat or Str; _] = [1, 2, "aa"]
 ys = list filter x -> x in Int, xs
+
+ff! x: Str or NoneType =
+    if! x isnot! None:
+        do!: f1! x
+        do!: f0!()
+f0!() = print! ""
+f1! _: Str = f0!()

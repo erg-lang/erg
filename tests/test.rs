@@ -575,7 +575,7 @@ fn exec_incomplete_typespec() -> Result<(), ()> {
 }
 
 #[test]
-fn exec_infer_fn() -> Result<(), ()> {
+fn exec_infer_fn_err() -> Result<(), ()> {
     expect_failure("tests/should_err/infer_fn.er", 2, 6)
 }
 
