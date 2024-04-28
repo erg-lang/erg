@@ -575,6 +575,11 @@ fn exec_incomplete_typespec() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_infer_fn() -> Result<(), ()> {
+    expect_failure("tests/should_err/infer_fn.er", 2, 6)
+}
+
+#[test]
 fn exec_infer_union_array() -> Result<(), ()> {
     expect_failure("tests/should_err/infer_union_array.er", 2, 1)
 }
@@ -641,7 +646,7 @@ fn exec_structural_err() -> Result<(), ()> {
 #[test]
 fn exec_subtyping_err() -> Result<(), ()> {
     // NOTE: The content of some errors is semantically redundant and can be reduced.
-    expect_failure("tests/should_err/subtyping.er", 0, 18)
+    expect_failure("tests/should_err/subtyping.er", 3, 13)
 }
 
 #[test]

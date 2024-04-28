@@ -369,6 +369,18 @@ macro_rules! ref_addr_eq {
 
 #[macro_export]
 macro_rules! power_assert {
+    ($l: expr, $op: tt, $r: expr, $msg: expr $(,)*) => {
+        if !($l $op $r) {
+            let s_l = stringify!($l);
+            let s_r = stringify!($r);
+            let s_op = stringify!($op);
+            println!($msg);
+            panic!(
+                "assertion failed: `{s_l} {s_op} {s_r}` (`{s_l}` = {:#?}, `{s_r}` = {:#?})",
+                $l, $r,
+            )
+        }
+    };
     ($l: expr, $op: tt, $r: expr $(,)*) => {
         if !($l $op $r) {
             let s_l = stringify!($l);
@@ -390,6 +402,11 @@ macro_rules! power_assert {
 
 #[macro_export]
 macro_rules! debug_power_assert {
+    ($l: expr, $op: tt, $r: expr, $msg: expr) => {
+        if cfg!(debug_assertions) {
+            erg_common::power_assert!($l, $op, $r, $msg)
+        }
+    };
     ($l: expr, $op: tt, $r: expr) => {
         if cfg!(debug_assertions) {
             erg_common::power_assert!($l, $op, $r)

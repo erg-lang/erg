@@ -1,3 +1,8 @@
+fst|T| s: Sequence T = s[0]
+assert fst([1, 2, 3]) + 1 == 2
+assert fst(["a", "b", "c"]) + "b" == "ab"
+assert fst((1, 2, 3)) + 1 == 2
+
 Norm = Trait {.norm = (self: Self) -> Nat}
 
 Point2D = Class {x = Int; y = Int}

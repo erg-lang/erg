@@ -843,10 +843,10 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
     /// sub_unify([?T; 0], Mutate): (/* OK */)
     /// ```
     fn sub_unify(&self, maybe_sub: &Type, maybe_sup: &Type) -> TyCheckResult<()> {
-        log!(info "trying {}sub_unify:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}", self.undoable.map_or("", |_| "undoable"));
+        log!(info "trying {}sub_unify:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}", self.undoable.map_or("", |_| "undoable_"));
         // In this case, there is no new information to be gained
         // この場合、特に新しく得られる情報はない
-        if maybe_sub == &Type::Never || maybe_sup == &Type::Obj || maybe_sup == maybe_sub {
+        if maybe_sub == &Type::Never || maybe_sup == &Type::Obj || maybe_sup.addr_eq(maybe_sub) {
             log!(info "no-op:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
             return Ok(());
         }
@@ -1640,6 +1640,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     list.push_tp(l_maybe_sub);
                     list.push_tp(r_maybe_sup);
                 }
+                // debug_power_assert!(variances.len(), >=, sup_params.len(), "{sub_instance} / {maybe_sup}");
                 let unifier = Unifier::new(self.ctx, self.loc, Some(&list), false, None);
                 for ((l_maybe_sub, r_maybe_sup), variance) in sub_params
                     .iter()

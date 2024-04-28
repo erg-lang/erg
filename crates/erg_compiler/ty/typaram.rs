@@ -1720,6 +1720,20 @@ impl TyParam {
         }
         match self {
             Self::FreeVar(fv) => fv.link(to),
+            Self::Type(t) => {
+                if let Ok(to) = <&Type>::try_from(to) {
+                    t.destructive_link(to);
+                } else {
+                    panic!("{to} is not a type");
+                }
+            }
+            Self::Value(ValueObj::Type(t)) => {
+                if let Ok(to) = <&Type>::try_from(to) {
+                    t.typ().destructive_link(to);
+                } else {
+                    panic!("{to} is not a type");
+                }
+            }
             _ => panic!("{self} is not a free variable"),
         }
     }

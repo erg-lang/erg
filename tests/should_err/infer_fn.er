@@ -1,0 +1,27 @@
+# g: |T <: Ord and Eq and Show| T -> T
+g x =
+    _ = x <= x
+    _ = x == x
+    _ = x.__str__()
+    x
+
+g 1 # OK
+g None # ERR
+
+h x, y =
+    _ = x == y
+    _ = x - y
+    x + y
+
+_ = h -1, -2 # OK
+_ = h 1, 2 # OK
+_ = h "a", "b" # ERR
+
+i|T|(x: T): T =
+    _: Int = x
+    x + "a" # ERR
+i2|T|(x: T): T =
+    x + "a"
+
+_ = i 1
+_ = i2 1 # ERR
