@@ -646,7 +646,7 @@ fn exec_subtyping_err() -> Result<(), ()> {
 
 #[test]
 fn exec_tuple_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/tuple.er", 0, 1)
+    expect_failure("tests/should_err/tuple.er", 0, 2)
 }
 
 #[test]

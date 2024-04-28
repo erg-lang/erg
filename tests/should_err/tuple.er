@@ -6,3 +6,7 @@ _ = t0((1,)) # OK
 _ = t1(()) # ERR
 _ = t1((1,)) # OK
 _ = t1((1, 2)) # OK
+
+_ as Iterator(Int) = iter((1, 2)) # OK
+_ as Iterator((Int, Int)) = iter([(1, 2)]) # OK
+_ as Iterator((Int, Int)) = iter((1, 2)) # ERR

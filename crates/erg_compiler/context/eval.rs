@@ -180,13 +180,13 @@ impl<'c> Substituter<'c> {
             }
         } else if qt.qual_name() != st.qual_name() || qtps.len() != stps.len() {
             // e.g. qt: Iterable(T), st: Vec(<: Iterable(Int))
-            /*if let Some(st_sups) = ctx.get_super_types(st) {
-                for sup in st_sups {
+            if let Some(st_sups) = ctx.get_super_types(st) {
+                for sup in st_sups.skip(1) {
                     if sup.qual_name() == qt.qual_name() {
                         return Self::substitute_typarams(ctx, qt, &sup);
                     }
                 }
-            }*/
+            }
             if let Some(inner) = st.ref_inner().or_else(|| st.ref_mut_inner()) {
                 return Self::substitute_typarams(ctx, qt, &inner);
             } else if let Some(sub) = st.get_sub() {
@@ -218,7 +218,17 @@ impl<'c> Substituter<'c> {
         let qtps = qt.typarams();
         let stps = st.typarams();
         if qt.qual_name() != st.qual_name() || qtps.len() != stps.len() {
-            if let Some(sub) = st.get_sub() {
+            // e.g. qt: Iterable(T), st: Vec(<: Iterable(Int))
+            if let Some(st_sups) = ctx.get_super_types(st) {
+                for sup in st_sups.skip(1) {
+                    if sup.qual_name() == qt.qual_name() {
+                        return Self::overwrite_typarams(ctx, qt, &sup);
+                    }
+                }
+            }
+            if let Some(inner) = st.ref_inner().or_else(|| st.ref_mut_inner()) {
+                return Self::overwrite_typarams(ctx, qt, &inner);
+            } else if let Some(sub) = st.get_sub() {
                 return Self::overwrite_typarams(ctx, qt, &sub);
             }
             log!(err "{qt} / {st}");
@@ -2297,7 +2307,7 @@ impl Context {
         }
         // in Methods
         if let Some(ctx) = self.get_same_name_context(&sub.qual_name()) {
-            match ctx.validate_and_project(&sub, opt_sup.as_ref(), &rhs, self, level, t_loc) {
+            match ctx.validate_and_project(&sub, opt_sup.as_ref(), &rhs, self, None, level, t_loc) {
                 Triple::Ok(t) => return Ok(t),
                 Triple::Err(err) => return Err(err),
                 Triple::None => {}
@@ -2317,7 +2327,15 @@ impl Context {
             }
         };
         for ty_ctx in ty_ctxs {
-            match self.validate_and_project(&sub, opt_sup.as_ref(), &rhs, ty_ctx, level, t_loc) {
+            match self.validate_and_project(
+                &sub,
+                opt_sup.as_ref(),
+                &rhs,
+                ty_ctx,
+                Some(&ty_ctx.typ),
+                level,
+                t_loc,
+            ) {
                 Triple::Ok(t) => return Ok(t),
                 Triple::Err(err) => return Err(err),
                 Triple::None => {}
@@ -2336,8 +2354,15 @@ impl Context {
                     }
                     _ => {}
                 }
-                match self.validate_and_project(&sub, opt_sup.as_ref(), &rhs, methods, level, t_loc)
-                {
+                match self.validate_and_project(
+                    &sub,
+                    opt_sup.as_ref(),
+                    &rhs,
+                    methods,
+                    Some(&ty_ctx.typ),
+                    level,
+                    t_loc,
+                ) {
                     Triple::Ok(t) => return Ok(t),
                     Triple::Err(err) => return Err(err),
                     Triple::None => {}
@@ -2838,12 +2863,14 @@ impl Context {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn validate_and_project(
         &self,
         sub: &Type,
         opt_sup: Option<&Type>,
         rhs: &str,
         methods: &Context,
+        methods_type: Option<&Type>,
         level: usize,
         t_loc: &impl Locational,
     ) -> Triple<Type, EvalErrors> {
@@ -2891,6 +2918,15 @@ impl Context {
                         }
                         None => None,
                     };
+                let _met_t_subs = match methods_type
+                    .map(|met_t| Substituter::substitute_typarams(self, met_t, sub))
+                {
+                    Some(Ok(subs)) => subs,
+                    Some(Err(errs)) => {
+                        return Triple::Err(errs);
+                    }
+                    None => None,
+                };
                 // [T; M+N] -> [Int; 4+2] -> [Int; 6]
                 let res = self.eval_t_params(projected_t, level, t_loc).ok();
                 if let Some(t) = res {

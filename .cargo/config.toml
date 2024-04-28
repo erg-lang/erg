@@ -79,3 +79,5 @@ dread = "run --features debug -- --mode read"
 
 inst = "install --path . --features els"
 dinst = "install --path . --features debug --features els"
+
+ntest = "nextest run"

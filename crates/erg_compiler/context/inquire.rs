@@ -2831,10 +2831,7 @@ impl Context {
     }
 
     /// include `typ` itself.
-    pub(crate) fn _get_super_types(
-        &self,
-        typ: &Type,
-    ) -> Option<impl Iterator<Item = Type> + Clone> {
+    pub(crate) fn get_super_types(&self, typ: &Type) -> Option<impl Iterator<Item = Type> + Clone> {
         self.get_nominal_type_ctx(typ).map(|ctx| {
             let super_classes = ctx.super_classes.clone();
             let super_traits = ctx.super_traits.clone();
