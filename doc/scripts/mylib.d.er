@@ -1,5 +1,11 @@
+# Most of these are not the correct type
+
 .get_file_dirname!: () => Str
 
-.path_join: (__a: Str, path: Str) => Str
+.path_join: (__a: Str, path: Str) -> Str
 
-.str_slice: (str: Str, first_index: Nat) => Str
+.path_relpath: (path: Str, start: Str) -> Str
+
+.path_sep: Str
+
+.str_slice: (str: Str, first_index: Nat) -> Str
