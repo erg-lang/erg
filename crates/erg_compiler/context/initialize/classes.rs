@@ -68,7 +68,7 @@ impl Context {
         obj.register_py_builtin(
             FUNDAMENTAL_DIR,
             fn0_met(Obj, unknown_len_list_t(Str)),
-            Some(FUNDAMENTAL_GETATTRIBUTE),
+            Some(FUNDAMENTAL_DIR),
             12,
         );
         obj.register_py_builtin(
