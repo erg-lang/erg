@@ -551,7 +551,6 @@ impl Parser {
                 }
                 None => {
                     if !self.errs.is_empty() {
-                        debug_exit_info!(self);
                         let err = if let Some(last) = chunks.last() {
                             self.skip_and_throw_invalid_chunk_err(caused_by!(), line!(), last.loc())
                         } else {
