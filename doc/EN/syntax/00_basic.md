@@ -21,7 +21,7 @@ First, let's do "Hello World".
 print!("Hello, World!")
 ```
 
-This is almost identical to Python and other languages in the same family. The most striking feature is the `!`, the meaning of which will be explained later.
+This is almost identical to Python and other languages in the same family. The most striking feature is the `!`, the meaning of which will be explained [later](https://erg-lang.org/the-erg-book/07_side_effect.html#side-effects-and-procedures).
 In Erg, parentheses `()` can be omitted unless there is some confusion in interpretation.
 The omission of parentheses is similar to Ruby, but it is not possible to omit parentheses that can be interpreted in more than one way.
 
