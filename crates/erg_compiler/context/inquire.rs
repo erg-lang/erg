@@ -1349,7 +1349,9 @@ impl Context {
         }
         match self.get_attr_type_by_name(obj, attr_name, namespace) {
             Triple::Ok(method) => {
-                let def_t = self.instantiate_def_type(&method.definition_type).unwrap();
+                let def_t = self
+                    .instantiate_def_type(&method.definition_type)
+                    .map_err(|mut errs| errs.remove(0))?;
                 let list = UndoableLinkedList::new();
                 self.undoable_sub_unify(obj.ref_t(), &def_t, obj, &list, None)
                     // HACK: change this func's return type to TyCheckResult<Type>
@@ -1473,7 +1475,9 @@ impl Context {
         }
         match self.get_attr_type_by_name(obj, attr_name, namespace) {
             Triple::Ok(method) => {
-                let def_t = self.instantiate_def_type(&method.definition_type).unwrap();
+                let def_t = self
+                    .instantiate_def_type(&method.definition_type)
+                    .map_err(|mut errs| errs.remove(0))?;
                 let list = UndoableLinkedList::new();
                 self.undoable_sub_unify(obj.ref_t(), &def_t, obj, &list, None)
                     // HACK: change this func's return type to TyCheckResult<Type>

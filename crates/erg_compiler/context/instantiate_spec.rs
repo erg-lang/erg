@@ -2572,7 +2572,7 @@ impl Context {
                     };
                 }
                 let ty = new_set.iter().fold(Type::Never, |t, tp| {
-                    self.union(&t, &self.get_tp_t(tp).unwrap().derefine())
+                    self.union(&t, &self.get_tp_t(tp).unwrap_or(Obj).derefine())
                 });
                 if errs.is_empty() {
                     Ok(tp_enum(ty, new_set))

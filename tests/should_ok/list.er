@@ -38,3 +38,8 @@ l2 = [![1]].repeat 3
 l2[0].push! 2
 ans: List(List(Nat)) = [[1, 2], [1], [1]]
 assert l2 == ans
+
+l3 = [1, 2, 3, 4]
+assert l3.from(2) == [3, 4]
+assert l3.from(2).from(1) == [4]
+assert l3.from(5) == []

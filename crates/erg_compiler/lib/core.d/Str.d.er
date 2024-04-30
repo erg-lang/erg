@@ -181,3 +181,10 @@
     translate: (self: .Str, table: {Nat: Nat or NoneType}) -> .Str
     upper: (self: .Str) -> .Str
     zfill: (self: .Str, width: Nat) -> .Str
+    '''
+    Returns the substring of the string starting at the given index.
+    '''
+    '''erg
+    assert "abcde".from(2) == "cde"
+    '''
+    from: (self: Str, nth: Nat) -> Str

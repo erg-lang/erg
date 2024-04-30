@@ -56,3 +56,10 @@
     assert [1, 2, 3].reversed() == [3, 2, 1]
     '''
     reversed: |T: Type, N: Nat|(self: List(T, N)) -> List(T, N)
+    '''
+    Returns the array with the first `nth` elements removed.
+    '''
+    '''erg
+    assert [1, 2, 3, 4, 5].from(2) == [3, 4, 5]
+    '''
+    from: |T: Type|(self: List(T, _), nth: Nat) -> List(T, _)

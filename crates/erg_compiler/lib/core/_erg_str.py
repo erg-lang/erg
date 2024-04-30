@@ -48,6 +48,8 @@ class Str(str):
         else:
             return str.__getitem__(self, index_or_slice)
 
+    def from_(self, nth: int):
+        return self[nth:]
 
 class StrMut(MutType):  # Inherits Str
     value: Str

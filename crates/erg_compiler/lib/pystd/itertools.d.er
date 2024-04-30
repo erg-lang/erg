@@ -65,8 +65,8 @@
 .Islice(T) <: Output T
 .Islice(T) <: Iterable T
 .Islice(T).
-    __call__: (iterable: Iterable(T), start := Int, stop := Int, step := Int) -> .Islice(T)
-.islice: |T|(iterable: Iterable(T), start := Int, stop := Int, step := Int) -> .Islice(T)
+    __call__: (iterable: Iterable(T), start := Int or NoneType, stop := Int or NoneType, step := Int or NoneType) -> .Islice(T)
+.islice: |T|(iterable: Iterable(T), start := Int or NoneType, stop := Int or NoneType, step := Int or NoneType) -> .Islice(T)
 
 .Pairwise = 'pairwise': (T: Type) -> ClassType
 .Pairwise(T) <: Output T

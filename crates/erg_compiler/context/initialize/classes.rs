@@ -1247,6 +1247,13 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_ISPRINTABLE),
         );
+        str_.register_builtin_py_impl(
+            FUNC_FROM,
+            no_var_fn_met(Str, vec![kw(KW_NTH, Nat)], vec![], Str),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_FROM_),
+        );
         let str_getitem_t = fn1_kw_met(Str, kw(KW_IDX, Nat | poly(RANGE, vec![ty_tp(Int)])), Str);
         str_.register_builtin_erg_impl(
             FUNDAMENTAL_GETITEM,
@@ -1795,6 +1802,20 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(list_remove_all_t),
             list_remove_all,
+        );
+        let list_from = no_var_fn_met(
+            unknown_len_list_t(T.clone()),
+            vec![kw(KW_NTH, Nat)],
+            vec![],
+            unknown_len_list_t(T.clone()),
+        )
+        .quantify();
+        list_.register_builtin_py_impl(
+            FUNC_FROM,
+            list_from,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_FROM_),
         );
         list_
             .register_trait(self, poly(INDEXABLE, vec![ty_tp(input), ty_tp(T.clone())]))

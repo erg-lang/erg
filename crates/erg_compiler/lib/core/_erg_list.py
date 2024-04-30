@@ -137,6 +137,8 @@ class List(list):
             new.extend(deepcopy(self))
         return List(new)
 
+    def from_(self, nth: int):
+        return self[nth:]
 
 class UnsizedList:
     elem: object
