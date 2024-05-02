@@ -2978,8 +2978,8 @@ impl Locational for ConstArgs {
     fn loc(&self) -> Location {
         if let Some((l, r)) = &self.paren {
             Location::concat(l, r)
-        } else if let Some(last) = self.kw_args.last() {
-            Location::concat(self.pos_args.first().unwrap(), last)
+        } else if let Some((first, last)) = self.pos_args.first().zip(self.kw_args.last()) {
+            Location::concat(first, last)
         } else if let Some(last) = self.pos_args.last() {
             Location::concat(self.pos_args.first().unwrap(), last)
         } else {
@@ -3411,8 +3411,8 @@ impl Locational for TupleTypeSpec {
     fn loc(&self) -> Location {
         if let Some((lparen, rparen)) = &self.parens {
             Location::concat(lparen, rparen)
-        } else if !self.tys.is_empty() {
-            Location::concat(self.tys.first().unwrap(), self.tys.last().unwrap())
+        } else if let Some((first, last)) = self.tys.first().zip(self.tys.last()) {
+            Location::concat(first, last)
         } else {
             Location::Unknown
         }
@@ -3780,10 +3780,10 @@ impl_displayable_stream_for_wrapper!(TypeBoundSpecs, TypeBoundSpec);
 
 impl Locational for TypeBoundSpecs {
     fn loc(&self) -> Location {
-        if self.0.is_empty() {
-            Location::Unknown
+        if let Some((first, last)) = self.first().zip(self.last()) {
+            Location::concat(first, last)
         } else {
-            Location::concat(self.first().unwrap(), self.last().unwrap())
+            Location::Unknown
         }
     }
 }
@@ -3969,10 +3969,10 @@ impl NestedDisplay for Namespaces {
 
 impl Locational for Namespaces {
     fn loc(&self) -> Location {
-        if self.0.is_empty() {
-            Location::Unknown
+        if let Some((first, last)) = self.first().zip(self.last()) {
+            Location::concat(first, last)
         } else {
-            Location::concat(self.first().unwrap(), self.last().unwrap())
+            Location::Unknown
         }
     }
 }
@@ -4620,10 +4620,10 @@ impl_stream!(Vars, VarSignature, elems);
 
 impl Locational for Vars {
     fn loc(&self) -> Location {
-        if self.elems.is_empty() {
-            Location::Unknown
+        if let Some((first, last)) = self.elems.first().zip(self.elems.last()) {
+            Location::concat(first, last)
         } else {
-            Location::concat(self.first().unwrap(), self.last().unwrap())
+            Location::Unknown
         }
     }
 }
@@ -5649,8 +5649,8 @@ impl DefBody {
     }
 
     pub fn def_kind(&self) -> DefKind {
-        match self.block.first().unwrap() {
-            Expr::Call(call) => match call.obj.get_name().map(|n| &n[..]) {
+        match self.block.first() {
+            Some(Expr::Call(call)) => match call.obj.get_name().map(|n| &n[..]) {
                 Some("Class") => DefKind::Class,
                 Some("Inherit") => DefKind::Inherit,
                 Some("Trait") => DefKind::Trait,
@@ -5672,7 +5672,7 @@ impl DefBody {
                 Some("rsimport") => DefKind::RsImport,
                 _ => DefKind::Other,
             },
-            Expr::InlineModule(_) => DefKind::InlineModule,
+            Some(Expr::InlineModule(_)) => DefKind::InlineModule,
             _ => DefKind::Other,
         }
     }
@@ -6165,10 +6165,10 @@ impl_display_from_nested!(Module);
 
 impl Locational for Module {
     fn loc(&self) -> Location {
-        if self.is_empty() {
-            Location::Unknown
+        if let Some((first, last)) = self.first().zip(self.last()) {
+            Location::concat(first, last)
         } else {
-            Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+            Location::Unknown
         }
     }
 }

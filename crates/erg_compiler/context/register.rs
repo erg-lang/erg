@@ -37,7 +37,7 @@ use crate::error::{
 };
 use crate::hir::Literal;
 use crate::varinfo::{AbsLocation, AliasInfo, Mutability, VarInfo, VarKind};
-use crate::{feature_error, hir};
+use crate::{feature_error, hir, unreachable_error};
 use Mutability::*;
 use RegistrationMode::*;
 
@@ -792,9 +792,13 @@ impl Context {
         };
         let name = &sig.ident.name;
         // FIXME: constでない関数
-        let subr_t = self.get_current_scope_var(name).map(|vi| &vi.t).unwrap();
+        let Some(subr_t) = self.get_current_scope_var(name).map(|vi| &vi.t) else {
+            let err = unreachable_error!(TyCheckErrors, TyCheckError, self);
+            return err.map_err(|e| (e, VarInfo::ILLEGAL));
+        };
         let Ok(subr_t) = <&SubrType>::try_from(subr_t) else {
-            panic!("{subr_t} is not subr");
+            let err = unreachable_error!(TyCheckErrors, TyCheckError, self);
+            return err.map_err(|e| (e, VarInfo::ILLEGAL));
         };
         if let Err(es) = self.unify_params_t(sig, subr_t, params, body_t, body_loc) {
             errs.extend(es);

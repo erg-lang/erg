@@ -1419,13 +1419,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         if let Err(es) = self.module.context.propagate(&mut vi.t, &obj) {
             errs.extend(es);
         }
-        if let Some(guard) = guard {
+        if let Some((guard, ret)) = guard.zip(vi.t.return_t()) {
             debug_assert!(
-                self.module
-                    .context
-                    .subtype_of(vi.t.return_t().unwrap(), &Type::Bool),
-                "{} is not a subtype of Bool",
-                vi.t.return_t().unwrap_or(&Type::Obj)
+                self.module.context.subtype_of(ret, &Type::Bool),
+                "{ret} is not a subtype of Bool",
             );
             if let Some(ret_t) = vi.t.mut_return_t() {
                 *ret_t = guard;
@@ -2139,7 +2136,9 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             Type::Subr(subr_t) => self.lower_subr_block(subr_t, sig, decorators, body),
             quant @ Type::Quantified(_) => {
                 let instance = self.module.context.instantiate_dummy(quant)?;
-                let subr_t = SubrType::try_from(instance).unwrap();
+                let Ok(subr_t) = SubrType::try_from(instance) else {
+                    return unreachable_error!(LowerErrors, LowerError, self);
+                };
                 self.lower_subr_block(subr_t, sig, decorators, body)
             }
             Type::Failure => {
@@ -2904,12 +2903,14 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 )?;
             }
             AscriptionKind::SubtypeOf => {
-                let &ctx = self
+                let Some(&ctx) = self
                     .module
                     .context
                     .get_singular_ctxs_by_hir_expr(&expr, &self.module.context)?
                     .first()
-                    .unwrap();
+                else {
+                    return unreachable_error!(LowerErrors, LowerError, self);
+                };
                 // REVIEW: need to use subtype_of?
                 if ctx.super_traits.iter().all(|trait_| trait_ != &spec_t)
                     && ctx.super_classes.iter().all(|class| class != &spec_t)

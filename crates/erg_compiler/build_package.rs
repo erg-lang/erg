@@ -622,7 +622,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
             // A type definition file may be generated even if not all type checks succeed.
             if let Ok(status) = Command::new("pylyzer")
                 .arg("--dump-decl")
-                .arg(path.to_str().unwrap())
+                .arg(path.to_str().unwrap_or_default())
                 .stdout(out)
                 .stderr(err)
                 .spawn()

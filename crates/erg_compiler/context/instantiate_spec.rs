@@ -1593,7 +1593,7 @@ impl Context {
                         }
                     };
                     let val = match self.instantiate_const_expr(
-                        attr.body.block.get(0).unwrap(),
+                        attr.body.block.first().unwrap(),
                         None,
                         tmp_tv_cache,
                         not_found_is_qvar,

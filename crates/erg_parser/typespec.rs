@@ -202,7 +202,11 @@ impl Parser {
     fn validate_const_def(def: Def) -> Result<ConstDef, ParseError> {
         let block = Self::validate_const_block(def.body.block)?;
         let body = ConstDefBody::new(def.body.op, block, def.body.id);
-        Ok(ConstDef::new(def.sig.ident().unwrap().clone(), body))
+        let Some(ident) = def.sig.ident() else {
+            let err = ParseError::feature_error(line!() as usize, def.sig.loc(), "def pattern");
+            return Err(err);
+        };
+        Ok(ConstDef::new(ident.clone(), body))
     }
 
     fn accessor_to_type_spec(accessor: Accessor) -> Result<TypeSpec, ParseError> {
@@ -458,10 +462,17 @@ impl Parser {
                 .attrs
                 .into_iter()
                 .map(|mut def| {
-                    let ident = def.sig.ident().unwrap().clone();
+                    let Some(ident) = def.sig.ident() else {
+                        let err = ParseError::feature_error(
+                            line!() as usize,
+                            def.sig.loc(),
+                            "def pattern",
+                        );
+                        return Err(err);
+                    };
                     // TODO: check block.len() == 1
                     let value = Self::expr_to_type_spec(def.body.block.pop().unwrap())?;
-                    Ok((ident, value))
+                    Ok((ident.clone(), value))
                 })
                 .collect::<Result<Vec<_>, ParseError>>(),
             Record::Mixed(rec) => rec
@@ -469,10 +480,17 @@ impl Parser {
                 .into_iter()
                 .map(|attr_or_ident| match attr_or_ident {
                     RecordAttrOrIdent::Attr(mut def) => {
-                        let ident = def.sig.ident().unwrap().clone();
+                        let Some(ident) = def.sig.ident() else {
+                            let err = ParseError::feature_error(
+                                line!() as usize,
+                                def.sig.loc(),
+                                "def pattern",
+                            );
+                            return Err(err);
+                        };
                         // TODO: check block.len() == 1
                         let value = Self::expr_to_type_spec(def.body.block.pop().unwrap())?;
-                        Ok((ident, value))
+                        Ok((ident.clone(), value))
                     }
                     RecordAttrOrIdent::Ident(_ident) => {
                         todo!("TypeSpec for shortened record is not implemented.")
