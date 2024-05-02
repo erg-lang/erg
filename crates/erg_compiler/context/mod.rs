@@ -2,6 +2,7 @@
 //!
 //! `Context` is used for type inference and type checking.
 #![allow(clippy::result_unit_err)]
+#![allow(clippy::assigning_clones)]
 pub mod compare;
 pub mod eval;
 pub mod generalize;

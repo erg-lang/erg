@@ -40,12 +40,12 @@ pub fn levenshtein(a: &str, b: &str, limit: usize) -> Option<usize> {
     (dcol[m] <= limit).then_some(dcol[m])
 }
 
-pub fn get_similar_name<'a, S: ?Sized, I: Iterator<Item = &'a S>>(
+pub fn get_similar_name<'a, S, I: Iterator<Item = &'a S>>(
     candidates: I,
     name: &str,
 ) -> Option<&'a S>
 where
-    S: std::borrow::Borrow<str>,
+    S: ?Sized + std::borrow::Borrow<str>,
 {
     let limit = (name.len() as f64).sqrt().round() as usize;
     let most_similar_name =
@@ -58,12 +58,12 @@ where
     }
 }
 
-pub fn get_similar_name_and_some<'a, S: ?Sized, T, I: Iterator<Item = (&'a T, &'a S)>>(
+pub fn get_similar_name_and_some<'a, S, T, I: Iterator<Item = (&'a T, &'a S)>>(
     candidates: I,
     name: &str,
 ) -> Option<(&'a T, &'a S)>
 where
-    S: std::borrow::Borrow<str>,
+    S: ?Sized + std::borrow::Borrow<str>,
 {
     let limit = (name.len() as f64).sqrt().round() as usize;
     let most_similar_name_and_some = candidates

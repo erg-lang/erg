@@ -57,10 +57,10 @@ impl<T: Hash + Eq + Clone> CacheSet<[T]> {
 }
 
 impl<T: Hash + Eq> CacheSet<T> {
-    pub fn get<Q: ?Sized + Hash + Eq>(&self, q: &Q) -> Arc<T>
+    pub fn get<Q>(&self, q: &Q) -> Arc<T>
     where
         Arc<T>: Borrow<Q>,
-        Q: ToOwned<Owned = T>,
+        Q: ?Sized + Hash + Eq + ToOwned<Owned = T>,
     {
         if let Some(cached) = self.0.borrow().get(q) {
             return cached.clone();
