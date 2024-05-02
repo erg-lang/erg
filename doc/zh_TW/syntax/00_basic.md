@@ -17,7 +17,7 @@
 print!("Hello, World!")
 ```
 
-這與 Python 和同一家族中的其他語言幾乎相同。最顯著的Trait是`!`，后面會解釋它的含義
+這與 Python 和同一家族中的其他語言幾乎相同。最顯著的Trait是`!`，[后面](https://erg-lang.org/the-erg-book/zh_TW/07_side_effect.html)會解釋它的含義
 在 Erg 中，括號 `()` 可以省略，除非在解釋上有一些混淆
 括號的省略與 Ruby 類似，但不能省略可以以多種方式解釋的括號
 
