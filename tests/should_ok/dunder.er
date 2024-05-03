@@ -1,0 +1,15 @@
+imp = import "import"
+
+func() =
+    __file__ = "foo"
+    __file__
+
+C = Class()
+C.
+    __file__ = "bar"
+
+assert __file__.endswith "dunder.er"
+assert func() == "foo"
+assert module::__file__.endswith "dunder.er"
+assert C.new().__file__ == "bar"
+assert imp.func().endswith "import.er"

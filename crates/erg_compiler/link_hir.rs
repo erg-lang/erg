@@ -233,6 +233,11 @@ impl<'a> HIRLinker<'a> {
                 match acc {
                     Accessor::Attr(attr) => {
                         self.replace_import(&mut attr.obj);
+                        if attr.ident.inspect() == "__file__"
+                            && attr.ident.vi.def_loc.module.is_none()
+                        {
+                            *expr = self.__file__();
+                        }
                     }
                     Accessor::Ident(ident) => match &ident.inspect()[..] {
                         "module" => {
@@ -240,6 +245,9 @@ impl<'a> HIRLinker<'a> {
                         }
                         "global" => {
                             *expr = Expr::from(Identifier::static_public("__builtins__"));
+                        }
+                        "__file__" if ident.vi.def_loc.module.is_none() => {
+                            *expr = self.__file__();
                         }
                         _ => {}
                     },
@@ -361,6 +369,22 @@ impl<'a> HIRLinker<'a> {
         let __import__ = Identifier::static_public("__import__");
         let __name__ = Identifier::static_public("__name__");
         Expr::from(__import__).call1(Expr::from(__name__))
+    }
+
+    fn __file__(&self) -> Expr {
+        let path = self.cfg.input.path().to_path_buf();
+        let token = Token::new_fake(
+            TokenKind::StrLit,
+            format!(
+                "\"{}\"",
+                path.canonicalize().unwrap_or(path).to_string_lossy()
+            ),
+            0,
+            0,
+            0,
+        );
+        let lit = Literal::try_from(token).unwrap();
+        Expr::from(lit)
     }
 
     /// ```erg
