@@ -763,13 +763,14 @@ impl Output {
 /// Log to `$ERG_PATH/els.log`
 pub fn lsp_log(file: &str, line: u32, msg: &str) {
     let file_path = erg_path().join("els.log");
-    let mut f = if file_path.exists() {
-        File::options().append(true).open(file_path).unwrap()
+    let Ok(mut f) = (if file_path.exists() {
+        File::options().append(true).open(file_path)
     } else {
-        File::create(file_path).unwrap()
+        File::create(file_path)
+    }) else {
+        return;
     };
-    f.write_all(format!("{file}@{line}: {msg}\n").as_bytes())
-        .unwrap();
+    let _ = f.write_all(format!("{file}@{line}: {msg}\n").as_bytes());
 }
 
 #[macro_export]

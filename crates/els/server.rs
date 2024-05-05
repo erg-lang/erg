@@ -327,7 +327,13 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let mut _self = self.clone();
         let mut handle = spawn_new_thread(
             move || loop {
-                let msg = _self.read_message().unwrap();
+                let msg = match _self.read_message() {
+                    Ok(msg) => msg,
+                    Err(err) => {
+                        lsp_log!("error: {err}");
+                        continue;
+                    }
+                };
                 if let Err(err) = _self.dispatch(msg) {
                     lsp_log!("error: {err}");
                     if err.to_string().contains("sending on a closed channel") {
@@ -346,7 +352,13 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 let mut _self = self.clone();
                 handle = spawn_new_thread(
                     move || loop {
-                        let msg = _self.read_message().unwrap();
+                        let msg = match _self.read_message() {
+                            Ok(msg) => msg,
+                            Err(err) => {
+                                lsp_log!("error: {err}");
+                                continue;
+                            }
+                        };
                         if let Err(err) = _self.dispatch(msg) {
                             lsp_log!("error: {err}");
                             if err.to_string().contains("sending on a closed channel") {
@@ -727,9 +739,8 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let mut _self = self.clone();
         spawn_new_thread(
             move || loop {
-                let msg = receiver.recv().unwrap();
-                match msg {
-                    WorkerMessage::Request(id, params) => {
+                match receiver.recv() {
+                    Ok(WorkerMessage::Request(id, params)) => {
                         _self.scheduler.register(id, R::METHOD);
                         if _self.scheduler.acquire(id).is_none() {
                             _log!(_self, "canceled: {id}");
@@ -748,7 +759,11 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                         }
                         _self.scheduler.finish(id);
                     }
-                    WorkerMessage::Kill => {
+                    Ok(WorkerMessage::Kill) => {
+                        break;
+                    }
+                    Err(err) => {
+                        _log!(_self, "error: {err}");
                         break;
                     }
                 }
