@@ -461,7 +461,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 let Some(path) = vi.def_loc.module.as_ref() else {
                     continue;
                 };
-                let path = path.file_stem().unwrap().to_string_lossy();
+                let path = path.file_stem().unwrap_or_default().to_string_lossy();
                 let label = format!("{name} (import from {path})");
                 if already_appeared.contains(&label[..]) {
                     continue;

@@ -3607,7 +3607,15 @@ impl Context {
                     let value = obj_ctx.get_const_local(&Token::symbol(&attr), &self.name)?;
                     match value {
                         ValueObj::Subr(subr) => {
-                            return Ok(subr.sig_t().return_t().unwrap().clone());
+                            if let Some(ret_t) = subr.sig_t().return_t() {
+                                return Ok(ret_t.clone());
+                            } else {
+                                return Err(EvalErrors::from(EvalError::unreachable(
+                                    self.cfg.input.clone(),
+                                    fn_name!(),
+                                    line!(),
+                                )));
+                            }
                         }
                         _ => {
                             return Ok(Type::Obj);

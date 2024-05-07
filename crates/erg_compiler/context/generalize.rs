@@ -450,6 +450,63 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
         *self.variance_stack.last().unwrap()
     }
 
+    fn deref_value(&mut self, val: ValueObj) -> TyCheckResult<ValueObj> {
+        match val {
+            ValueObj::Type(mut t) => {
+                t.try_map_t(|t| self.deref_tyvar(t.clone()))?;
+                Ok(ValueObj::Type(t))
+            }
+            ValueObj::List(vs) => {
+                let mut new_vs = vec![];
+                for v in vs.iter() {
+                    new_vs.push(self.deref_value(v.clone())?);
+                }
+                Ok(ValueObj::List(new_vs.into()))
+            }
+            ValueObj::Tuple(vs) => {
+                let mut new_vs = vec![];
+                for v in vs.iter() {
+                    new_vs.push(self.deref_value(v.clone())?);
+                }
+                Ok(ValueObj::Tuple(new_vs.into()))
+            }
+            ValueObj::Dict(dic) => {
+                let mut new_dic = dict! {};
+                for (k, v) in dic.into_iter() {
+                    let k = self.deref_value(k)?;
+                    let v = self.deref_value(v)?;
+                    new_dic.insert(k, v);
+                }
+                Ok(ValueObj::Dict(new_dic))
+            }
+            ValueObj::Set(set) => {
+                let mut new_set = set! {};
+                for v in set.into_iter() {
+                    new_set.insert(self.deref_value(v)?);
+                }
+                Ok(ValueObj::Set(new_set))
+            }
+            ValueObj::Record(rec) => {
+                let mut new_rec = dict! {};
+                for (field, v) in rec.into_iter() {
+                    new_rec.insert(field, self.deref_value(v)?);
+                }
+                Ok(ValueObj::Record(new_rec))
+            }
+            ValueObj::DataClass { name, fields } => {
+                let mut new_fields = dict! {};
+                for (field, v) in fields.into_iter() {
+                    new_fields.insert(field, self.deref_value(v)?);
+                }
+                Ok(ValueObj::DataClass {
+                    name,
+                    fields: new_fields,
+                })
+            }
+            _ => Ok(val),
+        }
+    }
+
     pub(crate) fn deref_tp(&mut self, tp: TyParam) -> TyCheckResult<TyParam> {
         match tp {
             TyParam::FreeVar(fv) if fv.is_linked() => {
@@ -472,10 +529,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 Ok(TyParam::FreeVar(fv))
             }
             TyParam::Type(t) => Ok(TyParam::t(self.deref_tyvar(*t)?)),
-            TyParam::Value(ValueObj::Type(mut t)) => {
-                t.try_map_t(|t| self.deref_tyvar(t.clone()))?;
-                Ok(TyParam::Value(ValueObj::Type(t)))
-            }
+            TyParam::Value(val) => self.deref_value(val).map(TyParam::Value),
             TyParam::Erased(t) => Ok(TyParam::erased(self.deref_tyvar(*t)?)),
             TyParam::App { name, mut args } => {
                 for param in args.iter_mut() {
@@ -831,62 +885,68 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                         &typ,
                     )
                 })?;
+                let mut errs = TyCheckErrors::empty();
                 let variances = ctx.type_params_variance();
-                for (param, variance) in params.iter_mut().zip(variances.into_iter()) {
+                for (param, variance) in params
+                    .iter_mut()
+                    .zip(variances.into_iter().chain(std::iter::repeat(Invariant)))
+                {
                     self.push_variance(variance);
-                    *param = self.deref_tp(mem::take(param)).map_err(|e| {
-                        self.pop_variance();
-                        e
-                    })?;
+                    match self.deref_tp(mem::take(param)) {
+                        Ok(t) => *param = t,
+                        Err(es) => errs.extend(es),
+                    }
                     self.pop_variance();
                 }
-                Ok(Type::Poly { name, params })
+                if errs.is_empty() {
+                    Ok(Type::Poly { name, params })
+                } else {
+                    Err(errs)
+                }
             }
             Subr(mut subr) => {
+                let mut errs = TyCheckErrors::empty();
                 for param in subr.non_default_params.iter_mut() {
                     self.push_variance(Contravariant);
-                    *param.typ_mut() =
-                        self.deref_tyvar(mem::take(param.typ_mut())).map_err(|e| {
-                            self.pop_variance();
-                            e
-                        })?;
+                    match self.deref_tyvar(mem::take(param.typ_mut())) {
+                        Ok(t) => *param.typ_mut() = t,
+                        Err(es) => errs.extend(es),
+                    }
                     self.pop_variance();
                 }
                 if let Some(var_args) = &mut subr.var_params {
                     self.push_variance(Contravariant);
-                    *var_args.typ_mut() =
-                        self.deref_tyvar(mem::take(var_args.typ_mut()))
-                            .map_err(|e| {
-                                self.pop_variance();
-                                e
-                            })?;
+                    match self.deref_tyvar(mem::take(var_args.typ_mut())) {
+                        Ok(t) => *var_args.typ_mut() = t,
+                        Err(es) => errs.extend(es),
+                    }
                     self.pop_variance();
                 }
                 for d_param in subr.default_params.iter_mut() {
                     self.push_variance(Contravariant);
-                    *d_param.typ_mut() =
-                        self.deref_tyvar(mem::take(d_param.typ_mut()))
-                            .map_err(|e| {
-                                self.pop_variance();
-                                e
-                            })?;
+                    match self.deref_tyvar(mem::take(d_param.typ_mut())) {
+                        Ok(t) => *d_param.typ_mut() = t,
+                        Err(es) => errs.extend(es),
+                    }
                     if let Some(default) = d_param.default_typ_mut() {
-                        *default = self.deref_tyvar(mem::take(default)).map_err(|e| {
-                            self.pop_variance();
-                            e
-                        })?;
+                        match self.deref_tyvar(mem::take(default)) {
+                            Ok(t) => *default = t,
+                            Err(es) => errs.extend(es),
+                        }
                     }
                     self.pop_variance();
                 }
                 self.push_variance(Covariant);
-                *subr.return_t = self
-                    .deref_tyvar(mem::take(&mut subr.return_t))
-                    .map_err(|e| {
-                        self.pop_variance();
-                        e
-                    })?;
+                match self.deref_tyvar(mem::take(&mut subr.return_t)) {
+                    Ok(t) => *subr.return_t = t,
+                    Err(es) => errs.extend(es),
+                }
                 self.pop_variance();
-                Ok(Type::Subr(subr))
+                if errs.is_empty() {
+                    Ok(Type::Subr(subr))
+                } else {
+                    Err(errs)
+                }
             }
             Callable {
                 mut param_ts,
@@ -1022,7 +1082,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 for ((lp, rp), variance) in lps
                     .into_iter()
                     .zip(rps.into_iter())
-                    .zip(variances.into_iter())
+                    .zip(variances.into_iter().chain(std::iter::repeat(Invariant)))
                 {
                     self.ctx
                         .sub_unify_tp(&lp, &rp, Some(variance), self.loc, false)?;

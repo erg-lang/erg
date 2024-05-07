@@ -922,7 +922,7 @@ impl Context {
         lparams
             .iter()
             .zip(rparams.iter())
-            .zip(variances.iter())
+            .zip(variances.iter().chain(repeat(&Variance::Invariant)))
             .all(|((lp, rp), variance)| self.supertype_of_tp(lp, rp, *variance))
     }
 

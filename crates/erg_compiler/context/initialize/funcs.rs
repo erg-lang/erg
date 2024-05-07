@@ -102,6 +102,15 @@ impl Context {
         )
         .quantify();
         let t_discard = nd_func(vec![kw(KW_OBJ, Obj)], None, NoneType);
+        let M = mono_q(TY_M, Constraint::Uninited);
+        let M = mono_q(TY_M, subtypeof(poly(MUL, vec![ty_tp(M)])));
+        let Out = M.clone().proj(MOD_OUTPUT);
+        let t_divmod = nd_func(
+            vec![kw(KW_A, M.clone()), kw(KW_B, M.clone())],
+            None,
+            tuple_t(vec![Out.clone(), Out]),
+        )
+        .quantify();
         let t_enumerate = no_var_func(
             vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
             vec![kw(KW_START, Int)],
@@ -468,6 +477,13 @@ impl Context {
         );
         self.register_builtin_erg_impl(KW_COND, t_cond, Immutable, vis.clone());
         self.register_py_builtin(FUNC_DICT, t_dict, Some(FUNC_DICT), 224);
+        self.register_builtin_py_impl(
+            FUNC_DIVMOD,
+            t_divmod,
+            Immutable,
+            vis.clone(),
+            Some(FUNC_DIVMOD),
+        );
         self.register_builtin_py_impl(
             FUNC_ENUMERATE,
             t_enumerate,

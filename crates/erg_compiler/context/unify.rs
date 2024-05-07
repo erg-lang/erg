@@ -1655,7 +1655,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 for ((l_maybe_sub, r_maybe_sup), variance) in sub_params
                     .iter()
                     .zip(sup_params.iter())
-                    .zip(variances.iter())
+                    .zip(variances.iter().chain(repeat(&None)))
                 {
                     if unifier
                         .sub_unify_tp(l_maybe_sub, r_maybe_sup, *variance, false)
@@ -1674,8 +1674,10 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     }
                 }
                 drop(list);
-                for ((l_maybe_sub, r_maybe_sup), variance) in
-                    sub_params.iter().zip(sup_params.iter()).zip(variances)
+                for ((l_maybe_sub, r_maybe_sup), variance) in sub_params
+                    .iter()
+                    .zip(sup_params.iter())
+                    .zip(variances.into_iter().chain(repeat(None)))
                 {
                     self.sub_unify_tp(l_maybe_sub, r_maybe_sup, variance, false)?;
                 }
