@@ -2354,7 +2354,7 @@ impl Context {
                         ))
                     };
                     let file_stem = if file_kind.is_init_er() {
-                        path.parent().unwrap().file_stem()
+                        path.parent().and_then(|p| p.file_stem())
                     } else {
                         path.file_stem()
                     };

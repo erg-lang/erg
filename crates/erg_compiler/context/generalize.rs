@@ -503,6 +503,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                     fields: new_fields,
                 })
             }
+            ValueObj::UnsizedList(v) => Ok(ValueObj::UnsizedList(Box::new(self.deref_value(*v)?))),
             _ => Ok(val),
         }
     }
@@ -767,6 +768,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 let pred = self.deref_pred(*pred)?;
                 Ok(!pred)
             }
+            Predicate::Value(v) => self.deref_value(v).map(Predicate::Value),
             _ => Ok(pred),
         }
     }

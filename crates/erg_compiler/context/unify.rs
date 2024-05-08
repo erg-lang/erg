@@ -291,6 +291,91 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
         }
     }
 
+    fn sub_unify_value(&self, maybe_sub: &ValueObj, maybe_sup: &ValueObj) -> TyCheckResult<()> {
+        match (maybe_sub, maybe_sup) {
+            (ValueObj::Type(sub), ValueObj::Type(sup)) => self.sub_unify(sub.typ(), sup.typ()),
+            (ValueObj::UnsizedList(sub), ValueObj::UnsizedList(sup)) => {
+                self.sub_unify_value(sub, sup)
+            }
+            (ValueObj::List(sub), ValueObj::List(sup))
+            | (ValueObj::Tuple(sub), ValueObj::Tuple(sup)) => {
+                for (l, r) in sub.iter().zip(sup.iter()) {
+                    self.sub_unify_value(l, r)?;
+                }
+                Ok(())
+            }
+            (ValueObj::Dict(sub), ValueObj::Dict(sup)) => {
+                for (sub_k, sub_v) in sub.iter() {
+                    if let Some(sup_v) = sup.get(sub_k) {
+                        self.sub_unify_value(sub_v, sup_v)?;
+                    } else {
+                        log!(err "{sup} does not have key {sub_k}");
+                        return Err(TyCheckErrors::from(TyCheckError::feature_error(
+                            self.ctx.cfg.input.clone(),
+                            line!() as usize,
+                            self.loc.loc(),
+                            &format!("unifying {sub} and {sup}"),
+                            self.ctx.caused_by(),
+                        )));
+                    }
+                }
+                Ok(())
+            }
+            (ValueObj::Record(sub), ValueObj::Record(sup)) => {
+                for (sub_k, sub_v) in sub.iter() {
+                    if let Some(sup_v) = sup.get(sub_k) {
+                        self.sub_unify_value(sub_v, sup_v)?;
+                    } else {
+                        log!(err "{sup} does not have field {sub_k}");
+                        return Err(TyCheckErrors::from(TyCheckError::feature_error(
+                            self.ctx.cfg.input.clone(),
+                            line!() as usize,
+                            self.loc.loc(),
+                            &format!("unifying {sub} and {sup}"),
+                            self.ctx.caused_by(),
+                        )));
+                    }
+                }
+                Ok(())
+            }
+            (
+                ValueObj::DataClass {
+                    name: sub_name,
+                    fields: sub_fields,
+                },
+                ValueObj::DataClass {
+                    name: sup_name,
+                    fields: sup_fields,
+                },
+            ) => {
+                if sub_name == sup_name {
+                    for (sub_k, sub_v) in sub_fields.iter() {
+                        if let Some(sup_v) = sup_fields.get(sub_k) {
+                            self.sub_unify_value(sub_v, sup_v)?;
+                        } else {
+                            log!(err "{maybe_sup} does not have field {sub_k}");
+                            return Err(TyCheckErrors::from(TyCheckError::feature_error(
+                                self.ctx.cfg.input.clone(),
+                                line!() as usize,
+                                self.loc.loc(),
+                                &format!("unifying {maybe_sub} and {maybe_sup}"),
+                                self.ctx.caused_by(),
+                            )));
+                        }
+                    }
+                    Ok(())
+                } else {
+                    type_feature_error!(
+                        self.ctx,
+                        self.loc.loc(),
+                        &format!("unifying {maybe_sub} and {maybe_sup}")
+                    )
+                }
+            }
+            _ => Ok(()),
+        }
+    }
+
     /// allow_divergence = trueにすると、Num型変数と±Infの単一化を許す
     fn sub_unify_tp(
         &self,
@@ -313,9 +398,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             (TyParam::Type(sub), TyParam::Value(ValueObj::Type(sup))) => {
                 self.sub_unify(sub, sup.typ())
             }
-            (TyParam::Value(ValueObj::Type(sub)), TyParam::Value(ValueObj::Type(sup))) => {
-                self.sub_unify(sub.typ(), sup.typ())
-            }
+            (TyParam::Value(sub), TyParam::Value(sup)) => self.sub_unify_value(sub, sup),
             (TyParam::FreeVar(sub_fv), TyParam::FreeVar(sup_fv))
                 if sub_fv.is_unbound() && sup_fv.is_unbound() =>
             {
@@ -555,6 +638,23 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 }
                 Ok(())
             }
+            (TyParam::Record(sub), TyParam::Record(sup)) => {
+                for (sub_k, sub_v) in sub.iter() {
+                    if let Some(sup_v) = sup.get(sub_k) {
+                        self.sub_unify_tp(sub_v, sup_v, _variance, allow_divergence)?;
+                    } else {
+                        log!(err "{sup} does not have field {sub_k}");
+                        return Err(TyCheckErrors::from(TyCheckError::feature_error(
+                            self.ctx.cfg.input.clone(),
+                            line!() as usize,
+                            self.loc.loc(),
+                            &format!("unifying {sub} and {sup}"),
+                            self.ctx.caused_by(),
+                        )));
+                    }
+                }
+                Ok(())
+            }
             (
                 TyParam::ProjCall { obj, attr, args },
                 TyParam::ProjCall {
@@ -651,7 +751,8 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
     /// predは正規化されているとする
     fn sub_unify_pred(&self, sub_pred: &Predicate, sup_pred: &Predicate) -> TyCheckResult<()> {
         match (sub_pred, sup_pred) {
-            (Pred::Value(_), Pred::Value(_)) | (Pred::Const(_), Pred::Const(_)) => Ok(()),
+            (Pred::Const(_), Pred::Const(_)) => Ok(()),
+            (Pred::Value(sub), Pred::Value(sup)) => self.sub_unify_value(sub, sup),
             (Pred::Equal { rhs, .. }, Pred::Equal { rhs: rhs2, .. })
             | (Pred::GreaterEqual { rhs, .. }, Pred::GreaterEqual { rhs: rhs2, .. })
             | (Pred::LessEqual { rhs, .. }, Pred::LessEqual { rhs: rhs2, .. })
