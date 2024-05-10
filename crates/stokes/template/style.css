@@ -1,0 +1,175 @@
+@import url('https://fonts.googleapis.com/css2?family=Ubuntu&display=swap');
+
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #d7d7d7;
+}
+
+.container {
+    display: flex;
+}
+
+.sidebar {
+    width: 15%;
+    background-color: #333;
+    color: #efefef;
+    padding: 20px;
+}
+
+.codicon {
+    margin-right: 3px;
+}
+
+.fix {
+    position: fixed;
+    width: 15%;
+}
+
+.sidebar ul {
+    list-style-type: none;
+    padding: 0;
+}
+
+.sidebar h3 {
+    color: #efefef;
+}
+
+.sidebar h3 a {
+    font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+}
+
+.sidebar ul li {
+    font-size: large;
+    margin-bottom: 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sidebar ul li a {
+    display: flex;
+    font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+    font-size: medium;
+    color: #a9b7c6;
+    text-decoration: none;
+}
+
+.type {
+    margin-top: 2px;
+    font-size: small;
+    color: #808080;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.content {
+    width: 85%;
+    padding: 20px;
+}
+
+header {
+    display: flex;
+    background-color: #333;
+    color: #efefef;
+    padding: 15px;
+    position: fixed;
+    width: 100%;
+    font-family: 'Ubuntu', monospace;
+}
+
+input, select, textarea {
+color: #efefef;
+}
+
+.search-bar {
+    margin-left: auto;
+    width: 25vw;
+    border-radius: 2px 0 0 2px;
+    border: 0px solid #9d9d9d;
+    background: #454545;
+    padding: 5px;
+}
+
+main {
+    padding-top: 20px;
+}
+
+section {
+    padding: 20px;
+    background-color: #f5f5f5;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+h1 {
+    font-family: 'Ubuntu', monospace;
+}
+
+h2 {
+    color: #333;
+    margin-bottom: 10px;
+}
+
+h3 {
+    color: #333;
+    margin-bottom: 10px;
+}
+
+hr {
+    border: 0;
+    border-top: 1.5px solid #8f8f8f;
+    margin-bottom: 20px;
+}
+
+p {
+    color: #555;
+    line-height: 1.5;
+    margin-bottom: 10px;
+}
+
+.description {
+    padding: 0px 10px;
+}
+
+a {
+    color: #567ba2;
+    text-decoration: none;
+}
+
+pre {
+    background-color: #e5e5e5;
+    border-radius: 5px;
+    padding: 10px;
+    overflow-x: auto;
+}
+
+code {
+    font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+    font-size: medium;
+}
+
+.copy-button {
+    border: none;
+    cursor: pointer;
+    margin-left: auto;
+}
+
+.icon {
+    margin: 0px 5px;
+}
+
+.icons {
+    margin-left:auto;
+    display:flex;
+}
+
+.api-name {
+    font-size: 1.5em;
+    margin-bottom: 0.5em;
+    color: #333;
+    font-weight: bold;
+    font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+}

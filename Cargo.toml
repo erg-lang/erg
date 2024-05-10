@@ -19,6 +19,7 @@ members = [
     "crates/erg_parser",
     "crates/els",
     "crates/erg_proc_macros/",
+    "crates/stokes",
 ]
 
 [workspace.package]
@@ -65,9 +66,10 @@ large_thread = [
 ]
 py_compat = ["erg_compiler/py_compat", "els/py_compat"]
 gal = ["erg_common/gal", "erg_compiler/gal"]
+stokes = ["dep:stokes"]
 els = ["erg_common/els", "erg_compiler/els", "dep:els"]
 full-repl = ["erg_common/full-repl"]
-full = ["els", "full-repl", "unicode", "pretty"]
+full = ["els", "full-repl", "stokes", "unicode", "pretty"]
 experimental = ["erg_common/experimental", "erg_parser/experimental", "erg_compiler/experimental", "erg_linter/experimental"]
 
 [workspace.dependencies]
@@ -75,6 +77,7 @@ erg_common = { version = "0.6.36", path = "./crates/erg_common" }
 erg_parser = { version = "0.6.36", path = "./crates/erg_parser" }
 erg_compiler = { version = "0.6.36", path = "./crates/erg_compiler" }
 erg_linter = { version = "0.6.36", path = "./crates/erg_linter" }
+stokes = { version = "0.6.36", path = "./crates/stokes" }
 els = { version = "0.1.48", path = "./crates/els" }
 erg_proc_macros = { version = "0.6.36", path = "./crates/erg_proc_macros" }
 pyo3 = { version = "0.20", features = ["extension-module"] }
@@ -84,6 +87,7 @@ erg_common = { workspace = true }
 erg_parser = { workspace = true }
 erg_compiler = { workspace = true }
 erg_linter = { workspace = true }
+stokes = { workspace = true, optional = true, featurs = ["stokes"] }
 els = { workspace = true, optional = true, features = ["lint"] }
 
 [build-dependencies]

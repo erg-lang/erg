@@ -1,0 +1,17 @@
+[package]
+name = "stokes"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+
+[dependencies]
+erg_common = { workspace = true }
+erg_parser = { workspace = true }
+erg_compiler ={ workspace = true }
+minijinja = "2"
+
+[lib]
+path = "lib.rs"

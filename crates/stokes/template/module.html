@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.4/css/all.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vscode-codicons@0.0.15/dist/codicon.css" />
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.25.0/plugins/line-numbers/prism-line-numbers.min.css">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="darcula.css">
+    <script defer src="prism.js"></script>
+</head>
+
+<body>
+    <header style="display: flex; align-items: center;">
+        <div style="font-size:large">Erg docs</div>
+        <div style="margin-left: auto;">
+            <span class="icon"><i class="fas fa-search"></i></span>
+            <input type="text" placeholder="Search words" class="search-bar">
+        </div>
+    </header>
+    <main>
+        <div class="container">
+            <div class="sidebar">
+                <div class="fix">
+                    <h3><a href="#">builtin.</a></h3>
+                    <h3><i class="codicon codicon-symbol-method"></i>Subroutines</h3>
+                    <ul>
+                        <li><a href="#print">print!<div class="type">: (*objects: Ref(Obj), sep := Str, end := Str, file
+                                    := Writable!, flush := Bool) => NoneType</div></a></li>
+                        <li><a href="#log">log<div class="type">: (*objects: Ref(Obj), sep := Str, end := Str, file :=
+                                    Writable!, flush := Bool) -> NoneType</div></a></li>
+                    </ul>
+                    <h3><i class="codicon codicon-symbol-class"></i>Classes</h3>
+                    <ul>
+                        <li><a href="#print">Bool</a></li>
+                        <li><a href="#log">Dict</a></li>
+                    </ul>
+                    <h3><i class="codicon codicon-symbol-constant"></i>Constants</h3>
+                    <ul>
+                        <li><a href="#print">__file__<div class="type">: Str</div></a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="content">
+                <main>
+                    <h2>Module <a href="#">builtin</a></h2>
+                    <p class="description">The builtin module contains functions / constants that are available by
+                        default in every Erg
+                        program.
+                        These
+                        functions
+                        provide basic functionality for input/output, error handling, and other common tasks.
+                    </p>
+                </main>
+
+                <h2>Subroutines</h2>
+                <hr>
+
+                <section>
+                    <div class="api-name">
+                        <i class="codicon codicon-symbol-method"></i>
+                        print!
+                    </div>
+                    <p class="description">
+                        The print function is used to output text or values to the console. It takes
+                        one or
+                        more objects as arguments and displays their string representation. The objects are separated by
+                        spaces and
+                        a
+                        newline character is added at the end.
+                    </p>
+                    <p><strong>Type</strong></p>
+                    <pre><code class="language-rust">(*objects: Ref(Obj), sep := Str, end := Str, file := Writable!, flush := Bool) => NoneType</code></pre>
+                    <p><strong>Example</strong></p>
+                    <pre style="display:flex;">
+                        <code class="language-rust">print! "Hello, world!"
+print! "Hello", "world!", sep := ", "</code>
+                        <div class="icons">
+                            <span class="icon"><i class="fas fa-copy"></i></span>
+                            <span class="icon"><i class="fas fa-play"></i></span>
+                        </div>
+                    </pre>
+                    <p><strong>Output</strong></p>
+                    <pre><code>Hello, world!
+Hello, world!</code></pre>
+                </section>
+                <section>
+                    <div class="api-name">
+                        <i class="codicon codicon-symbol-method"></i>
+                        log
+                    </div>
+                    <p class="description">
+                        The print function is used to output text or values to the console. It takes
+                        one or
+                        more objects as arguments and displays their string representation. The objects are separated by
+                        spaces and
+                        a
+                        newline character is added at the end.
+                    </p>
+                    <p><strong>Type</strong>
+                    <pre><code class="language-rust">(*objects: Ref(Obj), sep := Str, end := Str, file := Writable!, flush := Bool) -> NoneType</code></pre>
+                    </p>
+                    <p><strong>Example</strong></p>
+                    <pre><code class="language-rust">log("Hello, world!")</code></pre>
+                    <p><strong>Output</strong></p>
+                    <pre><code>Hello, world!</code></pre>
+                </section>
+
+                <h2>Classes</h2>
+                <hr>
+
+                <h2>Constants</h2>
+                <hr>
+            </div>
+        </div>
+    </main>
+</body>
+
+</html>
