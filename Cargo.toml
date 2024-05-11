@@ -87,7 +87,7 @@ erg_common = { workspace = true }
 erg_parser = { workspace = true }
 erg_compiler = { workspace = true }
 erg_linter = { workspace = true }
-stokes = { workspace = true, optional = true, featurs = ["stokes"] }
+stokes = { workspace = true, optional = true }
 els = { workspace = true, optional = true, features = ["lint"] }
 
 [build-dependencies]

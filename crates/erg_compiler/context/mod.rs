@@ -282,6 +282,18 @@ impl TypeContext {
             None
         })
     }
+
+    pub fn instance_attrs(&self) -> impl Iterator<Item = (&VarName, &VarInfo)> {
+        self.locals
+            .iter()
+            .filter(|(_, vi)| vi.kind.is_instance_attr())
+    }
+
+    pub fn class_attrs(&self) -> impl Iterator<Item = (&VarName, &VarInfo)> {
+        self.locals
+            .iter()
+            .filter(|(_, vi)| !vi.t.is_method() && !vi.kind.is_instance_attr())
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1559,6 +1571,20 @@ impl Context {
             }
         }
         tv_ctx
+    }
+
+    pub fn types(&self) -> impl Iterator<Item = (&VarName, &TypeContext)> {
+        self.mono_types.iter().chain(self.poly_types.iter())
+    }
+
+    pub fn has_type(&self, name: &str) -> bool {
+        self.mono_types.contains_key(name) || self.poly_types.contains_key(name)
+    }
+
+    pub fn all_methods(&self) -> impl Iterator<Item = (&VarName, &VarInfo)> {
+        self.methods_list
+            .iter()
+            .flat_map(|ms| ms.locals.iter().filter(|(_, vi)| vi.t.is_method()))
     }
 }
 

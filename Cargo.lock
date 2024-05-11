@@ -572,6 +572,7 @@ dependencies = [
  "erg_compiler",
  "erg_parser",
  "minijinja",
+ "serde",
 ]
 
 [[package]]

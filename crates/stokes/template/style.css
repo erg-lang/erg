@@ -40,6 +40,10 @@ body {
     font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
 }
 
+ul li {
+    display: flex;
+}
+
 .sidebar ul li {
     font-size: large;
     margin-bottom: 10px;

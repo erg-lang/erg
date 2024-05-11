@@ -12,6 +12,11 @@ erg_common = { workspace = true }
 erg_parser = { workspace = true }
 erg_compiler ={ workspace = true }
 minijinja = "2"
+serde = { version = "1.0", features = ["derive"] }
 
 [lib]
 path = "lib.rs"
+
+[[bin]]
+name = "stokes"
+path = "main.rs"

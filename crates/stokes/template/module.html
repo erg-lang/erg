@@ -23,96 +23,115 @@
         <div class="container">
             <div class="sidebar">
                 <div class="fix">
-                    <h3><a href="#">builtin.</a></h3>
+                    <h3><a href="#">{{ module.name }}.</a></h3>
                     <h3><i class="codicon codicon-symbol-method"></i>Subroutines</h3>
                     <ul>
-                        <li><a href="#print">print!<div class="type">: (*objects: Ref(Obj), sep := Str, end := Str, file
-                                    := Writable!, flush := Bool) => NoneType</div></a></li>
-                        <li><a href="#log">log<div class="type">: (*objects: Ref(Obj), sep := Str, end := Str, file :=
-                                    Writable!, flush := Bool) -> NoneType</div></a></li>
+                        {% for sub in module.subroutines %}
+                        <li><a href="#{{ sub.name }}">{{ sub.name }}</a>
+                            <div class="type">: {{ sub.typ }}</div>
+                        </li>
+                        {% endfor %}
                     </ul>
                     <h3><i class="codicon codicon-symbol-class"></i>Classes</h3>
                     <ul>
-                        <li><a href="#print">Bool</a></li>
-                        <li><a href="#log">Dict</a></li>
+                        {% for class in module.classes %}
+                        <li><a href="#{{ class.name }}">{{ class.name }}</a></li>
+                        {% endfor %}
                     </ul>
-                    <h3><i class="codicon codicon-symbol-constant"></i>Constants</h3>
+                    <h3><i class="codicon codicon-symbol-constant"></i>Variables</h3>
                     <ul>
-                        <li><a href="#print">__file__<div class="type">: Str</div></a></li>
+                        {% for attr in module.attrs %}
+                        <li><a href="#{{ attr.name }}">{{ attr.name }}<div class="type">: {{ attr.typ }}</div></a></li>
+                        {% endfor %}
                     </ul>
                 </div>
             </div>
 
             <div class="content">
                 <main>
-                    <h2>Module <a href="#">builtin</a></h2>
-                    <p class="description">The builtin module contains functions / constants that are available by
-                        default in every Erg
-                        program.
-                        These
-                        functions
-                        provide basic functionality for input/output, error handling, and other common tasks.
-                    </p>
+                    <h2>Module <a href="#">{{ module.name }}</a></h2>
+                    {% if module.description %}
+                    <p class="description">{{ module.description }}</p>
+                    {% endif %}
                 </main>
 
                 <h2>Subroutines</h2>
                 <hr>
 
+                {% for sub in module.subroutines %}
                 <section>
-                    <div class="api-name">
-                        <i class="codicon codicon-symbol-method"></i>
-                        print!
-                    </div>
-                    <p class="description">
-                        The print function is used to output text or values to the console. It takes
-                        one or
-                        more objects as arguments and displays their string representation. The objects are separated by
-                        spaces and
-                        a
-                        newline character is added at the end.
-                    </p>
+                    <div class="api-name"><i class="codicon codicon-symbol-method"></i>{{ sub.name }}</div>
+                    {% if sub.description %}
+                    <p class="description">{{ sub.description }}</p>
+                    {% endif %}
                     <p><strong>Type</strong></p>
-                    <pre><code class="language-rust">(*objects: Ref(Obj), sep := Str, end := Str, file := Writable!, flush := Bool) => NoneType</code></pre>
+                    <pre><code class="language-rust">{{ sub.typ }}</code></pre>
+                    {% if sub.example %}
                     <p><strong>Example</strong></p>
                     <pre style="display:flex;">
-                        <code class="language-rust">print! "Hello, world!"
-print! "Hello", "world!", sep := ", "</code>
+                        <code class="language-rust">{{ sub.example }}</code>
                         <div class="icons">
                             <span class="icon"><i class="fas fa-copy"></i></span>
                             <span class="icon"><i class="fas fa-play"></i></span>
                         </div>
                     </pre>
+                    {% endif %}
+                    {% if sub.output %}
                     <p><strong>Output</strong></p>
-                    <pre><code>Hello, world!
-Hello, world!</code></pre>
+                    <pre><code>{{ sub.output }}</code></pre>
+                    {% endif %}
                 </section>
-                <section>
-                    <div class="api-name">
-                        <i class="codicon codicon-symbol-method"></i>
-                        log
-                    </div>
-                    <p class="description">
-                        The print function is used to output text or values to the console. It takes
-                        one or
-                        more objects as arguments and displays their string representation. The objects are separated by
-                        spaces and
-                        a
-                        newline character is added at the end.
-                    </p>
-                    <p><strong>Type</strong>
-                    <pre><code class="language-rust">(*objects: Ref(Obj), sep := Str, end := Str, file := Writable!, flush := Bool) -> NoneType</code></pre>
-                    </p>
-                    <p><strong>Example</strong></p>
-                    <pre><code class="language-rust">log("Hello, world!")</code></pre>
-                    <p><strong>Output</strong></p>
-                    <pre><code>Hello, world!</code></pre>
-                </section>
+                {% endfor %}
 
                 <h2>Classes</h2>
                 <hr>
 
-                <h2>Constants</h2>
+                {% for class in module.classes %}
+                <section>
+                    <div class="api-name"><i class="codicon codicon-symbol-class"></i>{{ class.name }}</div>
+                    {% if class.description %}
+                    <p class="description">{{ class.description }}</p>
+                    {% endif %}
+                    <h3>Instance Attributes</h3>
+                    <ul>
+                        {% for attr in class.instance_attrs %}
+                        <li><a href="#{{ attr.name }}">{{ attr.name }}</a>
+                            <div class="type">: {{ attr.typ }}</div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    <h3>Class Attributes</h3>
+                    <ul>
+                        {% for attr in class.class_attrs %}
+                        <li><a href="#{{ attr.name }}">{{ attr.name }}</a>
+                            <div class="type">: {{ attr.typ }}</div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    <h3>Methods</h3>
+                    <ul>
+                        {% for method in class.methods %}
+                        <li><a href="#{{ method.name }}">{{ method.name }}</a>
+                            <div class="type">: {{ method.typ }}</div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </section>
+                {% endfor %}
+
+                <h2>Attributes</h2>
                 <hr>
+
+                {% for attr in module.attrs %}
+                <section>
+                    <div class="api-name"><i class="codicon codicon-symbol-constant"></i>{{ attr.name }}</div>
+                    {% if attr.description %}
+                    <p class="description">{{ attr.description }}</p>
+                    {% endif %}
+                    <p><strong>Type</strong></p>
+                    <pre><code class="language-rust">{{ attr.typ }}</code></pre>
+                </section>
+                {% endfor %}
             </div>
         </div>
     </main>
