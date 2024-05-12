@@ -1063,7 +1063,7 @@ impl Lexer /*<'a>*/ {
                         return Err(Self::unclosed_interpol_error(token));
                     }
                 },
-                '"' => {
+                '"' | '\'' => {
                     let c = self.consume().unwrap();
                     match self.interpol_stack.last().copied().unwrap() {
                         Interpolation::MultiLine(quote) => {
