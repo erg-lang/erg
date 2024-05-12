@@ -9,6 +9,7 @@ use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::shared::{
     MappedRwLockReadGuard, MappedRwLockWriteGuard, RwLockReadGuard, RwLockWriteGuard, Shared,
 };
+use erg_common::spawn::safe_yield;
 use erg_common::Str;
 use erg_parser::ast::Module;
 
@@ -338,7 +339,13 @@ impl SharedModuleCache {
     where
         NormalizedPathBuf: Borrow<Q>,
     {
-        self.0.borrow_mut().remove(path)
+        let mut cache = loop {
+            if let Some(cache) = self.0.try_borrow_mut() {
+                break cache;
+            }
+            safe_yield();
+        };
+        cache.remove(path)
     }
 
     #[allow(clippy::result_unit_err)]

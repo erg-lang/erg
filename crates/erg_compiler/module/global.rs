@@ -12,6 +12,15 @@ use super::impls::SharedTraitImpls;
 use super::index::SharedModuleIndex;
 use super::promise::SharedPromises;
 
+fn try_forever<T, F: FnMut() -> Result<T, ()>>(mut f: F) -> T {
+    loop {
+        if let Ok(res) = f() {
+            return res;
+        }
+        safe_yield();
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct SharedCompilerResource {
     pub mod_cache: SharedModuleCache,
@@ -73,12 +82,18 @@ impl SharedCompilerResource {
         for child in self.graph.children(path) {
             self.clear(&child);
         }
-        if let Some(ent) = self.mod_cache.remove(path) {
-            old = Some(ent);
-        }
-        if let Some(ent) = self.py_mod_cache.remove(path) {
-            old = Some(ent);
-        }
+        try_forever(|| {
+            if let Some(ent) = self.mod_cache.try_remove(path)? {
+                old = Some(ent);
+            }
+            Ok(())
+        });
+        try_forever(|| {
+            if let Some(ent) = self.py_mod_cache.try_remove(path)? {
+                old = Some(ent);
+            }
+            Ok(())
+        });
         self.index.remove_path(path);
         // self.graph.remove(path);
         self.trait_impls.remove_by_path(path);
@@ -89,8 +104,8 @@ impl SharedCompilerResource {
     }
 
     pub fn clear_path(&self, path: &NormalizedPathBuf) {
-        self.mod_cache.remove(path);
-        self.py_mod_cache.remove(path);
+        try_forever(|| self.mod_cache.try_remove(path));
+        try_forever(|| self.py_mod_cache.try_remove(path));
         self.index.remove_path(path);
         // self.graph.remove(path);
         self.trait_impls.remove_by_path(path);
@@ -120,19 +135,9 @@ impl SharedCompilerResource {
     /// this blocks until it gets a lock.
     pub fn remove_module(&self, path: &std::path::Path) -> Option<ModuleEntry> {
         if path.to_string_lossy().ends_with(".d.er") {
-            loop {
-                if let Ok(entry) = self.py_mod_cache.try_remove(path) {
-                    return entry;
-                }
-                safe_yield();
-            }
+            try_forever(|| self.py_mod_cache.try_remove(path))
         } else {
-            loop {
-                if let Ok(entry) = self.mod_cache.try_remove(path) {
-                    return entry;
-                }
-                safe_yield();
-            }
+            try_forever(|| self.mod_cache.try_remove(path))
         }
     }
 

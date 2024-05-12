@@ -346,8 +346,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         loop {
             // recover from crash
             if handle.is_finished() {
-                self.send_error_info("The compiler has crashed. Restarting...")
-                    .expect("failed to send error info to client");
+                let _ = self.send_error_info("The compiler has crashed. Restarting...");
                 self.restart();
                 let mut _self = self.clone();
                 handle = spawn_new_thread(

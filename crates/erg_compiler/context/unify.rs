@@ -179,7 +179,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             (FreeVar(fv), _) if fv.is_linked() => self.occur_inner(&fv.crack(), maybe_sup),
             (_, FreeVar(fv)) if fv.is_linked() => self.occur_inner(maybe_sub, &fv.crack()),
             (FreeVar(sub), FreeVar(sup)) => {
-                if sub.is_unbound() && sup.is_unbound() && sub.addr_eq(sup) {
+                if sub.addr_eq(sup) {
                     Err(TyCheckErrors::from(TyCheckError::subtyping_error(
                         self.ctx.cfg.input.clone(),
                         line!() as usize,
