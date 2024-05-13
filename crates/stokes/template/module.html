@@ -59,7 +59,7 @@
                 <hr>
 
                 {% for sub in module.subroutines %}
-                <section>
+                <section id="{{ sub.name }}">
                     <div class="api-name"><i class="codicon codicon-symbol-method"></i>{{ sub.name }}</div>
                     {% if sub.description %}
                     <p class="description">{{ sub.description }}</p>
@@ -87,7 +87,7 @@
                 <hr>
 
                 {% for class in module.classes %}
-                <section>
+                <section id="{{ class.name }}">
                     <div class="api-name"><i class="codicon codicon-symbol-class"></i>{{ class.name }}</div>
                     {% if class.description %}
                     <p class="description">{{ class.description }}</p>
@@ -123,7 +123,7 @@
                 <hr>
 
                 {% for attr in module.attrs %}
-                <section>
+                <section id="{{ attr.name }}">
                     <div class="api-name"><i class="codicon codicon-symbol-constant"></i>{{ attr.name }}</div>
                     {% if attr.description %}
                     <p class="description">{{ attr.description }}</p>

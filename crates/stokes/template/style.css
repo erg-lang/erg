@@ -23,8 +23,10 @@ body {
 }
 
 .fix {
-    position: fixed;
+    height: 100%;
     width: 15%;
+    position: fixed;
+    overflow-y: scroll;
 }
 
 .sidebar ul {
@@ -54,7 +56,7 @@ ul li {
 .sidebar ul li a {
     display: flex;
     font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
-    font-size: medium;
+    font-size: small;
     color: #a9b7c6;
     text-decoration: none;
 }
@@ -70,6 +72,7 @@ ul li {
 
 .content {
     width: 85%;
+    overflow-x: hidden;
     padding: 20px;
 }
 
