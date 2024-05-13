@@ -159,6 +159,7 @@ impl HTMLGenerator {
         std::fs::copy("template/style.css", "build/docs/style.css").unwrap();
         std::fs::copy("template/darcula.css", "build/docs/darcula.css").unwrap();
         std::fs::copy("template/prism.js", "build/docs/prism.js").unwrap();
+        std::fs::copy("template/search.js", "build/docs/search.js").unwrap();
         std::fs::write("build/docs/builtins.html", rendered).unwrap();
     }
 }

@@ -72,6 +72,7 @@ ul li {
 
 .content {
     width: 85%;
+    height: 100vh;
     overflow-x: hidden;
     padding: 20px;
 }
