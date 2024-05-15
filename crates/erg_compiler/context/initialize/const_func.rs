@@ -1526,6 +1526,8 @@ pub(crate) fn zip_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<T
 
 /// ```erg
 /// derefine({X: T | ...}) == T
+/// derefine({1}) == Nat
+/// derefine(List!({1, 2}, 2)) == List!(Nat, 2)
 /// ```
 pub(crate) fn derefine_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let val = args

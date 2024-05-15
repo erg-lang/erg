@@ -488,6 +488,11 @@ impl TypeObj {
         }
     }
 
+    pub fn mapped_t(mut self, f: impl FnOnce(Type) -> Type) -> Self {
+        self.map_t(f);
+        self
+    }
+
     pub fn try_map_t<E>(&mut self, f: impl FnOnce(Type) -> Result<Type, E>) -> Result<(), E> {
         match self {
             TypeObj::Builtin { t, .. } => {

@@ -1663,6 +1663,7 @@ impl Not for Type {
 fn get_t_from_tp(tp: &TyParam) -> Option<Type> {
     match tp {
         TyParam::FreeVar(fv) if fv.is_linked() => get_t_from_tp(&fv.crack()),
+        TyParam::Value(ValueObj::Type(t)) => Some(t.typ().clone()),
         TyParam::Type(t) => Some(*t.clone()),
         _ => None,
     }
@@ -2229,7 +2230,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_nonelike(),
             Self::NoneType => true,
             Self::Poly { name, params, .. } if &name[..] == "Option" || &name[..] == "Option!" => {
-                let Some(TyParam::Type(inner_t)) = params.first() else {
+                let Some(inner_t) = params.first().and_then(|tp| <&Type>::try_from(tp).ok()) else {
                     return false;
                 };
                 inner_t.is_nonelike()
@@ -3647,6 +3648,9 @@ impl Type {
                 let params = params
                     .iter()
                     .map(|tp| match tp {
+                        TyParam::Value(ValueObj::Type(t)) => {
+                            TyParam::Value(ValueObj::Type(t.clone().mapped_t(|t| t.derefine())))
+                        }
                         TyParam::Type(t) => TyParam::t(t.derefine()),
                         other => other.clone(),
                     })
@@ -3679,12 +3683,18 @@ impl Type {
                 args,
             } => {
                 let lhs = match lhs.as_ref() {
+                    TyParam::Value(ValueObj::Type(t)) => {
+                        TyParam::Value(ValueObj::Type(t.clone().mapped_t(|t| t.derefine())))
+                    }
                     TyParam::Type(t) => TyParam::t(t.derefine()),
                     other => other.clone(),
                 };
                 let args = args
                     .iter()
                     .map(|arg| match arg {
+                        TyParam::Value(ValueObj::Type(t)) => {
+                            TyParam::Value(ValueObj::Type(t.clone().mapped_t(|t| t.derefine())))
+                        }
                         TyParam::Type(t) => TyParam::t(t.derefine()),
                         other => other.clone(),
                     })

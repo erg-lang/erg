@@ -676,6 +676,7 @@ impl<'t> TryFrom<&'t TyParam> for &'t FreeTyVar {
     fn try_from(t: &'t TyParam) -> Result<&'t FreeTyVar, ()> {
         match t {
             TyParam::Type(ty) => <&FreeTyVar>::try_from(ty.as_ref()),
+            TyParam::Value(ValueObj::Type(ty)) => <&FreeTyVar>::try_from(ty.typ()),
             _ => Err(()),
         }
     }
@@ -1167,6 +1168,7 @@ impl TyParam {
                 typ.undoable_coerce(list);
             }
             TyParam::Type(t) => t.undoable_coerce(list),
+            TyParam::Value(ValueObj::Type(t)) => t.typ().undoable_coerce(list),
             // TODO:
             _ => {}
         }

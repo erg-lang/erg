@@ -1,6 +1,8 @@
 .abc = pyimport "abc"
 
 .NamedTuple = 'namedtuple': ClassType
+.NamedTuple.
+    __call__: (typename: Str, field_names: Sequence(Str), rename := Bool) -> (*Obj, **Obj) -> NamedTuple
 .Deque = 'deque': ClassType
 .ChainMap: ClassType
 .Counter: ClassType
