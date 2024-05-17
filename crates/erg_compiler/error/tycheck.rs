@@ -53,6 +53,31 @@ impl TyCheckError {
         )
     }
 
+    pub fn recursion_limit(
+        input: Input,
+        errno: usize,
+        loc: Location,
+        fn_name: &str,
+        line: u32,
+    ) -> Self {
+        Self::new(
+            ErrorCore::new(
+                vec![SubMessage::only_loc(loc)],
+                switch_lang!(
+                    "japanese" => format!("コンパイラ内部の再帰呼び出し回数が上限に達しました。これはErg compilerのバグです、開発者に報告して下さい ({URL})\n\n{fn_name}:{line}より発生"),
+                    "simplified_chinese" => format!("编译器内部的递归调用次数已达到上限。这是Erg编译器的错误，请报告给{URL}\n\n原因来自: {fn_name}:{line}"),
+                    "traditional_chinese" => format!("編譯器內部的遞歸調用次數已達到上限。這是Erg編譯器的錯誤，請報告給{URL}\n\n原因來自: {fn_name}:{line}"),
+                    "english" => format!("the number of recursive calls in the compiler has reached the limit. This is a bug of the Erg compiler, please report it to {URL}\n\ncaused from: {fn_name}:{line}"),
+                ),
+                errno,
+                CompilerSystemError,
+                loc,
+            ),
+            input,
+            "".to_string(),
+        )
+    }
+
     pub fn no_type_spec_error(
         input: Input,
         errno: usize,

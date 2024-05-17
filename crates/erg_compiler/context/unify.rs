@@ -2,6 +2,7 @@
 use std::iter::repeat;
 use std::mem;
 use std::option::Option;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use erg_common::consts::DEBUG_MODE;
 use erg_common::fresh::FRESH_GEN;
@@ -33,6 +34,7 @@ pub struct Unifier<'c, 'l, 'u, L: Locational> {
     loc: &'l L,
     undoable: Option<&'u UndoableLinkedList>,
     change_generalized: bool,
+    recursion_limit: AtomicUsize,
     param_name: Option<Str>,
 }
 
@@ -49,6 +51,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             loc,
             undoable,
             change_generalized,
+            recursion_limit: AtomicUsize::new(128),
             param_name,
         }
     }
@@ -945,6 +948,18 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
     /// ```
     fn sub_unify(&self, maybe_sub: &Type, maybe_sup: &Type) -> TyCheckResult<()> {
         log!(info "trying {}sub_unify:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}", self.undoable.map_or("", |_| "undoable_"));
+        self.recursion_limit.fetch_sub(1, Ordering::SeqCst);
+        if self.recursion_limit.load(Ordering::SeqCst) == 0 {
+            log!(err "recursion limit exceeded: {maybe_sub} / {maybe_sup}");
+            return Err(TyCheckError::recursion_limit(
+                self.ctx.cfg.input.clone(),
+                line!() as usize,
+                self.loc.loc(),
+                fn_name!(),
+                line!(),
+            )
+            .into());
+        }
         // In this case, there is no new information to be gained
         // この場合、特に新しく得られる情報はない
         if maybe_sub == &Type::Never || maybe_sup == &Type::Obj || maybe_sup.addr_eq(maybe_sub) {
