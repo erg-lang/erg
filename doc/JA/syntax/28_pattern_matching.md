@@ -1,6 +1,6 @@
 # パターンマッチ、論駁可能性
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/28_pattern_matching.md%26commit_hash%3De959b3e54bfa8cee4929743b0193a129e7525c61)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/28_pattern_matching.md&commit_hash=e959b3e54bfa8cee4929743b0193a129e7525c61)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/28_pattern_matching.md%26commit_hash%3Dc6eb78a44de48735213413b2a28569fdc10466d0)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/28_pattern_matching.md&commit_hash=c6eb78a44de48735213413b2a28569fdc10466d0)
 
 ## Ergで使用可能なパターン
 
@@ -41,6 +41,11 @@ match x:
 fib 0 = 0
 fib 1 = 1
 fib n: Nat = fib n-1 + fib n-2
+
+# 高階型
+a: [Int; 4] = [0, 1, 2, 3]
+# or
+a: List Int, 4 = [0, 1, 2, 3]
 ```
 
 ### 定数パターン

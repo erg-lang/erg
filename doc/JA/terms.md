@@ -1,6 +1,6 @@
 # 用語辞典
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/terms.md%26commit_hash%3D132373c23e0d7828a6571b0b74e74ba1608c7a98)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/terms.md&commit_hash=132373c23e0d7828a6571b0b74e74ba1608c7a98)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/terms.md%26commit_hash%3D1bd4196938f31141953281bab0d8ce49a6c4bb1c)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/terms.md&commit_hash=1bd4196938f31141953281bab0d8ce49a6c4bb1c)
 
 ## 記号
 
@@ -125,7 +125,7 @@
 
 ### [Erg]
 
-2022年に発表された静的型付けプログラミング言語であり、本ドキュメントで解説される対象である。開発者は「エルグ」([`/ɝ́rug/`](https://translate.google.com/?sl=ja&tl=en&text=%E3%82%A8%E3%83%AB%E3%82%B0))と発音している。命名の由来はCGS単位系におけるエネルギーの単位である。
+2022年に発表された静的型付けプログラミング言語であり、本ドキュメントで解説される対象である。開発者はよく「エルグ」([`/ɝ́rug/`](https://translate.google.com/?sl=ja&tl=en&text=%E3%82%A8%E3%83%AB%E3%82%B0))と発音している。命名の由来はCGS単位系におけるエネルギーの単位である。
 Pythonの資産を活用できる静的型付け言語として設計された。主にRustやHaskellなどの影響を受けている。
 
 ## F

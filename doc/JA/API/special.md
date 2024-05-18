@@ -1,6 +1,6 @@
 # 特殊形式
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/API/special.md%26commit_hash%3D8673a0ce564fd282d0ca586642fa7f002e8a3c50)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/API/special.md&commit_hash=8673a0ce564fd282d0ca586642fa7f002e8a3c50)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/API/special.md%26commit_hash%3Db3e09f213fcf6be7add893a8af151d194b4776df)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/API/special.md&commit_hash=b3e09f213fcf6be7add893a8af151d194b4776df)
 
 特殊形式は、Ergの型システムでは表現ができない演算子、サブルーチン(のようなもの)である。``で囲っているが、実際は捕捉できない。
 また、`Pattern`や`Body`, `Conv`といった型が便宜上登場するが、そのような型が存在するわけではない。その意味もコンテクストによって異なる。
@@ -67,6 +67,14 @@ objの属性を読み込む。
 ## `:`(x, T)
 
 オブジェクト`x`が`T`型であることを宣言する。`x`の型が`T`の部分型でなければエラーとなる。
+
+変数宣言や式の右辺値として利用できる。
+
+```erg
+# both are OK
+x: Int = 1
+y = x: Int
+```
 
 ## `as`(x, T)
 

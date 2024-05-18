@@ -1,6 +1,6 @@
 # カインド
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/kind.md%26commit_hash%3D8673a0ce564fd282d0ca586642fa7f002e8a3c50)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/kind.md&commit_hash=8673a0ce564fd282d0ca586642fa7f002e8a3c50)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/kind.md%26commit_hash%3Dc6eb78a44de48735213413b2a28569fdc10466d0)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/kind.md&commit_hash=c6eb78a44de48735213413b2a28569fdc10466d0)
 
 Ergでは全てが型付けられている。型自体も例外ではない。「型の型」を表すのが __カインド(種)__ である。例えば`1`が`Int`に属しているように、`Int`は`Type`に属している。`Type`は最もシンプルなカインドである __原子カインド(Atomic kind)__ である。型理論的の記法では、`Type`は`*`に対応する。
 
