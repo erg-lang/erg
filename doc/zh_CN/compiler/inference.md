@@ -1,6 +1,6 @@
 # 类型推断算法
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/compiler/inference.md%26commit_hash%3D00350f64a40b12f763a605bc16748d09379ab182)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/compiler/inference.md&commit_hash=00350f64a40b12f763a605bc16748d09379ab182)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/compiler/inference.md%26commit_hash%3Dcac2c51cd4405b0166fcd2be35c23be6412c4028)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/compiler/inference.md&commit_hash=cac2c51cd4405b0166fcd2be35c23be6412c4028)
 
 > __Warning__: 此部分正在编辑中，可能包含一些错误
 
@@ -23,6 +23,18 @@ print! v
 ```
 
 Erg 的类型推断主要使用 Hindley-Milner 类型推断算法(尽管已经进行了各种扩展)。具体而言，类型推断是通过以下过程执行的。术语将在后面解释
+
+* Calling polymorphic functions (or classes)
+* Defining polymorphic functions (or classes)
+* Attribute resolution
+* Subtype checking
+
+In Erg, control flow such as `if` and `for!` are just (polymorphic) functions, and operators can also be regarded as (polymorphic) functions with one or two arguments.
+For monomorphic functions, only subtype determination is sufficient.
+The [attribute_resolution](./attribute_resolution.md) and [subtyping](./subtyping.md) are described in a separate section.
+This section describes the type inference mechanism for function calls and definitions.
+
+Specifically, type inference is performed in the following steps. Explanation of terminology and other details are described below.
 
 1. 推断右值的类型(搜索)
 2. 实例化结果类型
@@ -65,7 +77,7 @@ Erg 的类型推断主要使用 Hindley-Milner 类型推断算法(尽管已经�
 
 ## 类型变量的实现
 
-类型变量最初在 [ty.rs] 的 `Type` 中表示如下。它现在以不同的方式实现，但本质上是相同的想法，所以我将以更天真的方式考虑这种实现
+类型变量最初在 [ty.rs](../../../crates/erg_compiler/ty/mod.rs) 的 `Type` 中表示如下。它现在以不同的方式实现，但本质上是相同的想法，所以我将以更天真的方式考虑这种实现
 `RcCell<T>` 是 `Rc<RefCell<T>>` 的包装类型
 
 ```rust

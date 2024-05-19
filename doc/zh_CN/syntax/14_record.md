@@ -1,6 +1,6 @@
 # 记录(Record)
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/14_record.md%26commit_hash%3De959b3e54bfa8cee4929743b0193a129e7525c61)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/15_record.md&commit_hash=e959b3e54bfa8cee4929743b0193a129e7525c61)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/14_record.md%26commit_hash%3D3e3ec44cdfefd974aaf9dfc38ef6141322775ca1)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/15_record.md&commit_hash=3e3ec44cdfefd974aaf9dfc38ef6141322775ca1)
 
 记录是一个集合，它结合了通过键访问的 Dict 和在编译时检查其访问的元组的属性
 如果您了解 JavaScript，请将其视为一种(更增强的)对象字面量表示法
@@ -20,13 +20,13 @@ john["name"] # 错误: john 不可订阅
 这是因为对值的访问是在编译时确定的，而且字典和记录是不同的东西。换句话说，`{"name": "John"}` 是一个字典，`{name = "John"}` 是一个记录
 那么我们应该如何使用字典和记录呢?
 一般来说，我们建议使用记录。记录具有在编译时检查元素是否存在以及能够指定 __visibility_ 的优点
-指定可见性等同于在 Java 和其他语言中指定公共/私有。有关详细信息，请参阅 [可见性](./19_visibility.md) 了解详细信息
+指定可见性等同于在 Java 和其他语言中指定公共/私有。有关详细信息，请参阅 [可见性](./21_visibility.md) 了解详细信息
 
 ```python,compile_fail
 a = {x = 1; .y = x + 1}
-a.x # 属性错误: x 是私有的
-# 提示: 声明为 `.x`
 assert a.y == 2
+a.x # AttributeError: x is private
+# Hint: declare as `.x`.
 ```
 
 对于熟悉 JavaScript 的人来说，上面的示例可能看起来很奇怪，但简单地声明 `x` 会使其无法从外部访问
@@ -55,7 +55,7 @@ assert o.i == 1
 ```
 
 关于记录有一个值得注意的语法。当记录的所有属性值都是类(不是结构类型)时，记录本身表现为一个类型，其自身的属性作为必需属性
-这种类型称为记录类型。有关详细信息，请参阅 [记录] 部分
+这种类型称为记录类型。有关详细信息，请参阅 [记录](../API/types/classes/Record.md) 部分
 
 ```python
 # 记录
@@ -194,6 +194,19 @@ Person.
 john = Person.new {name = "John Smith"; age = 20}
 print! john + 1
 # 类型错误: Person、Int 没有实现 +
+```
+
+# Conversion with Dict
+
+Dict, whose key is a string, and record can be mutually converted.
+To convert a dict to a record, use the `as_record` method, and to convert a record to a dict, use the `as_dict` method.
+However, `as_record` cannot be used if the key string cannot be determined at compile time. Also, the visibility of record attributes converted with `as_record` will be public.
+
+```python
+rec = {.name = "John Smith"; .age = 20}
+dic = {"name": "John Smith", "age": 20}
+assert rec.as_dict() == dic
+assert rec == dic.as_record()
 ```
 
 <p align='center'>

@@ -1,6 +1,6 @@
 # 测试
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/dev_guide/test.md%26commit_hash%3D3e4251b9f9929891dd8ce422c1ed6853f77ab432)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/dev_guide/test.md&commit_hash=3e4251b9f9929891dd8ce422c1ed6853f77ab432)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/dev_guide/test.md%26commit_hash%3D307087f6b5acf173f72ff8d8b8871a73b96605b7)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/dev_guide/test.md&commit_hash=307087f6b5acf173f72ff8d8b8871a73b96605b7)
 
 测试是确保代码质量的重要部分
 
@@ -23,3 +23,12 @@ positive测试是检查编译器是否按预期运行的测试，而negative测�
 由于编程语言处理器的性质，在所有软件中，它们特别容易受到无效输入的影响，并且必须始终将错误呈现给用户，因此后者也必须得到照顾。
 
 如果你在语言中添加了一个新特性，你至少需要写一个positive测试。另外，如果可能的话，请写同时编写negative测试。
+
+## `#[ignore]` attribute
+
+The Erg development team recommends pre-commit.
+This prevents bugs from getting into the code by running tests before each commit, but some tests are time-consuming and slow down the commit.
+
+Therefore, tests that are heavy or have a low probability of failure are marked with the `#[ignore]` attribute.
+Tests with the `#[ignore]` attribute are not run by `cargo test`, but can be run with `cargo test -- --include-ignored`.
+These tests are run by CI and do not need to be run on the local PC.

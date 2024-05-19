@@ -1,6 +1,6 @@
 # Kind
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/kind.md%26commit_hash%3D8673a0ce564fd282d0ca586642fa7f002e8a3c50)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/kind.md&commit_hash=8673a0ce564fd282d0ca586642fa7f002e8a3c50)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/kind.md%26commit_hash%3Dc6eb78a44de48735213413b2a28569fdc10466d0)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/kind.md&commit_hash=c6eb78a44de48735213413b2a28569fdc10466d0)
 
 一切都在 Erg 中输入。类型本身也不例外。__kind__ 表示"类型的类型"。例如，`Int` 属于 `Type`，就像 `1` 属于 `Int`。`Type` 是最简单的一种，__atomic kind__。在类型论符号中，`Type` 对应于 `*`
 
@@ -22,7 +22,7 @@ assert Option in Type -> Type
 ```python
 # K 是一元类型
 K: Type -> Type
-K T = Class ...
+K T = Class...
 K.
 foo x = ... # OK，这就像是所谓的静态方法
      bar self, x = ... # 类型错误: 无法为非类型对象定义方法
@@ -97,6 +97,7 @@ Pointy = {Point}
 
 记录类型的一个重要属性是，如果 `T: |T|` 和 `U <: T` 则 `U: |T|`
 从枚举实际上是筛子类型的语法糖这一事实也可以看出这一点
+枚举实际上是细化类型的语法糖，这一点也很明显。
 
 ```python
 # {c} == {X: T | X == c} 对于普通对象，但是不能为类型定义相等性，所以 |T| == {X | X <: T}

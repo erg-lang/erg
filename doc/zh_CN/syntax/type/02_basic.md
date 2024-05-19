@@ -1,6 +1,6 @@
 # 基本语法
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/02_basic.md%26commit_hash%3Df4fb25b4004bdfa96d2149fac8c4e40b84e8a45f)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/02_basic.md&commit_hash=f4fb25b4004bdfa96d2149fac8c4e40b84e8a45f)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/02_basic.md%26commit_hash%3Dc6eb78a44de48735213413b2a28569fdc10466d0)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/02_basic.md&commit_hash=c6eb78a44de48735213413b2a28569fdc10466d0)
 
 ## 类型规范
 
@@ -12,15 +12,8 @@ i: Int = 1
 j = 1 # 类型说明可以省略
 ```
 
-您还可以指定普通表达式的类型
-
-```python
-i = 1: Int
-f([1, "a"]: [Int or Str])
-```
-
-对于简单的变量赋值，大多数类型说明可以省略
-在定义子例程和类型时，类型规范更有用
+对于简单的变量赋值，大多数类型规范都可以省略。
+在定义子程序和类型时，类型说明更为有用。
 
 ```python
 # 参数的类型规范
@@ -45,6 +38,19 @@ g v: [T; _] = ...
 
 ```python
 f x: _, y: Int = x + y # 类型错误: Object 和 Int 之间没有实现 +
+```
+
+## Type ascription
+
+Erg can explicitly indicate the type of any expression as well as variables. This syntax is called type ascription.
+
+Variable type ascription = type specification.
+
+```python
+x = 1: Nat
+f("a": Str)
+f("a"): Int
+"a": Nat # TypeError:
 ```
 
 ## 子类型规范

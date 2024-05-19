@@ -1,6 +1,6 @@
 # 快速浏览
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/quick_tour.md%26commit_hash%3D44d7784aac3550ba97c8a1eaf20b9264b13d4134)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/quick_tour.md&commit_hash=44d7784aac3550ba97c8a1eaf20b9264b13d4134)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/quick_tour.md%26commit_hash%3Dc6eb78a44de48735213413b2a28569fdc10466d0)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/quick_tour.md&commit_hash=c6eb78a44de48735213413b2a28569fdc10466d0)
 
 `syntax` 下面的文档是为了让编程初学者也能理解而编写的
 对于已经掌握 Python、Rust、Haskell 等语言的人来说，可能有点啰嗦
@@ -10,7 +10,7 @@
 
 ## 基本计算
 
-Erg 有一个严格的类型。但是, 由于类和Trait提供的灵活性, 类型会自动转换为子类型(有关详细信息，请参阅 [API])
+Erg 有一个严格的类型。但是, 由于类和Trait提供的灵活性, 类型会自动转换为子类型(有关详细信息，请参阅 [API](../API))
 
 另外，不同的类型可以相互计算，只要类型是数值类型即可
 
@@ -22,7 +22,7 @@ d = c * 0 # -0.0: Float
 e = f // 2 # 0: Nat
 ```
 
-如果您不想允许这些隐式类型转换，您可以在声明时指定类型以在编译时将它们检测为错误
+如果不想允许意外的类型扩展，可以在声明时指定类型，以便在编译时将其作为错误进行检测。
 
 ```python
 a = 1
@@ -36,6 +36,7 @@ Error[#0047]: File <stdin>, line 1, in <module>
 但找到: Float
 ```
 ## 布尔类型
+
 `True` 和 `False` 是 Boolean 类型的单例，但它们也可以转换为 Int 类型
 因此，如果它们是 Int 类型，则可以进行比较，但与其他类型比较会导致错误
 
@@ -191,9 +192,9 @@ match x:
     2 -> "2"
     _ -> "other"
 # 斐波那契函数
-fib0 = 0
-fib1 = 1
-fibn: Nat = fibn-1 + fibn-2
+fib 0 = 0
+fib 1 = 1
+fib n: Nat = fibn-1 + fibn-2
 ```
 
 ### 常量模式

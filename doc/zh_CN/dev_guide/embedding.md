@@ -1,6 +1,6 @@
 # 在应用程序中嵌入Erg编译器
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/dev_guide/embedding.md%26commit_hash%3D94185d534afe909d112381b53d60895389d02f95)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/dev_guide/embedding.md&commit_hash=94185d534afe909d112381b53d60895389d02f95)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/dev_guide/embedding.md%26commit_hash%3Db87c075ffa687802f908f6c394c4a3af9ee6ce16)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/dev_guide/embedding.md&commit_hash=b87c075ffa687802f908f6c394c4a3af9ee6ce16)
 
 在应用程序中嵌入Erg很容易
 
@@ -61,6 +61,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut builder = HIRBuilder::default();
     let artifact = builder.build("print!\"Hello, world!\"", "exec")?;
     println!("{}", artifact.hir);
+    Ok(())
+}
+```
+
+```rust
+use erg_compiler::ASTBuilder;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut builder = ASTBuilder::default();
+    let ast = builder.build("print! \"Hello, world!\")")?;
+    println!("{}", ast);
+    Ok(())
+}
+```
+
+If you also want to resolve module dependencies, please use `PackageBuilder`.
+
+```rust
+use erg_compiler::PackageBuilder;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut builder = PackageBuilder::default();
+    let artifact = builder.build("print! \"Hello, world!\"", "exec")?;
+    println!("HIR: {}", artifact.object);
     Ok(())
 }
 ```

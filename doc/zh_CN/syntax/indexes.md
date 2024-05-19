@@ -1,6 +1,6 @@
 # 索引
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/indexes.md%26commit_hash%3D96b113c47ec6ca7ad91a6b486d55758de00d557d)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/indexes.md&commit_hash=96b113c47ec6ca7ad91a6b486d55758de00d557d)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/indexes.md%26commit_hash%3Dc6eb78a44de48735213413b2a28569fdc10466d0)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/indexes.md&commit_hash=c6eb78a44de48735213413b2a28569fdc10466d0)
 
 有关不在此索引中的 API，请参阅 [此处](../API/index.md)
 
@@ -10,15 +10,15 @@
 
 * ! → [side&nbsp;effect](./07_side_effect.md)
   * !-type → [mutable&nbsp;type](./type/18_mut.md)
-* ? → [error&nbsp;handling](./30_error_handling.md)
+* ? → [error&nbsp;handling](./32_error_handling.md)
 * &#35; → [Str](./00_basic.md/#注释)
 * $ → [shared](./type/advanced/shared.md)
 * %
 * &
   * &&
-* [&prime;&nbsp;(single&nbsp;quote)](./20_naming_rule.md)
+* [&prime;&nbsp;(single&nbsp;quote)](./22_naming_rule.md)
 * [&quot;&nbsp;(double&nbsp;quote)](./01_literal.md)
-* &lpar;&rpar; → [Tuple](./11_tuple.md)
+* &lpar;&rpar; → [Tuple](./13_tuple.md)
 * &ast;
   * &ast; → [*-less&nbsp;multiplication](./01_literal.md/#less-乘法)
 * &plus; (前置) → [operator](./06_operator.md)
@@ -30,30 +30,30 @@
   * &minus;_ → &minus; (前置)
 * &minus; (中置) → [operator](./06_operator.md)
 * &minus; (中置) → [Trait](./type/03_trait.md)
-  * &minus;> → [anonymous&nbsp;function](./21_lambda.md)
-* . → [Visibility](./19_visibility.md)
-  * [...&nbsp;assignment](./28_spread_syntax.md)
-  * [...&nbsp;Extract&nbsp;assignment](./28_spread_syntax.md)
+  * &minus;> → [anonymous&nbsp;function](./23_lambda.md)
+* . → [Visibility](./21_visibility.md)
+  * [...&nbsp;assignment](./30_spread_syntax.md)
+  * [...&nbsp;Extract&nbsp;assignment](./30_spread_syntax.md)
   * [...&nbsp;function](./04_function.md)
 * /
 * :
   * : → [Colon&nbsp;application&nbsp;style](./04_function.md)
   * : → [Declaration](./03_declaration.md)
   * : → [Keyword&nbsp;Arguments](./04_function.md)
-  * :: → [visibility](./19_visibility.md)
+  * :: → [visibility](./21_visibility.md)
   * := → [default&nbsp;parameters](./04_function.md)
 * ;
 * &lt;
   * &lt;: → [Subtype&nbsp;specification](./type/02_basic.md)
   * &lt;&lt;
   * &lt;=
-* = → [Variable](./19_visibility.md)
+* = → [Variable](./21_visibility.md)
   * ==
   * => → [procedure](./08_procedure.md)
 * &gt;
   * &gt;&gt;
   * &gt;=
-* @ → [decorator](./29_decorator.md)
+* @ → [decorator](./31_decorator.md)
 * [] → [List](./10_list.md)
 * \ → [Indention](./00_basic.md)
 * \ → [Str](./01_literal.md)
@@ -62,12 +62,12 @@
 * _ → [Type&nbsp;erasure](./type/advanced/erasure.md)
   * &#95;+&#95; → &plus; (infix)
   * &#95;-&#95; → &minus; (infix)
-* [``&nbsp;(back&nbsp;quote)](./22_subroutine.md)
+* [``&nbsp;(back&nbsp;quote)](./24_subroutine.md)
 * {}
   * [{} type](./type/01_type_system.md)
 * {:}
 * {=} → [Type&nbsp;System](./type/01_type_system.md)
-  * [{=}&nbsp;type](./13_record.md)
+  * [{=}&nbsp;type](./14_record.md)
 * |
   * || → [Type variable list](./type/advanced/)
 * ~
@@ -82,12 +82,12 @@
 * [algebraic&nbsp;type](./type/13_algebraic.md)
 * [And]
 * [and]
-* [anonymous&nbsp;function](./21_lambda.md)
-* [Anonymous&nbsp;polycorrelation&nbsp;coefficient](./21_lambda.md)
+* [anonymous&nbsp;function](./23_lambda.md)
+* [Anonymous&nbsp;polycorrelation&nbsp;coefficient](./23_lambda.md)
 * anonymous type → [Type&nbsp;System](./type/01_type_system.md)
 * [List](./10_list.md)
 * [assert]
-* [Attach](./29_decorator.md)
+* [Attach](./31_decorator.md)
 * [attribute](type/09_attributive.md)
 * [Attribute&nbsp;definitions](./type/02_basic.md)
 * [Attribute&nbsp;Type](./type/09_attributive.md)
@@ -115,17 +115,17 @@
 * [Comprehension](./27_comprehension.md)
 * [constant](./17_mutability.md)
 * [Constants](./02_name.md)
-* [Context](./30_error_handling.md)
+* [Context](./32_error_handling.md)
 
 ### D
 
 * [Data&nbsp;type](./type/01_type_system.md)
 * [Declaration](./03_declaration.md)
-* [decorator](./29_decorator.md)
+* [decorator](./31_decorator.md)
 * [Default&nbsp;parameters](./04_function.md)
 * [Del](./02_name.md)
 * [Dependent&nbsp;Type](./type/14_dependent.md)
-* [Deconstructing&nbsp;a&nbsp;record](13_record.md)
+* [Deconstructing&nbsp;a&nbsp;record](14_record.md)
 * Deprecated
 * [Dict](./12_dict.md)
 * [Diff](./type/13_algebraic.md)
@@ -136,14 +136,14 @@
 
 ### E
 
-* [Empty&nbsp;Record](./13_record.md)
+* [Empty&nbsp;Record](./14_record.md)
 * [Enum&nbsp;Class](./type/04_class.md)
 * [Enum&nbsp;type](./type/11_enum.md)
 * [Enumerated,&nbsp;Interval&nbsp;and&nbsp;Refinement&nbsp;Types](./type/12_refinement.md)
-* [error&nbsp;handling](./30_error_handling.md)
+* [error&nbsp;handling](./32_error_handling.md)
 * [Existential&nbsp;type](./type/advanced/existential.md)
 * [Exponential&nbsp;Literal](./01_literal.md)
-* [Extract&nbsp;assignment](./28_spread_syntax.md)
+* [Extract&nbsp;assignment](./30_spread_syntax.md)
 
 ### F
 
@@ -169,13 +169,13 @@
 * [id](./09_builtin_procs.md)
 * [if](./05_builtin_funcs.md)
 * [import](./33_package_system.md)
-* [impl](./29_decorator.md)
+* [impl](./31_decorator.md)
 * [in]
 * [Indention](./00_basic.md)
-* [Instant&nbsp;Block](./13_record.md)
+* [Instant&nbsp;Block](./14_record.md)
 * [Instance&nbsp;and&nbsp;class&nbsp;attributes](./type/04_class.md)
 * [Implementing&nbsp;and&nbsp;resolving&nbsp;duplicate&nbsp;traits&nbsp;in&nbsp;the&nbsp;API](type/03_trait.md)
-* [inheritable](./29_decorator.md)
+* [inheritable](./31_decorator.md)
 * [inheritance](./type/05_inheritance.md)
 * [Inheritance&nbsp;of&nbsp;Enumerated&nbsp;Classes](./type/05_inheritance.md)
 * [Int](./01_literal.md)
@@ -203,7 +203,7 @@
 * [match]
 * [Marker&nbsp;Trait](./type/advanced/marker_trait.md)
 * [Method](./07_side_effect.md)
-* Modifier → [decorator](./29_decorator.md)
+* Modifier → [decorator](./31_decorator.md)
 * [module](./24_module.md)
 * [Multiple&nbsp;Inheritance](type/05_inheritance.md)
 * [Multi-layer&nbsp;(multi-level)&nbsp;Inheritance](type/05_inheritance.md)
@@ -237,7 +237,7 @@
 
 ### P
 
-* [Panic](./30_error_handling.md)
+* [Panic](./32_error_handling.md)
 * [Patch](./type/07_patch.md)
 * [Pattern&nbsp;match](./26_pattern_matching.md)
 * [Phantom&nbsp;class](./type/advanced/phantom.md)
@@ -259,14 +259,14 @@
 * [Range&nbsp;Object](./01_literal.md)
 * [ref]
 * [ref!]
-* [Record](./13_record.md)
+* [Record](./14_record.md)
 * [Record&nbsp;Type&nbsp;Composite](./type/09_attributive.mda12_refinement.md)
 * [Recursive&nbsp;functions](./04_function.md)
 * [Refinement&nbsp;pattern](./type/12_refinement.md)
 * [Refinement&nbsp;Type](./type/12_refinement.md)
 * [replication](./18_ownership.md)
 * [Replacing&nbsp;Traits](./type/05_inheritance.md)
-* Result → [error&nbsp;handling](./30_error_handling.md)
+* Result → [error&nbsp;handling](./32_error_handling.md)
 * [Rewriting&nbsp;Inherited&nbsp;Attributes](./type/05_inheritance.md)
 * rootobj
 
@@ -279,9 +279,9 @@
 * [Shared&nbsp;Reference](./type/advanced/shared.md)
 * [side-effect](./07_side_effect.md)
 * [Smart&nbsp;Cast](./type/12_refinement.md)
-* [Spread&nbsp;assignment](./28_spread_syntax.md)
+* [Spread&nbsp;assignment](./30_spread_syntax.md)
 * [special&nbsp;type&nbsp;variables](./type/advanced/special.md)
-* [Stack&nbsp;trace](30_error_handling.md)
+* [Stack&nbsp;trace](32_error_handling.md)
 * [Structure&nbsp;type](./type/01_type_system.md)
 * [Structural&nbsp;Patch](./type/07_patch.md)
 * [Structural&nbsp;Trait](./type/03_trait.md)
@@ -292,11 +292,11 @@
 * [Subtyping&nbsp;of&nbsp;subroutines](./type/16_subtyping.md)
 * [Subtype&nbsp;specification](./type/02_basic.md)
 * [Subtyping&nbsp;of&nbsp;Polymorphic&nbsp;Function Types](./type/15_quantified.md)
-* [Subroutine&nbsp;Signatures](./22_subroutine.md)
+* [Subroutine&nbsp;Signatures](./24_subroutine.md)
 
 ### T
 
-* [Test](./29_decorator.md)
+* [Test](./31_decorator.md)
 * [Traits](./type/03_trait.md)
 * [Trait&nbsp;inclusion](./type/03_trait.md)
 * True → [Boolean&nbsp;Object](./01_literal.md)
@@ -311,12 +311,12 @@
 * [Type&nbsp;specification](./type/02_basic.md)
 * [Type&nbsp;System](./type/01_type_system.md)
 * [Type&nbsp;Widening](./type/advanced/widening.md)
-* [Tuple](./11_tuple.md)
+* [Tuple](./13_tuple.md)
 
 ### U
 
 * [union](type/13_algebraic.md)
-* [Unit](./11_tuple.md)
+* [Unit](./13_tuple.md)
 * [Upcasting](type/17_type_casting.md)
 * [Usage&nbsp;of&nbsp;Inheritance](./type/05_inheritance.md)
 
