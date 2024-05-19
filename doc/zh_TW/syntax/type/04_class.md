@@ -1,6 +1,6 @@
 # Class
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/04_class.md%26commit_hash%3D7078f95cecc961a65befb15929af06ae2331c934)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/04_class.md&commit_hash=7078f95cecc961a65befb15929af06ae2331c934)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/04_class.md%26commit_hash%3D09655d99f7ca21ca078e269c44ef83e9f7886d82)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/04_class.md&commit_hash=09655d99f7ca21ca078e269c44ef83e9f7886d82)
 
 Erg 中的類大致是一種可以創建自己的元素(實例)的類型
 這是一個簡單類的示例
@@ -105,60 +105,11 @@ C.i = 1 # 屬性錯誤: `.i` 已在實例字段中定義
 
 ## 類(Class), 類型(Type)
 
-請注意，`1` 的類和類型是不同的
-只有一個類 `Int` 是 `1` 的生成器。可以通過`classof(obj)`或`obj.__class__`獲取對象所屬的類
+The question "What is the type of `1`?" requires a slightly longer answer.
+
+只有一個類 `Nat` 是 `1` 的生成器。可以通過`classof(obj)`或`obj.__class__`獲取對象所屬的類
 相比之下，`1`有無數種。例如，`{1}, {0, 1}, 0..12, Nat, Int, Num`
-但是，可以將最小類型定義為單一類型，在本例中為"{1}"。可以通過`Typeof(obj)`獲取對象所屬的類型。這是一個編譯時函數
-對象可以使用補丁方法以及類方法
-Erg 不允許您添加類方法，但您可以使用 [patch](./07_patch.md) 來擴展類
-
-您還可以從現有類([Inheritable](../29_decorator.md#可繼承) 類)繼承
-您可以使用 `Inherit` 創建一個繼承類。左側的類型稱為派生類，右側的"繼承"的參數類型稱為基類(繼承類)
-
-```python
-MyStr = Inherit Str
-# other: 如果你設置 ``other: Str''，你可以使用 MyStr
-MyStr.
-    `-` self, other: Str = self.replace other, ""
-
-abc = MyStr.new("abc")
-# 這里的比較是向上的
-assert abc - "b" == "ac"
-```
-
-與 Python 不同，默認情況下，定義的 Erg 類是 `final`(不可繼承的)
-要使類可繼承，必須將 `Inheritable` 裝飾器附加到該類
-Str` 是可繼承的類之一
-
-```python
-MyStr = Inherit Str # OK
-MyStr2 = Inherit MyStr # NG
-
-@Inheritable
-InheritableMyStr = Inherit Str
-MyStr3 = Inherit InheritableMyStr # OK
-```
-
-`Inherit Obj` 和 `Class()` 在實踐中幾乎是等價的。一般使用后者
-
-類具有與類型不同的等價檢查機制
-類型基于其結構進行等效性測試
-
-```python
-Person = {.name = Str; .age = Nat}
-Human = {.name = Str; .age = Nat}
-
-assert Person == Human
-```
-
-class has no equivalence relation defined.
-
-```python
-Person = Class {.name = Str; .age = Nat}
-Human = Class {.name = Str; .age = Nat}
-
-Person == Human # 類型錯誤: 無法比較類
-```
+The reason an object can belong to more than one type is that Erg has a subtype system. `Nat` is a subtype of `Int` and `Int` is a subtype of `Num`.
 
 ## 與結構類型的區別
 

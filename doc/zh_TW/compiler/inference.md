@@ -1,6 +1,6 @@
 # 類型推斷算法
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/compiler/inference.md%26commit_hash%3D00350f64a40b12f763a605bc16748d09379ab182)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/compiler/inference.md&commit_hash=00350f64a40b12f763a605bc16748d09379ab182)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/compiler/inference.md%26commit_hash%3Dc6eb78a44de48735213413b2a28569fdc10466d0)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/compiler/inference.md&commit_hash=c6eb78a44de48735213413b2a28569fdc10466d0)
 
 > __Warning__: 此部分正在編輯中，可能包含一些錯誤
 
@@ -22,7 +22,19 @@ v.push! 1
 print! v
 ```
 
-Erg 的類型推斷主要使用 Hindley-Milner 類型推斷算法(盡管已經進行了各種擴展)。具體而言，類型推斷是通過以下過程執行的。術語將在后面解釋
+Erg's type inference is based on the Hindley-Milner type inference algorithm as a general framework (with various extensions).
+In essence, Erg's type inference boils down to the following four issues:
+
+* Calling polymorphic functions (or classes)
+* Defining polymorphic functions (or classes)
+* Attribute resolution
+* Subtype checking
+
+In Erg, control flow such as `if` and `for!` are just (polymorphic) functions, and operators can also be regarded as (polymorphic) functions with one or two arguments.
+For monomorphic functions, only subtype determination is sufficient.
+The [attribute_resolution](./attribute_resolution.md) and [subtyping](./subtyping.md) are described in a separate section.
+This section describes the type inference mechanism for function calls and definitions.
+Specifically, type inference is performed in the following steps. Explanation of terminology and other details are described below.
 
 1. 推斷右值的類型(搜索)
 2. 實例化結果類型
@@ -65,7 +77,7 @@ Erg 的類型推斷主要使用 Hindley-Milner 類型推斷算法(盡管已經�
 
 ## 類型變量的實現
 
-類型變量最初在 [ty.rs] 的 `Type` 中表示如下。它現在以不同的方式實現，但本質上是相同的想法，所以我將以更天真的方式考慮這種實現
+類型變量最初在 [ty.rs](../../../crates/erg_compiler/ty/mod.rs) 的 `Type` 中表示如下。它現在以不同的方式實現，但本質上是相同的想法，所以我將以更天真的方式考慮這種實現
 `RcCell<T>` 是 `Rc<RefCell<T>>` 的包裝類型
 
 ```rust
@@ -98,7 +110,7 @@ pub enum Type {
 讓我們將未綁定類型變量 `?T` 泛化為 `gen` 的操作表示。令生成的廣義類型變量為 `|T: Type| T`
 在類型論中，量化類型，例如多相關類型 `α->α`，通過在它們前面加上 `?α.` 來區分(像 ? 這樣的符號稱為(通用)量詞。)
 這樣的表示(例如`?α.α->α`)稱為類型方案。Erg 中的類型方案表示為 `|T: Type| T -> T`
-類型方案通常不被認為是一流的類型。以這種方式配置類型系統可以防止類型推斷起作用。但是，在Erg中，在一定條件下可以算是一流的類型。有關詳細信息，請參閱 [rank2 類型](../syntax/type/advanced/_rank2type.md)
+類型方案通常不被認為是一流的類型。以這種方式配置類型系統可以防止類型推斷起作用。但是，在Erg中，在一定條件下可以算是一流的類型。
 
 現在，當在使用它的類型推斷(例如，`id 1`，`id True`)中使用獲得的類型方案(例如`'T -> 'T(id's type scheme)`)時，必須釋放generalize。這種逆變換稱為 __instantiation__。我們將調用操作`inst`
 
@@ -331,12 +343,12 @@ f x (: ?V<2>), y (: ?W<2>) =
 
 ```python
 f x (: ?T<1>), y (: ?W<2>) =
-    (id(x) + x): subst_call_ret([inst ?U<1>, inst ?W<2>], inst |'L <: Add('R)| ('L, 'R) -> 'L .AddO)
+    (id(x) + x): subst_call_ret([inst ?U<1>, inst ?W<2>], inst |'L <: Add('R)| ('L, 'R) -> 'L .Output)
 ```
 
 ```python
 f x (: ?T<1>), y (: ?W<2>) =
-    (id(x) + x): subst_call_ret([inst ?U<1>, inst ?W<2>], (?L(<: Add(?R<2>))<2>, ?R<2 >) -> ?L<2>.AddO)
+    (id(x) + x): subst_call_ret([inst ?U<1>, inst ?W<2>], (?L(<: Add(?R<2>))<2>, ?R<2 >) -> ?L<2>.Output)
 ```
 
 ```python
@@ -345,23 +357,23 @@ f x (: ?T<1>), y (: ?W<2>) =
     # ?U<1>(<: Add(?W<2>)) # Inherit the constraints of ?L
     # ?L<2> --> ?U<1>
     # ?R<2> --> ?W<2> (not ?R(:> ?W), ?W(<: ?R))
-    (id(x) + x) (: ?U<1>.AddO)
+    (id(x) + x) (: ?U<1>.Output)
 ```
 
 ```python
 # current_level = 1
-f(x, y) (: gen ?T<1>, gen ?W<2> -> gen ?U<1>.AddO) =
+f(x, y) (: gen ?T<1>, gen ?W<2> -> gen ?U<1>.Output) =
     id(x) + x
 ```
 
 ```python
 id: ?T<1> -> ?U<1>
-f(x, y) (: |'W: Type| (?T<1>, 'W) -> gen ?U<1>(<: Add(?W<2>)).AddO) =
+f(x, y) (: |'W: Type| (?T<1>, 'W) -> gen ?U<1>(<: Add(?W<2>)).Output) =
     id(x) + x
 ```
 
 ```python
-f(x, y) (: |'W: Type| (?T<1>, 'W) -> ?U<1>(<: Add(?W<2>)).AddO) =
+f(x, y) (: |'W: Type| (?T<1>, 'W) -> ?U<1>(<: Add(?W<2>)).Output) =
     id(x) + x
 ```
 
@@ -377,7 +389,7 @@ id x (: ?T<2>) -> ?U<2> = x (: inst ?T<2>)
 
 ```python
 # ?U<2> --> ?T<2>
-f(x, y) (: |'W: Type| (?T<2>, 'W) -> ?T<2>(<: Add(?W<2>)).AddO) =
+f(x, y) (: |'W: Type| (?T<2>, 'W) -> ?T<2>(<: Add(?W<2>)).Output) =
     id(x) + x
 # current_level = 1
 id(x) (: gen ?T<2> -> gen ?T<2>) = x (: ?T<2>)
@@ -388,21 +400,21 @@ id(x) (: gen ?T<2> -> gen ?T<2>) = x (: ?T<2>)
 廣義類型變量對于每個函數都是獨立的
 
 ```python
-f(x, y) (: |'W: Type, 'T <: Add('W)| ('T, 'W) -> 'T.AddO) =
+f(x, y) (: |'W: Type, 'T <: Add('W)| ('T, 'W) -> 'T.Output) =
     id(x) + x
 id(x) (: |'T: Type| 'T -> gen 'T) = x
 ```
 
 ```python
-f x, y (: |'W: Type, 'T <: Add('W)| ('T, 'W) -> 'T.AddO) =
+f x, y (: |'W: Type, 'T <: Add('W)| ('T, 'W) -> 'T.Output) =
     id(x) + y
 id(x) (: 'T -> 'T) = x
 
-f(10, 1) (: subst_call_ret([inst {10}, inst {1}], inst |'W: Type, 'T <: Add('W)| ('T, 'W) -> 'T .AddO)
+f(10, 1) (: subst_call_ret([inst {10}, inst {1}], inst |'W: Type, 'T <: Add('W)| ('T, 'W) -> 'T .Output)
 ```
 
 ```python
-f(10, 1) (: subst_call_ret([inst {10}, inst {1}], (?T<1>(<: Add(?W<1>)), ?W<1>) -> ? T<1>.AddO))
+f(10, 1) (: subst_call_ret([inst {10}, inst {1}], (?T<1>(<: Add(?W<1>)), ?W<1>) -> ? T<1>.Output))
 ```
 
 類型變量綁定到具有實現的最小類型
@@ -415,7 +427,7 @@ f(10, 1) (: subst_call_ret([inst {10}, inst {1}], (?T<1>(<: Add(?W<1>)), ?W<1>) 
 # {1} <: ?W<1> or {10} <: ?T<1> <: Add({1}) <: Add(?W<1>)
 # Add(?W)(:> ?V) 的最小實現Trait是 Add(Nat) == Nat，因為 Add 相對于第一個參數是協變的
 # {10} <: ?W<1> or {1} <: ?T<1> <: Add(?W<1>) <: Add(Nat) == Nat
-# ?T(:> ?W(:> {10}) or {1}, <: Nat).AddO == Nat # 如果只有一個候選人，完成評估
+# ?T(:> ?W(:> {10}) or {1}, <: Nat).Output == Nat # 如果只有一個候選人，完成評估
 f(10, 1) (: (?W(:> {10}, <: Nat), ?W(:> {1})) -> Nat)
 # 程序到此結束，所以去掉類型變量
 f(10, 1) (: ({10}, {1}) -> Nat)
@@ -424,7 +436,7 @@ f(10, 1) (: ({10}, {1}) -> Nat)
 整個程序的結果類型是:
 
 ```python
-f|W: Type, T <: Add(W)|(x: T, y: W): T.AddO = id(x) + y
+f|W: Type, T <: Add(W)|(x: T, y: W): T.Output = id(x) + y
 id|T: Type|(x: T): T = x
 
 f(10, 1): Nat

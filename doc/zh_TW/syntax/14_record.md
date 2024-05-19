@@ -1,6 +1,6 @@
 # 記錄(Record)
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/14_record.md%26commit_hash%3De959b3e54bfa8cee4929743b0193a129e7525c61)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/15_record.md&commit_hash=e959b3e54bfa8cee4929743b0193a129e7525c61)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/14_record.md%26commit_hash%3D3e3ec44cdfefd974aaf9dfc38ef6141322775ca1)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/15_record.md&commit_hash=3e3ec44cdfefd974aaf9dfc38ef6141322775ca1)
 
 記錄是一個集合，它結合了通過鍵訪問的 Dict 和在編譯時檢查其訪問的元組的屬性
 如果您了解 JavaScript，請將其視為一種(更增強的)對象字面量表示法
@@ -20,7 +20,7 @@ john["name"] # 錯誤: john 不可訂閱
 這是因為對值的訪問是在編譯時確定的，而且字典和記錄是不同的東西。換句話說，`{"name": "John"}` 是一個字典，`{name = "John"}` 是一個記錄
 那么我們應該如何使用字典和記錄呢?
 一般來說，我們建議使用記錄。記錄具有在編譯時檢查元素是否存在以及能夠指定 __visibility_ 的優點
-指定可見性等同于在 Java 和其他語言中指定公共/私有。有關詳細信息，請參閱 [可見性](./19_visibility.md) 了解詳細信息
+指定可見性等同于在 Java 和其他語言中指定公共/私有。有關詳細信息，請參閱 [可見性](./21_visibility.md) 了解詳細信息
 
 ```python,compile_fail
 a = {x = 1; .y = x + 1}
@@ -29,7 +29,8 @@ a.x # 屬性錯誤: x 是私有的
 assert a.y == 2
 ```
 
-對于熟悉 JavaScript 的人來說，上面的示例可能看起來很奇怪，但簡單地聲明 `x` 會使其無法從外部訪問
+對于熟悉 JavaScript 的人來說，上面的示例可能看起來很奇怪.
+Simply declaring `x` makes it inaccessible from the outside, and adding `.` makes it accessible from the outside.
 
 您還可以顯式指定屬性的類型
 
@@ -137,7 +138,7 @@ empty_record: Structural {=}
 空記錄不同于空 Dict `{:}` 或空集 `{}`。特別要注意的是，它與 `{}` 的含義相反(在 Python 中，`{}` 是一個空字典，而在 Erg 中它是 Erg 中的 `!{:}`)
 作為枚舉類型，`{}` 是一個空類型，其元素中不包含任何內容。`Never` 類型是這種類型的一個分類
 相反，記錄類 `{=}` 沒有必需的實例屬性，因此所有對象都是它的元素。`Object` 是 this 的別名
-一個`Object`(`Object`的一個補丁)是`的一個元素。__sizeof__` 和其他非常基本的提供方法
+一個`Object`(`Object`的一個補丁)是的一個元素。`__sizeof__` 和其他非常基本的提供方法
 
 ```python
 AnyPatch = Patch Structural {=}
@@ -194,6 +195,19 @@ Person.
 john = Person.new {name = "John Smith"; age = 20}
 print! john + 1
 # 類型錯誤: Person、Int 沒有實現 +
+```
+
+# Conversion with Dict
+
+Dict, whose key is a string, and record can be mutually converted.
+To convert a dict to a record, use the `as_record` method, and to convert a record to a dict, use the `as_dict` method.
+However, `as_record` cannot be used if the key string cannot be determined at compile time. Also, the visibility of record attributes converted with `as_record` will be public.
+
+```python
+rec = {.name = "John Smith"; .age = 20}
+dic = {"name": "John Smith", "age": 20}
+assert rec.as_dict() == dic
+assert rec == dic.as_record()
 ```
 
 <p align='center'>

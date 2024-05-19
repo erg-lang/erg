@@ -1,12 +1,19 @@
 # Trait
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/03_trait.md%26commit_hash%3D7078f95cecc961a65befb15929af06ae2331c934)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/03_trait.md&commit_hash=7078f95cecc961a65befb15929af06ae2331c934)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/03_trait.md%26commit_hash%3Dc6eb78a44de48735213413b2a28569fdc10466d0)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/03_trait.md&commit_hash=c6eb78a44de48735213413b2a28569fdc10466d0)
 
-Trait 是一種名義類型，它將類型屬性要求添加到記錄類型
-它類似于 Python 中的抽象基類 (ABC)，但區別在于能夠執行代數運算
+Traits are nominal types that add a type attribute requirement to record types.
+It is similar to the Abstract Base Class (ABC) in Python, but it has the feature of being able to perform algebraic operations.
+
+Traits are used when you want to identify different classes. Examples of builtin traits are `Eq` and `Add`.
+`Eq` requires `==` to be implemented. `Add` requires the implementation of `+` (in-place).
+
+So any class that implements these can be (partially) identified as a subtype of trait.
+
+As an example, let's define a `Norm` trait that computes the norm (length) of a vector.
 
 ```python
-Norm = Trait {.x = Int; .y = Int; .norm = Self.() -> Int}
+Norm = Trait {.norm = (self: Self) -> Int}
 ```
 
 trait不區分屬性和方法
@@ -15,17 +22,46 @@ trait不區分屬性和方法
 可以通過指定部分類型來檢查Trait在類中的實現
 
 ```python
-Point2D <: Norm
 Point2D = Class {.x = Int; .y = Int}
-Point2D.norm self = self.x**2 + self.y**2
+Point2D|<: Norm|.
+    Norm self = self.x**2 + self.y**2
+
+Point3D = Class {.x = Int; .y = Int; .z = Int}
+Point3D|<: Norm|.
+    norm self = self.x**2 + self.y**2 + self.z**2
+```
+
+Since `Point2D` and `Point3D` implement `Norm`, they can be identified as types with the `.norm` method.
+
+```python
+norm x: Norm = x.norm()
+
+assert norm(Point2D.new({x = 1; y = 2})) == 5
+assert norm(Point3D.new({x = 1; y = 2; z = 3})) == 14
 ```
 
 Error if the required attributes are not implemented.
 
-```python
-Point2D <: Norm # 類型錯誤: Point2D 不是 Norm 的子類型
-Point2D = Class {.x = Int; .y = Int}
+```python,compile_fail
+Point3D = Class {.x = Int; .y = Int; .z = Int}
+Point3D|<: Norm|.
+    foo self = 1
 ```
+
+One of the nice things about traits is that you can define methods on them in Patch (described later).
+
+```python
+@Attach NotEqual
+Eq = Trait {. `==` = (self: Self, other: Self) -> Bool}
+
+NotEq = Patch Eq
+NotEq.
+    `! =` self, other = not self.`==` other
+```
+
+With the `NotEq` patch, all classes that implement `Eq` will automatically implement `!=`.
+
+## Trait operations
 
 Trait與結構類型一樣，可以應用組合、替換和消除等操作(例如"T 和 U")。由此產生的Trait稱為即時Trait
 
@@ -55,13 +91,13 @@ assert points.iter().map(x -> x.norm()).collect(List) == [5, 25].
 
 ```python
 Add R = Trait {
-    .AddO = Type
-    . `_+_` = Self.(R) -> Self.AddO
+    .Output = Type
+    . `_+_` = Self.(R) -> Self.Output
 }
 
 Sub R = Trait {
-    .SubO = Type
-    . `_-_` = Self.(R) -> Self.SubO
+    .Output = Type
+    . `_-_` = Self.(R) -> Self.Output
 }
 
 BinAddSub = Subsume Add(Self) and Sub(Self)

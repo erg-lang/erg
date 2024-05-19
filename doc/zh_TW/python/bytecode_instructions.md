@@ -1,6 +1,6 @@
 # Python 字節碼指令
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/python/bytecode_instructions.md%26commit_hash%3Dfd60746f6adcd0c9898d56e9fceca5dab5a0a927)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/python/bytecode_instructions.md&commit_hash=fd60746f6adcd0c9898d56e9fceca5dab5a0a927)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/python/bytecode_instructions.md%26commit_hash%3D5affa5065fbcc598b9d196b824a2bc49e8612bd9)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/python/bytecode_instructions.md&commit_hash=5affa5065fbcc598b9d196b824a2bc49e8612bd9)
 
 Python 字節碼變量操作命令通過 名稱索引(名稱索引)訪問。這是為了在 Python 中實現動態變量訪問(可以使用 eval 等作為字符串訪問)
 一條指令為 2 個字節，指令和參數以 little endian 形式存儲
@@ -14,6 +14,7 @@ Python 字節碼變量操作命令通過 名稱索引(名稱索引)訪問。這�
   * `COMPARE_OP` (6 byte)
   * `LOAD_GLOBAL` (12 byte)
   * `LOAD_ATTR` (10 byte)
+  * `BINARY_SUBSCR` (8 byte)
 
 ## STORE_NAME(名稱索引)
 

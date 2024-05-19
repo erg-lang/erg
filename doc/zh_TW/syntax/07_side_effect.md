@@ -1,6 +1,6 @@
 # 副作用
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/07_side_effect.md%26commit_hash%3D20aa4f02b994343ab9600317cebafa2b20676467)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/07_side_effect.md&commit_hash=20aa4f02b994343ab9600317cebafa2b20676467)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/07_side_effect.md%26commit_hash%3Dc6eb78a44de48735213413b2a28569fdc10466d0)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/07_side_effect.md&commit_hash=c6eb78a44de48735213413b2a28569fdc10466d0)
 
 我們一直忽略了解釋"！"的含義，但現在它的含義終于要揭曉了。這個 `!` 表示這個對象是一個帶有"副作用"的"過程"。過程是具有副作用的函數
 
@@ -30,7 +30,7 @@ C!.
         x
 ```
 
-程序方法也可以采取 `self` 的 [ownership](./18_ownership.md)。從方法定義中刪除 `ref` 或 `ref!`
+程序方法也可以采取 `self` 的 [ownership](./19_ownership.md)。從方法定義中刪除 `ref` 或 `ref!`
 
 ```python,compile_fail
 n = 1

@@ -1,6 +1,6 @@
 # 細化類型
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/12_refinement.md%26commit_hash%3Dc248056b7e0273027b3c86fb912430bbde711941)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/12_refinement.md&commit_hash=c248056b7e0273027b3c86fb912430bbde711941)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/12_refinement.md%26commit_hash%3Dc6eb78a44de48735213413b2a28569fdc10466d0)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/12_refinement.md&commit_hash=c6eb78a44de48735213413b2a28569fdc10466d0)
 
 細化類型是受謂詞表達式約束的類型。枚舉類型和區間類型是細化類型的語法糖
 
@@ -31,6 +31,20 @@ List3OrMore == {A: List _, N | N >= 3}
 如果你知道如何解二次方程，你會期望上面的細化形式等價于`{2, 3}`
 但是，Erg 編譯器對代數的了解很少，因此無法解決右邊的謂詞
 
+## Subtyping rules for refinement types
+
+All refinement types are subtypes of the type specified in the `Type` part.
+
+```erg
+{I: Int | I <= 0} <: Int
+```
+
+Otherwise, the current Erg has a subtyping type rule for integer comparisons.
+
+```erg
+{I: Int | I <= 5} <: {I: Int | I <= 0}
+```
+
 ## 智能投射
 
 很高興您定義了 `Odd`，但事實上，它看起來不能在文字之外使用太多。要將普通 `Int` 對象中的奇數提升為 `Odd`，即將 `Int` 向下轉換為 `Odd`，您需要傳遞 `Odd` 的構造函數
@@ -55,7 +69,7 @@ match i:
 
 但是，Erg 目前無法做出諸如"偶數"之類的子決策，因為它不是"奇數"等
 
-## 枚舉、區間和篩選類型
+## 枚舉、區間和細化類型
 
 前面介紹的枚舉/區間類型是細化類型的語法糖
 `{a, b, ...}` 是 `{I: Typeof(a) | I == a 或 I == b 或 ... }`，并且 `a..b` 被去糖化為 `{I: Typeof(a) | 我 >= a 和我 <= b}`

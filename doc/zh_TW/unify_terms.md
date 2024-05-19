@@ -1,6 +1,6 @@
 # 術語統一
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/unify_terms.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/unify_terms.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/unify_terms.md%26commit_hash%3Dc6eb78a44de48735213413b2a28569fdc10466d0)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/unify_terms.md&commit_hash=c6eb78a44de48735213413b2a28569fdc10466d0)
 
 ## 可訪問性，可見性
 
@@ -47,11 +47,6 @@ Erg 中不使用代數名稱和名稱，使用統一標識符
 
 為子例程對象提供參數并獲得結果
 使用呼叫。這是因為Application有"應用軟件"的用法
-
-## 數組列表
-
-使用數組。Erg 數組(通常)在內存中是連續的
-List 是指所謂的鏈表，或者說列表作為 Python 數據類型
 
 ## lambda 函數、lambda 表達式、匿名函數
 

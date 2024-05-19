@@ -1,6 +1,6 @@
 # 類型轉換
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/17_type_casting.md%26commit_hash%3Db713e6f5cf9570255ccf44d14166cb2a9984f55a)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/17_type_casting.md&commit_hash=b713e6f5cf9570255ccf44d14166cb2a9984f55a)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/17_type_casting.md%26commit_hash%3D7d7849b4932909197c185c1737dcc1f63cce701c)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/17_type_casting.md&commit_hash=7d7849b4932909197c185c1737dcc1f63cce701c)
 
 ## 向上轉換
 
@@ -60,6 +60,43 @@ assert Ratio.from(1) == 1.0
 assert 1.into<Ratio>() == 1.0
 ```
 
+## Forced upcasting
+
+In many cases, upcasting of objects is automatic, depending on the function or operator that is called.
+However, there are cases when you want to force upcasting. In that case, you can use `as`.
+
+```python,compile_fail
+n = 1
+n.times! do: print!
+    print! "Hello"
+i = n as Int
+i.times! do: # ERR
+    "Hello"
+s = n as Str # ERR
+```
+
+You cannot cast to unrelated types or subtypes with ``as``.
+
+## Forced casting
+
+You can use `typing.cast` to force casting. This can convert the target to any type.
+In Python, `typing.cast` does nothing at runtime, but in Erg the conversion will be performed by the constructor if object's type is built-in[<sup id="f1">1</sup>](#1).
+For non-built-in types, the safety is not guaranteed at all.
+
+```python
+typing = pyimport "typing"
+
+C = Class { .x = Int }
+
+s = typing.cast Str, 1
+
+assert s == "1"
+print! s + "a" # 1a
+
+c = typing.cast C, 1
+print! c.x # AttributeError: 'int' object has no attribute 'x'
+```
+
 ## 向下轉換
 
 由于向下轉換通常是不安全的并且轉換方法很重要，我們改為實現`TryFrom.try_from`
@@ -72,6 +109,11 @@ IntTryFromFloat.
             then: r.ceil()
             else: Error "conversion failed".
 ```
+
+---
+
+<span id="1" style="font-size:x-small"><sup>1</sup> This conversion is a byproduct of the current implementation and will be removed in the future. [↩](#f1) </span>
+
 <p align='center'>
     <a href='./16_subtyping.md'>上一頁</a> | <a href='./18_mut.md'>下一頁</a>
 </p>

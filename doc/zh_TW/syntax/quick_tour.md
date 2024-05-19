@@ -1,6 +1,6 @@
 # 快速瀏覽
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/quick_tour.md%26commit_hash%3D44d7784aac3550ba97c8a1eaf20b9264b13d4134)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/quick_tour.md&commit_hash=44d7784aac3550ba97c8a1eaf20b9264b13d4134)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/quick_tour.md%26commit_hash%3Dc6eb78a44de48735213413b2a28569fdc10466d0)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/quick_tour.md&commit_hash=c6eb78a44de48735213413b2a28569fdc10466d0)
 
 `syntax` 下面的文檔是為了讓編程初學者也能理解而編寫的
 對于已經掌握 Python、Rust、Haskell 等語言的人來說，可能有點啰嗦
@@ -10,7 +10,7 @@
 
 ## 基本計算
 
-Erg 有一個嚴格的類型。但是, 由于類和Trait提供的靈活性, 類型會自動轉換為子類型(有關詳細信息，請參閱 [API])
+Erg 有一個嚴格的類型。但是, 由于類和Trait提供的靈活性, 類型會自動轉換為子類型(有關詳細信息，請參閱 [API](../API))
 
 另外，不同的類型可以相互計算，只要類型是數值類型即可
 
@@ -22,16 +22,16 @@ d = c * 0 # -0.0: Float
 e = f // 2 # 0: Nat
 ```
 
-如果您不想允許這些隱式類型轉換，您可以在聲明時指定類型以在編譯時將它們檢測為錯誤
+如果不想允許意外的類型擴展，可以在聲明時指定類型，以便在編譯時將其作為錯誤進行檢測。
 
 ```python
 a = 1
 b: Int = a / 2
 # 錯誤信息
 Error[#0047]: File <stdin>, line 1, in <module>
-2│ b: Int = int / 2
+2│ b: Int = b / 2
    ^
-類型錯誤: ratio的類型不匹配:
+類型錯誤: b的類型不匹配:
 期待:  Int
 但找到: Float
 ```
@@ -191,9 +191,9 @@ match x:
     2 -> "2"
     _ -> "other"
 # 斐波那契函數
-fib0 = 0
-fib1 = 1
-fibn: Nat = fibn-1 + fibn-2
+fib 0 = 0
+fib 1 = 1
+fib n: Nat = fibn-1 + fibn-2
 ```
 
 ### 常量模式

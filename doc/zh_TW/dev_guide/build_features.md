@@ -1,11 +1,16 @@
 # `erg` 構建功能
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/dev_guide/build_features.md%26commit_hash%3Dcbaf48c04b46fadc680fa4e05e8ad22cbdaf6c47)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/dev_guide/build_features.md&commit_hash=cbaf48c04b46fadc680fa4e05e8ad22cbdaf6c47)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/dev_guide/build_features.md%26commit_hash%3Dddb483c2cf733dba776fd6a5589f28871a2c3e62)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/dev_guide/build_features.md&commit_hash=ddb483c2cf733dba776fd6a5589f28871a2c3e62)
 
 ## debug
 
 進入調試模式。結果，Erg 內部的行為順序顯示在日誌中
-獨立於 Rust 的 `debug_assertions` 標誌
+獨立於 Rust 的 `debug_assertions` 標誌.
+Also, enable `backtrace_on_stack_overflow`.
+
+## backtrace
+
+Enable only `backtrace_on_stack_overflow`.
 
 ## japanese
 

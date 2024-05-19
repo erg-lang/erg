@@ -1,6 +1,6 @@
 # Erg 代碼如何轉譯成 Python 代碼?
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/compiler/transpile.md%26commit_hash%3D13f2d31aee9012f60b7a40d4b764921f1419cdfe)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/compiler/transpile.md&commit_hash=13f2d31aee9012f60b7a40d4b764921f1419cdfe)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/compiler/transpile.md%26commit_hash%3D96b113c47ec6ca7ad91a6b486d55758de00d557d)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/compiler/transpile.md&commit_hash=96b113c47ec6ca7ad91a6b486d55758de00d557d)
 
 準確地說，Erg 代碼是被轉譯為 Python 字節碼。鑒于 Python 字節碼幾乎可以被重構為 Python 文本代碼，因此這里以等效的 Python 代碼為例。
 順便說一下，這里展示的示例是低優化級別。更高級的優化會消除不需要實例化的東西
@@ -12,24 +12,13 @@
 有一個類似的功能，數據類（dataclass），但由于__eq__和__hash__的自動實現，數據類在性能上略有下降
 
 ```python
-Employee = Class {.name = Str; .id = Int}
-
 employee = Employee.new({.name = "John Smith"; .id = 100})
-
 assert employee.name == "John Smith"
 ```
 
 
 ```python
-from typing import NamedTuple
-
-class Employee(NamedTuple):
-    __records__ = ['name', 'id']
-    name: str
-    id: int
-
-employee = Employee('John Smith', 100)
-
+employee = NamedTuple(['name', 'id'])('John Smith', 100)
 assert employee.name == 'John Smith'
 ```
 
@@ -88,4 +77,20 @@ module::x = 1
 y::x = 2
 assert module::x == 2
 y = None
+```
+
+## Patch
+
+```python
+func b: Bool =
+    Invert = Patch Bool
+    Invert.
+        invert self = not self
+    b.invert()
+```
+
+```python
+def func(b):
+    def Invert::invert(self): return not self
+    return Invert::invert(b)
 ```

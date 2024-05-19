@@ -1,5 +1,5 @@
 # 版本控製
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/dev_guide/version.md%26commit_hash%3Dc1f43472c254e4c22f936b0f9157fc2ee3189697)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/dev_guide/version.md&commit_hash=c1f43472c254e4c22f936b0f9157fc2ee3189697)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/dev_guide/version.md%26commit_hash%3Dbaf9e9597fbe528ed07a354a2b145e42ceef9e42)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/dev_guide/version.md&commit_hash=baf9e9597fbe528ed07a354a2b145e42ceef9e42)
 
 Erg 編譯器根據語義版本控製分配版本號。
 但是，在版本 0 期間，應用的規則與平時不同（遵循比語義版本控製更詳細的規則）。
@@ -11,7 +11,7 @@ Erg 編譯器根據語義版本控製分配版本號。
 
 ## 發布周期
 
-* 補丁大約每 1~2 周發布一次。
+* 補丁大約每 1~2 周發布一次。但是，如果發現嚴重錯誤，可能會被上移
 * 次要版本的發布頻率大約是補丁發布的 10 倍，即每 3~6 個月發布一次。
 * 主要版本是無限期發布的。目前未計劃版本 1 版本的計劃。
 

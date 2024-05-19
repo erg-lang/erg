@@ -22,7 +22,7 @@ assert Option in Type -> Type
 ```python
 # K 是一元類型
 K: Type -> Type
-K T = Class ...
+K T = Class...
 K.
 foo x = ... # OK，這就像是所謂的靜態方法
      bar self, x = ... # 類型錯誤: 無法為非類型對象定義方法

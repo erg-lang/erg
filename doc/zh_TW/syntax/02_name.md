@@ -1,6 +1,6 @@
 # 變量和常量
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/02_name.md%26commit_hash%3D14b0c449efc9e9da3e10a09c912a960ecfaf1c9d)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/02_name.md&commit_hash=14b0c449efc9e9da3e10a09c912a960ecfaf1c9d)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/02_name.md%26commit_hash%3Dc6eb78a44de48735213413b2a28569fdc10466d0)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/02_name.md&commit_hash=c6eb78a44de48735213413b2a28569fdc10466d0)
 
 ## 變量
 
@@ -64,6 +64,38 @@ if x.is_zero(), do:
     x = x + 1 # 名稱錯誤: 無法定義變量引用同名變量
     assert x == 1
 assert x == 0
+```
+
+Even when shadowing is performed, you can still refer to the outer variable by its "fully qualified name".
+A fully qualified name is a form of name that explicitly specifies the namespace to which the variable belongs.
+
+```erg
+x = 0
+if True, do: if
+    x = 1
+    assert x == 1
+    assert module::x == 0
+C = Class()
+    x = 2
+    f() =
+        x = 3
+        assert C::x == 2
+        assert C::f::x == 3
+```
+
+Variables defined directly under a module belong to a special namespace called `module`. So you can refer to it as `module::x` and so on.
+
+The special namespace includes `module`, which refers to the module itself, and `global`, which refers to the global namespace.
+
+```erg
+print! = None
+global::print! "Hello, world!"
+```
+
+These namespaces cannot be shadowed. Thus, if you specify ``module::x``, ``global::print!``, etc., it will always point to the same object.
+
+```erg,compile_fail
+global = None # ERR, cannot shadow the global namespace
 ```
 
 ## 常量

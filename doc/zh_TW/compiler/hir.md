@@ -1,6 +1,6 @@
 # 高級中間表示(HIR, High-level Intermediate Representation)
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/compiler/hir.md%26commit_hash%3D8673a0ce564fd282d0ca586642fa7f002e8a3c50)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/compiler/hir.md&commit_hash=8673a0ce564fd282d0ca586642fa7f002e8a3c50)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/compiler/hir.md%26commit_hash%3Dc6eb78a44de48735213413b2a28569fdc10466d0)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/compiler/hir.md&commit_hash=c6eb78a44de48735213413b2a28569fdc10466d0)
 
 HIR 是 Erg 編譯器從 AST 生成的結構。
 此結構包含源代碼中每個表達式的完整類型信息，并且在語法上已脫糖。
@@ -128,7 +128,7 @@ HIR(Module[
     Call{
         obj: Accessor::Local{
             name: "log",
-            *t: Obj => NoneType,
+            *t: *Obj => NoneType,
         },
         args: [
             Call{
