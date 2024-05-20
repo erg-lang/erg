@@ -14,3 +14,10 @@ A distinctive feature of Erg's Lexer is that it treats indents as lexemes, simil
 Erg's Lexer checks if the number of indents/dedents matches, but it does not check if they are used correctly grammatically.
 For example, the following code does not result in an error at the lexical analysis stage.
 
+```python
+i = 1
+    j = 2
+k = 3
+```
+
+This will result in a syntax error at the parsing stage.

@@ -31,3 +31,69 @@ However, Erg's traits have little meaning at runtime.
 ## match
 
 Pattern matching is mostly reduced to a combination of type checks and assignment operations. This is done relatively early in the compilation process.
+
+```erg
+i, [j, *k] = 1, [2, 3, 4]
+```
+
+↓
+
+```erg
+_0 = 1, [2, 3]
+i = _0[0]
+_1 = _0[1]
+j = _1[0]
+k = _1[1:]
+```
+
+However, some are delayed until runtime.
+
+```erg
+x: Int or Str
+match x:
+    i: Int -> ...
+    s: Str -> ...
+```
+
+This pattern match requires a runtime check. This check is performed by [`in_operator`](https://github.com/erg-lang/erg/blob/d1dc1e60e7d4e3333f80ed23c5ead77b5fe47cb2/crates/erg_compiler/lib/std/_erg_in_operator.py#L6).
+
+Therefore, the desugared code for the above example is as follows. Exhaustiveness checking is performed at compile time.
+
+```erg
+if in_operator(x, Int):
+    ...
+else:
+    ...
+```
+
+## Control-flow Functions
+
+Functions corresponding to Python control-flows such as `for!` and `if!` change entity depending on their optimization status. Usually, optimization can be performed and they are reduced to dedicated bytecode instructions.
+
+```erg
+for! [a, b], i =>
+    ...
+```
+
+↓
+
+```pyc
+LOAD_NAME 0(a)
+LOAD_NAME 1(b)
+BUILD_LIST 2
+GET_ITER
+FOR_ITER ...
+STORE_NAME 2(i)
+...
+```
+
+This is more efficient than function calls. However, there are cases where optimization cannot be performed, as shown below.
+
+```erg
+f! = [for!, ...].choice!()
+
+f! [1, 2], i =>
+    ...
+```
+
+Such cases must be treated as functions with entities. Functions are defined in [_erg_control.py](https://github.com/erg-lang/erg/blob/d1dc1e60e7d4e3333f80ed23c5ead77b5fe47cb2/crates/erg_compiler/lib/std/_erg_control.py).
