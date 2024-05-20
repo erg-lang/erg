@@ -1,4 +1,4 @@
-# 方差(逆變與協變)
+# 變性(逆變與協變)
 
 [![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/variance.md%26commit_hash%3Dc6eb78a44de48735213413b2a28569fdc10466d0)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/variance.md&commit_hash=c6eb78a44de48735213413b2a28569fdc10466d0)
 
@@ -40,7 +40,7 @@ Erg 的設計原則之一是"大輸入類型，小輸出類型"。這正是函�
 
 這樣一來，上面的策略就相當于說"盡量減少函數的類型"
 
-## 不方差
+## 不變性
 
 Erg 有另一個修改。它是不變的
 This is a modification that built-in types such as `SharedCell! T!` have.

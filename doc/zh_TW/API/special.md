@@ -67,20 +67,21 @@ if True, do:
 
 ## `:`(x, T)
 
-Declares that object `x` is of type `T`. An error is raised if `x` is not a subtype of `T`.
+聲明物件`x`的類型為`T`。 如果`x`不是`T`的子類型，則會引發錯誤
 
-It can be used for variable declarations or as the right-hand side value of an expression.
+它可用於變數聲明或用作表達式的右側值
 
 ```erg
-# both are OK
+# 兩者都OK
 x: Int = 1
-y = x: Int
+y = x：Int
 ```
 
 ## `as`(x, T)
 
-Forces the object `x` to be cast to type `T`. If `x` is not a subtype of `T`, an error is raised.
-The difference from `:` is that `(x: T): U` when `x: U; U <: T`, but `(x as T): T`.
+強制將物件`x`強制轉換為類型`T`。 如果`x`不是`T`的子類型，則會引發錯誤
+
+與`:`的差別在於`x: U; U <: T`時是`(x: T): U`，而`(x as T): T`
 
 ## match(obj, *lambdas: Lambda)
 
