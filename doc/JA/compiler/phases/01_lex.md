@@ -1,6 +1,6 @@
 # Lexing (字句解析)
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/compiler/phases/01_lex.md%26commit_hash%3D19bab4ae63af9415da20ebd7499c668144da5ea6)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/compiler/phases/01_lex.md&commit_hash=19bab4ae63af9415da20ebd7499c668144da5ea6)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/compiler/phases/01_lex.md%26commit_hash%3D85d800653fb1ab12805dc82f7c3b501de8ba63b6)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/compiler/phases/01_lex.md&commit_hash=85d800653fb1ab12805dc82f7c3b501de8ba63b6)
 
 字句解析を行うのは`erg_parser/lex.rs`に定義される`Lexer`である。
 これはイテレータとして実装されており、`Token`という構造体を返す。
