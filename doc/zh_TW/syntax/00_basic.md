@@ -1,6 +1,6 @@
 # 基本
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/00_basic.md%26commit_hash%3D103197e1eb0b8ff24cee9edf16f846ba3079a27e)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/00_basic.md&commit_hash=103197e1eb0b8ff24cee9edf16f846ba3079a27e)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/00_basic.md%26commit_hash%3Df5b471778fdb4607b0a4cc4886dc63fb6a39c60b)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/00_basic.md&commit_hash=f5b471778fdb4607b0a4cc4886dc63fb6a39c60b)
 
 > __Warning__: 本文檔不完整。它未經校對(樣式、正確鏈接、誤譯等)。此外，Erg 的語法可能在版本 0.* 期間發生破壞性更改，并且文檔可能沒有相應更新。請事先了解這一點
 > 如果您在本文檔中發現任何錯誤，請報告至 [此處的表單](https://forms.gle/HtLYRfYzWCAaeTGb6) 或 [GitHub repo](https://github.com/erg-lang/erg/issues/new?assignees=&labels=bug&template=bug_report.yaml)。我們將不勝感激您的建議
@@ -81,7 +81,8 @@ Treated as a comment all the way up to the corresponding `]#`
 ]#
 ```
 
-## 文檔注釋
+### 文檔注釋
+
 `'''...'''`是一個文檔注釋。注意，與Python不同，它是在任何類或函數之外定義的。
 
 ```python
@@ -122,6 +123,19 @@ cf. https://www.google.co.jp/search?q=answer+to+life+the+universe+and+everything
 ANSWER = 42
 ```
 
+Also, if you specify `erg`, it will be displayed as Erg's sample code.
+
+```python
+'''
+the identity function, does nothing but returns the argument
+'''
+'''erg
+assert id(1) == 1
+assert id("a") == "a"
+'''
+id x = x
+```
+
 ## 表達式，分隔符
 
 腳本是一系列表達式。表達式是可以計算或評估的東西，在 Erg 中幾乎所有東西都是表達式
@@ -130,6 +144,7 @@ Erg 腳本基本上是從左到右、從上到下進行評估的
 
 ```python
 n = 1 # 賦值表達式
+f x, y = x + y # function definition
 f(1, 2) # 函數調用表達式
 1 + 1 # 運算符調用表達式
 f(1, 2); 1 + 1

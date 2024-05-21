@@ -1,6 +1,6 @@
 # `ergc` 的架构
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/compiler/architecture.md%26commit_hash%3Da711efa99b325ba1012f6897e7b0e2bdb947d8a1)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/compiler/architecture.md&commit_hash=a711efa99b325ba1012f6897e7b0e2bdb947d8a1)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/compiler/architecture.md%26commit_hash%3Deb5b9c4946152acaecc977f47062958ce4e774a2)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/compiler/architecture.md&commit_hash=eb5b9c4946152acaecc977f47062958ce4e774a2)
 
 ## 1. 扫描 Erg 脚本 (.er) 并生成 `TokenStream` (parser/lex.rs)
 
@@ -22,6 +22,23 @@
 * desugar 多模式定义语法(`Desugarer::desugar_multiple_pattern_def`)
 
 ## 3. 类型检查和推断，转换 `AST` -> `HIR` (compiler/lower.rs)
+
+(main) src: [erg_compiler/lower.rs](../../../crates/erg_compiler/lower.rs)
+
+### 3.1 Name Resolution
+
+In the current implementation it is done during type checking.
+
+* All ASTs (including imported modules) are scanned for name resolution before type inference.
+* In addition to performing cycle checking and reordering, a context is created for type inference (however, most of the information on variables registered in this context is not yet finalized).
+
+### 3.2 import resolution
+
+* When `import` is called, a new thread is created for analysis.
+* `JoinHandle` is stored in `SharedCompilerResource` and is joined when the module is needed.
+* Unused modules may not be joined, but currently all such modules are also analyzed.
+
+### 3.3 Type checking & inference
 
 * `HIR` 有每个变量的类型信息。它是用于"高级中间表示"的
 * `HIR` 只保存变量的类型，但这已经足够了。在极端情况下，这是因为 Erg 只有转换(或运算符)应用程序的参数对象

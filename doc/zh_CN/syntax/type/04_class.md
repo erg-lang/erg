@@ -1,6 +1,6 @@
 # Class
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/04_class.md%26commit_hash%3D7078f95cecc961a65befb15929af06ae2331c934)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/04_class.md&commit_hash=7078f95cecc961a65befb15929af06ae2331c934)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/04_class.md%26commit_hash%3D09655d99f7ca21ca078e269c44ef83e9f7886d82)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/04_class.md&commit_hash=09655d99f7ca21ca078e269c44ef83e9f7886d82)
 
 Erg 中的类大致是一种可以创建自己的元素(实例)的类型
 这是一个简单类的示例
@@ -15,7 +15,7 @@ print! john # <Person object>
 print! classof(john) # Person
 ```
 
-赋予"Class"的类型(通常是记录类型)称为需求类型(在本例中为"{.name = Str; .age = Nat}")
+赋予"Class"的类型(通常是记录类型)称为需求类型(在本例中为`{.name = Str; .age = Nat}`)
 可以使用 `<Class name> {<attribute name> = <value>; 创建实例 ...}` 可以创建
 `{.name = "约翰·史密斯"; .age = 25}` 只是一条记录，但它通过传递 `Person.new` 转换为 `Person` 实例
 创建此类实例的子例程称为构造函数
@@ -31,7 +31,7 @@ Person.new name, age = ... # 语法错误: 不能直接在对象上定义属性
 
 对于非记录类型`T` '`，可以通过`' `C = class T`定义类`C`。这是一个简写符号，相当于`C = Class {base = T}`。
 这是为了简化所谓“新型模式”的定义。
-同样，构造函数 `__new__` /  `new`可以直接传递给`T`类型对象，而无需将其包装在记录中
+Also, the constructor/`new` can be passed directly to a `T` type object without wrapping it in a record.
 
 ```python
 Id = Class {base = Int}
@@ -105,60 +105,9 @@ C.i = 1 # 属性错误: `.i` 已在实例字段中定义
 
 ## 类(Class), 类型(Type)
 
-请注意，`1` 的类和类型是不同的
-只有一个类 `Int` 是 `1` 的生成器。可以通过`classof(obj)`或`obj.__class__`获取对象所属的类
-相比之下，`1`有无数种。例如，`{1}, {0, 1}, 0..12, Nat, Int, Num`
-但是，可以将最小类型定义为单一类型，在本例中为"{1}"。可以通过`Typeof(obj)`获取对象所属的类型。这是一个编译时函数
-对象可以使用补丁方法以及类方法
-Erg 不允许您添加类方法，但您可以使用 [patch](./07_patch.md) 来扩展类
-
-您还可以从现有类([Inheritable](../29_decorator.md#可继承) 类)继承
-您可以使用 `Inherit` 创建一个继承类。左侧的类型称为派生类，右侧的"继承"的参数类型称为基类(继承类)
-
-```python
-MyStr = Inherit Str
-# other: 如果你设置 ``other: Str''，你可以使用 MyStr
-MyStr.
-    `-` self, other: Str = self.replace other, ""
-
-abc = MyStr.new("abc")
-# 这里的比较是向上的
-assert abc - "b" == "ac"
-```
-
-与 Python 不同，默认情况下，定义的 Erg 类是 `final`(不可继承的)
-要使类可继承，必须将 `Inheritable` 装饰器附加到该类
-Str` 是可继承的类之一
-
-```python
-MyStr = Inherit Str # OK
-MyStr2 = Inherit MyStr # NG
-
-@Inheritable
-InheritableMyStr = Inherit Str
-MyStr3 = Inherit InheritableMyStr # OK
-```
-
-`Inherit Obj` 和 `Class()` 在实践中几乎是等价的。一般使用后者
-
-类具有与类型不同的等价检查机制
-类型基于其结构进行等效性测试
-
-```python
-Person = {.name = Str; .age = Nat}
-Human = {.name = Str; .age = Nat}
-
-assert Person == Human
-```
-
-class has no equivalence relation defined.
-
-```python
-Person = Class {.name = Str; .age = Nat}
-Human = Class {.name = Str; .age = Nat}
-
-Person == Human # 类型错误: 无法比较类
-```
+只有一个 `Nat` __class__ 是 `1` 的生成器。 一个对象所属的类可以通过 `classof(obj)` 或 `obj.__class__` 得到。
+相反，`1`所属的 __ 类型__ 却数不胜数。 例如 `{1}, {0, 1}, 0..12, Nat, Int, Num`。
+一个对象之所以能以这种方式属于多个类型，是因为 Erg 有一个部分类型系统。 `Nat` 是 `Int` 的子类型，而 `Int` 是 `Num` 的子类型。
 
 ## 与结构类型的区别
 
@@ -233,11 +182,31 @@ T.
 print! dir(T) # ["bar", "x", ...].
 assert T.x == 1
 assert {i = 1}.x == 1
-print! T.bar # <函数 bar>
-{i = Int}.bar # 类型错误: Record({i = Int}) 没有方法 `.bar`
-C.bar # 类型错误: C 没有方法 `.bar` 打印！
-print! {i = 1}.bar # <方法 bar>
-C.new({i = 1}).bar # <方法 bar>
+print! T.bar # <function bar>
+{i = Int}.bar # TypeError: Record({i = Int}) has no method `.bar`.
+C.bar # TypeError: C has no method `.bar` print!
+print! {i = 1}.bar # <method bar>
+C.new({i = 1}).bar # <method bar>
+```
+
+## Difference from Data Class
+
+There are two types of classes: regular classes, which are generated with `Class(record)`, and data classes, which are generated with `Inherit(record)`.
+The data class inherits the functionality of the record class and has features such as decomposition assignment, `==` and `hash` implemented by default, etc. On the other hand, the data class has its own equivalence relation and format display.
+On the other hand, if you want to define your own equivalence relations or formatting displays, you should use the normal class.
+
+```python
+C = Class {i = Int}
+c = C.new {i = 1}
+d = C.new {i = 2}
+print! c # <C object>
+c == d # TypeError: `==` is not implemented for `C`
+
+D = Inherit {i = Int}
+e = D::{i = 1} # same as `e = D.new {i = 1}`
+f = D::{i = 2}
+print! e # D(i=1)
+assert e ! = f
 ```
 
 ## 与数据类的区别

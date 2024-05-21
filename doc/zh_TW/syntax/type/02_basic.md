@@ -1,6 +1,6 @@
 # 基本語法
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/02_basic.md%26commit_hash%3Df4fb25b4004bdfa96d2149fac8c4e40b84e8a45f)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/02_basic.md&commit_hash=f4fb25b4004bdfa96d2149fac8c4e40b84e8a45f)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/02_basic.md%26commit_hash%3Dc6eb78a44de48735213413b2a28569fdc10466d0)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/02_basic.md&commit_hash=c6eb78a44de48735213413b2a28569fdc10466d0)
 
 ## 類型規范
 
@@ -10,13 +10,6 @@
 i: Int # 將變量 i 聲明為 Int 類型
 i: Int = 1
 j = 1 # 類型說明可以省略
-```
-
-您還可以指定普通表達式的類型
-
-```python
-i = 1: Int
-f([1, "a"]: [Int or Str])
 ```
 
 對于簡單的變量賦值，大多數類型說明可以省略
@@ -45,6 +38,32 @@ g v: [T; _] = ...
 
 ```python
 f x: _, y: Int = x + y # 類型錯誤: Object 和 Int 之間沒有實現 +
+```
+
+## Type ascription
+
+Erg can explicitly indicate the type of any expression as well as variables. This syntax is called type ascription.
+
+Variable type ascription = type specification.
+
+```python
+x = 1: Nat
+f("a": Str)
+f("a"): Int
+"a": Nat # TypeError:
+```
+
+## Type ascription
+
+Erg can explicitly indicate the type of any expression as well as variables. This syntax is called type ascription.
+
+Variable type ascription = type specification.
+
+```python
+x = 1: Nat
+f("a": Str)
+f("a"): Int
+"a": Nat # TypeError:
 ```
 
 ## 子類型規范

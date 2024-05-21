@@ -1,9 +1,11 @@
 # 继承
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/05_inheritance.md%26commit_hash%3D7078f95cecc961a65befb15929af06ae2331c934)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/05_inheritance.md&commit_hash=7078f95cecc961a65befb15929af06ae2331c934)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/05_inheritance.md%26commit_hash%3Dfcb7cf72ab5293812d4c7c76a136cbfba9fe2bd5)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/05_inheritance.md&commit_hash=fcb7cf72ab5293812d4c7c76a136cbfba9fe2bd5)
 
 继承允许您定义一个新类，为现有类添加功能或专业化
 继承类似于包含在Trait中。继承的类成为原始类的子类型
+
+`Inherit` is a function that defines an inherited class. The type on the left side is called subclass and the argument type of `Inherit` on the right side is called superclass.
 
 ```python
 NewInt = Inherit Int
@@ -16,20 +18,18 @@ assert NewInt.new(1) + NewInt.new(1) == 2
 
 如果你希望新定义的类是可继承的，你必须给它一个 `Inheritable` 装饰器
 
-您可以指定一个可选参数 `additional` 以允许该类具有其他实例属性，但前提是该类是一个值类。但是，如果类是值类，则不能添加实例属性
+您可以指定一个可选参数 `Additional` 以允许该类具有其他实例属性，但前提是该类是一个值类。但是，如果类是值类，则不能添加实例属性
 
 ```python
 @Inheritable
 Person = Class {name = Str}
-Student = Inherit Person, additional: {id = Int}
+Student = Inherit Person, Additional := {id = Int}
 
 john = Person.new {name = "John"}
 alice = Student.new {name = "Alice", id = 123}
 
-MailAddress = Inherit Str, additional: {owner = Str} # 类型错误: 实例变量不能添加到值类中
+MailAddress = Inherit Str, Additional := {owner = Str} # 类型错误: 实例变量不能添加到值类中
 ```
-
-Erg 的特殊设计不允许继承"Never"类型。Erg 的特殊设计不允许继承 `Never` 类型，因为 `Never` 是一个永远无法实例化的独特类
 
 ## 枚举类的继承
 
@@ -38,11 +38,12 @@ Erg 的特殊设计不允许继承"Never"类型。Erg 的特殊设计不允许�
 
 ```python
 Number = Class Int or Float or Complex
-Number.abs(self): Float =
-    match self:
-        i: Int -> i.abs().into Float
-        f: Float -> f.abs()
-        c: Complex -> c.abs().into Float
+Number
+    .abs(self): Float =
+        match self:
+            i: Int -> i.abs().into Float
+            f: Float -> f.abs()
+            c: Complex -> c.abs().into Float
 
 # c: 复杂不能出现在匹配选项中
 RealNumber = Inherit Number, Excluding: Complex
@@ -79,14 +80,14 @@ StrMoreThan4 = Inherit StrMoreThan3, Excluding: StrWithLen N | N == 3
 # 反面示例
 @Inheritable
 Base! = Class {x = Int!}
-Base!
+Base!.
     f! ref! self =
         print! self::x
         self.g!()
     g! ref! self = self::x.update! x -> x + 1
 
 Inherited! = Inherit Base!
-Inherited!
+Inherited!.
     @Override
     g! ref! self = self.f!() # 无限递归警告: 此代码陷入无限循环
     # 覆盖错误: 方法 `.g` 被 `.f` 引用但未被覆盖
@@ -100,14 +101,14 @@ Erg 已将此规则构建到规范中
 # OK.
 @Inheritable
 Base! = Class {x = Int!}
-Base!
+Base!.
     f! ref! self =
         print! self::x
         self.g!()
     g! ref! self = self::x.update! x -> x + 1
 
 Inherited! = Inherit Base!
-Inherited!
+Inherited!.
     @Override
     f! ref! self =
         print! self::x

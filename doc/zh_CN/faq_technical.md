@@ -1,6 +1,6 @@
 # 技术常见问题
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/faq_technical.md%26commit_hash%3D1b3d7827bb770459475e4102c6f5c43d8ad79ae4)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/faq_technical.md&commit_hash=1b3d7827bb770459475e4102c6f5c43d8ad79ae4)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/faq_technical.md%26commit_hash%3Dc6eb78a44de48735213413b2a28569fdc10466d0)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/faq_technical.md&commit_hash=c6eb78a44de48735213413b2a28569fdc10466d0)
 
 本节回答有关使用 Erg 语言的技术问题。换句话说，它包含以 What 或 Which 开头的问题，以及可以用 Yes/No 回答的问题
 
@@ -33,3 +33,60 @@ A: `Never` 是一种"不可能"的类型。产生运行时错误的子例程将"
 
 A: Erg API 的类型尽可能接近 Python API 规范，但有些情况无法完全表达
 此外，根据规范有效但被认为不合需要的输入(例如，在应该输入 int 时输入浮点数)可能会被 Erg 开发团队酌情视为类型错误。
+
+## Why doesn't Tuple have a constructor (`__call__`)?
+
+Erg tuples must have a compile-time length. Therefore, a tuple is constructed almost only by a tuple literal.
+If the length is not known until runtime, an immutable array (`List`) can be used instead.
+
+```erg
+arr = List map(int, input!().split " ")
+```
+
+## I got runtime errors in Erg that I did not get in Python. What could be the cause?
+
+The following script is an example of a strange error that can occur in Erg.
+
+```erg
+{main!; TestCase!} = pyimport "unittest"
+
+Test! = Inherit TestCase!
+Test!
+    test_one self =
+        self.assertEqual 1, 1
+
+main!()
+```
+
+This is a basic use of unittest, and at first glance it looks correct, but when executed, it produces the following error:
+
+```console
+AttributeError: 'Test!' object has no attribute '_testMethodName'.
+```
+
+The error is caused by the way `TestCase` is executed.
+When `TestCase` (a class that extends `TestCase`) is executed, the test method to be executed must begin with `test_`.
+`test_one` seems to follow this, but Erg performs mangling on variable names.
+This is what makes the test method unrecognizable.
+To avoid mangling, you need to enclose the name in ''.
+
+```erg
+{main!; TestCase!} = pyimport "unittest"
+
+Test! = Inherit TestCase!
+Test!
+    'test_one' self =
+        self.assertEqual 1, 1
+
+main!()
+```
+
+This time it works.
+
+If you get Erg-specific errors, you can suspect the side-effects of mangling, etc.
+
+## All Python APIs used from Erg have type declarations based on the latest Python version, does this mean that older versions of Python are not supported?
+
+No. Erg is compatible with Python versions from 3.7 to the latest.
+Erg uses its own code generator and libraries to absorb the differences between versions of the Python API.
+If it does not, it is a bug and please report it to [issues](https://github.com/erg-lang/erg/issues/new) on GitHub.

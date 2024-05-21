@@ -37,7 +37,7 @@ assert f 1 == 2
 The function should return the same value for the same arguments, but the assumption is broken.
 Note that `i` is evaluated only at call time.
 
-Call `.clone` if you want the contents of the mutable object at the time the function was defined.
+Call `.copy` if you want the contents of the mutable object at the time the function was defined.
 
 ```python
 i = !0

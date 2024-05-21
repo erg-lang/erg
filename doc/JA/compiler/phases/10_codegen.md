@@ -1,5 +1,7 @@
 # コード生成
 
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/compiler/phases/10_codegen.md%26commit_hash%3D85d800653fb1ab12805dc82f7c3b501de8ba63b6)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/compiler/phases/10_codegen.md&commit_hash=85d800653fb1ab12805dc82f7c3b501de8ba63b6)
+
 Ergスクリプトは、デフォルトではpycファイルに変換されて実行されます。つまり、Pythonスクリプトではなく[Pythonバイトコード](https://github.com/erg-lang/erg/blob/d1dc1e60e7d4e3333f80ed23c5ead77b5fe47cb2/doc/JA/python/bytecode_instructions.md)として実行されます。
 pycファイルは構文糖が剥がされ(phase 8)、依存関係の結合(phase 9)されたHIRから生成されます。
 処理は[`PyCodeGenerator`](https://github.com/erg-lang/erg/blob/d1dc1e60e7d4e3333f80ed23c5ead77b5fe47cb2/crates/erg_compiler/codegen.rs#L160)が行います。この構造体は`HIR`を受け取って`CodeObj`を返します。

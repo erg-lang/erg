@@ -1,9 +1,11 @@
 # 繼承
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/05_inheritance.md%26commit_hash%3D7078f95cecc961a65befb15929af06ae2331c934)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/05_inheritance.md&commit_hash=7078f95cecc961a65befb15929af06ae2331c934)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/05_inheritance.md%26commit_hash%3Dfcb7cf72ab5293812d4c7c76a136cbfba9fe2bd5)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/05_inheritance.md&commit_hash=fcb7cf72ab5293812d4c7c76a136cbfba9fe2bd5)
 
 繼承允許您定義一個新類，為現有類添加功能或專業化
 繼承類似于包含在Trait中。繼承的類成為原始類的子類型
+
+`Inherit` is a function that defines an inherited class. The type on the left side is called subclass and the argument type of `Inherit` on the right side is called superclass.
 
 ```python
 NewInt = Inherit Int
@@ -16,20 +18,18 @@ assert NewInt.new(1) + NewInt.new(1) == 2
 
 如果你希望新定義的類是可繼承的，你必須給它一個 `Inheritable` 裝飾器
 
-您可以指定一個可選參數 `additional` 以允許該類具有其他實例屬性，但前提是該類是一個值類。但是，如果類是值類，則不能添加實例屬性
+您可以指定一個可選參數 `Additional` 以允許該類具有其他實例屬性，但前提是該類是一個值類。但是，如果類是值類，則不能添加實例屬性
 
 ```python
 @Inheritable
 Person = Class {name = Str}
-Student = Inherit Person, additional: {id = Int}
+Student = Inherit Person, Additional := {id = Int}
 
 john = Person.new {name = "John"}
 alice = Student.new {name = "Alice", id = 123}
 
-MailAddress = Inherit Str, additional: {owner = Str} # 類型錯誤: 實例變量不能添加到值類中
+MailAddress = Inherit Str, Additional := {owner = Str} # 類型錯誤: 實例變量不能添加到值類中
 ```
-
-Erg 的特殊設計不允許繼承"Never"類型。Erg 的特殊設計不允許繼承 `Never` 類型，因為 `Never` 是一個永遠無法實例化的獨特類
 
 ## 枚舉類的繼承
 
@@ -38,11 +38,12 @@ Erg 的特殊設計不允許繼承"Never"類型。Erg 的特殊設計不允許�
 
 ```python
 Number = Class Int or Float or Complex
-Number.abs(self): Float =
-    match self:
-        i: Int -> i.abs().into Float
-        f: Float -> f.abs()
-        c: Complex -> c.abs().into Float
+Number
+    .abs(self): Float =
+        match self:
+            i: Int -> i.abs().into Float
+            f: Float -> f.abs()
+            c: Complex -> c.abs().into Float
 
 # c: 復雜不能出現在匹配選項中
 RealNumber = Inherit Number, Excluding: Complex
@@ -79,14 +80,14 @@ StrMoreThan4 = Inherit StrMoreThan3, Excluding: StrWithLen N | N == 3
 # 反面示例
 @Inheritable
 Base! = Class {x = Int!}
-Base!
+Base!.
     f! ref! self =
         print! self::x
         self.g!()
     g! ref! self = self::x.update! x -> x + 1
 
 Inherited! = Inherit Base!
-Inherited!
+Inherited!.
     @Override
     g! ref! self = self.f!() # 無限遞歸警告: 此代碼陷入無限循環
     # 覆蓋錯誤: 方法 `.g` 被 `.f` 引用但未被覆蓋
@@ -100,14 +101,14 @@ Erg 已將此規則構建到規范中
 # OK.
 @Inheritable
 Base! = Class {x = Int!}
-Base!
+Base!.
     f! ref! self =
         print! self::x
         self.g!()
     g! ref! self = self::x.update! x -> x + 1
 
 Inherited! = Inherit Base!
-Inherited!
+Inherited!.
     @Override
     f! ref! self =
         print! self::x
@@ -151,7 +152,7 @@ IntAndStr = Inherit Int and Str # 語法錯誤: 不允許類的多重繼承
 ## 多層(多級)繼承
 
 Erg 繼承也禁止多層繼承。也就是說，您不能定義從另一個類繼承的類
-從"Object"繼承的可繼承類可能會異常繼承
+從`Object`繼承的可繼承類可能會異常繼承
 
 同樣在這種情況下，可以使用 Python 的多層繼承類
 
@@ -185,12 +186,12 @@ Inherited!
 ```python
 @Inheritable
 Base! = Class {.pub = !Int; pri = !Int}
-Base!
+Base!.
     inc_pub! ref! self = self.pub.update! p -> p + 1
     inc_pri! ref! self = self::pri.update! p -> p + 1
 
 self = self.pub.update!
-Inherited!
+Inherited!.
     # OK
     add2_pub! ref! self =
         self.inc_pub!()

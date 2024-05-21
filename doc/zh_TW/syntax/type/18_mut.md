@@ -1,6 +1,6 @@
 # 可變類型
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/18_mut.md%26commit_hash%3D60dfd8580acb1a06dec36895295f92e823931a59)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/18_mut.md&commit_hash=60dfd8580acb1a06dec36895295f92e823931a59)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/18_mut.md%26commit_hash%3Dc6eb78a44de48735213413b2a28569fdc10466d0)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/18_mut.md&commit_hash=c6eb78a44de48735213413b2a28569fdc10466d0)
 
 > __Warning__: 本節中的信息是舊的并且包含一些錯誤
 
@@ -50,115 +50,38 @@ KT: ImmutType = Class ...
 K!T: Type = Class ...
 ```
 
-在標準庫中，變量 `(...)!` 類型通常基于不可變 `(...)` 類型。但是，`T!` 和 `T` 類型沒有特殊的語言關系，并且不能這樣構造 [<sup id="f1">1</sup>](#1)
+在標準庫中，可變 `(...)!` 類型通常基于不可變 `(...)` 類型。但是，`T!` 和 `T` 類型沒有特殊的語言關系，并且不能這樣構造 [<sup id="f1">1</sup>](#1)
 
-請注意，有幾種類型的對象可變性
-下面我們將回顧內置集合類型的不可變/可變語義
+Types such as `{x: Int!}` and `[Int!; 3]` are internal mutable types where the object inside is mutable and the instance itself is not mutable.
+
+## Cell! T
+
+Mutable types are already available for `Int` and arrays, but how can we create mutable types for general immutable types? For example, in the case of `{x = Int; y = Int}`, corresponding mutable type is `{x = Int!; y = Int!}`, etc. But how did `Int!` made from `Int`?
+
+Erg provides `Cell!` type for such cases.
+This type is like a box for storing immutable types. This corresponds to what is called a reference (ref) in ML and other languages.
 
 ```python
-# 數組類型
-## 不可變類型
-[T; N] # 不能執行可變操作
-## 可變類型
-[T; N] # 可以一一改變內容
-[T; !N] # 可變長度，內容不可變但可以通過添加/刪除元素來修改
-[!T; N] # 內容是不可變的對象，但是可以替換成不同的類型(實際上可以通過不改變類型來替換)
-[!T; !N] # 類型和長度可以改變
-[T; !N] # 內容和長度可以改變
-[!T!; N] # 內容和類型可以改變
-[!T!; !N] # 可以執行各種可變操作
+IntOrStr = Inr or Str
+IntOrStr! = Cell! IntOrStr
+x = IntOrStr!.new 1
+assert x is! 1 # `Int or Str` cannot compare with `Int` directly, so use `is!` (this compares object IDs) instead of `==`.
+x.set! "a"
+assert x is! "a"
 ```
 
-當然，您不必全部記住和使用它們
-對于可變數組類型，只需將 `!` 添加到您想要可變的部分，實際上是 `[T; N]`, `[T!; N]`，`[T; !N]`, `[T!; !N]` 可以涵蓋大多數情況
-
-這些數組類型是語法糖，實際類型是:
+An important property is that `Cell! T` is a subtype of `T`. Therefore, an object of type `Cell! T` can use all the methods of type `T`.
 
 ```python
-# actually 4 types
-[T; N] = List(T, N)
-[T; !N] = List!(T, !N)
-[!T; N] = ListWithMutType!(!T, N)
-[!T; !N] = ListWithMutTypeAndLength!(!T, !N)
-[T!; !N] = List!(T!, !N)
-[!T!; N] = ListWithMutType!(!T!, N)
-[!T!; !N] = ListWithMutTypeAndLength!(!T!, !N)
-```
-
-這就是能夠改變類型的意思
-
-```python
-a = [1, 2, 3].into [!Nat; 3]
-a.map!(_ -> "a")
-a: [!Str; 3]
-```
-
-其他集合類型也是如此
-
-```python
-# 元組類型
-## 不可變類型
-(T, U) # 元素個數不變，內容不能變
-## 可變類型
-(T!, U) # 元素個數不變，第一個元素可以改變
-(T，U)！ # 元素個數不變，內容可以替換
+# definition of `Int!`
+Int! = Cell! Int
 ...
 ```
 
 ```python
-# 設置類型
-## 不可變類型
-{T; N} # 不可變元素個數，內容不能改變
-## 可變類型
-{T！; N} # 不可變元素個數，內容可以改變(一個一個)
-{T; N}！ # 可變元素個數，內容不能改變
-{T！; N}！ # 可變元素個數，內容可以改變
-...
+i = !1
+assert i == 1 # `i` is casted to `Int`
 ```
-
-```python
-# 字典類型
-## 不可變類型
-{K: V} # 長度不可變，內容不能改變
-## 可變類型
-{K:V!} # 恒定長度，值可以改變(一一)
-{K: V}！ # 可變長度，內容不能改變，但可以通過添加或刪除元素來增加或刪除，內容類型也可以改變
-...
-```
-
-```python
-# 記錄類型
-## 不可變類型
-{x = Int; y = Str} # 內容不能改變
-## 可變類型
-{x = Int！; y = Str} # 可以改變x的值
-{x = Int; y = Str}！ # 替換 {x = Int; 的任何實例 y = Str}
-...
-```
-
-一個類型 `(...)` 簡單地變成了 `T! = (...)!` 當 `T = (...)` 被稱為簡單結構化類型。簡單的結構化類型也可以(語義上)說是沒有內部結構的類型
-數組、元組、集合、字典和記錄類型都是非簡單的結構化類型，但 Int 和 Refinement 類型是
-
-```python
-# 篩子類型
-## 枚舉
-{1, 2, 3} # 1, 2, 3 之一，不可更改
-{1、2、3}！ # 1、2、3，可以改
-## 區間類型
-1..12 # 1到12，不能改
-1..12！ # 1-12中的任意一個，你可以改變
-## 篩型(普通型)
-{I: Int | I % 2 == 0} # 偶數類型，不可變
-{I: Int | I % 2 == 0} # 偶數類型，可以改變
-{I: Int | I % 2 == 0}！ # 與上面完全相同的類型，但上面的表示法是首選
-```
-
-從上面的解釋來看，可變類型不僅包括自身可變的，還包括內部類型可變的
-諸如 `{x: Int!}` 和 `[Int!; 之類的類型3]` 是內部可變類型，其中內部的對象是可變的，而實例本身是不可變的
-
-對于具有內部結構并在類型構造函數本身上具有 `!` 的類型 `K!(T, U)`，`*self` 可以更改整個對象。也可以進行局部更改
-但是，希望盡可能保持本地更改權限，因此如果只能更改 `T`，最好使用 `K(T!, U)`
-而對于沒有內部結構的類型‘T!’，這個實例只是一個可以交換的‘T’盒子。方法不能更改類型
 
 ---
 

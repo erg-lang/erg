@@ -1,6 +1,6 @@
 # 函數
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/04_function.md%26commit_hash%3D96b113c47ec6ca7ad91a6b486d55758de00d557d)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/04_function.md&commit_hash=96b113c47ec6ca7ad91a6b486d55758de00d557d)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/04_function.md%26commit_hash%3Dfa2919e824db2535165ff687c942017b336dcb0c)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/04_function.md&commit_hash=fa2919e824db2535165ff687c942017b336dcb0c)
 
 函數是一個塊，它接受一個"參數"，對其進行處理，并將其作為"返回值"返回。定義如下
 
@@ -277,6 +277,13 @@ Sin X = math.sin X # 常量錯誤: 此函數在編譯時不可計算
 ```python
 Option T: Type = T or NoneType
 Option: Type -> Type
+```
+
+Compile-time function parameters must have different names from any constants already defined. If the names are the same, it will be interpreted as a constant pattern.
+
+```python
+# Int is not a parameter but a constant (type Int)
+K Int = None
 ```
 
 ## 附錄: 功能對比

@@ -1,6 +1,6 @@
 # 索引
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/indexes.md%26commit_hash%3D96b113c47ec6ca7ad91a6b486d55758de00d557d)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/indexes.md&commit_hash=96b113c47ec6ca7ad91a6b486d55758de00d557d)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/indexes.md%26commit_hash%3Dc6eb78a44de48735213413b2a28569fdc10466d0)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/indexes.md&commit_hash=c6eb78a44de48735213413b2a28569fdc10466d0)
 
 有關不在此索引中的 API，請參閱 [此處](../API/index.md)
 
@@ -10,7 +10,7 @@
 
 * ! → [side&nbsp;effect](./07_side_effect.md)
   * !-type → [mutable&nbsp;type](./type/18_mut.md)
-* ? → [error&nbsp;handling](./30_error_handling.md)
+* ? → [error&nbsp;handling](./31_error_handling.md)
 * &#35; → [Str](./00_basic.md/#注釋)
 * $ → [shared](./type/advanced/shared.md)
 * %
@@ -18,7 +18,7 @@
   * &&
 * [&prime;&nbsp;(single&nbsp;quote)](./20_naming_rule.md)
 * [&quot;&nbsp;(double&nbsp;quote)](./01_literal.md)
-* &lpar;&rpar; → [Tuple](./11_tuple.md)
+* &lpar;&rpar; → [Tuple](./13_tuple.md)
 * &ast;
   * &ast; → [*-less&nbsp;multiplication](./01_literal.md/#less-乘法)
 * &plus; (前置) → [operator](./06_operator.md)
@@ -31,7 +31,7 @@
 * &minus; (中置) → [operator](./06_operator.md)
 * &minus; (中置) → [Trait](./type/03_trait.md)
   * &minus;> → [anonymous&nbsp;function](./21_lambda.md)
-* . → [Visibility](./19_visibility.md)
+* . → [Visibility](./21_visibility.md)
   * [...&nbsp;assignment](./28_spread_syntax.md)
   * [...&nbsp;Extract&nbsp;assignment](./28_spread_syntax.md)
   * [...&nbsp;function](./04_function.md)
@@ -40,14 +40,14 @@
   * : → [Colon&nbsp;application&nbsp;style](./04_function.md)
   * : → [Declaration](./03_declaration.md)
   * : → [Keyword&nbsp;Arguments](./04_function.md)
-  * :: → [visibility](./19_visibility.md)
+  * :: → [visibility](./21_visibility.md)
   * := → [default&nbsp;parameters](./04_function.md)
 * ;
 * &lt;
   * &lt;: → [Subtype&nbsp;specification](./type/02_basic.md)
   * &lt;&lt;
   * &lt;=
-* = → [Variable](./19_visibility.md)
+* = → [Variable](./21_visibility.md)
   * ==
   * => → [procedure](./08_procedure.md)
 * &gt;
@@ -67,7 +67,7 @@
   * [{} type](./type/01_type_system.md)
 * {:}
 * {=} → [Type&nbsp;System](./type/01_type_system.md)
-  * [{=}&nbsp;type](./13_record.md)
+  * [{=}&nbsp;type](./14_record.md)
 * |
   * || → [Type variable list](./type/advanced/)
 * ~
@@ -96,7 +96,7 @@
 
 * [Bool, Boolean](./01_literal.md)
 * [Boolean&nbsp;Object](./01_literal.md)
-* [borrow](./18_ownership.md)
+* [borrow](./20_ownership.md)
 
 ### C
 
@@ -104,7 +104,7 @@
 * [Comments](./00_basic.md)
 * [Complex&nbsp;Object](./01_literal.md)
 * [Compile-time&nbsp;functions](./04_function.md)
-* [circular&nbsp;references](./18_ownership.md)
+* [circular&nbsp;references](./20_ownership.md)
 * [Class](./type/04_class.md)
 * [Class&nbsp;Relationship](./type/04_class.md)
 * [Class&nbsp;upcasting](./type/16_subtyping.md)
@@ -112,10 +112,10 @@
 * [Closure](./23_closure.md)
 * [Compound Literals](./01_literal.md)
 * [Complement](./type/13_algebraic.md)
-* [Comprehension](./27_comprehension.md)
-* [constant](./17_mutability.md)
+* [Comprehension](./29_comprehension.md)
+* [constant](./19_mutability.md)
 * [Constants](./02_name.md)
-* [Context](./30_error_handling.md)
+* [Context](./31_error_handling.md)
 
 ### D
 
@@ -127,7 +127,7 @@
 * [Dependent&nbsp;Type](./type/14_dependent.md)
 * [Deconstructing&nbsp;a&nbsp;record](13_record.md)
 * Deprecated
-* [Dict](./12_dict.md)
+* [Dict](./11_dict.md)
 * [Diff](./type/13_algebraic.md)
 * [Difference&nbsp;from&nbsp;Data&nbsp;Class](./type/04_class.md)
 * [Difference&nbsp;from&nbsp;structural&nbsp;types](type/04_class.md)
@@ -136,11 +136,11 @@
 
 ### E
 
-* [Empty&nbsp;Record](./13_record.md)
+* [Empty&nbsp;Record](./14_record.md)
 * [Enum&nbsp;Class](./type/04_class.md)
 * [Enum&nbsp;type](./type/11_enum.md)
 * [Enumerated,&nbsp;Interval&nbsp;and&nbsp;Refinement&nbsp;Types](./type/12_refinement.md)
-* [error&nbsp;handling](./30_error_handling.md)
+* [error&nbsp;handling](./31_error_handling.md)
 * [Existential&nbsp;type](./type/advanced/existential.md)
 * [Exponential&nbsp;Literal](./01_literal.md)
 * [Extract&nbsp;assignment](./28_spread_syntax.md)
@@ -152,7 +152,7 @@
 * [for](./05_builtin_funcs.md)
 * [For-All&nbsp;Patch](./type/07_patch.md)
 * [For&nbsp;all&nbsp;types](./type/15_quantified.md)
-* [freeze](./18_ownership.md)
+* [freeze](./20_ownership.md)
 * [Function](./04_function.md)
 * [Function&nbsp;definition&nbsp;with&nbsp;multiple patterns](./04_function.md)
 
@@ -172,7 +172,7 @@
 * [impl](./29_decorator.md)
 * [in]
 * [Indention](./00_basic.md)
-* [Instant&nbsp;Block](./13_record.md)
+* [Instant&nbsp;Block](./14_record.md)
 * [Instance&nbsp;and&nbsp;class&nbsp;attributes](./type/04_class.md)
 * [Implementing&nbsp;and&nbsp;resolving&nbsp;duplicate&nbsp;traits&nbsp;in&nbsp;the&nbsp;API](type/03_trait.md)
 * [inheritable](./29_decorator.md)
@@ -182,7 +182,7 @@
 * [Integration&nbsp;with&nbsp;Python](./32_integration_with_Python.md)
 * [Interval&nbsp;Type](./type/10_interval.md)
 * [Intersection](./type/13_algebraic.md)
-* [Iterator](./16_iterator.md)
+* [Iterator](./18_iterator.md)
 
 ### J
 
@@ -209,14 +209,14 @@
 * [Multi-layer&nbsp;(multi-level)&nbsp;Inheritance](type/05_inheritance.md)
 * [Mutable&nbsp;Type](./type/18_mut.md)
 * [Mutable&nbsp;Structure&nbsp;Type](./type/advanced/mut_struct.md)
-* [Mutability](./17_mutability.md)
+* [Mutability](./19_mutability.md)
 
 ### N
 
 * [Nat](./01_literal.md)
 * [Never]
 * [New&nbsp;type](./type/advanced/newtype.md)
-* [Heterogeneous&nbsp;Dict](./12_dict.md)
+* [Heterogeneous&nbsp;Dict](./11_dict.md)
 * None → [None&nbsp;Object]
 * [None&nbsp;Object]
 * Nominal&nbsp;Subtyping → [Class](./type/04_class.md)
@@ -230,14 +230,14 @@
 * [Or]
 * [or]
 * [Ord]
-* [ownership&nbsp;system](./18_ownership.md)
+* [ownership&nbsp;system](./20_ownership.md)
 * [Overloading](./type/advanced/overloading.md)
 * [Overriding](./type/05_inheritance.md)
 * [Override&nbsp;in&nbsp;Trait](./type/03_trait.md)
 
 ### P
 
-* [Panic](./30_error_handling.md)
+* [Panic](./31_error_handling.md)
 * [Patch](./type/07_patch.md)
 * [Pattern&nbsp;match](./26_pattern_matching.md)
 * [Phantom&nbsp;class](./type/advanced/phantom.md)
@@ -259,14 +259,14 @@
 * [Range&nbsp;Object](./01_literal.md)
 * [ref]
 * [ref!]
-* [Record](./13_record.md)
+* [Record](./11_record.md)
 * [Record&nbsp;Type&nbsp;Composite](./type/09_attributive.mda12_refinement.md)
 * [Recursive&nbsp;functions](./04_function.md)
 * [Refinement&nbsp;pattern](./type/12_refinement.md)
 * [Refinement&nbsp;Type](./type/12_refinement.md)
-* [replication](./18_ownership.md)
+* [replication](./20_ownership.md)
 * [Replacing&nbsp;Traits](./type/05_inheritance.md)
-* Result → [error&nbsp;handling](./30_error_handling.md)
+* Result → [error&nbsp;handling](./31_error_handling.md)
 * [Rewriting&nbsp;Inherited&nbsp;Attributes](./type/05_inheritance.md)
 * rootobj
 
@@ -281,7 +281,7 @@
 * [Smart&nbsp;Cast](./type/12_refinement.md)
 * [Spread&nbsp;assignment](./28_spread_syntax.md)
 * [special&nbsp;type&nbsp;variables](./type/advanced/special.md)
-* [Stack&nbsp;trace](30_error_handling.md)
+* [Stack&nbsp;trace](31_error_handling.md)
 * [Structure&nbsp;type](./type/01_type_system.md)
 * [Structural&nbsp;Patch](./type/07_patch.md)
 * [Structural&nbsp;Trait](./type/03_trait.md)
@@ -302,7 +302,7 @@
 * True → [Boolean&nbsp;Object](./01_literal.md)
 * [True&nbsp;Algebraic&nbsp;type](./type/13_algebraic.md)
 * [Type]
-* [type](./15_type.md)
+* [type](./16_type.md)
 * [Type&nbsp;arguments&nbsp;in&nbsp;method&nbsp;definitions](./type/15_quantified.md)
 * [Type&nbsp;Bound](./type/19_bound.md)
 * [Type&nbsp;Definitions](./type/01_type_system.md)
@@ -311,12 +311,12 @@
 * [Type&nbsp;specification](./type/02_basic.md)
 * [Type&nbsp;System](./type/01_type_system.md)
 * [Type&nbsp;Widening](./type/advanced/widening.md)
-* [Tuple](./11_tuple.md)
+* [Tuple](./13_tuple.md)
 
 ### U
 
 * [union](type/13_algebraic.md)
-* [Unit](./11_tuple.md)
+* [Unit](./13_tuple.md)
 * [Upcasting](type/17_type_casting.md)
 * [Usage&nbsp;of&nbsp;Inheritance](./type/05_inheritance.md)
 

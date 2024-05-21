@@ -1,6 +1,6 @@
 # 包管理器
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/tools/pack.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/tools/pack.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/tools/pack.md%26commit_hash%3D5dcc68890812c6d017b9f143d59c971a13b81eb8)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/tools/pack.md&commit_hash=5dcc68890812c6d017b9f143d59c971a13b81eb8)
 
 Erg 标配有一个包管理器，您可以使用 `pack` 子命令调用它
 以下是典型的选项
@@ -59,6 +59,70 @@ deprecated=False
 successors = [] # 替代包(当一个包被弃用时)
 ```
 
+### name
+
+The name of the package. Package names are case-insensitive. Also, `_` and `-` are not distinguished. Non-alphabetic characters may be used.
+
+### authors
+
+The names of the package maintainer. It is recommended to include an email address.
+
+### version
+
+The version of the package. Versions must follow semantic versioning.
+
+### description
+
+A brief description of the package.
+
+### categories
+
+The category of the package. [package.erg-lang.org](https://package.erg-lang.org) classifies packages based on this.
+
+### type
+
+The type of the package. Specify `app` or `lib`. If `app` is specified, an executable file is generated. If `lib` is specified, it becomes a library.
+
+### license
+
+The license of the package. License specification is required when registering a package in the registry.
+
+### pre_build
+
+The path to the script to be executed before building.
+
+### post_build
+
+The path to the script to be executed after building.
+
+### dependencies
+
+The dependencies of the package.
+
+```bnf
+dependencies ::= '{' dependency* '}'
+dependency ::=
+    name '=' package_name
+    | name '=' '{' 'name' '=' package_name (';' 'version' '=' version_spec)? ';'? '}'
+    | name '=' '{' 'git' '=' git_url ';'? '}'
+    | name '=' '{' 'path' '=' path ';'? '}'
+name ::= <identifier>
+package_name ::= <string>
+version_spec ::= <string>
+git_url ::= <string>
+path ::= <string>
+```
+
+`name` is the package name to be specified when importing, and by giving it a different name, you can also use a different version of the same dependency.
+
+`package_name` is the identifier of the package registered in the registry.
+
+`version_spec` is the version of the package and is optional. If omitted, the latest version is used. It must follow semantic versioning.
+
+`git` is specified when installing a package directly from a git repository without using the registry. `git_url` is the URL of the git repository.
+
+`path` is specified when using a local package.
+
 ## 语义版本控制
 
 Erg 包是基于 [语义版本控制](https://semver.org/lang/zh-CN/) 进行版本控制的
@@ -100,3 +164,4 @@ Erg 通过允许同时使用不同版本的包(通过重命名)解决了这个�
 可以使用 `publish` 子命令发布包。发布需要 GitHub 帐户
 默认情况下，包使用 `(owner_name)/(package_name)` 注册。如果满足一定条件(下载次数、维护频率等)，可以申请注册一个省略所有者名称的别名
 请注意，包名称不区分大小写，并且不区分诸如 `_` 和 `-` 之类的分隔符。
+

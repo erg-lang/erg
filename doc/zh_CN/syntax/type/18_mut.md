@@ -1,6 +1,6 @@
 # 可变类型
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/18_mut.md%26commit_hash%3D60dfd8580acb1a06dec36895295f92e823931a59)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/18_mut.md&commit_hash=60dfd8580acb1a06dec36895295f92e823931a59)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/18_mut.md%26commit_hash%3Dc6eb78a44de48735213413b2a28569fdc10466d0)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/18_mut.md&commit_hash=c6eb78a44de48735213413b2a28569fdc10466d0)
 
 > __Warning__: 本节中的信息是旧的并且包含一些错误
 
@@ -52,117 +52,39 @@ K!T: Type = Class ...
 
 在标准库中，变量 `(...)!` 类型通常基于不可变 `(...)` 类型。但是，`T!` 和 `T` 类型没有特殊的语言关系，并且不能这样构造 [<sup id="f1">1</sup>](#1)
 
-请注意，有几种类型的对象可变性
-下面我们将回顾内置集合类型的不可变/可变语义
+From the above explanation, mutable types include not only those that are themselves mutable, but also those whose internal types are mutable.
+Types such as `{x: Int!}` and `[Int!; 3]` are internal mutable types where the object inside is mutable and the instance itself is not mutable.
+
+## Cell! T
+
+Mutable types are already available for `Int` and arrays, but how can we create mutable types for general immutable types? For example, in the case of `{x = Int; y = Int}`, corresponding mutable type is `{x = Int!; y = Int!}`, etc. But how did `Int!` made from `Int`?
+
+Erg provides `Cell!` type for such cases.
+This type is like a box for storing immutable types. This corresponds to what is called a reference (ref) in ML and other languages.
 
 ```python
-# 数组类型
-## 不可变类型
-[T; N] # 不能执行可变操作
-## 可变类型
-[T; N] # 可以一一改变内容
-[T; !N] # 可变长度，内容不可变但可以通过添加/删除元素来修改
-[!T; N] # 内容是不可变的对象，但是可以替换成不同的类型(实际上可以通过不改变类型来替换)
-[!T; !N] # 类型和长度可以改变
-[T; !N] # 内容和长度可以改变
-[!T!; N] # 内容和类型可以改变
-[!T!; !N] # 可以执行各种可变操作
+IntOrStr = Inr or Str
+IntOrStr! = Cell! IntOrStr
+x = IntOrStr!.new 1
+assert x is! 1 # `Int or Str` cannot compare with `Int` directly, so use `is!` (this compares object IDs) instead of `==`.
+x.set! "a"
+assert x is! "a"
 ```
 
-当然，您不必全部记住和使用它们
-对于可变数组类型，只需将 `!` 添加到您想要可变的部分，实际上是 `[T; N]`, `[T!; N]`，`[T; !N]`, `[T!; !N]` 可以涵盖大多数情况
-
-这些数组类型是语法糖，实际类型是:
+An important property is that `Cell! T` is a subtype of `T`. Therefore, an object of type `Cell! T` can use all the methods of type `T`.
 
 ```python
-# actually 4 types
-[T; N] = List(T, N)
-[T; !N] = List!(T, !N)
-[!T; N] = ListWithMutType!(!T, N)
-[!T; !N] = ListWithMutTypeAndLength!(!T, !N)
-[T!; !N] = List!(T!, !N)
-[!T!; N] = ListWithMutType!(!T!, N)
-[!T!; !N] = ListWithMutTypeAndLength!(!T!, !N)
-```
-
-这就是能够改变类型的意思
-
-```python
-a = [1, 2, 3].into [!Nat; 3]
-a.map!(_ -> "a")
-a: [!Str; 3]
-```
-
-其他集合类型也是如此
-
-```python
-# 元组类型
-## 不可变类型
-(T, U) # 元素个数不变，内容不能变
-## 可变类型
-(T!, U) # 元素个数不变，第一个元素可以改变
-(T，U)！ # 元素个数不变，内容可以替换
+# definition of `Int!`
+Int! = Cell! Int
 ...
+
+i = !1
+assert i == 1 # `i` is casted to `Int`
 ```
-
-```python
-# 设置类型
-## 不可变类型
-{T; N} # 不可变元素个数，内容不能改变
-## 可变类型
-{T！; N} # 不可变元素个数，内容可以改变(一个一个)
-{T; N}！ # 可变元素个数，内容不能改变
-{T！; N}！ # 可变元素个数，内容可以改变
-...
-```
-
-```python
-# 字典类型
-## 不可变类型
-{K: V} # 长度不可变，内容不能改变
-## 可变类型
-{K:V!} # 恒定长度，值可以改变(一一)
-{K: V}！ # 可变长度，内容不能改变，但可以通过添加或删除元素来增加或删除，内容类型也可以改变
-...
-```
-
-```python
-# 记录类型
-## 不可变类型
-{x = Int; y = Str} # 内容不能改变
-## 可变类型
-{x = Int！; y = Str} # 可以改变x的值
-{x = Int; y = Str}！ # 替换 {x = Int; 的任何实例 y = Str}
-...
-```
-
-一个类型 `(...)` 简单地变成了 `T! = (...)!` 当 `T = (...)` 被称为简单结构化类型。简单的结构化类型也可以(语义上)说是没有内部结构的类型
-数组、元组、集合、字典和记录类型都是非简单的结构化类型，但 Int 和 Refinement 类型是
-
-```python
-# 筛子类型
-## 枚举
-{1, 2, 3} # 1, 2, 3 之一，不可更改
-{1、2、3}！ # 1、2、3，可以改
-## 区间类型
-1..12 # 1到12，不能改
-1..12！ # 1-12中的任意一个，你可以改变
-## 筛型(普通型)
-{I: Int | I % 2 == 0} # 偶数类型，不可变
-{I: Int | I % 2 == 0} # 偶数类型，可以改变
-{I: Int | I % 2 == 0}！ # 与上面完全相同的类型，但上面的表示法是首选
-```
-
-从上面的解释来看，可变类型不仅包括自身可变的，还包括内部类型可变的
-诸如 `{x: Int!}` 和 `[Int!; 之类的类型3]` 是内部可变类型，其中内部的对象是可变的，而实例本身是不可变的
-
-对于具有内部结构并在类型构造函数本身上具有 `!` 的类型 `K!(T, U)`，`*self` 可以更改整个对象。也可以进行局部更改
-但是，希望尽可能保持本地更改权限，因此如果只能更改 `T`，最好使用 `K(T!, U)`
-而对于没有内部结构的类型‘T!’，这个实例只是一个可以交换的‘T’盒子。方法不能更改类型
 
 ---
 
-<span id="1" style="font-size:x-small"><sup>1</sup> `T!` 和 `T` 类型没有特殊的语言关系是有意的。这是一个设计。如果存在关系，例如命名空间中存在`T`/`T!`类型，则无法从其他模块引入`T!`/`T`类型。此外，可变类型不是为不可变类型唯一定义的。给定定义 `T = (U, V)`，`T!` 的可能变量子类型是 `(U!, V)` 和 `(U, V!)`。[↩](#f1)</span>
+<span id="1" style="font-size:x-small"><sup>1</sup> It is intentional that `T!` and `T` types have no special linguistic relationship. It's a design. If there is a relationship, for example, if the `T`/`T!` type exists in the namespace, it will not be possible to introduce the `T!`/`T` type from another module. Also, the mutable type is not uniquely defined for the immutable type. Given the definition `T = (U, V)`, the possible variable subtypes of `T!` are `(U!, V)` and `(U, V!)`. [↩](#f1)</span>
 
 <p align='center'>
     <a href='./17'>上一页</a> | <a href='./19_bound.md'>下一页</a>

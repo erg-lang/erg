@@ -1,6 +1,6 @@
 # 变性(逆变与协变)
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/variance.md%26commit_hash%3Df4fb25b4004bdfa96d2149fac8c4e40b84e8a45f)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/variance.md&commit_hash=f4fb25b4004bdfa96d2149fac8c4e40b84e8a45f)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/syntax/type/advanced/variance.md%26commit_hash%3Dc6eb78a44de48735213413b2a28569fdc10466d0)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/syntax/type/advanced/variance.md&commit_hash=c6eb78a44de48735213413b2a28569fdc10466d0)
 
 Erg 可以对多态类型进行子类型化，但有一些注意事项
 
@@ -43,7 +43,8 @@ Erg 的设计原则之一是"大输入类型，小输出类型"。这正是函�
 ## 不变性
 
 Erg 有另一个修改。它是不变的
-这是对 `SharedCell! T!`等内置类型的修改。这意味着对于两种类型 `T!, U!` 其中 `T! != U!`，在 `SharedCell! T!` 和 `SharedCell!意思是
+这是对 `SharedCell! T!`等内置类型的修改。
+这意味着对于两种类型 `T!, U!` 其中 `T! != U!`，在 `SharedCell! T!` 和 `SharedCell!`意思是这意味着，对于两个类型 `T! = U!`，即使存在包含关系，也不能在 `SharedCell！T!` 和 `SharedCell！U!`.
 这是因为`SharedCell！ T!` 是共享参考。有关详细信息，请参阅 [共享参考](shared.md)
 
 ## 变异的泛型类型

@@ -1,6 +1,6 @@
 # 包管理器
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/tools/pack.md%26commit_hash%3D06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/tools/pack.md&commit_hash=06f8edc9e2c0cee34f6396fd7c64ec834ffb5352)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/tools/pack.md%26commit_hash%3D5dcc68890812c6d017b9f143d59c971a13b81eb8)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/tools/pack.md&commit_hash=5dcc68890812c6d017b9f143d59c971a13b81eb8)
 
 Erg 標配有一個包管理器，您可以使用 `pack` 子命令調用它
 以下是典型的選項
@@ -37,27 +37,123 @@ Erg 標配有一個包管理器，您可以使用 `pack` 子命令調用它
 下面是一個`package.er`的例子
 
 ```python
-name = "example" # package 名稱
-author = "John Smith" # package 作者名稱
-version="0.1.0"
-description = "An awesome package"
-categories = ["cli"] # package 類別
-type = "app" # "app" 或者 "lib"
-license = "" # 例如"MIT", "APACHE-2.0", "MIT OR Apache-2.0"
-pre_build = "" # 構建前要執行的腳本文件名
-post_build = "" # 構建后要執行的腳本文件名
-dependencies = {
+.name = "example" # package 名稱
+.author = "John Smith" # package 作者名稱
+.version="0.1.0"
+.description = "An awesome package"
+.categories = ["cli"] # package 類別
+.type = "app" # "app" 或者 "lib"
+.license = "" # 例如"MIT", "APACHE-2.0", "MIT OR Apache-2.0"
+.pre_build = "" # 構建前要執行的腳本文件名
+.post_build = "" # 構建后要執行的腳本文件名
+.dependencies = {
     # 如果不指定版本，則選擇最新的
     # 如果省略版本說明，包管理器會自動將上次成功構建的版本添加到注釋中
-    foo = pack("foo") # [INFO] 最后成功構建的版本: 1.2.1
+    foo = "foo" # [INFO] 最后成功構建的版本: 1.2.1
     # 包可以重命名
-    bar1 = pack("bar", "1.*.*") # [INFO] 最后成功構建的版本: 1.2.0
-    bar2 = pack("bar", "2.*.*") # [INFO] 最后成功構建的版本: 2.0.0
-    baz = pack("baz", "1.1.0")
+    bar1 = { "bar", "1.*.*" } # [INFO] 最后成功構建的版本: 1.2.0
+    bar2 = { "bar", "2.*.*" } # [INFO] 最后成功構建的版本: 2.0.0
+    baz = { "baz", "1.1.0" }
 }
-deprecated=False
-successors = [] # 替代包(當一個包被棄用時)
+.deprecated = False
+.successors = [] # 替代包(當一個包被棄用時)
 ```
+
+### name
+
+The name of the package. Package names are case-insensitive. Also, `_` and `-` are not distinguished. Non-alphabetic characters may be used.
+
+### authors
+
+The names of the package maintainer. It is recommended to include an email address.
+
+### version
+
+The version of the package. Versions must follow semantic versioning.
+
+### description
+
+A brief description of the package.
+
+### categories
+
+The category of the package. [package.erg-lang.org](https://package.erg-lang.org) classifies packages based on this.
+
+### type
+
+The type of the package. Specify `app` or `lib`. If `app` is specified, an executable file is generated. If `lib` is specified, it becomes a library.
+
+### license
+
+The license of the package. License specification is required when registering a package in the registry.
+
+### pre_build
+
+The path to the script to be executed before building.
+
+### post_build
+
+The path to the script to be executed after building.
+
+### dependencies
+
+The dependencies of the package.
+
+```bnf
+dependencies ::= '{' dependency* '}'
+dependency ::=
+    name '=' package_name
+    | name '=' '{' 'name' '=' package_name (';' 'version' '=' version_spec)? ';'? '}'
+    | name '=' '{' 'git' '=' git_url ';'? '}'
+    | name '=' '{' 'path' '=' path ';'? '}'
+name ::= <identifier>
+package_name ::= <string>
+version_spec ::= <string>
+git_url ::= <string>
+path ::= <string>
+```
+
+`name` is the package name to be specified when importing, and by giving it a different name, you can also use a different version of the same dependency.
+
+`package_name` is the identifier of the package registered in the registry.
+
+`version_spec` is the version of the package and is optional. If omitted, the latest version is used. It must follow semantic versioning.
+
+`git` is specified when installing a package directly from a git repository without using the registry. `git_url` is the URL of the git repository.
+
+`path` is specified when using a local package.
+
+### deprecated
+
+If the package is no longer maintained for some reason, specify `True`.
+
+### successors
+
+Specify the package that can be used instead of the package that has been deprecated.
+
+## Semantic versioning
+
+Erg packages are versioned based on [semantic versioning](https://semver.org/lang/en/).
+Semantic versioning is roughly specified in the format `x.y.z` (x, y, z are integers greater than or equal to 0).
+The meaning of each number is as follows.
+
+* x: major version (increase by 1 when updating breaking compatibility)
+* y: minor version (increase by 1 when performing compatible updates (API addition, deprecation, etc.), bug fixes etc. are handled by patch version upgrade)
+* z: patch version (increase by 1 when minor changes to fix bugs or maintain compatibility are made, serious fixes that break compatibility are handled by major version upgrades)
+
+However, changes in version `0.*.*` are always incompatible by default. If you want to upgrade while maintaining compatibility, specify `-compatible` after it (Erg's own rule). For example, if you want to add functions while maintaining compatibility with `0.2.1`, that is, if you want to upgrade to `0.3.0`, specify `0.3.0-compatible`. Also specify `0.2.2-compatible` if you have fixed bugs.
+That version will then be considered compatible with the previous version.
+This works even if you want to upgrade `0.*.*` to `1.0.0`. That is, `1.0.0-compatible` is compatible with the previous version `0.y.z`.
+
+Semantic versioning is very important when generating lockfiles. Lockfiles are files generated to keep dependencies compatible, so that newer releases of dependents depend on older packages unless explicitly updated.
+Lockfiles are useful when multiple people are developing a package that has dependent packages. It also saves local storage by allowing packages that depend on them to reuse packages if they are compatible.
+
+Erg's package manager strictly enforces these rules and will reject package updates that violate them.
+The Erg package manager works with version control systems (such as git) to detect code differences and verify the correctness of versioning when a package is published.
+Specifically, the package manager looks at the types of the API. A change is considered compatible if the type is a subtype of an older version (note that this is not a full verification; type-compatible but semantically-incompatible significant changes are possible, it is the developer's job to determine this).
+
+Furthermore, since the entire package repository is registered in the registry, even developers cannot update the package without going through the package manager.
+Also, packages can be deprecated but not removed.
 
 ## 語義版本控制
 

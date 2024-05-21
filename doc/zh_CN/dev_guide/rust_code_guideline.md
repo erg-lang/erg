@@ -1,6 +1,6 @@
 # Rust 代码指南
 
-[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/dev_guide/rust_code_guideline.md%26commit_hash%3Dc1f43472c254e4c22f936b0f9157fc2ee3189697)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/dev_guide/rust_code_guideline.md&commit_hash=c1f43472c254e4c22f936b0f9157fc2ee3189697)
+[![badge](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Fgezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com%2Fdefault%2Fsource_up_to_date%3Fowner%3Derg-lang%26repos%3Derg%26ref%3Dmain%26path%3Ddoc/EN/dev_guide/rust_code_guideline.md%26commit_hash%3D1767df5de23976314a54c3c57bb80be3cb0ddc4f)](https://gezf7g7pd5.execute-api.ap-northeast-1.amazonaws.com/default/source_up_to_date?owner=erg-lang&repos=erg&ref=main&path=doc/EN/dev_guide/rust_code_guideline.md&commit_hash=1767df5de23976314a54c3c57bb80be3cb0ddc4f)
 
 ## 本地规则
 
@@ -14,6 +14,7 @@
 * 将访问修饰符保持在最低限度。即使在发布时也要优先使用 `pub(mod)` 或 `pub(crate)`
 * 将 for 表达式中的可迭代对象显式转换为迭代器(`for i in x.iter()` 而不是 `for i in x`)
 * 懒惰的评价。例如，如果 `default` 不是文字，请使用 `unwrap_or_else` 而不是 `unwrap_or`
+* Use assertions such as `debug_assert!`, `debug_assert_eq!`, `debug_power_assert!`, etc. Specify error messages such as `debug_assert!(... , "{x} is not ...") ;`.
 
 ## 不鼓励使用代码
 
@@ -27,6 +28,6 @@
 
 ## 依赖关系
 
-依赖关系应该尽可能地最小化，那些必要的依赖关系应该由Erg开发团队来实现。只有当外部依赖很难实现或依赖于硬件时才允许使用。例如：`libc`， `winapi`)，或者没有外部依赖的crate(例如:`unicode-xid`)。否则，它们可能被允许作为可选依赖项(例如https客户端)。在任何情况下，都应选择保养良好和广泛使用的
+依赖关系应该尽可能地最小化，那些必要的依赖关系应该由Erg开发团队来实现。只有当外部依赖很难实现或依赖于硬件时才允许使用。(例如：`libc`， `winapi`)，或者没有外部依赖的crate(例如:`unicode-xid`)。否则，它们可能被允许作为可选依赖项(例如https客户端)。在任何情况下，都应选择保养良好和广泛使用的
 
 此规则仅适用于Erg编译器, Erg工具和库可以自由添加它们自己的依赖项。
