@@ -3790,12 +3790,17 @@ impl Type {
                     .map(|pt| {
                         pt.clone()
                             .map_type(|t| t.replace(&Self::Failure, &Self::Obj))
-                            .map_default_type(|t| t.replace(&Self::Failure, &Self::Obj))
+                            .map_default_type(|t| {
+                                t.replace(&Self::Failure, pt.typ()) & pt.typ().clone()
+                            })
                     })
                     .collect();
                 let kw_var_params = subr.kw_var_params.as_ref().map(|pt| {
                     pt.clone()
                         .map_type(|t| t.replace(&Self::Failure, &Self::Obj))
+                        .map_default_type(|t| {
+                            t.replace(&Self::Failure, pt.typ()) & pt.typ().clone()
+                        })
                 });
                 let return_t = subr.return_t.clone().replace(&Self::Failure, &Self::Never);
                 subr_t(

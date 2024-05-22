@@ -1609,6 +1609,51 @@ impl ValueObj {
                 .map(TypeObj::builtin_type),
         }
     }
+
+    pub fn replace_t(self, target: &Type, to: &Type) -> Self {
+        match self {
+            ValueObj::Type(obj) => ValueObj::Type(obj.mapped_t(|t| t._replace(target, to))),
+            ValueObj::List(lis) => ValueObj::List(
+                lis.iter()
+                    .map(|v| v.clone().replace_t(target, to))
+                    .collect(),
+            ),
+            ValueObj::Tuple(tup) => ValueObj::Tuple(
+                tup.iter()
+                    .map(|v| v.clone().replace_t(target, to))
+                    .collect(),
+            ),
+            ValueObj::Set(st) => {
+                ValueObj::Set(st.iter().map(|v| v.clone().replace_t(target, to)).collect())
+            }
+            ValueObj::Dict(dict) => ValueObj::Dict(
+                dict.iter()
+                    .map(|(k, v)| {
+                        (
+                            k.clone().replace_t(target, to),
+                            v.clone().replace_t(target, to),
+                        )
+                    })
+                    .collect(),
+            ),
+            ValueObj::Record(rec) => ValueObj::Record(
+                rec.iter()
+                    .map(|(k, v)| (k.clone(), v.clone().replace_t(target, to)))
+                    .collect(),
+            ),
+            ValueObj::DataClass { name, fields } => ValueObj::DataClass {
+                name,
+                fields: fields
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone().replace_t(target, to)))
+                    .collect(),
+            },
+            ValueObj::UnsizedList(elem) => {
+                ValueObj::UnsizedList(Box::new(elem.clone().replace_t(target, to)))
+            }
+            self_ => self_,
+        }
+    }
 }
 
 pub mod value_set {

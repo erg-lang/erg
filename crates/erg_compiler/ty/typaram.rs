@@ -1685,9 +1685,7 @@ impl TyParam {
 
     pub fn replace_t(self, target: &Type, to: &Type) -> TyParam {
         match self {
-            TyParam::Value(ValueObj::Type(obj)) => {
-                TyParam::t(obj.typ().clone()._replace(target, to))
-            }
+            TyParam::Value(val) => TyParam::Value(val.replace_t(target, to)),
             TyParam::FreeVar(fv) if fv.is_linked() => fv.crack().clone().replace_t(target, to),
             TyParam::Type(ty) => TyParam::t(ty._replace(target, to)),
             self_ => self_,

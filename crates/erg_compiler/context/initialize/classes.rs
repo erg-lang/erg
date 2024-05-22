@@ -542,6 +542,14 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
+        let t_lshift = fn1_met(Int, Nat, Int);
+        int.register_builtin_erg_impl(OP_LSHIFT, t_lshift, Const, Visibility::BUILTIN_PUBLIC);
+        let t_rshift = fn1_met(Int, Nat, Int);
+        int.register_builtin_erg_impl(OP_RSHIFT, t_rshift, Const, Visibility::BUILTIN_PUBLIC);
+        let t_or = fn1_met(Int, Int, Int);
+        int.register_builtin_erg_impl(OP_OR, t_or, Const, Visibility::BUILTIN_PUBLIC);
+        let t_and = fn1_met(Int, Int, Int);
+        int.register_builtin_erg_impl(OP_AND, t_and, Const, Visibility::BUILTIN_PUBLIC);
         let mut int_ord = Self::builtin_methods(Some(mono(ORD)), 2);
         int_ord.register_builtin_erg_impl(
             OP_PARTIAL_CMP,

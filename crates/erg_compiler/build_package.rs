@@ -411,12 +411,14 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
             self.shared.errors.extend(self.parse_errors.errors.flush());
             self.shared.warns.extend(self.parse_errors.warns.flush());
         } else {
+            /*
             self.finalize();
             return Err(IncompleteArtifact::new(
                 None,
                 self.parse_errors.errors.flush(),
                 self.parse_errors.warns.flush(),
             ));
+            */
         }
         self.execute(ast, mode)
     }

@@ -485,6 +485,20 @@ impl Input {
                 break;
             }
         }
+        for pkgs_path in python_site_packages() {
+            let mut dir = pkgs_path.clone();
+            dir.push(path);
+            dir.set_extension("py");
+            if dir.exists() {
+                return Ok(normalize_path(dir));
+            }
+            dir.pop();
+            dir.push(path);
+            dir.push("__init__.py");
+            if dir.exists() {
+                return Ok(normalize_path(dir));
+            }
+        }
         Err(std::io::Error::new(
             std::io::ErrorKind::NotFound,
             format!("cannot find module `{}`", path.display()),
