@@ -193,10 +193,10 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                             // self.occur_inner(&sup_t, maybe_sup)
                         })?;
                     }
-                    if let Some((_sub_t, sup_t)) = sup.get_subsup() {
+                    if let Some((sub_t, sup_t)) = sup.get_subsup() {
                         sup.do_avoiding_recursion(|| {
                             // occur(?U, ?T(:> ?U or Y)) ==> OK
-                            // self.occur_inner(maybe_sub, &sub_t)?;
+                            self.occur_inner(maybe_sub, &sub_t)?;
                             self.occur_inner(maybe_sub, &sup_t)
                         })?;
                     }

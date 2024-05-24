@@ -48,3 +48,10 @@ ff! x: Str or NoneType =
         do!: f0!()
 f0!() = print! ""
 f1! _: Str = f0!()
+
+arr = [1]
+for! arr, (_,) =>
+    if! True, do!:
+        if! True, do!:
+            if! True, do!:
+                todo()
