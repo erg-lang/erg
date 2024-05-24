@@ -3637,10 +3637,11 @@ impl Type {
                         let constraint = Constraint::new_sandwiched(sub.derefine(), sup.derefine());
                         Self::FreeVar(Free::new_named_unbound(name, level, constraint))
                     })
-                } else {
-                    let t = fv.get_type().unwrap().derefine();
-                    let constraint = Constraint::new_type_of(t);
+                } else if let Some(t) = fv.get_type() {
+                    let constraint = Constraint::new_type_of(t.derefine());
                     Self::FreeVar(Free::new_named_unbound(name, level, constraint))
+                } else {
+                    Self::FreeVar(fv.clone())
                 }
             }
             Self::Refinement(refine) => refine.t.as_ref().clone(),

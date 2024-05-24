@@ -6,3 +6,10 @@ for! filter(x -> x > 1, 0..3), i =>
     assert i > 1
 for! map(x -> "\{x}", [1, 2, 3]), s =>
     assert str(s) == s
+
+for! enumerate([["aaa"], ["aaaa"]]), ((_, a),) =>
+    print! a.filter(s -> "a" in s)
+
+os = pyimport "os"
+for! os.walk!("assets"), ((path, dirs, files),) =>
+    print! files.filter(i -> i != "a").to_list()

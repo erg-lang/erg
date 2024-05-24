@@ -2,6 +2,7 @@
 
 use erg_common::spawn::safe_yield;
 use erg_compiler::erg_parser::parse::Parsable;
+use erg_compiler::hir::GuardClause;
 use erg_compiler::varinfo::AbsLocation;
 use lsp_types::InlayHintLabelPart;
 use serde::Deserialize;
@@ -153,6 +154,11 @@ impl<'s, C: BuildRunnable, P: Parsable> InlayHintGenerator<'s, C, P> {
             };
             let hint = self.type_anot(ln_end, col_end, &d_param.sig.vi.t, false);
             result.push(hint);
+        }
+        for guard in params.guards.iter() {
+            if let GuardClause::Bind(def) = guard {
+                result.extend(self.get_var_def_hint(def));
+            }
         }
         result
     }

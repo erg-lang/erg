@@ -5,6 +5,20 @@ use erg_common::fresh::FRESH_GEN;
 
 use crate::ty::*;
 
+#[macro_export]
+macro_rules! fn_t {
+    ($input: expr => $ret: expr) => {
+        Type::Subr($crate::ty::SubrType::new(
+            $crate::ty::SubrKind::Func,
+            vec![$crate::ty::ParamTy::Pos($input)],
+            None,
+            vec![],
+            None,
+            $ret,
+        ))
+    };
+}
+
 #[inline]
 pub fn pos(ty: Type) -> ParamTy {
     ParamTy::Pos(ty)

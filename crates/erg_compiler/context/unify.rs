@@ -66,9 +66,9 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
     /// occur(X -> ?T, X -> ?T) ==> OK
     /// occur(?T, ?T -> X) ==> Error
     /// occur(?T, Option(?T)) ==> Error
-    /// occur(?T or ?U, ?T) ==> OK
     /// occur(?T or Int, Int or ?T) ==> OK
     /// occur(?T(<: Str) or ?U(<: Int), ?T(<: Str)) ==> Error
+    /// occur(?T(<: ?U or Y), ?U) ==> OK
     /// occur(?T, ?T.Output) ==> OK
     /// ```
     fn occur(&self, maybe_sub: &Type, maybe_sup: &Type) -> TyCheckResult<()> {
@@ -150,13 +150,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 Ok(())
             }*/
             (FreeVar(fv), Poly { params, .. }) if fv.is_unbound() => {
-                for param in params.iter().filter_map(|tp| {
-                    if let TyParam::Type(t) = tp {
-                        Some(t)
-                    } else {
-                        None
-                    }
-                }) {
+                for param in params.iter().filter_map(|tp| <&Type>::try_from(tp).ok()) {
                     self.occur_inner(maybe_sub, param)?;
                 }
                 Ok(())
@@ -192,15 +186,17 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                         self.ctx.caused_by(),
                     )))
                 } else {
-                    if let Some((sub_t, sup_t)) = sub.get_subsup() {
+                    if let Some((sub_t, _sup_t)) = sub.get_subsup() {
                         sub.do_avoiding_recursion(|| {
-                            self.occur_inner(&sub_t, maybe_sup)?;
-                            self.occur_inner(&sup_t, maybe_sup)
+                            // occur(?T(<: ?U or Y), ?U) ==> OK
+                            self.occur_inner(&sub_t, maybe_sup)
+                            // self.occur_inner(&sup_t, maybe_sup)
                         })?;
                     }
-                    if let Some((sub_t, sup_t)) = sup.get_subsup() {
+                    if let Some((_sub_t, sup_t)) = sup.get_subsup() {
                         sup.do_avoiding_recursion(|| {
-                            self.occur_inner(maybe_sub, &sub_t)?;
+                            // occur(?U, ?T(:> ?U or Y)) ==> OK
+                            // self.occur_inner(maybe_sub, &sub_t)?;
                             self.occur_inner(maybe_sub, &sup_t)
                         })?;
                     }
@@ -259,25 +255,13 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 Ok(())
             }
             (Poly { params, .. }, FreeVar(fv)) if fv.is_unbound() => {
-                for param in params.iter().filter_map(|tp| {
-                    if let TyParam::Type(t) = tp {
-                        Some(t)
-                    } else {
-                        None
-                    }
-                }) {
+                for param in params.iter().filter_map(|tp| <&Type>::try_from(tp).ok()) {
                     self.occur_inner(param, maybe_sup)?;
                 }
                 Ok(())
             }
             (FreeVar(fv), Poly { params, .. }) if fv.is_unbound() => {
-                for param in params.iter().filter_map(|tp| {
-                    if let TyParam::Type(t) = tp {
-                        Some(t)
-                    } else {
-                        None
-                    }
-                }) {
+                for param in params.iter().filter_map(|tp| <&Type>::try_from(tp).ok()) {
                     self.occur_inner(maybe_sub, param)?;
                 }
                 Ok(())
@@ -1955,5 +1939,35 @@ impl Context {
     pub(crate) fn unify(&self, lhs: &Type, rhs: &Type) -> Option<Type> {
         let unifier = Unifier::new(self, &(), None, false, None);
         unifier.unify(lhs, rhs)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::context::unify::{mono_q, subtypeof, type_q};
+    use crate::fn_t;
+
+    use super::Type;
+    use Type::*;
+
+    #[test]
+    fn test_occur() {
+        let ctx = super::Context::default();
+        let unifier = super::Unifier::new(&ctx, &(), None, false, None);
+
+        assert!(unifier.occur(&Type, &Type).is_ok());
+        let t = type_q("T");
+        assert!(unifier.occur(&t, &t).is_ok());
+        let or_t = t.clone() | Type;
+        let or2_t = Type | t.clone();
+        assert!(unifier.occur(&Int, &(Int | Str)).is_ok());
+        assert!(unifier.occur(&t, &or_t).is_err());
+        assert!(unifier.occur(&or_t, &or2_t).is_ok());
+        let subr_t = fn_t!(Type => t.clone());
+        assert!(unifier.occur(&t, &subr_t).is_err());
+        assert!(unifier.occur(&subr_t, &subr_t).is_ok());
+
+        let u = mono_q("U", subtypeof(t.clone() | Int));
+        assert!(unifier.occur(&u, &t).is_ok());
     }
 }
