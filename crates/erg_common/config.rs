@@ -288,6 +288,9 @@ impl ErgConfig {
                 "--check" => {
                     cfg.mode = ErgMode::FullCheck;
                 }
+                "--lint" => {
+                    cfg.mode = ErgMode::Lint;
+                }
                 "--compile" | "--dump-as-pyc" => {
                     cfg.mode = ErgMode::Compile;
                 }
