@@ -8,9 +8,11 @@ use erg_common::traits::{BlockKind, ExitStatus, Locational, New, Runnable, Strea
 use erg_compiler::artifact::{Buildable, ErrorArtifact};
 use erg_compiler::build_package::PackageBuilder;
 use erg_compiler::error::{CompileError, CompileErrors, CompileWarnings};
-use erg_compiler::hir::{Accessor, Def, Dict, Expr, List, Literal, Set, Signature, Tuple, HIR};
+use erg_compiler::hir::{
+    Accessor, ClassDef, Def, Dict, Expr, List, Literal, Set, Signature, Tuple, HIR,
+};
 use erg_compiler::module::SharedCompilerResource;
-use erg_compiler::ty::ValueObj;
+use erg_compiler::ty::{value::TypeObj, Type, ValueObj};
 
 use erg_parser::token::TokenKind;
 use erg_parser::ParserRunner;
@@ -155,6 +157,7 @@ impl Linter {
         for chunk in hir.module.iter() {
             self.lint_too_many_params(chunk);
             self.lint_bool_comparison(chunk);
+            self.lint_too_many_instance_attributes(chunk);
         }
         log!(info "Finished linting");
         self.warns.take()
@@ -213,6 +216,25 @@ impl Linter {
                 self.lint_bool_comparison(&binop.rhs);
             }
             _ => self.check_recursively(&Self::lint_bool_comparison, expr),
+        }
+    }
+
+    fn lint_too_many_instance_attributes(&mut self, expr: &Expr) {
+        const MAX_INSTANCE_ATTRIBUTES: usize = 36;
+        if let Expr::ClassDef(ClassDef { obj, .. }) = expr {
+            if let Some(TypeObj::Builtin {
+                t: Type::Record(record),
+                ..
+            }) = obj.base_or_sup()
+            {
+                if record.len() >= MAX_INSTANCE_ATTRIBUTES {
+                    self.warns.push(too_many_instance_attributes(
+                        self.input(),
+                        self.caused_by(),
+                        expr.loc(),
+                    ));
+                }
+            }
         }
     }
 
