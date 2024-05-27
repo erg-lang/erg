@@ -35,7 +35,7 @@ pub(crate) fn too_many_instance_attributes(
             "japanese" => "サブクラスやデータクラスを活用してください",
             "simplified_chinese" => "利用子类和数据类",
             "traditional_chinese" => "利用子類和資料類",
-            "english" => "take advantage of subclasses and data classes",
+            "english" => "take advantage of subclasses or data classes",
     )
     .to_string();
     CompileWarning::new(
