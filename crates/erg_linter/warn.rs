@@ -21,6 +21,7 @@ pub(crate) fn too_many_params(input: Input, caused_by: String, loc: Location) ->
 
 pub(crate) fn too_many_instance_attributes(
     input: Input,
+    errno: usize,
     caused_by: String,
     loc: Location,
 ) -> CompileWarning {
@@ -42,7 +43,7 @@ pub(crate) fn too_many_instance_attributes(
         ErrorCore::new(
             vec![SubMessage::ambiguous_new(loc, vec![], Some(hint))],
             msg,
-            0,
+            errno,
             ErrorKind::AttributeWarning,
             loc,
         ),

@@ -230,6 +230,7 @@ impl Linter {
                 if record.len() >= MAX_INSTANCE_ATTRIBUTES {
                     self.warns.push(too_many_instance_attributes(
                         self.input(),
+                        line!() as usize,
                         self.caused_by(),
                         expr.loc(),
                     ));
