@@ -236,6 +236,8 @@ impl Linter {
                     ));
                 }
             }
+        } else {
+            self.check_recursively(&Self::lint_too_many_instance_attributes, expr);
         }
     }
 

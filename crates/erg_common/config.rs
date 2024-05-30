@@ -285,18 +285,6 @@ impl ErgConfig {
                 "-c" | "--code" => {
                     cfg.input = Input::str(args.next().expect("the value of `-c` is not passed"));
                 }
-                "--check" => {
-                    cfg.mode = ErgMode::FullCheck;
-                }
-                "--lint" => {
-                    cfg.mode = ErgMode::Lint;
-                }
-                "--compile" | "--dump-as-pyc" => {
-                    cfg.mode = ErgMode::Compile;
-                }
-                "--language-server" => {
-                    cfg.mode = ErgMode::LanguageServer;
-                }
                 "--no-std" => {
                     cfg.no_std = true;
                 }
