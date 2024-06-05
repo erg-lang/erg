@@ -3199,7 +3199,7 @@ impl PreDeclTypeSpec {
     pub fn ident(&self) -> String {
         match self {
             Self::Mono(name) => name.inspect().to_string(),
-            Self::Poly(poly) => poly.ident(),
+            Self::Poly(poly) => poly.ident().trim_start_matches("::").to_string(),
             Self::Attr { namespace, t } => format!("{namespace}{t}"),
             other => todo!("{other}"),
         }
@@ -5464,10 +5464,10 @@ impl Signature {
         }
     }
 
-    pub fn params(self) -> Option<Params> {
+    pub fn params(&self) -> Option<&Params> {
         match self {
             Self::Var(_) => None,
-            Self::Subr(subr) => Some(subr.params),
+            Self::Subr(subr) => Some(&subr.params),
         }
     }
 

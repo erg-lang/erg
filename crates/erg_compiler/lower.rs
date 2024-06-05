@@ -40,7 +40,8 @@ use crate::ty::free::Constraint;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{
-    CastTarget, Field, GuardType, HasType, ParamTy, Predicate, SubrType, Type, VisibilityModifier,
+    CastTarget, ConstSubr, Field, GuardType, HasType, ParamTy, Predicate, SubrType, Type,
+    VisibilityModifier,
 };
 
 use crate::context::{
@@ -2132,6 +2133,16 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             };
             decorators.insert(deco);
         }
+        self.register_subr(sig, decorators, body, registered_t)
+    }
+
+    fn register_subr(
+        &mut self,
+        sig: ast::SubrSignature,
+        decorators: Set<hir::Expr>,
+        body: ast::DefBody,
+        registered_t: Type,
+    ) -> LowerResult<hir::Def> {
         match registered_t {
             Type::Subr(subr_t) => self.lower_subr_block(subr_t, sig, decorators, body),
             quant @ Type::Quantified(_) => {
@@ -2141,6 +2152,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 };
                 self.lower_subr_block(subr_t, sig, decorators, body)
             }
+            Type::Refinement(refine) => self.register_subr(sig, decorators, body, *refine.t),
             Type::Failure => {
                 let params = self.lower_params(sig.params, sig.bounds.clone(), None)?;
                 if let Err(errs) = self.module.context.register_defs(&body.block) {
@@ -2408,7 +2420,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             self.check_collision_and_push(methods.id, class.clone(), impl_trait.clone());
             hir_methods_list.push(hir::Methods::new(class, impl_trait, hir_methods));
         }
-        let class = self.module.context.gen_type(&hir_def.sig.ident().raw);
+        let class = self
+            .module
+            .context
+            .gen_type(&hir_def.sig.ident().raw, hir_def.sig.params());
         let Some(class_ctx) = self.module.context.get_nominal_type_ctx(&class) else {
             return Err(LowerErrors::from(LowerError::type_not_found(
                 self.cfg.input.clone(),
@@ -2425,8 +2440,21 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         else {
             return unreachable_error!(LowerErrors, LowerError, self);
         };
-        let ValueObj::Type(TypeObj::Generated(type_obj)) = class_type else {
-            return unreachable_error!(LowerErrors, LowerError, self);
+        let type_obj = match class_type {
+            ValueObj::Type(TypeObj::Generated(type_obj)) => type_obj,
+            ValueObj::Subr(ConstSubr::User(subr)) => {
+                if let Some(TyParam::Value(ValueObj::Type(TypeObj::Generated(t)))) =
+                    subr.sig_t.return_t().unwrap().singleton_value()
+                {
+                    t
+                } else {
+                    todo!("{}", subr.sig_t.return_t().unwrap())
+                }
+            }
+            _ => {
+                log!(err "{class_type}");
+                return unreachable_error!(LowerErrors, LowerError, self);
+            }
         };
         let Some(hir::Expr::Call(call)) = hir_def.body.block.first() else {
             return unreachable_error!(LowerErrors, LowerError, self);

@@ -446,6 +446,53 @@ impl StructuralEq for SubrType {
     }
 }
 
+impl HasLevel for SubrType {
+    fn level(&self) -> Option<usize> {
+        let nd_min = self
+            .non_default_params
+            .iter()
+            .filter_map(|p| p.typ().level())
+            .min();
+        let v_min = self.var_params.iter().filter_map(|p| p.typ().level()).min();
+        let d_min = self
+            .default_params
+            .iter()
+            .filter_map(|p| p.typ().level())
+            .min();
+        let dv_min = self
+            .default_params
+            .iter()
+            .filter_map(|p| p.default_typ().and_then(|t| t.level()))
+            .min();
+        let ret_min = self.return_t.level();
+        [nd_min, v_min, d_min, dv_min, ret_min]
+            .iter()
+            .filter_map(|o| *o)
+            .min()
+    }
+    fn set_level(&self, lev: Level) {
+        for pt in self.non_default_params.iter() {
+            pt.typ().set_level(lev);
+        }
+        if let Some(var) = &self.var_params {
+            var.typ().set_level(lev);
+        }
+        for pt in self.default_params.iter() {
+            pt.typ().set_level(lev);
+            if let Some(default) = pt.default_typ() {
+                default.set_level(lev);
+            }
+        }
+        if let Some(kw_var) = &self.kw_var_params {
+            kw_var.typ().set_level(lev);
+            if let Some(default) = kw_var.default_typ() {
+                default.set_level(lev);
+            }
+        }
+        self.return_t.set_level(lev);
+    }
+}
+
 impl SubrType {
     pub fn new(
         kind: SubrKind,
@@ -1741,29 +1788,7 @@ impl HasLevel for Type {
                     Some(min)
                 }
             }
-            Self::Subr(subr) => {
-                let nd_min = subr
-                    .non_default_params
-                    .iter()
-                    .filter_map(|p| p.typ().level())
-                    .min();
-                let v_min = subr.var_params.iter().filter_map(|p| p.typ().level()).min();
-                let d_min = subr
-                    .default_params
-                    .iter()
-                    .filter_map(|p| p.typ().level())
-                    .min();
-                let dv_min = subr
-                    .default_params
-                    .iter()
-                    .filter_map(|p| p.default_typ().and_then(|t| t.level()))
-                    .min();
-                let ret_min = subr.return_t.level();
-                [nd_min, v_min, d_min, dv_min, ret_min]
-                    .iter()
-                    .filter_map(|o| *o)
-                    .min()
-            }
+            Self::Subr(subr) => subr.level(),
             Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
                 let l = lhs
                     .level()
@@ -1837,21 +1862,7 @@ impl HasLevel for Type {
                 }
                 return_t.set_level(level);
             }
-            Self::Subr(subr) => {
-                for pt in subr.non_default_params.iter() {
-                    pt.typ().set_level(level);
-                }
-                if let Some(pt) = subr.var_params.as_ref() {
-                    pt.typ().set_level(level);
-                }
-                for pt in subr.default_params.iter() {
-                    pt.typ().set_level(level);
-                    if let Some(t) = pt.default_typ() {
-                        t.set_level(level);
-                    }
-                }
-                subr.return_t.set_level(level);
-            }
+            Self::Subr(subr) => subr.set_level(level),
             Self::Quantified(quant) => {
                 quant.set_level(level);
             }

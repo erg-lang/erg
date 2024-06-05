@@ -886,7 +886,13 @@ impl Context {
             };
             let (_ctx, es) = self.check_decls_and_pop();
             errs.extend(es);
-            if let Err(es) = self.register_gen_const(ident, obj, call, def.def_kind().is_other()) {
+            if let Err(es) = self.register_gen_const(
+                ident,
+                def.sig.params(),
+                obj,
+                call,
+                def.def_kind().is_other(),
+            ) {
                 errs.extend(es);
             }
             if errs.is_empty() {
@@ -1359,6 +1365,11 @@ impl Context {
         })
     }
 
+    fn tp_eval_const_expr(&self, expr: &Expr) -> Failable<TyParam> {
+        let tp = self.expr_to_tp(expr.clone())?;
+        self.eval_tp(tp)
+    }
+
     pub(crate) fn eval_const_expr(&self, expr: &Expr) -> Failable<ValueObj> {
         match expr {
             Expr::Literal(lit) => self.eval_lit(lit).map_err(|e| (ValueObj::Failure, e)),
@@ -1418,11 +1429,28 @@ impl Context {
         }
     }
 
+    fn tp_eval_const_chunk(&mut self, expr: &Expr) -> Failable<TyParam> {
+        match expr {
+            Expr::Def(def) => self
+                .eval_const_def(def)
+                .map(TyParam::Value)
+                .map_err(|(_, e)| (TyParam::Failure, e)),
+            other => self.tp_eval_const_expr(other),
+        }
+    }
+
     pub(crate) fn eval_const_block(&mut self, block: &Block) -> Failable<ValueObj> {
         for chunk in block.iter().rev().skip(1).rev() {
             self.eval_const_chunk(chunk)?;
         }
         self.eval_const_chunk(block.last().unwrap())
+    }
+
+    pub(crate) fn tp_eval_const_block(&mut self, block: &Block) -> Failable<TyParam> {
+        for chunk in block.iter().rev().skip(1).rev() {
+            self.tp_eval_const_chunk(chunk)?;
+        }
+        self.tp_eval_const_chunk(block.last().unwrap())
     }
 
     fn eval_bin(&self, op: OpKind, lhs: ValueObj, rhs: ValueObj) -> EvalResult<ValueObj> {
@@ -1732,6 +1760,7 @@ impl Context {
                 };
                 self.eval_bin_tp(op, lhs, rhs)
             }
+            (lhs @ TyParam::Mono(_), rhs @ TyParam::Mono(_)) => Ok(TyParam::bin(op, lhs, rhs)),
             (l, r) => feature_error!(self, Location::Unknown, &format!("{l} {op} {r}"))
                 .map_err(Into::into),
         }
@@ -1783,21 +1812,33 @@ impl Context {
     }
 
     pub(crate) fn eval_app(&self, name: Str, args: Vec<TyParam>) -> Failable<TyParam> {
-        if let Ok(value_args) = args
+        match args
             .iter()
             .map(|tp| self.convert_tp_into_value(tp.clone()))
             .collect::<Result<Vec<_>, _>>()
         {
-            if let Some(ValueObj::Subr(subr)) = self.rec_get_const_obj(&name) {
-                let args = ValueArgs::pos_only(value_args);
-                self.call(subr.clone(), args, ().loc())
-            } else {
-                log!(err "eval_app({name}({}))", fmt_vec(&args));
-                Ok(TyParam::app(name, args))
+            Ok(value_args) => {
+                if let Some(ValueObj::Subr(subr)) = self.rec_get_const_obj(&name) {
+                    let args = ValueArgs::pos_only(value_args);
+                    self.call(subr.clone(), args, ().loc())
+                } else {
+                    log!(err "eval_app({name}({}))", fmt_vec(&args));
+                    let err = EvalError::no_var_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        Location::Unknown,
+                        self.caused_by(),
+                        &name,
+                        None,
+                    );
+                    Err((TyParam::app(name, args), err.into()))
+                }
             }
-        } else {
-            log!(err "failed: eval_app({name}({}))", fmt_vec(&args));
-            Ok(TyParam::app(name, args))
+            Err(err) => {
+                log!(err "failed: eval_app({name}({}))", fmt_vec(&args));
+                feature_error!(self, Location::Unknown, &format!("{err}"))
+                    .map_err(|err| (TyParam::app(name, args), err))
+            }
         }
     }
 
@@ -3227,6 +3268,18 @@ impl Context {
             TyParam::Value(ValueObj::Subr(subr)) => {
                 let args = self.convert_args(None, &subr, args, t_loc)?;
                 self.call(subr, args, t_loc.loc()).map_err(|(_, e)| e)
+            }
+            TyParam::Mono(name) => {
+                let obj = self.rec_get_const_obj(&name).ok_or_else(|| {
+                    EvalError::type_not_found(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        t_loc.loc(),
+                        self.caused_by(),
+                        &Type::Mono(name),
+                    )
+                })?;
+                self.eval_call(TyParam::Value(obj.clone()), args, t_loc)
             }
             other => Err(EvalErrors::from(EvalError::type_mismatch_error(
                 self.cfg.input.clone(),

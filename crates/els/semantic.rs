@@ -151,7 +151,7 @@ impl ASTSemanticState {
                 vec![token]
             }
             Expr::Def(def) => self.gen_from_def(def),
-            Expr::Lambda(lambda) => self.gen_from_block(Some(lambda.sig.params), lambda.body),
+            Expr::Lambda(lambda) => self.gen_from_block(Some(&lambda.sig.params), lambda.body),
             Expr::Methods(methods) => self.gen_from_methods(methods),
             Expr::Accessor(acc) => self.gen_from_acc(acc),
             Expr::Call(call) => self.gen_from_call(call),
@@ -258,20 +258,19 @@ impl ASTSemanticState {
         tokens
     }
 
-    fn gen_from_block(&mut self, params: Option<Params>, block: Block) -> Vec<SemanticToken> {
+    fn gen_from_block(&mut self, params: Option<&Params>, block: Block) -> Vec<SemanticToken> {
         self.namespaces.push(Dict::new());
         let mut tokens = vec![];
         if let Some(params) = params {
-            let (nd_params, var_params, d_params, ..) = params.deconstruct();
-            for param in nd_params.into_iter() {
+            for param in params.non_defaults.iter() {
                 let typ = SemanticTokenType::PARAMETER;
                 tokens.push(self.gen_token(param.loc(), typ));
             }
-            if let Some(var_param) = var_params {
+            if let Some(var_param) = params.var_params.as_ref() {
                 let typ = SemanticTokenType::PARAMETER;
                 tokens.push(self.gen_token(var_param.loc(), typ));
             }
-            for param in d_params.into_iter() {
+            for param in params.defaults.iter() {
                 let typ = SemanticTokenType::PARAMETER;
                 tokens.push(self.gen_token(param.loc(), typ));
             }

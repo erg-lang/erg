@@ -12,7 +12,7 @@ use crate::context::eval::UndoableLinkedList;
 use crate::context::initialize::closed_range;
 use crate::context::Context;
 use crate::feature_error;
-use crate::ty::constructors::{and, mono, tuple_t, v_enum};
+use crate::ty::constructors::{and, mono, poly, tuple_t, ty_tp, v_enum};
 use crate::ty::value::{EvalValueError, EvalValueResult, GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{Field, TyParam, Type, ValueArgs};
 use erg_common::error::{ErrorCore, ErrorKind, Location, SubMessage};
@@ -63,7 +63,20 @@ pub(crate) fn class_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
     let base = args.remove_left_or_key("Base");
     let impls = args.remove_left_or_key("Impl");
     let impls = impls.map(|v| v.as_type(ctx).unwrap());
-    let t = mono(ctx.name.clone());
+    let t = if !ctx.params.is_empty() {
+        let params = ctx
+            .params
+            .iter()
+            .map(|(name, _)| {
+                let name = name.as_ref().map_or("".into(), |n| n.inspect().clone());
+                // ty_tp(type_q(name))
+                ty_tp(mono(name))
+            })
+            .collect();
+        poly(ctx.name.clone(), params)
+    } else {
+        mono(ctx.name.clone())
+    };
     match base {
         Some(value) => {
             if let Some(base) = value.as_type(ctx) {

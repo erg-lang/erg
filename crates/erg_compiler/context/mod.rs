@@ -262,6 +262,12 @@ impl DerefMut for TypeContext {
     }
 }
 
+impl fmt::Display for TypeContext {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "<type context of {}: {}>", self.typ, self.ctx)
+    }
+}
+
 impl TypeContext {
     pub const fn new(typ: Type, ctx: Context) -> Self {
         Self { typ, ctx }

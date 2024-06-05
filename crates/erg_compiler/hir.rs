@@ -2267,6 +2267,13 @@ impl Signature {
         }
     }
 
+    pub fn params(&self) -> Option<&Params> {
+        match self {
+            Self::Var(_) => None,
+            Self::Subr(s) => Some(&s.params),
+        }
+    }
+
     pub fn captured_names(&self) -> &[Identifier] {
         match self {
             Self::Var(_) => &[],

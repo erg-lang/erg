@@ -17,7 +17,8 @@ use ast::{
     ConstIdentifier, Decorator, DefId, Identifier, OperationKind, PolyTypeSpec, PreDeclTypeSpec,
     VarName,
 };
-use erg_parser::ast::{self, ClassAttr, RecordAttrOrIdent, TypeSpecWithOp};
+use erg_parser::ast::{self, ClassAttr, Params, RecordAttrOrIdent, TypeSpecWithOp};
+use erg_parser::Parser;
 
 use crate::ty::constructors::{
     func, func0, func1, module, proc, py_module, ref_, ref_mut, str_dict_t, tp_enum,
@@ -27,7 +28,8 @@ use crate::ty::free::HasLevel;
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{
-    CastTarget, Field, GuardType, HasType, ParamTy, SubrType, Type, Visibility, VisibilityModifier,
+    CastTarget, ConstSubr, Field, GuardType, HasType, ParamTy, SubrType, Type, UserConstSubr,
+    Visibility, VisibilityModifier,
 };
 
 use crate::context::{ClassDefType, Context, ContextKind, DefaultInfo, RegistrationMode};
@@ -138,6 +140,74 @@ impl Context {
                 Ok(())
             } else {
                 Err(((), errs))
+            }
+        }
+    }
+
+    fn pre_define_param(
+        &mut self,
+        sig: &ast::NonDefaultParamSignature,
+        id: Option<DefId>,
+    ) -> TyCheckResult<Type> {
+        let mut errs = TyCheckErrors::empty();
+        let muty = Mutability::from(&sig.inspect().unwrap_or(UBAR)[..]);
+        let sig_t = match self
+            .instantiate_var_sig_t(sig.t_spec.as_ref().map(|ts| &ts.t_spec), PreRegister)
+        {
+            Ok(t) => t,
+            Err((t, _es)) => {
+                // errs.extend(es);
+                t
+            }
+        };
+        let name = match &sig.pat {
+            ast::ParamPattern::VarName(name) => name,
+            ast::ParamPattern::Discard(_) => {
+                return Ok(sig_t);
+            }
+            other => unreachable!("{other}"),
+        };
+        /*let sig_t = if name.is_const() {
+            singleton(sig_t, ty_tp(type_q(name.inspect().clone())))
+        } else {
+            sig_t
+        };*/
+        let kind = id.map_or(VarKind::Declared, VarKind::Defined);
+        let py_name = if let ContextKind::PatchMethodDefs(_base) = &self.kind {
+            Some(Str::from(format!("::{}{}", self.name, name)))
+        } else {
+            None
+        };
+        if self
+            .remove_class_attr(name.inspect())
+            .is_some_and(|(_, decl)| !decl.kind.is_auto())
+        {
+            errs.push(TyCheckError::duplicate_decl_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                sig.loc(),
+                self.caused_by(),
+                name.inspect(),
+            ));
+            Err(errs)
+        } else {
+            let vi = VarInfo::new(
+                sig_t.clone(),
+                muty,
+                Visibility::new(VisibilityModifier::Private, self.name.clone()),
+                kind,
+                None,
+                self.kind.clone(),
+                py_name,
+                self.absolutize(name.loc()),
+            );
+            self.index().register(name.inspect().clone(), &vi);
+            self.future_defined_locals.insert(name.clone(), vi.clone());
+            self.params.push((Some(name.clone()), vi));
+            if errs.is_empty() {
+                Ok(sig_t)
+            } else {
+                Err(errs)
             }
         }
     }
@@ -1249,7 +1319,7 @@ impl Context {
                     let t = Type::Mono(format!("{}{ident}", self.name).into());
                     let class = GenTypeObj::class(t, None, None, false);
                     let class = ValueObj::Type(TypeObj::Generated(class));
-                    self.register_gen_const(ident, class, Some(call), false)
+                    self.register_gen_const(ident, None, class, Some(call), false)
                 }
                 "Trait" => {
                     let ident = var.ident().unwrap();
@@ -1257,7 +1327,7 @@ impl Context {
                     let trait_ =
                         GenTypeObj::trait_(t, TypeObj::builtin_type(Type::Failure), None, false);
                     let trait_ = ValueObj::Type(TypeObj::Generated(trait_));
-                    self.register_gen_const(ident, trait_, Some(call), false)
+                    self.register_gen_const(ident, None, trait_, Some(call), false)
                 }
                 _ => Ok(()),
             },
@@ -1282,11 +1352,24 @@ impl Context {
                         .map_err(|(_, errs)| errs)?;
                     let vis = self.instantiate_vis_modifier(sig.vis())?;
                     self.grow(__name__, ContextKind::Proc, vis, Some(tv_cache));
-                    let (obj, const_t) = match self.eval_const_block(&def.body.block) {
-                        Ok(obj) => (obj.clone(), v_enum(set! {obj})),
+                    let mut non_defaults = vec![];
+                    for param in sig.params.non_defaults.iter() {
+                        match self.pre_define_param(param, id) {
+                            Ok(t) => non_defaults.push(ParamTy::Pos(t)),
+                            Err(es) => errs.extend(es),
+                        }
+                    }
+                    let (_obj, const_t) = match self.tp_eval_const_block(&def.body.block) {
+                        Ok(obj) => (
+                            obj.clone(),
+                            tp_enum(self.get_tp_t(&obj).unwrap_or(Type::Obj), set! {obj}),
+                        ),
                         Err((obj, es)) => {
                             errs.extend(es);
-                            (obj.clone(), v_enum(set! {obj}))
+                            (
+                                obj.clone(),
+                                tp_enum(self.get_tp_t(&obj).unwrap_or(Type::Obj), set! {obj}),
+                            )
                         }
                     };
                     if let Some(spec) = sig.return_t_spec.as_ref() {
@@ -1311,12 +1394,23 @@ impl Context {
                             })?;
                     }
                     self.pop();
-                    self.register_gen_const(
-                        def.sig.ident().unwrap(),
-                        obj,
-                        call,
-                        def.def_kind().is_other(),
-                    )?;
+                    if let Ok(block) = Parser::validate_const_block(def.body.block.clone()) {
+                        let sig_t = func(non_defaults, None, vec![], None, const_t);
+                        // let sig_t = if sig_t.has_qvar() { sig_t.quantify() } else { sig_t };
+                        let subr = ValueObj::Subr(ConstSubr::User(UserConstSubr::new(
+                            __name__.clone(),
+                            sig.params.clone(),
+                            block,
+                            sig_t,
+                        )));
+                        self.register_gen_const(
+                            def.sig.ident().unwrap(),
+                            Some(&sig.params),
+                            subr,
+                            call,
+                            def.def_kind().is_other(),
+                        )?;
+                    }
                 } else {
                     self.declare_sub(sig, id)?;
                 }
@@ -1356,7 +1450,7 @@ impl Context {
                     }
                     self.pop();
                     if let Some(ident) = sig.ident() {
-                        self.register_gen_const(ident, obj, call, def.def_kind().is_other())?;
+                        self.register_gen_const(ident, None, obj, call, def.def_kind().is_other())?;
                     }
                 } else if let Err((_, es)) = self.pre_define_var(sig, id) {
                     errs.extend(es);
@@ -1620,6 +1714,7 @@ impl Context {
     pub(crate) fn register_gen_const(
         &mut self,
         ident: &Identifier,
+        params: Option<&Params>,
         obj: ValueObj,
         call: Option<&ast::Call>,
         alias: bool,
@@ -1643,9 +1738,47 @@ impl Context {
                         let meta_t = gen.meta_type();
                         self.register_type_alias(ident, gen.into_typ(), meta_t)
                     }
-                    TypeObj::Generated(gen) => self.register_gen_type(ident, gen, call),
+                    TypeObj::Generated(gen) => self.register_gen_type(ident, params, gen, call),
                     TypeObj::Builtin { t, meta_t } => self.register_type_alias(ident, t, meta_t),
                 },
+                ValueObj::Subr(ConstSubr::User(subr))
+                    if subr.sig_t.return_t().is_some_and(|t| t.is_class_type()) =>
+                {
+                    if let Some(TyParam::Value(ValueObj::Type(t))) =
+                        subr.sig_t.return_t().unwrap().singleton_value()
+                    {
+                        match t.clone() {
+                            TypeObj::Generated(gen) if alias => {
+                                let meta_t = gen.meta_type();
+                                self.register_type_alias(ident, gen.into_typ(), meta_t)?;
+                            }
+                            TypeObj::Generated(gen) => {
+                                self.register_gen_type(ident, params, gen, call)?
+                            }
+                            TypeObj::Builtin { t, meta_t } => {
+                                self.register_type_alias(ident, t, meta_t)?
+                            }
+                        }
+                    } else {
+                        todo!("{:?}", subr.sig_t.return_t().unwrap().singleton_value())
+                    }
+                    let other = ValueObj::Subr(ConstSubr::User(subr));
+                    let id = DefId(get_hash(ident));
+                    let vi = VarInfo::new(
+                        v_enum(set! {other.clone()}),
+                        Const,
+                        Visibility::new(vis, self.name.clone()),
+                        VarKind::Defined(id),
+                        None,
+                        self.kind.clone(),
+                        None,
+                        self.absolutize(ident.name.loc()),
+                    );
+                    self.index().register(ident.inspect().clone(), &vi);
+                    self.decls.insert(ident.name.clone(), vi);
+                    self.consts.insert(ident.name.clone(), other);
+                    Ok(())
+                }
                 // TODO: not all value objects are comparable
                 other => {
                     let id = DefId(get_hash(ident));
@@ -1671,24 +1804,40 @@ impl Context {
     pub(crate) fn register_gen_type(
         &mut self,
         ident: &Identifier,
+        params: Option<&Params>,
         gen: GenTypeObj,
         call: Option<&ast::Call>,
     ) -> CompileResult<()> {
         match gen {
             GenTypeObj::Class(_) => {
-                if gen.typ().is_monomorphic() {
-                    // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
-                    let mut ctx = Self::mono_class(
+                if let Some(params) = params {
+                    let params = params
+                        .non_defaults()
+                        .into_iter()
+                        .map(|param| {
+                            let name = param
+                                .name()
+                                .map_or(Str::ever("_"), |name| name.inspect().clone());
+                            let t = param
+                                .t_spec
+                                .as_ref()
+                                .and_then(|t_spec| self.instantiate_typespec(&t_spec.t_spec).ok())
+                                .unwrap_or(Type::Obj);
+                            ParamSpec::named_nd(name, t)
+                        })
+                        .collect();
+                    let mut ctx = Self::poly_class(
                         gen.typ().qual_name(),
+                        params,
                         self.cfg.clone(),
                         self.shared.clone(),
                         2,
                         self.level,
                     );
                     let res = self.gen_class_new_method(&gen, call, &mut ctx);
-                    let res2 = self.register_gen_mono_type(ident, gen, ctx, Const);
+                    let res2 = self.register_gen_poly_type(ident, gen, ctx, Const);
                     concat_result(res, res2)
-                } else {
+                } else if !gen.typ().is_monomorphic() {
                     let params = gen
                         .typ()
                         .typarams()
@@ -1709,12 +1858,7 @@ impl Context {
                     let res = self.gen_class_new_method(&gen, call, &mut ctx);
                     let res2 = self.register_gen_poly_type(ident, gen, ctx, Const);
                     concat_result(res, res2)
-                }
-            }
-            GenTypeObj::Subclass(_) => {
-                let mut errs = CompileErrors::empty();
-                if gen.typ().is_monomorphic() {
-                    let super_classes = gen.base_or_sup().map_or(vec![], |t| vec![t.typ().clone()]);
+                } else {
                     // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
                     let mut ctx = Self::mono_class(
                         gen.typ().qual_name(),
@@ -1723,113 +1867,23 @@ impl Context {
                         2,
                         self.level,
                     );
-                    for sup in super_classes.into_iter() {
-                        let sup_ctx = match self.get_nominal_type_ctx(&sup).ok_or_else(|| {
-                            TyCheckErrors::from(TyCheckError::type_not_found(
-                                self.cfg.input.clone(),
-                                line!() as usize,
-                                ident.loc(),
-                                self.caused_by(),
-                                &sup,
-                            ))
-                        }) {
-                            Ok(ctx) => ctx,
-                            Err(es) => {
-                                errs.extend(es);
-                                continue;
-                            }
-                        };
-                        ctx.register_superclass(sup, sup_ctx);
-                    }
-                    let mut methods =
-                        Self::methods(None, self.cfg.clone(), self.shared.clone(), 2, self.level);
-                    if let Some(sup) = gen.base_or_sup() {
-                        let param_t = match sup {
-                            TypeObj::Builtin { t, .. } => Some(t),
-                            TypeObj::Generated(t) => t.base_or_sup().map(|t| t.typ()),
-                        };
-                        // `Super.Requirement := {x = Int}` and `Self.Additional := {y = Int}`
-                        // => `Self.Requirement := {x = Int; y = Int}`
-                        let param_t = if let Some(additional) = gen.additional() {
-                            if let TypeObj::Builtin {
-                                t: Type::Record(rec),
-                                ..
-                            } = additional
-                            {
-                                if let Err(es) = self.register_instance_attrs(&mut ctx, rec, call) {
-                                    errs.extend(es);
-                                }
-                            }
-                            param_t
-                                .map(|t| self.intersection(t, additional.typ()))
-                                .or(Some(additional.typ().clone()))
-                        } else {
-                            self.get_nominal_type_ctx(sup.typ())
-                                .and_then(|ctx| {
-                                    ctx.get_class_attr(&VarName::from_static("__call__"), ctx)
-                                })
-                                .and_then(|vi| vi.t.param_ts().first().cloned())
-                                .or(param_t.cloned())
-                        };
-                        let new_t = if let Some(t) = param_t {
-                            func1(t, gen.typ().clone())
-                        } else {
-                            func0(gen.typ().clone())
-                        };
-                        if let Err(es) = methods.register_fixed_auto_impl(
-                            "__call__",
-                            new_t.clone(),
-                            Immutable,
-                            Visibility::private(ctx.name.clone()),
-                            None,
-                        ) {
-                            errs.extend(es);
-                        }
-                        // 必要なら、ユーザーが独自に上書きする
-                        if let Err(es) = methods.register_auto_impl(
-                            "new",
-                            new_t,
-                            Immutable,
-                            Visibility::public(ctx.name.clone()),
-                            None,
-                        ) {
-                            errs.extend(es);
-                        }
-                        ctx.methods_list.push(MethodContext::new(
-                            DefId(0),
-                            ClassDefType::Simple(gen.typ().clone()),
-                            methods,
-                        ));
-                        if let Err(es) = self.register_gen_mono_type(ident, gen, ctx, Const) {
-                            errs.extend(es);
-                        }
-                        if errs.is_empty() {
-                            Ok(())
-                        } else {
-                            Err(errs)
-                        }
-                    } else {
-                        let class_name = gen
-                            .base_or_sup()
-                            .map(|t| t.typ().local_name())
-                            .unwrap_or(Str::from("?"));
-                        Err(CompileErrors::from(CompileError::no_type_error(
-                            self.cfg.input.clone(),
-                            line!() as usize,
-                            ident.loc(),
-                            self.caused_by(),
-                            &class_name,
-                            self.get_similar_name(&class_name),
-                        )))
-                    }
-                } else {
+                    let res = self.gen_class_new_method(&gen, call, &mut ctx);
+                    let res2 = self.register_gen_mono_type(ident, gen, ctx, Const);
+                    concat_result(res, res2)
+                }
+            }
+            GenTypeObj::Subclass(_) => {
+                let errs = CompileErrors::empty();
+                if params.is_some() {
                     feature_error!(
                         CompileErrors,
                         CompileError,
                         self,
                         ident.loc(),
-                        "polymorphic class definition"
+                        "polymorphic class inheritance"
                     )
+                } else {
+                    self.register_inherited_mono_class(ident, gen, call, errs)
                 }
             }
             GenTypeObj::Trait(_) => {
@@ -1863,7 +1917,7 @@ impl Context {
                 }
             }
             GenTypeObj::Subtrait(_) => {
-                if gen.typ().is_monomorphic() {
+                if params.is_none() {
                     let super_classes = gen.base_or_sup().map_or(vec![], |t| vec![t.typ().clone()]);
                     // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
                     let mut ctx = Self::mono_trait(
@@ -1907,7 +1961,7 @@ impl Context {
                 }
             }
             GenTypeObj::Patch(_) => {
-                if gen.typ().is_monomorphic() {
+                if params.is_none() {
                     let Some(TypeObj::Builtin { t: base, .. }) = gen.base_or_sup() else {
                         todo!("{gen}")
                     };
@@ -1937,6 +1991,120 @@ impl Context {
                 ident.loc(),
                 &format!("{other} definition")
             ),
+        }
+    }
+
+    fn register_inherited_mono_class(
+        &mut self,
+        ident: &Identifier,
+        gen: GenTypeObj,
+        call: Option<&ast::Call>,
+        mut errs: CompileErrors,
+    ) -> CompileResult<()> {
+        let super_classes = gen.base_or_sup().map_or(vec![], |t| vec![t.typ().clone()]);
+        // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
+        let mut ctx = Self::mono_class(
+            gen.typ().qual_name(),
+            self.cfg.clone(),
+            self.shared.clone(),
+            2,
+            self.level,
+        );
+        for sup in super_classes.into_iter() {
+            let sup_ctx = match self.get_nominal_type_ctx(&sup).ok_or_else(|| {
+                TyCheckErrors::from(TyCheckError::type_not_found(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    ident.loc(),
+                    self.caused_by(),
+                    &sup,
+                ))
+            }) {
+                Ok(ctx) => ctx,
+                Err(es) => {
+                    errs.extend(es);
+                    continue;
+                }
+            };
+            ctx.register_superclass(sup, sup_ctx);
+        }
+        let mut methods = Self::methods(None, self.cfg.clone(), self.shared.clone(), 2, self.level);
+        if let Some(sup) = gen.base_or_sup() {
+            let param_t = match sup {
+                TypeObj::Builtin { t, .. } => Some(t),
+                TypeObj::Generated(t) => t.base_or_sup().map(|t| t.typ()),
+            };
+            // `Super.Requirement := {x = Int}` and `Self.Additional := {y = Int}`
+            // => `Self.Requirement := {x = Int; y = Int}`
+            let param_t = if let Some(additional) = gen.additional() {
+                if let TypeObj::Builtin {
+                    t: Type::Record(rec),
+                    ..
+                } = additional
+                {
+                    if let Err(es) = self.register_instance_attrs(&mut ctx, rec, call) {
+                        errs.extend(es);
+                    }
+                }
+                param_t
+                    .map(|t| self.intersection(t, additional.typ()))
+                    .or(Some(additional.typ().clone()))
+            } else {
+                self.get_nominal_type_ctx(sup.typ())
+                    .and_then(|ctx| ctx.get_class_attr(&VarName::from_static("__call__"), ctx))
+                    .and_then(|vi| vi.t.param_ts().first().cloned())
+                    .or(param_t.cloned())
+            };
+            let new_t = if let Some(t) = param_t {
+                func1(t, gen.typ().clone())
+            } else {
+                func0(gen.typ().clone())
+            };
+            if let Err(es) = methods.register_fixed_auto_impl(
+                "__call__",
+                new_t.clone(),
+                Immutable,
+                Visibility::private(ctx.name.clone()),
+                None,
+            ) {
+                errs.extend(es);
+            }
+            // 必要なら、ユーザーが独自に上書きする
+            if let Err(es) = methods.register_auto_impl(
+                "new",
+                new_t,
+                Immutable,
+                Visibility::public(ctx.name.clone()),
+                None,
+            ) {
+                errs.extend(es);
+            }
+            ctx.methods_list.push(MethodContext::new(
+                DefId(0),
+                ClassDefType::Simple(gen.typ().clone()),
+                methods,
+            ));
+            if let Err(es) = self.register_gen_mono_type(ident, gen, ctx, Const) {
+                errs.extend(es);
+            }
+            if errs.is_empty() {
+                Ok(())
+            } else {
+                Err(errs)
+            }
+        } else {
+            let class_name = gen
+                .base_or_sup()
+                .map(|t| t.typ().local_name())
+                .unwrap_or(Str::from("?"));
+            Err(CompileErrors::from(CompileError::no_type_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                ident.loc(),
+                self.caused_by(),
+                &class_name,
+                self.get_similar_name(&class_name),
+            )))
         }
     }
 
@@ -2615,6 +2783,32 @@ impl Context {
         }
     }
 
+    fn inc_ref_const_acc(
+        &self,
+        acc: &ast::ConstAccessor,
+        namespace: &Context,
+        tmp_tv_cache: &TyVarCache,
+    ) -> bool {
+        match acc {
+            ast::ConstAccessor::Local(ident) => self.inc_ref_local(ident, namespace, tmp_tv_cache),
+            ast::ConstAccessor::Attr(attr) => {
+                self.inc_ref_const_expr(&attr.obj, namespace, tmp_tv_cache);
+                if let Ok(ctxs) = self.get_singular_ctxs(&attr.obj.clone().downgrade(), self) {
+                    for ctx in ctxs {
+                        if ctx.inc_ref_local(&attr.name, namespace, tmp_tv_cache) {
+                            return true;
+                        }
+                    }
+                }
+                false
+            }
+            other => {
+                log!(err "inc_ref_const_acc: {other}");
+                false
+            }
+        }
+    }
+
     pub(crate) fn inc_ref_predecl_typespec(
         &self,
         predecl: &PreDeclTypeSpec,
@@ -2720,6 +2914,21 @@ impl Context {
         let mut res = false;
         for expr in block.iter() {
             if self.inc_ref_expr(expr, namespace, tmp_tv_cache) {
+                res = true;
+            }
+        }
+        res
+    }
+
+    fn inc_ref_const_block(
+        &self,
+        block: &ast::ConstBlock,
+        namespace: &Context,
+        tmp_tv_cache: &TyVarCache,
+    ) -> bool {
+        let mut res = false;
+        for expr in block.iter() {
+            if self.inc_ref_const_expr(expr, namespace, tmp_tv_cache) {
                 res = true;
             }
         }
@@ -2840,6 +3049,16 @@ impl Context {
                 }
                 res
             }
+            ast::Expr::List(ast::List::WithLength(lis)) => {
+                let mut res = false;
+                if self.inc_ref_expr(&lis.elem.expr, namespace, tmp_tv_cache) {
+                    res = true;
+                }
+                if self.inc_ref_expr(&lis.len, namespace, tmp_tv_cache) {
+                    res = true;
+                }
+                res
+            }
             ast::Expr::Tuple(ast::Tuple::Normal(tup)) => {
                 let mut res = false;
                 for val in tup.elems.pos_args().iter() {
@@ -2923,6 +3142,117 @@ impl Context {
             }
             other => {
                 log!(err "inc_ref_expr: {other}");
+                false
+            }
+        }
+    }
+
+    pub(crate) fn inc_ref_const_expr(
+        &self,
+        expr: &ast::ConstExpr,
+        namespace: &Context,
+        tmp_tv_cache: &TyVarCache,
+    ) -> bool {
+        match expr {
+            ast::ConstExpr::Lit(_) => false,
+            ast::ConstExpr::Accessor(acc) => self.inc_ref_const_acc(acc, namespace, tmp_tv_cache),
+            ast::ConstExpr::BinOp(bin) => {
+                self.inc_ref_const_expr(&bin.lhs, namespace, tmp_tv_cache)
+                    || self.inc_ref_const_expr(&bin.rhs, namespace, tmp_tv_cache)
+            }
+            ast::ConstExpr::UnaryOp(unary) => {
+                self.inc_ref_const_expr(&unary.expr, namespace, tmp_tv_cache)
+            }
+            ast::ConstExpr::App(call) => {
+                let mut res = self.inc_ref_const_expr(&call.obj, namespace, tmp_tv_cache);
+                for arg in call.args.pos_args() {
+                    if self.inc_ref_const_expr(&arg.expr, namespace, tmp_tv_cache) {
+                        res = true;
+                    }
+                }
+                if let Some(arg) = call.args.var_args.as_ref() {
+                    if self.inc_ref_const_expr(&arg.expr, namespace, tmp_tv_cache) {
+                        res = true;
+                    }
+                }
+                for arg in call.args.kw_args() {
+                    if self.inc_ref_const_expr(&arg.expr, namespace, tmp_tv_cache) {
+                        res = true;
+                    }
+                }
+                res
+            }
+            ast::ConstExpr::Record(rec) => {
+                let mut res = false;
+                for val in rec.attrs.iter() {
+                    if self.inc_ref_const_block(&val.body.block, namespace, tmp_tv_cache) {
+                        res = true;
+                    }
+                }
+                res
+            }
+            ast::ConstExpr::List(ast::ConstList::Normal(lis)) => {
+                let mut res = false;
+                for val in lis.elems.pos_args() {
+                    if self.inc_ref_const_expr(&val.expr, namespace, tmp_tv_cache) {
+                        res = true;
+                    }
+                }
+                res
+            }
+            ast::ConstExpr::List(ast::ConstList::WithLength(lis)) => {
+                let mut res = false;
+                if self.inc_ref_const_expr(&lis.elem, namespace, tmp_tv_cache) {
+                    res = true;
+                }
+                if self.inc_ref_const_expr(&lis.length, namespace, tmp_tv_cache) {
+                    res = true;
+                }
+                res
+            }
+            ast::ConstExpr::Tuple(tup) => {
+                let mut res = false;
+                for val in tup.elems.pos_args() {
+                    if self.inc_ref_const_expr(&val.expr, namespace, tmp_tv_cache) {
+                        res = true;
+                    }
+                }
+                res
+            }
+            ast::ConstExpr::Set(ast::ConstSet::Normal(set)) => {
+                let mut res = false;
+                for val in set.elems.pos_args() {
+                    if self.inc_ref_const_expr(&val.expr, namespace, tmp_tv_cache) {
+                        res = true;
+                    }
+                }
+                res
+            }
+            ast::ConstExpr::Dict(dict) => {
+                let mut res = false;
+                for ast::ConstKeyValue { key, value } in dict.kvs.iter() {
+                    if self.inc_ref_const_expr(key, namespace, tmp_tv_cache) {
+                        res = true;
+                    }
+                    if self.inc_ref_const_expr(value, namespace, tmp_tv_cache) {
+                        res = true;
+                    }
+                }
+                res
+            }
+            ast::ConstExpr::Lambda(lambda) => {
+                let mut res = false;
+                // FIXME: assign params
+                if self.inc_ref_params(&lambda.sig.params, namespace, tmp_tv_cache) {
+                    res = true;
+                }
+                if self.inc_ref_const_block(&lambda.body, namespace, tmp_tv_cache) {
+                    res = true;
+                }
+                res
+            }
+            other => {
+                log!(err "inc_ref_const_expr: {other}");
                 false
             }
         }

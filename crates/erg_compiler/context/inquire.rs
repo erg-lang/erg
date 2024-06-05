@@ -3229,9 +3229,14 @@ impl Context {
         }
     }
 
-    pub(crate) fn gen_type(&self, ident: &ast::Identifier) -> Type {
+    pub(crate) fn gen_type(&self, ident: &ast::Identifier, params: Option<&hir::Params>) -> Type {
         let vis = ident.vis.display_as_accessor();
-        mono(format!("{}{vis}{}", self.name, ident.inspect()))
+        let name = format!("{}{vis}{}", self.name, ident.inspect());
+        if params.is_some() {
+            poly(name, vec![])
+        } else {
+            mono(name)
+        }
     }
 
     pub(crate) fn get_namespace_path(&self, namespace: &Str) -> Option<PathBuf> {

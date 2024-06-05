@@ -1105,7 +1105,9 @@ impl Context {
             .quantify();
             let subr = move |data: ClosureData, args, _ctx: &Context| {
                 let passed = Vec::<TyParam>::from(args);
-                let lack = data.nd_params.len() + data.d_params.len() - passed.len();
+                // TODO: nd_params.len() + d_params.len() < passed.len()
+                let lack =
+                    (data.nd_params.len() + data.d_params.len()).saturating_sub(passed.len());
                 let erased = data
                     .d_params
                     .clone()
