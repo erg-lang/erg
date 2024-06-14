@@ -807,8 +807,10 @@ impl Context {
                         return Triple::Err(errs);
                     }
                     drop(list);
-                    self.sub_unify(obj.ref_t(), self_t, obj, Some(&"self".into()))
-                        .unwrap();
+                    let res = self.sub_unify(obj.ref_t(), self_t, obj, Some(&"self".into()));
+                    if DEBUG_MODE {
+                        res.unwrap();
+                    }
                 }
                 return Triple::Ok(vi);
             }
@@ -842,8 +844,10 @@ impl Context {
                     .is_ok()
                 {
                     drop(list);
-                    self.sub_unify(obj.ref_t(), &method.definition_type, obj, None)
-                        .unwrap();
+                    let res = self.sub_unify(obj.ref_t(), &method.definition_type, obj, None);
+                    if DEBUG_MODE {
+                        res.unwrap();
+                    }
                     return Triple::Ok(method.method_info.clone());
                 }
             }
@@ -1357,7 +1361,10 @@ impl Context {
                     // HACK: change this func's return type to TyCheckResult<Type>
                     .map_err(|mut errs| errs.remove(0))?;
                 drop(list);
-                self.sub_unify(obj.ref_t(), &def_t, obj, None).unwrap();
+                let res = self.sub_unify(obj.ref_t(), &def_t, obj, None);
+                if DEBUG_MODE {
+                    res.unwrap();
+                }
                 return Ok(method.method_info.clone());
             }
             Triple::Err(err) => {
@@ -1483,7 +1490,10 @@ impl Context {
                     // HACK: change this func's return type to TyCheckResult<Type>
                     .map_err(|mut errs| errs.remove(0))?;
                 drop(list);
-                self.sub_unify(obj.ref_t(), &def_t, obj, None).unwrap();
+                let res = self.sub_unify(obj.ref_t(), &def_t, obj, None);
+                if DEBUG_MODE {
+                    res.unwrap();
+                }
                 return Ok(method.method_info.clone());
             }
             Triple::Err(err) => {

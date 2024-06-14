@@ -170,7 +170,11 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 (artifact, CheckStatus::Failed)
             }
         };
-        let ast = self.build_ast(&uri).ok();
+        let ast = match self.build_ast(&uri) {
+            Ok(ast) => Some(ast),
+            Err(BuildASTError::ParseError(err)) => err.ast,
+            _ => None,
+        };
         let Some(ctx) = checker.pop_context() else {
             _log!(self, "context not found");
             return Ok(());
@@ -205,9 +209,19 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             crate::_log!(self, "AST not found: {uri}");
             return Ok(());
         };
-        let Ok(new) = self.build_ast(&uri) else {
-            crate::_log!(self, "AST not found: {uri}");
-            return Ok(());
+        let new = match self.build_ast(&uri) {
+            Ok(ast) => ast,
+            Err(BuildASTError::ParseError(err)) => {
+                if let Some(new) = err.ast {
+                    new
+                } else {
+                    return Ok(());
+                }
+            }
+            _ => {
+                crate::_log!(self, "AST not found: {uri}");
+                return Ok(());
+            }
         };
         let ast_diff = ASTDiff::diff(old, &new);
         crate::_log!(self, "diff: {ast_diff}");

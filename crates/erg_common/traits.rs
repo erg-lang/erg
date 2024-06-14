@@ -725,6 +725,7 @@ pub trait Runnable: Sized + Default + New {
         self.cfg_mut().input = input;
     }
     fn start_message(&self) -> String {
+        #[allow(clippy::const_is_empty)]
         if GIT_HASH_SHORT.is_empty() {
             format!("{} {SEMVER} ({BUILD_DATE}) on {ARCH}/{OS}\n", Self::NAME)
         } else {

@@ -68,7 +68,7 @@ fn _erg_pkgs_path() -> PathBuf {
         .join("pkgs")
         .canonicalize()
         .unwrap_or_else(|_| {
-            eprintln!("{RED}[ERR] ERG_PATH/lib/pkgs not found {RESET}");
+            // eprintln!("{RED}[ERR] ERG_PATH/lib/pkgs not found {RESET}");
             fallback_erg_path().join("lib/pkgs")
         })
 }
@@ -79,7 +79,7 @@ fn _python_site_packages() -> impl Iterator<Item = PathBuf> {
         .filter(|p| p.ends_with("site-packages"))
         .map(|p| {
             p.canonicalize().unwrap_or_else(|_| {
-                eprintln!("{RED}[ERR] {} not found {RESET}", p.display());
+                // eprintln!("{RED}[ERR] {} not found {RESET}", p.display());
                 fallback_erg_path().join("lib/pkgs")
             })
         })
