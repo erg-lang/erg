@@ -70,7 +70,7 @@ impl Context {
         let t_bytes_array = no_var_func(
             vec![],
             vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(Int)]))],
-            mono(BYTEARRAY),
+            mono(MUT_BYTEARRAY),
         );
         let t_callable = func1(Obj, Bool);
         let t_chr = nd_func(
@@ -275,7 +275,7 @@ impl Context {
         let t_memoryview = nd_func(
             vec![kw(
                 KW_OBJ,
-                mono(BYTES) | mono(BYTEARRAY) | mono("array.Array!"),
+                mono(BYTES) | mono(MUT_BYTEARRAY) | mono("array.Array!"),
             )],
             None,
             mono(MEMORYVIEW),
