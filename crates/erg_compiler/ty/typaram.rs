@@ -422,8 +422,9 @@ impl LimitedDisplay for TyParam {
                 write!(f, "{attr}")
             }
             Self::ProjCall { obj, attr, args } => {
+                write!(f, "(")?;
                 obj.limited_fmt(f, limit - 1)?;
-                write!(f, ".")?;
+                write!(f, ").")?;
                 write!(f, "{attr}")?;
                 write!(f, "(")?;
                 for (i, arg) in args.iter().enumerate() {

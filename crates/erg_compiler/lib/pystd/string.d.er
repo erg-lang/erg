@@ -11,6 +11,13 @@
 .capwords: (s: Str, sep := Str) -> Str
 
 .Template: ClassType
+.Template.
+    template: Str
+    __call__: (template: Str) -> .Template
+    substitute: (self: .Template, mapping := {Str: Str}, **kws: Str) -> Str
+    safe_substitute: (self: .Template, mapping := {Str: Str}, **kws: Str) -> Str
+    is_valid: (self: .Template) -> Bool
+    get_identifiers: (self: .Template) -> [Str; _]
 
 FormatterIterator = 'formatteriterator': ClassType
 FormatterIterator <: Iterable [Str; _]

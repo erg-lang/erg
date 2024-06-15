@@ -1346,18 +1346,18 @@ passed keyword args:    {kw_args_len}"
         errno: usize,
         loc: Location,
         caused_by: String,
-        pos_args: Vec<ParamTy>,
-        kw_args: Vec<ParamTy>,
+        pos_args: impl Iterator<Item = ParamTy>,
+        kw_args: impl Iterator<Item = ParamTy>,
         found: impl Iterator<Item = &'a Type>,
     ) -> Self {
         Self::new(
             ErrorCore::new(
                 vec![],
                 switch_lang!(
-                    "japanese" => format!("オーバーロード解決に失敗しました\nオーバーロード型:\n* {}\n渡された位置引数: {}\n渡された名前付き引数: {}", fmt_iter_split_with(found, "\n* "), fmt_vec(&pos_args), fmt_vec(&kw_args)),
-                    "simplified_chinese" => format!("无法解析重载\n重载类型:\n* {}\n位置参数: {}\n命名参数: {}", fmt_iter_split_with(found, "\n* "), fmt_vec(&pos_args), fmt_vec(&kw_args)),
-                    "traditional_chinese" => format!("無法解析重載\n重載類型:\n* {}\n位置參數: {}\n命名參數: {}", fmt_iter_split_with(found, "\n* "), fmt_vec(&pos_args), fmt_vec(&kw_args)),
-                    "english" => format!("cannot resolve overload\noverloaded type:\n* {}\npassed positional arguments: {}\npassed named arguments: {}", fmt_iter_split_with(found, "\n* "), fmt_vec(&pos_args), fmt_vec(&kw_args)),
+                    "japanese" => format!("オーバーロード解決に失敗しました\nオーバーロード型:\n* {}\n渡された位置引数: {}\n渡された名前付き引数: {}", fmt_iter_split_with(found, "\n* "), fmt_iter(pos_args), fmt_iter(kw_args)),
+                    "simplified_chinese" => format!("无法解析重载\n重载类型:\n* {}\n位置参数: {}\n命名参数: {}", fmt_iter_split_with(found, "\n* "), fmt_iter(pos_args), fmt_iter(kw_args)),
+                    "traditional_chinese" => format!("無法解析重載\n重載類型:\n* {}\n位置參數: {}\n命名參數: {}", fmt_iter_split_with(found, "\n* "), fmt_iter(pos_args), fmt_iter(kw_args)),
+                    "english" => format!("cannot resolve overload\noverloaded type:\n* {}\npassed positional arguments: {}\npassed named arguments: {}", fmt_iter_split_with(found, "\n* "), fmt_iter(pos_args), fmt_iter(kw_args)),
                 ),
                 errno,
                 TypeError,

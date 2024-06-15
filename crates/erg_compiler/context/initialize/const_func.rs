@@ -985,6 +985,16 @@ pub(crate) fn as_record(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<T
     Ok(ValueObj::builtin_type(Type::Record(dict)).into())
 }
 
+pub(crate) fn int_abs(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let slf = args
+        .remove_left_or_key("self")
+        .ok_or_else(|| not_passed("self"))?;
+    let Some(slf) = slf.as_int() else {
+        return Err(type_mismatch("Int", slf, "self"));
+    };
+    Ok(ValueObj::Int(slf.abs()).into())
+}
+
 pub(crate) fn str_endswith(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
     let slf = args
         .remove_left_or_key("self")

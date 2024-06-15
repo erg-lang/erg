@@ -1203,13 +1203,21 @@ impl Context {
             let Type::Subr(subr_t) = input_t else {
                 unreachable!()
             };
+            let non_default_params = subr_t
+                .non_default_params
+                .iter()
+                .map(|pt| pt.clone().map_type(|t| self.readable_type(t)));
+            let default_params = subr_t
+                .default_params
+                .iter()
+                .map(|pt| pt.clone().map_type(|t| self.readable_type(t)));
             Err(TyCheckError::overload_error(
                 self.cfg.input.clone(),
                 line!() as usize,
                 loc.loc(),
                 self.caused_by(),
-                subr_t.non_default_params,
-                subr_t.default_params,
+                non_default_params,
+                default_params,
                 intersecs.iter(),
             ))
         }
@@ -3530,7 +3538,7 @@ impl Context {
             attr,
             &candidates
                 .iter()
-                .map(|mp| mp.definition_type.clone())
+                .map(|mp| self.readable_type(mp.definition_type.clone()))
                 .collect::<Vec<_>>(),
             namespace.caused_by(),
         ))

@@ -494,7 +494,20 @@ impl Context {
         int.register_trait(self, mono(NUM)).unwrap();
         // class("Rational"),
         // class("Integral"),
-        int.register_py_builtin(FUNC_ABS, fn0_met(Int, Nat), Some(OP_ABS), 11);
+        let i_abs = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_ABS,
+            int_abs,
+            fn0_met(Int, Nat),
+            None,
+        )));
+        int.register_py_builtin_const(
+            FUNC_ABS,
+            Visibility::BUILTIN_PUBLIC,
+            Some(fn0_met(Int, Nat)),
+            i_abs,
+            Some(OP_ABS),
+            Some(11),
+        );
         int.register_py_builtin(FUNC_SUCC, fn0_met(Int, Int), Some(FUNC_SUCC), 54);
         int.register_py_builtin(FUNC_PRED, fn0_met(Int, Int), Some(FUNC_PRED), 47);
         int.register_py_builtin(
@@ -1732,12 +1745,12 @@ impl Context {
             Predicate::le(var, N.clone() - value(1usize)),
         );
         // __getitem__: |T, N|(self: [T; N], _: {I: Nat | I <= N}) -> T
-        //              and (self: [T; N], _: Range(Int)) -> [T; _]
+        //              and (self: [T; N], _: Range(Int) | Slice) -> [T; _]
         let list_getitem_t =
             (fn1_kw_met(list_t(T.clone(), N.clone()), anon(input.clone()), T.clone())
                 & fn1_kw_met(
                     list_t(T.clone(), N.clone()),
-                    anon(poly(RANGE, vec![ty_tp(Int)])),
+                    anon(poly(RANGE, vec![ty_tp(Int)]) | mono(SLICE)),
                     unknown_len_list_t(T.clone()),
                 ))
             .quantify();
