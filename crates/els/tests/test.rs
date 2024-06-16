@@ -24,7 +24,8 @@ fn test_open() -> Result<(), Box<dyn std::error::Error>> {
     client.notify_initialized()?;
     client.wait_messages(3)?;
     client.notify_open(FILE_A)?;
-    client.wait_messages(4)?;
+    // log, work-done, etc.
+    client.wait_messages(6)?;
     assert!(client.responses.iter().any(|val| val
         .to_string()
         .contains("tests/a.er passed, found warns: 0")));
@@ -382,9 +383,9 @@ fn test_dependents_check() -> Result<(), Box<dyn std::error::Error>> {
     client.notify_initialized()?;
     client.wait_messages(3)?;
     client.notify_open(FILE_B)?;
-    client.wait_messages(4)?;
+    client.wait_messages(6)?;
     client.notify_open(FILE_C)?;
-    client.wait_messages(4)?;
+    client.wait_messages(6)?;
     let uri_b = NormalizedUrl::from_file_path(Path::new(FILE_B).canonicalize()?)?;
     // delete b.er:3, causing an error in c.er
     client.notify_change(uri_b.clone().raw(), delete_line(2))?;
