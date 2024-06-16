@@ -407,7 +407,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
             self.shared.warns.extend(self.parse_errors.warns.flush());
         // continue analysis if ELS mode
         } else if self.cfg.mode == ErgMode::LanguageServer {
-            self.finalize();
+            // self.finalize();
             self.shared.errors.extend(self.parse_errors.errors.flush());
             self.shared.warns.extend(self.parse_errors.warns.flush());
         } else {

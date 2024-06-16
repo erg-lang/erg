@@ -3179,7 +3179,8 @@ impl Context {
     }
 
     /// name: Identifier.inspect()
-    // FIXME: 現在の実装だとimportしたモジュールはどこからでも見れる
+    // FIXME: imported modules can access from any scope with the current implementation
+    // 現在の実装だとimportしたモジュールはどこからでも見れる
     pub(crate) fn get_mod(&self, name: &str) -> Option<&Context> {
         if name == "module" && ERG_MODE {
             self.get_module()
