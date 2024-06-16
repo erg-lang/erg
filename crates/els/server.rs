@@ -47,9 +47,11 @@ use lsp_types::{
     DidChangeTextDocumentParams, DidOpenTextDocumentParams, DidSaveTextDocumentParams,
     ExecuteCommandOptions, FoldingRangeProviderCapability, HoverProviderCapability,
     ImplementationProviderCapability, InitializeParams, InitializeResult, InlayHintOptions,
-    InlayHintServerCapabilities, OneOf, Position, SemanticTokenType, SemanticTokensFullOptions,
-    SemanticTokensLegend, SemanticTokensOptions, SemanticTokensServerCapabilities,
-    ServerCapabilities, SignatureHelpOptions, WorkDoneProgressOptions,
+    InlayHintServerCapabilities, NumberOrString, OneOf, Position, ProgressParams,
+    ProgressParamsValue, SemanticTokenType, SemanticTokensFullOptions, SemanticTokensLegend,
+    SemanticTokensOptions, SemanticTokensServerCapabilities, ServerCapabilities,
+    SignatureHelpOptions, WorkDoneProgress, WorkDoneProgressBegin, WorkDoneProgressCreateParams,
+    WorkDoneProgressEnd, WorkDoneProgressOptions,
 };
 
 use serde::{Deserialize, Serialize};
@@ -777,6 +779,50 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         );
     }
 
+    fn start_work_done_progress(&self, title: &str) -> NumberOrString {
+        let token = NumberOrString::String(title.to_string());
+        let progress_token = WorkDoneProgressCreateParams {
+            token: token.clone(),
+        };
+        let _ = self.send_stdout(&json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "window/workDoneProgress/create",
+            "params": progress_token,
+        }));
+        let progress_begin = WorkDoneProgressBegin {
+            title: title.to_string(),
+            cancellable: Some(false),
+            message: None,
+            percentage: Some(0),
+        };
+        let params = ProgressParams {
+            token: token.clone(),
+            value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(progress_begin)),
+        };
+        let _ = self.send_stdout(&json!({
+            "jsonrpc": "2.0",
+            "method": "$/progress",
+            "params": params,
+        }));
+        token
+    }
+
+    fn stop_work_done_progress(&self, token: NumberOrString, message: &str) {
+        let progress_end = WorkDoneProgressEnd {
+            message: Some(message.to_string()),
+        };
+        let params = ProgressParams {
+            token,
+            value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(progress_end)),
+        };
+        let _ = self.send_stdout(&json!({
+            "jsonrpc": "2.0",
+            "method": "$/progress",
+            "params": params,
+        }));
+    }
+
     fn handle_request(&mut self, msg: &Value, id: i64, method: &str) -> ELSResult<()> {
         match method {
             "initialize" => self.init(msg, id),
@@ -833,7 +879,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 let code = params.text_document.text;
                 let ver = params.text_document.version;
                 self.file_cache.update(&uri, code.clone(), Some(ver));
-                self.check_file(uri, code)
+                let token = self.start_work_done_progress("checking files ...");
+                let res = self.check_file(uri, code);
+                self.stop_work_done_progress(token, "checking done");
+                res
             }
             "textDocument/didSave" => {
                 let params = DidSaveTextDocumentParams::deserialize(msg["params"].clone())?;
