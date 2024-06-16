@@ -39,6 +39,7 @@ gal = ["erg_common/gal", "erg_compiler/gal"]
 full-repl = ["erg_common/full-repl"]
 full = ["full-repl", "unicode", "pretty"]
 experimental = ["erg_common/experimental", "erg_parser/experimental", "erg_compiler/experimental"]
+log-level-error = ["erg_common/log-level-error", "erg_parser/log-level-error", "erg_compiler/log-level-error"]
 
 [dependencies]
 erg_common = { workspace = true }

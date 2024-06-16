@@ -42,3 +42,11 @@ Erg 内部オプション、ヘルプ (ヘルプ、著作権、ライセンス�
 ## py_compatible
 
 Python互換モードを有効にする。APIや文法の一部がPythonと互換になる。[pylyzer](https://github.com/mtshiba/pylyzer)のために使用される。
+
+## experimental
+
+実験的な機能を有効にする。
+
+## log-level-error
+
+エラーログのみ表示する。

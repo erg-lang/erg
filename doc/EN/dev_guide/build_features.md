@@ -40,3 +40,11 @@ Increase the thread stack size. Used for Windows execution and test execution.
 ## py_compatible
 
 Enable Python-compatible mode, which makes parts of the APIs and syntax compatible with Python. Used for [pylyzer](https://github.com/mtshiba/pylyzer).
+
+## experimental
+
+Enable experimental features.
+
+## log-level-error
+
+Only display error logs.

@@ -69,6 +69,7 @@ els = ["erg_common/els", "erg_compiler/els", "dep:els"]
 full-repl = ["erg_common/full-repl"]
 full = ["els", "full-repl", "unicode", "pretty"]
 experimental = ["erg_common/experimental", "erg_parser/experimental", "erg_compiler/experimental", "erg_linter/experimental"]
+log-level-error = ["erg_common/log-level-error", "erg_parser/log-level-error", "erg_compiler/log-level-error", "erg_linter/log-level-error"]
 
 [workspace.dependencies]
 erg_common = { version = "0.6.37", path = "./crates/erg_common" }

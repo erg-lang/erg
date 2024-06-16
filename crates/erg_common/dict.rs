@@ -191,6 +191,15 @@ impl<K, V> IntoIterator for Dict<K, V> {
     }
 }
 
+impl<'a, K, V> IntoIterator for &'a Dict<K, V> {
+    type Item = (&'a K, &'a V);
+    type IntoIter = Iter<'a, K, V>;
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        self.dict.iter()
+    }
+}
+
 impl<K: Hash + Eq, V> Dict<K, V> {
     #[inline]
     pub fn get<Q>(&self, k: &Q) -> Option<&V>

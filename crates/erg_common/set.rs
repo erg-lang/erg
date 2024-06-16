@@ -154,6 +154,16 @@ impl<T: Hash> IntoIterator for Set<T> {
     }
 }
 
+impl<'a, T> IntoIterator for &'a Set<T> {
+    type Item = &'a T;
+    type IntoIter = Iter<'a, T>;
+
+    #[inline]
+    fn into_iter(self) -> Iter<'a, T> {
+        self.elems.iter()
+    }
+}
+
 impl<T: Hash + Eq> Set<T> {
     #[inline]
     pub fn get<Q>(&self, value: &Q) -> Option<&T>

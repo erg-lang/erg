@@ -282,6 +282,7 @@ impl<T: Clone> Shared<T> {
 
 /// Thread-local objects that can be shared among threads.
 /// The initial value can be shared globally, but the changes are not reflected in other threads.
+/// If you want to reflect the changes in other threads, you need to call `update_init`.
 /// Otherwise, this behaves as a `RefCell`.
 #[derive(Clone)]
 pub struct Forkable<T: Send + Clone> {

@@ -466,7 +466,9 @@ macro_rules! debug_info {
 #[macro_export]
 macro_rules! log {
     (info $($arg: tt)*) => {{
-        $crate::log!(c DEBUG_MAIN, $($arg)*);
+        if !$crate::consts::LOG_LEVEL_ERROR {
+            $crate::log!(c DEBUG_MAIN, $($arg)*);
+        }
     }};
 
     (err $($arg: tt)*) => {{
@@ -474,7 +476,9 @@ macro_rules! log {
     }};
 
     (info_f $output:ident, $($arg: tt)*) => {{
-        $crate::log!(f+c $output, DEBUG_MAIN, $($arg)*);
+        if !$crate::consts::LOG_LEVEL_ERROR {
+            $crate::log!(f+c $output, DEBUG_MAIN, $($arg)*);
+        }
     }};
 
     (err_f $output:ident, $($arg: tt)*) => {{
@@ -533,7 +537,7 @@ macro_rules! log {
     }};
 
     ($($arg: tt)*) => {{
-        if cfg!(feature = "debug") {
+        if cfg!(feature = "debug") && !$crate::consts::LOG_LEVEL_ERROR {
             use $crate::style::*;
             $crate::debug_info!();
             println!($($arg)*);
