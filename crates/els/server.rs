@@ -331,6 +331,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     Ok(msg) => msg,
                     Err(err) => {
                         lsp_log!("error: {err}");
+                        if err.kind() == io::ErrorKind::UnexpectedEof {
+                            panic!("unexpected EOF");
+                        }
                         continue;
                     }
                 };
@@ -355,6 +358,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                             Ok(msg) => msg,
                             Err(err) => {
                                 lsp_log!("error: {err}");
+                                if err.kind() == io::ErrorKind::UnexpectedEof {
+                                    panic!("unexpected EOF");
+                                }
                                 continue;
                             }
                         };
