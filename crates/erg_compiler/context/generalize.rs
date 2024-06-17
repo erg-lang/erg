@@ -18,7 +18,7 @@ use crate::ty::{HasType, Predicate, SubrType, Type};
 
 use crate::context::{Context, Variance};
 use crate::error::{TyCheckError, TyCheckErrors, TyCheckResult};
-use crate::{feature_error, hir};
+use crate::{feature_error, hir, unreachable_error};
 
 use Type::*;
 use Variance::*;
@@ -781,7 +781,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 self.deref_tyvar(sup)?,
             )),
             Constraint::TypeOf(t) => Ok(Constraint::new_type_of(self.deref_tyvar(t)?)),
-            _ => unreachable!(),
+            _ => unreachable_error!(TyCheckErrors, TyCheckError, self.ctx),
         }
     }
 
@@ -1652,7 +1652,7 @@ impl Context {
                 }
                 Ok(())
             }
-            hir::Expr::Import(_) => unreachable!(),
+            hir::Expr::Import(_) => unreachable_error!(TyCheckErrors, TyCheckError, self),
         }
     }
 

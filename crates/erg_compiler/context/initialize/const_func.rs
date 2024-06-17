@@ -62,7 +62,7 @@ fn type_mismatch(expected: impl Display, got: impl Display, param: &str) -> Eval
 pub(crate) fn class_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let base = args.remove_left_or_key("Base");
     let impls = args.remove_left_or_key("Impl");
-    let impls = impls.map(|v| v.as_type(ctx).unwrap());
+    let impls = impls.and_then(|v| v.as_type(ctx));
     let t = mono(ctx.name.clone());
     match base {
         Some(value) => {
@@ -85,9 +85,9 @@ pub(crate) fn inherit_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResul
         return Err(type_mismatch("class", sup, "Super"));
     };
     let impls = args.remove_left_or_key("Impl");
-    let impls = impls.map(|v| v.as_type(ctx).unwrap());
+    let impls = impls.and_then(|v| v.as_type(ctx));
     let additional = args.remove_left_or_key("Additional");
-    let additional = additional.map(|v| v.as_type(ctx).unwrap());
+    let additional = additional.and_then(|v| v.as_type(ctx));
     let t = mono(ctx.name.clone());
     Ok(ValueObj::gen_t(GenTypeObj::inherited(t, sup, impls, additional)).into())
 }
@@ -140,7 +140,7 @@ pub(crate) fn trait_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
         return Err(type_mismatch("type", req, "Requirement"));
     };
     let impls = args.remove_left_or_key("Impl");
-    let impls = impls.map(|v| v.as_type(ctx).unwrap());
+    let impls = impls.and_then(|v| v.as_type(ctx));
     let t = mono(ctx.name.clone());
     Ok(ValueObj::gen_t(GenTypeObj::trait_(t, req, impls, true)).into())
 }
@@ -154,7 +154,7 @@ pub(crate) fn patch_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
         return Err(type_mismatch("type", base, "Base"));
     };
     let impls = args.remove_left_or_key("Impl");
-    let impls = impls.map(|v| v.as_type(ctx).unwrap());
+    let impls = impls.and_then(|v| v.as_type(ctx));
     let t = mono(ctx.name.clone());
     Ok(ValueObj::gen_t(GenTypeObj::patch(t, base, impls)).into())
 }
@@ -168,9 +168,9 @@ pub(crate) fn subsume_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResul
         return Err(type_mismatch("trait", sup, "Super"));
     };
     let impls = args.remove_left_or_key("Impl");
-    let impls = impls.map(|v| v.as_type(ctx).unwrap());
+    let impls = impls.and_then(|v| v.as_type(ctx));
     let additional = args.remove_left_or_key("Additional");
-    let additional = additional.map(|v| v.as_type(ctx).unwrap());
+    let additional = additional.and_then(|v| v.as_type(ctx));
     let t = mono(ctx.name.clone());
     Ok(ValueObj::gen_t(GenTypeObj::subsumed(t, sup, impls, additional)).into())
 }
@@ -477,7 +477,7 @@ pub(crate) fn list_union(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
     };
     let slf = slf
         .iter()
-        .map(|t| ctx.convert_value_into_type(t.clone()).unwrap())
+        .flat_map(|t| ctx.convert_value_into_type(t.clone()))
         .collect::<Vec<_>>();
     let union = slf
         .iter()

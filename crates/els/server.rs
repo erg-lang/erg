@@ -889,7 +889,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 let uri = NormalizedUrl::new(params.text_document.uri);
                 self.send_log(format!("{method}: {uri}"))?;
                 let code = self.file_cache.get_entire_code(&uri)?;
-                self.recheck_file(uri, code)
+                let token = self.start_work_done_progress("checking files ...");
+                let res = self.recheck_file(uri, code);
+                self.stop_work_done_progress(token, "checking done");
+                res
             }
             "textDocument/didChange" => {
                 let params = DidChangeTextDocumentParams::deserialize(msg["params"].clone())?;

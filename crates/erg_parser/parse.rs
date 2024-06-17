@@ -3635,9 +3635,9 @@ impl Parser {
                     let op = Token::new_fake(
                         Plus,
                         "+",
-                        right.ln_begin().unwrap(),
-                        right.col_begin().unwrap(),
-                        right.col_end().unwrap(),
+                        right.ln_begin().unwrap_or(0),
+                        right.col_begin().unwrap_or(0),
+                        right.col_end().unwrap_or(0),
                     );
                     expr = Expr::BinOp(BinOp::new(op, expr, right));
                     debug_exit_info!(self);
@@ -3667,17 +3667,17 @@ impl Parser {
                         .map_err(|_| self.stack_dec(fn_name!()))?;
                     let str_func = Expr::local(
                         "str",
-                        mid_expr.ln_begin().unwrap(),
-                        mid_expr.col_begin().unwrap(),
-                        mid_expr.col_end().unwrap(),
+                        mid_expr.ln_begin().unwrap_or(0),
+                        mid_expr.col_begin().unwrap_or(0),
+                        mid_expr.col_end().unwrap_or(0),
                     );
                     let call = Call::new(str_func, None, Args::single(PosArg::new(mid_expr)));
                     let op = Token::new_fake(
                         Plus,
                         "+",
-                        call.ln_begin().unwrap(),
-                        call.col_begin().unwrap(),
-                        call.col_end().unwrap(),
+                        call.ln_begin().unwrap_or(0),
+                        call.col_begin().unwrap_or(0),
+                        call.col_end().unwrap_or(0),
                     );
                     let bin = BinOp::new(op, expr, Expr::Call(call));
                     expr = Expr::BinOp(bin);
@@ -3692,9 +3692,9 @@ impl Parser {
                         let op = Token::new_fake(
                             Plus,
                             "+",
-                            mid.ln_begin().unwrap(),
-                            mid.col_begin().unwrap(),
-                            mid.col_end().unwrap(),
+                            mid.ln_begin().unwrap_or(0),
+                            mid.col_begin().unwrap_or(0),
+                            mid.col_end().unwrap_or(0),
                         );
                         expr = Expr::BinOp(BinOp::new(op, expr, mid));
                     }

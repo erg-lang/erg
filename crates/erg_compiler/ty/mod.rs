@@ -2660,9 +2660,10 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_type(target),
             Self::FreeVar(fv) => {
                 fv.get_subsup().map_or(false, |(sub, sup)| {
-                    fv.do_avoiding_recursion(|| {
-                        sub.contains_type(target) || sup.contains_type(target)
-                    })
+                    fv.dummy_link();
+                    let res = sub.contains_type(target) || sup.contains_type(target);
+                    fv.undo();
+                    res
                 }) || fv.get_type().map_or(false, |t| t.contains_type(target))
             }
             Self::Record(rec) => rec.iter().any(|(_, t)| t.contains_type(target)),
@@ -3734,9 +3735,11 @@ impl Type {
             }
             Self::FreeVar(ref fv) if fv.constraint_is_sandwiched() => {
                 let (sub, sup) = fv.get_subsup().unwrap();
-                let sub = sub.eliminate(target);
-                let sup = sup.eliminate(target);
-                self.update_tyvar(sub, sup, None, false);
+                fv.do_avoiding_recursion(|| {
+                    let sub = sub.eliminate(target);
+                    let sup = sup.eliminate(target);
+                    self.update_tyvar(sub, sup, None, false);
+                });
                 self
             }
             Self::And(l, r) => {
@@ -4031,7 +4034,10 @@ impl Type {
             return;
         }
         if self.level() == Some(GENERIC_LEVEL) {
-            panic!("{self} is fixed");
+            if DEBUG_MODE {
+                panic!("{self} is fixed");
+            }
+            return;
         }
         let to = to.clone().eliminate(self);
         match self {
