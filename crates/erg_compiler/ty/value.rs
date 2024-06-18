@@ -1654,6 +1654,66 @@ impl ValueObj {
             self_ => self_,
         }
     }
+
+    pub fn replace_tp(self, target: &TyParam, to: &TyParam) -> Self {
+        match self {
+            ValueObj::Type(obj) => ValueObj::Type(obj.mapped_t(|t| t._replace_tp(target, to))),
+            ValueObj::List(lis) => ValueObj::List(
+                lis.iter()
+                    .map(|v| v.clone().replace_tp(target, to))
+                    .collect(),
+            ),
+            ValueObj::Tuple(tup) => ValueObj::Tuple(
+                tup.iter()
+                    .map(|v| v.clone().replace_tp(target, to))
+                    .collect(),
+            ),
+            ValueObj::Set(st) => ValueObj::Set(
+                st.iter()
+                    .map(|v| v.clone().replace_tp(target, to))
+                    .collect(),
+            ),
+            ValueObj::Dict(dict) => ValueObj::Dict(
+                dict.iter()
+                    .map(|(k, v)| {
+                        (
+                            k.clone().replace_tp(target, to),
+                            v.clone().replace_tp(target, to),
+                        )
+                    })
+                    .collect(),
+            ),
+            ValueObj::Record(rec) => ValueObj::Record(
+                rec.iter()
+                    .map(|(k, v)| (k.clone(), v.clone().replace_tp(target, to)))
+                    .collect(),
+            ),
+            ValueObj::DataClass { name, fields } => ValueObj::DataClass {
+                name,
+                fields: fields
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone().replace_tp(target, to)))
+                    .collect(),
+            },
+            ValueObj::UnsizedList(elem) => {
+                ValueObj::UnsizedList(Box::new(elem.clone().replace_tp(target, to)))
+            }
+            self_ => self_,
+        }
+    }
+
+    pub fn contains(&self, val: &ValueObj) -> bool {
+        match self {
+            ValueObj::List(lis) => lis.iter().any(|v| v.contains(val)),
+            ValueObj::Tuple(tup) => tup.iter().any(|v| v.contains(val)),
+            ValueObj::Set(st) => st.iter().any(|v| v.contains(val)),
+            ValueObj::Dict(dict) => dict.iter().any(|(k, v)| k.contains(val) || v.contains(val)),
+            ValueObj::Record(rec) => rec.iter().any(|(_, v)| v.contains(val)),
+            ValueObj::DataClass { fields, .. } => fields.iter().any(|(_, v)| v.contains(val)),
+            ValueObj::UnsizedList(elem) => elem.contains(val),
+            _ => self == val,
+        }
+    }
 }
 
 pub mod value_set {

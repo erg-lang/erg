@@ -510,6 +510,21 @@ impl SubrType {
             || self.return_t.contains_tp(target)
     }
 
+    pub fn contains_value(&self, target: &ValueObj) -> bool {
+        self.non_default_params
+            .iter()
+            .any(|pt| pt.typ().contains_value(target))
+            || self
+                .var_params
+                .as_ref()
+                .map_or(false, |pt| pt.typ().contains_value(target))
+            || self.default_params.iter().any(|pt| {
+                pt.typ().contains_value(target)
+                    || pt.default_typ().is_some_and(|t| t.contains_value(target))
+            })
+            || self.return_t.contains_value(target)
+    }
+
     pub fn qvars(&self) -> Set<(Str, Constraint)> {
         let mut qvars = Set::new();
         for pt in self.non_default_params.iter() {
@@ -779,7 +794,33 @@ impl SubrType {
                 *default = std::mem::take(default)._replace(target, to);
             }
         }
+        if let Some(kw_var) = self.kw_var_params.as_mut() {
+            *kw_var.as_mut().typ_mut() =
+                std::mem::take(kw_var.as_mut().typ_mut())._replace(target, to);
+        }
         self.return_t = Box::new(self.return_t._replace(target, to));
+        self
+    }
+
+    pub fn _replace_tp(mut self, target: &TyParam, to: &TyParam) -> Self {
+        for nd in self.non_default_params.iter_mut() {
+            *nd.typ_mut() = std::mem::take(nd.typ_mut())._replace_tp(target, to);
+        }
+        if let Some(var) = self.var_params.as_mut() {
+            *var.as_mut().typ_mut() =
+                std::mem::take(var.as_mut().typ_mut())._replace_tp(target, to);
+        }
+        for d in self.default_params.iter_mut() {
+            *d.typ_mut() = std::mem::take(d.typ_mut())._replace_tp(target, to);
+            if let Some(default) = d.default_typ_mut() {
+                *default = std::mem::take(default)._replace_tp(target, to);
+            }
+        }
+        if let Some(kw_var) = self.kw_var_params.as_mut() {
+            *kw_var.as_mut().typ_mut() =
+                std::mem::take(kw_var.as_mut().typ_mut())._replace_tp(target, to);
+        }
+        self.return_t = Box::new(self.return_t._replace_tp(target, to));
         self
     }
 
@@ -2138,6 +2179,24 @@ impl Type {
         Self::Structural(Box::new(self))
     }
 
+    pub fn bounded(sub: Type, sup: Type) -> Self {
+        Self::Bounded {
+            sub: Box::new(sub),
+            sup: Box::new(sup),
+        }
+    }
+
+    pub fn into_ref(self) -> Self {
+        Self::Ref(Box::new(self))
+    }
+
+    pub fn into_ref_mut(self, after: Option<Self>) -> Self {
+        Self::RefMut {
+            before: Box::new(self),
+            after: after.map(Box::new),
+        }
+    }
+
     pub fn is_mono_value_class(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_mono_value_class(),
@@ -2704,8 +2763,9 @@ impl Type {
             Self::Poly { params, .. } => params.iter().any(|tp| tp.contains_tp(target)),
             Self::Quantified(t) => t.contains_tp(target),
             Self::Subr(subr) => subr.contains_tp(target),
-            // TODO: preds
-            Self::Refinement(refine) => refine.t.contains_tp(target),
+            Self::Refinement(refine) => {
+                refine.t.contains_tp(target) || refine.pred.contains_tp(target)
+            }
             Self::Structural(ty) => ty.contains_tp(target),
             Self::Proj { lhs, .. } => lhs.contains_tp(target),
             Self::ProjCall { lhs, args, .. } => {
@@ -2722,6 +2782,41 @@ impl Type {
             Self::Bounded { sub, sup } => sub.contains_tp(target) || sup.contains_tp(target),
             _ => false,
         }
+    }
+
+    pub fn contains_value(&self, target: &ValueObj) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_value(target),
+            Self::Record(rec) => rec.iter().any(|(_, t)| t.contains_value(target)),
+            Self::NamedTuple(rec) => rec.iter().any(|(_, t)| t.contains_value(target)),
+            Self::Poly { params, .. } => params.iter().any(|tp| tp.contains_value(target)),
+            Self::Quantified(t) => t.contains_value(target),
+            Self::Subr(subr) => subr.contains_value(target),
+            Self::Refinement(refine) => {
+                refine.t.contains_value(target) || refine.pred.contains_value(target)
+            }
+            Self::Structural(ty) => ty.contains_value(target),
+            Self::Proj { lhs, .. } => lhs.contains_value(target),
+            Self::ProjCall { lhs, args, .. } => {
+                lhs.contains_value(target) || args.iter().any(|t| t.contains_value(target))
+            }
+            Self::And(lhs, rhs) => lhs.contains_value(target) || rhs.contains_value(target),
+            Self::Or(lhs, rhs) => lhs.contains_value(target) || rhs.contains_value(target),
+            Self::Not(t) => t.contains_value(target),
+            Self::Ref(t) => t.contains_value(target),
+            Self::RefMut { before, after } => {
+                before.contains_value(target)
+                    || after.as_ref().map_or(false, |t| t.contains_value(target))
+            }
+            Self::Bounded { sub, sup } => sub.contains_value(target) || sup.contains_value(target),
+            _ => false,
+        }
+    }
+
+    pub fn contains_failure(&self) -> bool {
+        self.contains_tp(&TyParam::Failure)
+            || self.contains_type(&Type::Failure)
+            || self.contains_value(&ValueObj::Failure)
     }
 
     pub fn is_recursive(&self) -> bool {
@@ -3768,11 +3863,11 @@ impl Type {
     }
 
     /// ```erg
-    /// (Failure -> Int).replace_failure() == (Obj -> Int)
-    /// (Int -> Failure).replace_failure() == (Int -> Never)
-    /// List(Failure, 3).replace_failure() == List(Never, 3)
+    /// (Failure -> Int).replace_failure_type() == (Obj -> Int)
+    /// (Int -> Failure).replace_failure_type() == (Int -> Never)
+    /// List(Failure, 3).replace_failure_type() == List(Never, 3)
     /// ```
-    pub fn replace_failure(&self) -> Type {
+    pub fn replace_failure_type(&self) -> Type {
         match self {
             Self::Quantified(quant) => quant.replace_failure().quantify(),
             Self::Subr(subr) => {
@@ -3818,6 +3913,21 @@ impl Type {
             }
             // TODO: consider variances
             _ => self.clone().replace(&Self::Failure, &Self::Never),
+        }
+    }
+
+    /// ```erg
+    /// Int.replace_failure() == Int
+    /// K(Failure).replace_failure() == K(Never)
+    /// {<failure>}.replace_failure() == Never
+    /// K(<Failure>).replace_failure() == Never
+    /// ```
+    pub fn replace_failure(&self) -> Type {
+        let self_ = self.replace_failure_type();
+        if self_.contains_failure() {
+            Self::Never
+        } else {
+            self_
         }
     }
 
@@ -3905,6 +4015,92 @@ impl Type {
             Self::Bounded { sub, sup } => Self::Bounded {
                 sub: Box::new(sub._replace(target, to)),
                 sup: Box::new(sup._replace(target, to)),
+            },
+            other => other,
+        }
+    }
+
+    fn _replace_tp(self, target: &TyParam, to: &TyParam) -> Type {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().clone()._replace_tp(target, to),
+            Self::FreeVar(fv) => {
+                let fv_clone = fv.deep_clone();
+                if let Some((sub, sup)) = fv_clone.get_subsup() {
+                    fv.dummy_link();
+                    fv_clone.dummy_link();
+                    let sub = sub._replace_tp(target, to);
+                    let sup = sup._replace_tp(target, to);
+                    fv.undo();
+                    fv_clone.undo();
+                    fv_clone.update_constraint(Constraint::new_sandwiched(sub, sup), true);
+                } else if let Some(ty) = fv_clone.get_type() {
+                    fv_clone.update_constraint(
+                        Constraint::new_type_of(ty._replace_tp(target, to)),
+                        true,
+                    );
+                }
+                Self::FreeVar(fv_clone)
+            }
+            Self::Refinement(mut refine) => {
+                refine.t = Box::new(refine.t._replace_tp(target, to));
+                // refine.pred = refine.pred.replace_tp(target, to);
+                Self::Refinement(refine)
+            }
+            Self::Record(mut rec) => {
+                for v in rec.values_mut() {
+                    *v = std::mem::take(v)._replace_tp(target, to);
+                }
+                Self::Record(rec)
+            }
+            Self::NamedTuple(mut r) => {
+                for (_, v) in r.iter_mut() {
+                    *v = std::mem::take(v)._replace_tp(target, to);
+                }
+                Self::NamedTuple(r)
+            }
+            Self::Subr(subr) => Self::Subr(subr._replace_tp(target, to)),
+            Self::Callable { param_ts, return_t } => {
+                let param_ts = param_ts
+                    .into_iter()
+                    .map(|t| t._replace_tp(target, to))
+                    .collect();
+                let return_t = Box::new(return_t._replace_tp(target, to));
+                Self::Callable { param_ts, return_t }
+            }
+            Self::Quantified(quant) => quant._replace_tp(target, to).quantify(),
+            Self::Poly { name, params } => {
+                let params = params
+                    .into_iter()
+                    .map(|tp| tp._replace(target, to))
+                    .collect();
+                Self::Poly { name, params }
+            }
+            Self::Ref(t) => Self::Ref(Box::new(t._replace_tp(target, to))),
+            Self::RefMut { before, after } => Self::RefMut {
+                before: Box::new(before._replace_tp(target, to)),
+                after: after.map(|t| Box::new(t._replace_tp(target, to))),
+            },
+            Self::And(l, r) => l._replace_tp(target, to) & r._replace_tp(target, to),
+            Self::Or(l, r) => l._replace_tp(target, to) | r._replace_tp(target, to),
+            Self::Not(ty) => !ty._replace_tp(target, to),
+            Self::Proj { lhs, rhs } => lhs._replace_tp(target, to).proj(rhs),
+            Self::ProjCall {
+                lhs,
+                attr_name,
+                args,
+            } => {
+                let args = args.into_iter().map(|tp| tp._replace(target, to)).collect();
+                proj_call(lhs._replace(target, to), attr_name, args)
+            }
+            Self::Structural(ty) => ty._replace_tp(target, to).structuralize(),
+            Self::Guard(guard) => Self::Guard(GuardType::new(
+                guard.namespace,
+                guard.target.clone(),
+                guard.to._replace_tp(target, to),
+            )),
+            Self::Bounded { sub, sup } => Self::Bounded {
+                sub: Box::new(sub._replace_tp(target, to)),
+                sup: Box::new(sup._replace_tp(target, to)),
             },
             other => other,
         }
@@ -4415,21 +4611,41 @@ impl Type {
 }
 
 pub struct ReplaceTable<'t> {
-    rules: Vec<(&'t Type, &'t Type)>,
+    type_rules: Vec<(&'t Type, &'t Type)>,
+    tp_rules: Vec<(&'t TyParam, &'t TyParam)>,
 }
 
 impl<'t> ReplaceTable<'t> {
     pub fn make(target: &'t Type, to: &'t Type) -> Self {
-        let mut self_ = ReplaceTable { rules: vec![] };
+        let mut self_ = ReplaceTable {
+            type_rules: vec![],
+            tp_rules: vec![],
+        };
         self_.iterate(target, to);
         self_
     }
 
+    pub fn make_tp(target: &'t TyParam, to: &'t TyParam) -> Self {
+        let mut self_ = ReplaceTable {
+            type_rules: vec![],
+            tp_rules: vec![],
+        };
+        self_.iterate_tp(target, to);
+        self_
+    }
+
     pub fn replace(&self, mut ty: Type) -> Type {
-        for (target, to) in self.rules.iter() {
+        for (target, to) in self.type_rules.iter() {
             ty = ty._replace(target, to);
         }
         ty
+    }
+
+    pub fn replace_tp(&self, mut tp: TyParam) -> TyParam {
+        for (target, to) in self.tp_rules.iter() {
+            tp = tp._replace(target, to);
+        }
+        tp
     }
 
     fn iterate(&mut self, target: &'t Type, to: &'t Type) {
@@ -4530,7 +4746,7 @@ impl<'t> ReplaceTable<'t> {
             }
             _ => {}
         }
-        self.rules.push((target, to));
+        self.type_rules.push((target, to));
     }
 
     fn iterate_tp(&mut self, target: &'t TyParam, to: &'t TyParam) {
@@ -4548,6 +4764,7 @@ impl<'t> ReplaceTable<'t> {
             }
             _ => {}
         }
+        self.tp_rules.push((target, to));
     }
 }
 

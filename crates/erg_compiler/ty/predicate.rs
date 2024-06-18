@@ -857,4 +857,112 @@ impl Predicate {
             Self::Not(pred) => pred.variables(),
         }
     }
+
+    pub fn contains_value(&self, value: &ValueObj) -> bool {
+        match self {
+            Self::Value(v) => v == value,
+            Self::Const(_) => false,
+            Self::Call { receiver, args, .. } => {
+                receiver.contains_value(value) || args.iter().any(|a| a.contains_value(value))
+            }
+            Self::Attr { receiver, .. } => receiver.contains_value(value),
+            Self::Equal { rhs, .. }
+            | Self::GreaterEqual { rhs, .. }
+            | Self::LessEqual { rhs, .. }
+            | Self::NotEqual { rhs, .. } => rhs.contains_value(value),
+            Self::GeneralEqual { lhs, rhs }
+            | Self::GeneralLessEqual { lhs, rhs }
+            | Self::GeneralGreaterEqual { lhs, rhs }
+            | Self::GeneralNotEqual { lhs, rhs } => {
+                lhs.contains_value(value) || rhs.contains_value(value)
+            }
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
+                lhs.contains_value(value) || rhs.contains_value(value)
+            }
+            Self::Not(pred) => pred.contains_value(value),
+            Self::Failure => false,
+        }
+    }
+
+    pub fn contains_tp(&self, tp: &TyParam) -> bool {
+        match self {
+            Self::Value(_) | Self::Failure => false,
+            Self::Const(_) => false,
+            Self::Call { receiver, args, .. } => {
+                receiver.contains_tp(tp) || args.iter().any(|a| a.contains_tp(tp))
+            }
+            Self::Attr { receiver, .. } => receiver.contains_tp(tp),
+            Self::Equal { rhs, .. }
+            | Self::GreaterEqual { rhs, .. }
+            | Self::LessEqual { rhs, .. }
+            | Self::NotEqual { rhs, .. } => rhs.contains_tp(tp),
+            Self::GeneralEqual { lhs, rhs }
+            | Self::GeneralLessEqual { lhs, rhs }
+            | Self::GeneralGreaterEqual { lhs, rhs }
+            | Self::GeneralNotEqual { lhs, rhs } => lhs.contains_tp(tp) || rhs.contains_tp(tp),
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => lhs.contains_tp(tp) || rhs.contains_tp(tp),
+            Self::Not(pred) => pred.contains_tp(tp),
+        }
+    }
+
+    pub fn replace_tp(self, target: &TyParam, to: &TyParam) -> Self {
+        match self {
+            Self::Value(_) | Self::Failure => self,
+            Self::Const(_) => self,
+            Self::Call {
+                receiver,
+                args,
+                name,
+            } => Self::Call {
+                receiver: receiver.replace(target, to),
+                args: args.into_iter().map(|a| a.replace(target, to)).collect(),
+                name,
+            },
+            Self::Attr { receiver, name } => Self::Attr {
+                receiver: receiver.replace(target, to),
+                name,
+            },
+            Self::Equal { lhs, rhs } => Self::Equal {
+                lhs,
+                rhs: rhs.replace(target, to),
+            },
+            Self::GreaterEqual { lhs, rhs } => Self::GreaterEqual {
+                lhs,
+                rhs: rhs.replace(target, to),
+            },
+            Self::LessEqual { lhs, rhs } => Self::LessEqual {
+                lhs,
+                rhs: rhs.replace(target, to),
+            },
+            Self::NotEqual { lhs, rhs } => Self::NotEqual {
+                lhs,
+                rhs: rhs.replace(target, to),
+            },
+            Self::GeneralEqual { lhs, rhs } => Self::GeneralEqual {
+                lhs: Box::new(lhs.replace_tp(target, to)),
+                rhs: Box::new(rhs.replace_tp(target, to)),
+            },
+            Self::GeneralLessEqual { lhs, rhs } => Self::GeneralLessEqual {
+                lhs: Box::new(lhs.replace_tp(target, to)),
+                rhs: Box::new(rhs.replace_tp(target, to)),
+            },
+            Self::GeneralGreaterEqual { lhs, rhs } => Self::GeneralGreaterEqual {
+                lhs: Box::new(lhs.replace_tp(target, to)),
+                rhs: Box::new(rhs.replace_tp(target, to)),
+            },
+            Self::GeneralNotEqual { lhs, rhs } => Self::GeneralNotEqual {
+                lhs: Box::new(lhs.replace_tp(target, to)),
+                rhs: Box::new(rhs.replace_tp(target, to)),
+            },
+            Self::And(lhs, rhs) => Self::And(
+                Box::new(lhs.replace_tp(target, to)),
+                Box::new(rhs.replace_tp(target, to)),
+            ),
+            Self::Or(lhs, rhs) => Self::Or(
+                Box::new(lhs.replace_tp(target, to)),
+                Box::new(rhs.replace_tp(target, to)),
+            ),
+            Self::Not(pred) => Self::Not(Box::new(pred.replace_tp(target, to))),
+        }
+    }
 }
