@@ -3870,6 +3870,7 @@ impl Type {
     pub fn replace_failure_type(&self) -> Type {
         match self {
             Self::Quantified(quant) => quant.replace_failure().quantify(),
+            // consider variances
             Self::Subr(subr) => {
                 let non_default_params = subr
                     .non_default_params
@@ -3890,7 +3891,8 @@ impl Type {
                         pt.clone()
                             .map_type(|t| t.replace(&Self::Failure, &Self::Obj))
                             .map_default_type(|t| {
-                                t.replace(&Self::Failure, pt.typ()) & pt.typ().clone()
+                                let typ = pt.typ().clone().replace(&Self::Failure, &Self::Obj);
+                                t.replace(&Self::Failure, &typ) & typ
                             })
                     })
                     .collect();
@@ -3898,7 +3900,8 @@ impl Type {
                     pt.clone()
                         .map_type(|t| t.replace(&Self::Failure, &Self::Obj))
                         .map_default_type(|t| {
-                            t.replace(&Self::Failure, pt.typ()) & pt.typ().clone()
+                            let typ = pt.typ().clone().replace(&Self::Failure, &Self::Obj);
+                            t.replace(&Self::Failure, &typ) & typ
                         })
                 });
                 let return_t = subr.return_t.clone().replace(&Self::Failure, &Self::Never);

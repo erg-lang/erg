@@ -241,6 +241,7 @@ pub fn remove_verbatim(path: &Path) -> String {
 /// $ERG_PATH/pkgs/certified/torch/1.0.0/src/lib.d.er -> torch
 /// $ERG_PATH/pkgs/certified/torch/1.0.0/src/random.d.er -> torch/random
 /// /users/foo/torch/src/lib.d.er -> torch
+/// foo/__pycache__/__init__.d.er -> foo
 /// math.d.er -> math
 /// ```
 /// FIXME: split by `.` instead of `/`
@@ -303,9 +304,22 @@ pub fn mod_name(path: &Path) -> Str {
         .to_string_lossy()
         .trim_end_matches(".d.er")
         .to_string();
-    for parent in path.components().rev().skip(1) {
+    let mut parents = path.components().rev().skip(1);
+    while let Some(parent) = parents.next() {
         let parent = parent.as_os_str().to_string_lossy();
-        if parent.ends_with(".d") {
+        if parent == "__pycache__" {
+            if name == "__init__" {
+                let p = parents
+                    .next()
+                    .unwrap()
+                    .as_os_str()
+                    .to_string_lossy()
+                    .trim_end_matches(".d")
+                    .to_string();
+                name = p;
+            }
+            break;
+        } else if parent.ends_with(".d") {
             let p = parent.trim_end_matches(".d").to_string();
             if name == "__init__" {
                 name = p;
