@@ -243,6 +243,7 @@ pub fn remove_verbatim(path: &Path) -> String {
 /// /users/foo/torch/src/lib.d.er -> torch
 /// foo/__pycache__/__init__.d.er -> foo
 /// math.d.er -> math
+/// foo.py -> foo
 /// ```
 /// FIXME: split by `.` instead of `/`
 pub fn mod_name(path: &Path) -> Str {
@@ -264,6 +265,7 @@ pub fn mod_name(path: &Path) -> Str {
                         .trim_end_matches("lib.d.er")
                         .trim_end_matches(".d.er")
                         .trim_end_matches(".d")
+                        .trim_end_matches(".py")
                         .to_string()
                 })
                 .collect::<Vec<_>>()
@@ -290,6 +292,7 @@ pub fn mod_name(path: &Path) -> Str {
                     c.trim_end_matches("lib.d.er")
                         .trim_end_matches(".d.er")
                         .trim_end_matches(".d")
+                        .trim_end_matches(".py")
                         .to_string()
                 })
                 .collect::<Vec<_>>()
@@ -303,6 +306,7 @@ pub fn mod_name(path: &Path) -> Str {
         .unwrap()
         .to_string_lossy()
         .trim_end_matches(".d.er")
+        .trim_end_matches(".py")
         .to_string();
     let mut parents = path.components().rev().skip(1);
     while let Some(parent) = parents.next() {
