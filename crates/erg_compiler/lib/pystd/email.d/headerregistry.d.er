@@ -1,0 +1,39 @@
+.Address: ClassType
+
+.Group: ClassType
+
+.BaseHeader: ClassType
+
+.UnstructuredHeader: ClassType
+
+.UniqueUnstructuredHeader: ClassType
+.UniqueUnstructuredHeader <: .UnstructuredHeader
+
+.DateHeader: ClassType
+
+.AddressHeader: ClassType
+
+.UniqueAddressHeader: ClassType
+.UniqueAddressHeader <: .AddressHeader
+
+.SingleAddressHeader: ClassType
+.SingleAddressHeader <: .AddressHeader
+
+.UniqueSingleAddressHeader: ClassType
+.UniqueSingleAddressHeader <: .SingleAddressHeader
+
+.MIMEVersionHeader: ClassType
+
+.ParameterizedMIMEHeader: ClassType
+
+.ContentTypeHeader: ClassType
+.ContentTypeHeader <: .ParameterizedMIMEHeader
+
+.ContentDispositionHeader: ClassType
+.ContentDispositionHeader <: .ParameterizedMIMEHeader
+
+.ContentTransferEncodingHeader: ClassType
+
+.MessageIDHeader: ClassType
+
+.Headerregistry: ClassType

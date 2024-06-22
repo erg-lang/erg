@@ -1,0 +1,7 @@
+.Generator: ClassType
+
+.BytesGenerator: ClassType
+.BytesGenerator <: .Generator
+
+.DecodeGenerator: ClassType
+.DecodeGenerator <: .Generator

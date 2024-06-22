@@ -1,0 +1,5 @@
+{Message!;} = pyimport "./message"
+
+.ContentManager: ClassType
+
+.set_text_content!: (msg: Message!, string: Str, subtype := Str) => NoneType

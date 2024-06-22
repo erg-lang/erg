@@ -1,0 +1,74 @@
+.MessageError: ClassType
+.MessageError <: Exception
+
+.MessageParseError: ClassType
+.MessageParseError <: MessageError
+
+.HeaderParseError: ClassType
+.HeaderParseError <: MessageParseError
+
+.BoundaryError: ClassType
+.BoundaryError <: MessageParseError
+
+.MultipartConversionError: ClassType
+.MultipartConversionError <: MessageError
+
+.CharsetError: ClassType
+.CharsetError <: MessageError
+
+.MessageDefect: ClassType
+.MessageDefect <: ValueError
+
+.NoBoundaryInMultipartDefect: ClassType
+.NoBoundaryInMultipartDefect <: MessageDefect
+
+.StartBoundaryNotFoundDefect: ClassType
+.StartBoundaryNotFoundDefect <: MessageDefect
+
+.ClosedBoundaryNotFoundDefect: ClassType
+.ClosedBoundaryNotFoundDefect <: MessageDefect
+
+.FirstHeaderLineIsContinuationDefect: ClassType
+.FirstHeaderLineIsContinuationDefect <: MessageDefect
+
+.MisplacedEnvelopeHeaderDefect: ClassType
+.MisplacedEnvelopeHeaderDefect <: MessageDefect
+
+.MultipartInvariantViolationDefect: ClassType
+.MultipartInvariantViolationDefect <: MessageDefect
+
+.InvalidMultipartContentTransferEncodingDefect: ClassType
+.InvalidMultipartContentTransferEncodingDefect <: MessageDefect
+
+.UndecodableBytesDefect: ClassType
+.UndecodableBytesDefect <: MessageDefect
+
+.InvalidBase64PaddingDefect: ClassType
+.InvalidBase64PaddingDefect <: MessageDefect
+
+.InvalidBase64CharactersDefect: ClassType
+.InvalidBase64CharactersDefect <: MessageDefect
+
+.InvalidBase64LengthDefect: ClassType
+.InvalidBase64LengthDefect <: MessageDefect
+
+.HeaderDefect: ClassType
+.HeaderDefect <: MessageDefect
+
+.InvalidHeaderDefect: ClassType
+.InvalidHeaderDefect <: HeaderDefect
+
+.HeaderMissingRequiredValue: ClassType
+.HeaderMissingRequiredValue <: HeaderDefect
+
+.NonPrintableDefect: ClassType
+.NonPrintableDefect <: HeaderDefect
+
+.ObsoleteHeaderDefect: ClassType
+.ObsoleteHeaderDefect <: HeaderDefect
+
+.NonASCIILocalPartDefect: ClassType
+.NonASCIILocalPartDefect <: HeaderDefect
+
+.InvalidDateDefect: ClassType
+.InvalidDateDefect <: HeaderDefect

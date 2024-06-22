@@ -1,0 +1,7 @@
+.contentmanager = pyimport "./contentmanager"
+.errors = pyimport "./errors"
+.generator = pyimport "./generator"
+.headerregistry = pyimport "./headerregistry"
+.message = pyimport "./message"
+.parser = pyimport "./parser"
+.policy = pyimport "./policy"

@@ -1,0 +1,6 @@
+.Parser: ClassType
+.HeaderParser: ClassType
+.HeaderParser <: .Parser
+.BytesParser: ClassType
+.BytesHeaderParser: ClassType
+.BytesHeaderParser <: .BytesParser

@@ -1,0 +1,7 @@
+.EmailPolicy: ClassType
+
+.default: .EmailPolicy
+.strict: .EmailPolicy
+.SMTP: .EmailPolicy
+.HTTP: .EmailPolicy
+.SMTPUTF8: .EmailPolicy
