@@ -1,3 +1,5 @@
+.TYPE_CHECKING: Bool
+
 .Any: ClassType
 .LiteralString: ClassType
 .Never: ClassType
@@ -61,9 +63,13 @@
 .Sequence.
     __getitem__: (Type) -> Type
 
-.cast: |T|(typ: {T}, val: Obj) -> T
-.assert_type: (val: Obj, typ: Type) -> NoneType
 .assert_never: (arg: Obj) -> NoneType
+.assert_type: (val: Obj, typ: Type) -> NoneType
+.cast: |T|(typ: {T}, val: Obj) -> T
+.final: |C <: GenericCallable or Type|(func_or_type: C) -> C
+.get_type_hints: (obj: Obj, globalns: {Str: Obj}, localns: {Str: Obj}) -> {Str: Obj}
+.overload: |C <: GenericCallable|(func: C) -> C
+.override: |C <: GenericCallable|(func: C) -> C
 .reveal_type: (obj: Obj) -> NoneType
 
 .AbstractSet: ClassType
@@ -100,6 +106,13 @@
 .Collection: ClassType
 .AsyncGenerator: ClassType
 .AsyncContextManager: ClassType
+.SupportsAbs: ClassType
+.SupportsBytes: ClassType
+.SupportsComplex: ClassType
+.SupportsFloat: ClassType
+.SupportsIndex: ClassType
+.SupportsInt: ClassType
+.SupportsRound: ClassType
 
 .Genertor: ClassType
 .Reversible: ClassType
