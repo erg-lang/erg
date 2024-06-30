@@ -1,0 +1,4 @@
+.fnmatch: (name: Str, pat: Str) -> Bool
+.fnmatchcase: (name: Str, pat: Str) -> Bool
+.filter: (names: Iterable(Str), pat: Str) -> List(Str)
+.translate: (pat: Str) -> Str

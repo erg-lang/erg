@@ -1,0 +1,20 @@
+.nested_scopes: ._Feature
+.generators: ._Feature
+.division: ._Feature
+.absolute_import: ._Feature
+.with_statement: ._Feature
+.print_function: ._Feature
+.unicode_literals: ._Feature
+.generator_stop: ._Feature
+.annotations: ._Feature
+
+._Feature: ClassType
+._Feature.
+    optional: (Nat, Nat, Nat, Str, Nat)
+    mandatory: (Nat, Nat, Nat, Str, Nat) or NoneType
+    compiler_flag: Nat
+    __call__: (
+        optional: (Nat, Nat, Nat, Str, Nat),
+        mandatory: (Nat, Nat, Nat, Str, Nat) or NoneType,
+        compiler_flag : Nat,
+    ) -> ._Feature

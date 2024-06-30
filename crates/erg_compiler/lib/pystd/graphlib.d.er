@@ -1,0 +1,12 @@
+.TopologicalSorter!: ClassType
+.TopologicalSorter!.
+    __call__: (graph := Obj) -> .TopologicalSorter!
+    prepare!: (self: .TopologicalSorter!) => NoneType
+    add!: (self: .TopologicalSorter!, node: Obj, *predecessors: Obj) => NoneType
+    done!: (self: .TopologicalSorter!, *nodes: Obj) => NoneType
+    is_active: (self: .TopologicalSorter!) -> Bool
+    get_ready: (self: .TopologicalSorter!) -> List Obj
+    static_order: (self: .TopologicalSorter!) -> Iterator Obj
+
+.CycleError: ClassType
+.CycleError <: ValueError

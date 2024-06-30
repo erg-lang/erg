@@ -1,0 +1,9 @@
+.available_zones: Set Str, _
+.TZPATH: [Str; _]
+
+.ZoneInfo: ClassType
+.ZoneInfo.
+    key: Str
+    __call__: (key: Str) -> .ZoneInfo
+    from_file: (fobj: FileLike, key := Str) -> .ZoneInfo
+    __str__: (self: .ZoneInfo) -> Str
