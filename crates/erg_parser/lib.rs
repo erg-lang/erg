@@ -36,9 +36,9 @@ fn _parse(code: String) -> Result<ast::Module, error::ParseErrors> {
 
 #[cfg(feature = "pylib")]
 #[cfg_attr(feature = "pylib_parser", pymodule)]
-pub fn erg_parser(py: Python<'_>, m: &PyModule) -> PyResult<()> {
+pub fn erg_parser(py: Python<'_>, m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(_parse, m)?)?;
-    let expr = PyModule::new(py, "expr")?;
+    let expr = PyModule::new_bound(py, "expr")?;
     expr.add_class::<ast::Literal>()?;
     expr.add_class::<ast::NormalList>()?;
     expr.add_class::<ast::NormalTuple>()?;
@@ -59,9 +59,9 @@ pub fn erg_parser(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     expr.add_class::<ast::Compound>()?;
     expr.add_class::<ast::InlineModule>()?;
     expr.add_class::<ast::Dummy>()?;
-    m.add_submodule(expr)?;
+    m.add_submodule(&expr)?;
 
-    let ast = PyModule::new(py, "ast")?;
+    let ast = PyModule::new_bound(py, "ast")?;
     ast.add_class::<token::Token>()?;
     ast.add_class::<token::TokenKind>()?;
     ast.add_class::<ast::Literal>()?;
@@ -96,16 +96,16 @@ pub fn erg_parser(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     ast.add_class::<ast::Dummy>()?;
     ast.add_class::<ast::Module>()?;
     ast.add_class::<ast::AST>()?;
-    m.add_submodule(ast)?;
+    m.add_submodule(&ast)?;
 
-    py.run(
+    py.run_bound(
         "\
 import sys
 sys.modules['erg_parser.ast'] = ast
 sys.modules['erg_parser.expr'] = expr
 ",
         None,
-        Some(m.dict()),
+        Some(&m.dict()),
     )?;
 
     Ok(())

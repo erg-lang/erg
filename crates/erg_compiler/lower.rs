@@ -107,6 +107,11 @@ impl<ASTBuilder: ASTBuildable> Runnable for GenericASTLowerer<ASTBuilder> {
         &mut self.cfg
     }
 
+    fn set_input(&mut self, input: erg_common::io::Input) {
+        self.module.context.cfg.input = input.clone();
+        self.cfg.input = input;
+    }
+
     #[inline]
     fn finish(&mut self) {}
 

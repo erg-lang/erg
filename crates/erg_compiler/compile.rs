@@ -168,6 +168,7 @@ impl Runnable for Compiler {
     fn set_input(&mut self, input: erg_common::io::Input) {
         self.cfg.input = input;
         self.builder.set_input(self.cfg.input.clone());
+        self.builder.main_builder.set_input(self.cfg.input.clone());
         self.code_generator.set_input(self.cfg.input.clone());
     }
 

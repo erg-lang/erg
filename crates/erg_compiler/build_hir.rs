@@ -74,6 +74,10 @@ impl<ASTBuilder: ASTBuildable> Runnable for GenericHIRBuilder<ASTBuilder> {
         // don't initialize the ownership checker
     }
 
+    fn set_input(&mut self, input: erg_common::io::Input) {
+        self.lowerer.set_input(input);
+    }
+
     fn exec(&mut self) -> Result<ExitStatus, Self::Errs> {
         let mut builder = ASTBuilder::new(self.cfg().copy());
         let artifact = builder

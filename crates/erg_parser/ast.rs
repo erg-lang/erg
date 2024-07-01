@@ -3572,7 +3572,7 @@ pub enum TypeSpec {
 #[cfg(feature = "pylib")]
 impl IntoPy<PyObject> for TypeSpec {
     fn into_py(self, py: Python<'_>) -> PyObject {
-        pyo3::types::PyNone::get(py).into()
+        pyo3::types::PyNone::get_bound(py).to_object(py)
     }
 }
 

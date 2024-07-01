@@ -91,9 +91,11 @@ impl _Compiler {
             .map(|art| art.object)
             .map_err(|iart| iart.errors)?;
         let bytes = code.into_bytes(py.version().parse().unwrap());
-        let dict = [("bytes", PyBytes::new(py, &bytes))].into_py_dict(py);
-        py.run("import marshal", None, None).unwrap();
-        let code = py.eval("marshal.loads(bytes)", None, Some(dict)).unwrap();
+        let dict = [("bytes", PyBytes::new_bound(py, &bytes))].into_py_dict_bound(py);
+        py.run_bound("import marshal", None, None).unwrap();
+        let code = py
+            .eval_bound("marshal.loads(bytes)", None, Some(&dict))
+            .unwrap();
         Ok(code.into())
     }
 
@@ -129,10 +131,10 @@ impl _Compiler {
             .map(|art| art.object)
             .map_err(|iart| iart.errors)?;
         let bytes = code.into_bytes(py.version().parse().unwrap());
-        let dict = [("bytes", PyBytes::new(py, &bytes))].into_py_dict(py);
-        py.run("import marshal", None, None).unwrap();
+        let dict = [("bytes", PyBytes::new_bound(py, &bytes))].into_py_dict_bound(py);
+        py.run_bound("import marshal", None, None).unwrap();
         Ok(py
-            .eval("marshal.loads(bytes)", None, Some(dict))
+            .eval_bound("marshal.loads(bytes)", None, Some(&dict))
             .unwrap()
             .into())
     }
@@ -248,9 +250,9 @@ fn _exec_with_dependencies(
     path: Option<String>,
 ) -> Result<PyObject, error::CompileErrors> {
     let code = _compile_with_dependencies(py, code, "exec", pkgs, path)?;
-    let module = pyo3::types::PyModule::new(py, "<erg>").unwrap();
-    let dic = [("code", code), ("dict", PyObject::from(module.dict()))].into_py_dict(py);
-    py.run("exec(code, dict)", None, Some(dic)).unwrap();
+    let module = pyo3::types::PyModule::new_bound(py, "<erg>").unwrap();
+    let dic = [("code", code), ("dict", PyObject::from(module.dict()))].into_py_dict_bound(py);
+    py.run_bound("exec(code, dict)", None, Some(&dic)).unwrap();
     Ok(module.into())
 }
 
@@ -310,9 +312,9 @@ fn _exec_ast_with_dependencies(
     path: Option<String>,
 ) -> Result<PyObject, error::CompileErrors> {
     let code = _compile_ast_with_dependencies(py, ast, "exec", pkgs, path)?;
-    let module = pyo3::types::PyModule::new(py, "<erg>").unwrap();
-    let dic = [("code", code), ("dict", PyObject::from(module.dict()))].into_py_dict(py);
-    py.run("exec(code, dict)", None, Some(dic)).unwrap();
+    let module = pyo3::types::PyModule::new_bound(py, "<erg>").unwrap();
+    let dic = [("code", code), ("dict", PyObject::from(module.dict()))].into_py_dict_bound(py);
+    py.run_bound("exec(code, dict)", None, Some(&dic)).unwrap();
     Ok(module.into())
 }
 
@@ -346,7 +348,7 @@ fn _import(py: Python<'_>, name: String) -> Result<PyObject, error::CompileError
 
 #[cfg(feature = "pylib")]
 #[pymodule]
-fn erg_compiler(py: Python<'_>, m: &PyModule) -> PyResult<()> {
+fn erg_compiler(py: Python<'_>, m: &Bound<PyModule>) -> PyResult<()> {
     m.add_class::<Package>()?;
     m.add_class::<_Compiler>()?;
     m.add_function(wrap_pyfunction!(_compile, m)?)?;
@@ -364,11 +366,11 @@ fn erg_compiler(py: Python<'_>, m: &PyModule) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(_import, m)?)?;
 
     use crate::erg_parser::erg_parser;
-    let parser = PyModule::new(py, "erg_parser")?;
-    erg_parser(py, parser)?;
-    m.add_submodule(parser)?;
+    let parser = PyModule::new_bound(py, "erg_parser")?;
+    erg_parser(py, &parser)?;
+    m.add_submodule(&parser)?;
 
-    py.run(
+    py.run_bound(
         "\
 import sys
 sys.modules['erg_compiler.erg_parser'] = erg_parser
@@ -376,7 +378,7 @@ sys.modules['erg_compiler.erg_parser.ast'] = erg_parser.ast
 sys.modules['erg_compiler.erg_parser.expr'] = erg_parser.expr
 ",
         None,
-        Some(m.dict()),
+        Some(&m.dict()),
     )?;
 
     Ok(())

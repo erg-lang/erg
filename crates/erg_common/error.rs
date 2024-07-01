@@ -284,7 +284,7 @@ impl fmt::Display for Location {
 
 #[cfg(feature = "pylib")]
 impl FromPyObject<'_> for Location {
-    fn extract(ob: &'_ PyAny) -> PyResult<Self> {
+    fn extract_bound(ob: &Bound<'_, PyAny>) -> PyResult<Self> {
         if let Ok(s) = ob.extract::<String>() {
             Ok(s.parse::<Location>().unwrap())
         } else if let Ok(s) = ob.extract::<u32>() {

@@ -254,7 +254,11 @@ impl StdinReader {
     }
 
     pub fn reread_lines(&self, ln_begin: usize, ln_end: usize) -> Vec<String> {
-        self.buf[ln_begin - 1..=ln_end - 1].to_vec()
+        if let Some(lines) = self.buf.get(ln_begin - 1..=ln_end - 1) {
+            lines.to_vec()
+        } else {
+            self.buf.clone()
+        }
     }
 
     pub fn last_line(&mut self) -> Option<&mut String> {

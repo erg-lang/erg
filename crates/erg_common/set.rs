@@ -8,6 +8,8 @@ use crate::fxhash::FxHashSet;
 use crate::{debug_fmt_iter, fmt_iter};
 
 #[cfg(feature = "pylib")]
+use pyo3::prelude::PyAnyMethods;
+#[cfg(feature = "pylib")]
 use pyo3::{FromPyObject, IntoPy, PyAny, PyObject, Python};
 
 #[macro_export]
@@ -37,7 +39,7 @@ impl<'source, T> FromPyObject<'source> for Set<T>
 where
     T: Hash + Eq + FromPyObject<'source>,
 {
-    fn extract(ob: &'source PyAny) -> pyo3::PyResult<Self> {
+    fn extract_bound(ob: &pyo3::Bound<'source, PyAny>) -> pyo3::PyResult<Self> {
         Ok(Set {
             elems: ob.extract::<FxHashSet<T>>()?,
         })
