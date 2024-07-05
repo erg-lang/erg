@@ -5,7 +5,15 @@ logging = pyimport "logging"
 .copyfile!: (src: PathLike, dst: PathLike,) => NoneType
 .copy!: (src: PathLike, dst: PathLike,) => NoneType
 .copy2!: (src: PathLike, dst: PathLike,) => NoneType
-.copytree!: (src: PathLike, dst: PathLike,) => NoneType
+.copytree!: (
+    src: PathLike,
+    dst: PathLike,
+    symlinks := Bool,
+    ignore := GenericCallable,
+    copy_function := GenericCallable,
+    ignore_dangling_symlinks := Bool,
+    dirs_exist_ok := Bool,
+) => NoneType
 .disk_usage!: (path: PathLike,) => NamedTuple {
     .total = Nat;
     .used = Nat;
@@ -13,9 +21,20 @@ logging = pyimport "logging"
 }
 .get_archive_formats!: () => [(Str, Str); _]
 .get_unpack_formats!: () => [(Str, [Str; _], Str); _]
+.get_terminal_size!: (fallback := (Nat, Nat)) => NamedTuple {
+    .columns = Nat;
+    .lines = Nat;
+}
+.ignore_patterns!: (*patterns: Str) => GenericCallable
 .register_archive_format!: (name: Str, function: GenericCallable) => NoneType
 .register_unpack_format!: (name: Str, extensions: [Str; _], function: GenericCallable) => NoneType
-.rmtree!: (path: PathLike,) => NoneType
+.rmtree!: (
+    path: PathLike,
+    ignore_tree := Bool,
+    onerror := Obj,
+    onexc := Obj,
+    dir_fd := Nat or FileDescriptor,
+) => NoneType
 .make_archive!: (
     base_name: Str,
     format: Str,
@@ -27,7 +46,7 @@ logging = pyimport "logging"
     group := Str,
     logger := logging.Logger!,
 ) => Str
-.move!: (src: PathLike, dst: PathLike) => Str
+.move!: (src: PathLike, dst: PathLike, copy_function := GenericCallable) => Str
 .unpack_archive!: (
     filename: PathLike,
     extract_dir := PathLike,
