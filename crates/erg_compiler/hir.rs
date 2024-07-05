@@ -2062,7 +2062,21 @@ impl NoTypeDisplay for SubrSignature {
 }
 
 impl_display_from_nested!(SubrSignature);
-impl_locational!(SubrSignature, ident, params);
+
+impl Locational for SubrSignature {
+    // TODO: decorators
+    fn loc(&self) -> Location {
+        if let Some(return_t_spec) = &self.return_t_spec {
+            Location::concat(&self.ident, return_t_spec)
+        } else {
+            let params = self.params.loc();
+            if !params.is_unknown() {
+                return Location::concat(&self.ident, &params);
+            }
+            self.ident.loc()
+        }
+    }
+}
 
 impl HasType for SubrSignature {
     #[inline]
@@ -2141,7 +2155,7 @@ impl NoTypeDisplay for Lambda {
 }
 
 impl_display_from_nested!(Lambda);
-impl_locational!(Lambda, params, body);
+impl_locational!(Lambda, lossy params, body);
 impl_t!(Lambda);
 
 impl Lambda {
@@ -2264,6 +2278,13 @@ impl Signature {
         match self {
             Self::Var(_) => None,
             Self::Subr(s) => Some(&mut s.params),
+        }
+    }
+
+    pub fn params(&self) -> Option<&Params> {
+        match self {
+            Self::Var(_) => None,
+            Self::Subr(s) => Some(&s.params),
         }
     }
 

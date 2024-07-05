@@ -364,6 +364,11 @@ impl<'a> HIRVisitor<'a> {
         pos: Position,
     ) -> Option<&Expr> {
         self.return_expr_if_same(expr, def.sig.ident().raw.name.token(), pos)
+            .or_else(|| {
+                def.sig
+                    .t_spec_with_op()
+                    .and_then(|t_spec| self.get_expr(&t_spec.expr, pos))
+            })
             .or_else(|| self.get_expr_from_block(def.body.block.iter(), pos))
             .or_else(|| self.return_expr_if_contains(expr, pos, def))
     }
