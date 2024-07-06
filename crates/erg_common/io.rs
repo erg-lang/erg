@@ -6,7 +6,7 @@ use std::process;
 use std::process::Stdio;
 
 use crate::config::ErgConfig;
-use crate::consts::EXPERIMENTAL_MODE;
+use crate::consts::{EXPERIMENTAL_MODE, PYTHON_MODE};
 use crate::env::{erg_path, erg_pkgs_path, erg_pystd_path, erg_std_path, python_site_packages};
 use crate::pathutil::{add_postfix_foreach, remove_postfix};
 use crate::python_util::get_sys_path;
@@ -622,6 +622,11 @@ impl Input {
         }
         for site_packages in python_site_packages() {
             if let Some(path) = Self::resolve_site_pkgs_decl_path(site_packages, path) {
+                return Some(path);
+            }
+        }
+        if PYTHON_MODE {
+            if let Ok(path) = self.resolve_py(path) {
                 return Some(path);
             }
         }

@@ -2561,6 +2561,14 @@ impl ClassDef {
         }
         joined
     }
+
+    pub fn get_all_methods(methods_list: &[Methods]) -> Vec<&Expr> {
+        let mut joined = vec![];
+        for methods in methods_list {
+            joined.extend(methods.defs.iter());
+        }
+        joined
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

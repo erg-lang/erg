@@ -132,6 +132,15 @@ impl fmt::Display for ModuleCache {
     }
 }
 
+impl IntoIterator for ModuleCache {
+    type Item = (NormalizedPathBuf, ModuleEntry);
+    type IntoIter = std::collections::hash_map::IntoIter<NormalizedPathBuf, ModuleEntry>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.cache.into_iter()
+    }
+}
+
 impl ModuleCache {
     pub fn new() -> Self {
         Self {
@@ -215,6 +224,13 @@ impl ModuleCache {
 
     pub fn clear(&mut self) {
         self.cache.clear();
+    }
+
+    pub fn take(&mut self) -> Self {
+        Self {
+            cache: std::mem::take(&mut self.cache),
+            last_id: self.last_id,
+        }
     }
 }
 
@@ -401,6 +417,10 @@ impl SharedModuleCache {
         let _ref = self.0.borrow();
         let ref_ = unsafe { self.0.as_ptr().as_ref().unwrap() };
         ref_.iter()
+    }
+
+    pub fn take(&self) -> ModuleCache {
+        self.0.borrow_mut().take()
     }
 }
 

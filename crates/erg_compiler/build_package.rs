@@ -320,6 +320,10 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         }
     }
 
+    pub fn shared(&self) -> &SharedCompilerResource {
+        &self.shared
+    }
+
     pub fn finalize(&mut self) {
         self.cyclic.clear();
         self.inlines.clear();

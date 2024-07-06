@@ -622,19 +622,23 @@ impl Context {
                 }
                 _ => {}
             }
-        } else if let Some((name, _vi)) = self
+        } else if let Some((name, vi)) = self
             .future_defined_locals
             .get_key_value(&ident.inspect()[..])
         {
-            return Triple::Err(TyCheckError::access_before_def_error(
-                input.clone(),
-                line!() as usize,
-                ident.loc(),
-                namespace.name.to_string(),
-                ident.inspect(),
-                name.ln_begin().unwrap_or(0),
-                self.get_similar_name(ident.inspect()),
-            ));
+            if name.loc().is_real() && ident.loc() != name.loc() {
+                return Triple::Err(TyCheckError::access_before_def_error(
+                    input.clone(),
+                    line!() as usize,
+                    ident.loc(),
+                    namespace.name.to_string(),
+                    ident.inspect(),
+                    name.ln_begin().unwrap_or(100),
+                    self.get_similar_name(ident.inspect()),
+                ));
+            } else if ident.loc() == name.loc() {
+                return Triple::Ok(vi.clone());
+            }
         } else if let Some((name, _vi)) = self.deleted_locals.get_key_value(&ident.inspect()[..]) {
             return Triple::Err(TyCheckError::access_deleted_var_error(
                 input.clone(),

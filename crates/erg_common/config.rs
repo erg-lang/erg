@@ -83,6 +83,12 @@ impl fmt::Display for ErgMode {
     }
 }
 
+impl ErgMode {
+    pub const fn is_language_server(&self) -> bool {
+        matches!(self, Self::LanguageServer)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TranspileTarget {
     Python,
