@@ -12,7 +12,7 @@ use erg_common::config::ErgConfig;
 use erg_common::consts::PYTHON_MODE;
 use erg_common::dict::Dict;
 use erg_common::env::erg_path;
-use erg_common::pathutil::{project_root_dir_of, NormalizedPathBuf};
+use erg_common::pathutil::{project_entry_dir_of, NormalizedPathBuf};
 use erg_common::shared::{MappedRwLockReadGuard, Shared};
 use erg_common::spawn::{safe_yield, spawn_new_thread};
 use erg_common::traits::Stream;
@@ -1043,7 +1043,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     }
 
     pub(crate) fn get_workspace_ctxs(&self) -> Vec<&Context> {
-        let project_root = project_root_dir_of(&self.home).unwrap_or(self.home.clone());
+        let project_root = project_entry_dir_of(&self.home).unwrap_or(self.home.clone());
         let mut ctxs = vec![];
         for (path, ent) in self.shared.raw_path_and_modules() {
             if path.starts_with(&project_root) {

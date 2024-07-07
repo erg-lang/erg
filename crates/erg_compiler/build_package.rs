@@ -21,7 +21,7 @@ use erg_common::error::MultiErrorDisplay;
 use erg_common::io::Input;
 #[allow(unused)]
 use erg_common::log;
-use erg_common::pathutil::{mod_name, project_root_dir_of, NormalizedPathBuf};
+use erg_common::pathutil::{mod_name, project_entry_dir_of, NormalizedPathBuf};
 use erg_common::spawn::spawn_new_thread;
 use erg_common::str::Str;
 use erg_common::traits::{ExitStatus, New, Runnable, Stream};
@@ -712,7 +712,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         };
         let root_import_path = root_path.and_then(|path| cfg.input.resolve_path(path, cfg));
         if let Some(root_import_path) = root_import_path.map(NormalizedPathBuf::from) {
-            if project_root_dir_of(&root_import_path) != project_root_dir_of(&from_path) {
+            if project_entry_dir_of(&root_import_path) != project_entry_dir_of(&from_path) {
                 let mut root_import_cfg = cfg.inherit(root_import_path.to_path_buf());
                 self.shared.graph.add_node_if_none(&root_import_path);
                 let _ = self

@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use erg_common::consts::PYTHON_MODE;
 use erg_common::dict::Dict;
-use erg_common::pathutil::{project_entry_file_of, project_root_dir_of};
+use erg_common::pathutil::{project_entry_dir_of, project_entry_file_of};
 use erg_common::spawn::{safe_yield, spawn_new_thread};
 use erg_common::style::*;
 use erg_common::{fn_name, lsp_log};
@@ -374,7 +374,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             let Ok(entry) = entry else {
                 continue;
             };
-            if entry.path().extension() == Some(OsStr::new("er")) {
+            if entry.path().extension() == Some(OsStr::new("er"))
+                || (PYTHON_MODE && entry.path().extension() == Some(OsStr::new("py")))
+            {
                 if let Ok(uri) = NormalizedUrl::from_file_path(entry.path()) {
                     uris.push(uri);
                 }
@@ -443,13 +445,8 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 let Ok(current_dir) = current_dir() else {
                     work_done!(token)
                 };
-                let Some(project_root) = project_root_dir_of(&current_dir) else {
+                let Some(src_dir) = project_entry_dir_of(&current_dir) else {
                     work_done!(token);
-                };
-                let src_dir = if project_root.join("src").is_dir() {
-                    project_root.join("src")
-                } else {
-                    project_root
                 };
                 let Some(main_path) = project_entry_file_of(&current_dir) else {
                     work_done!(token);

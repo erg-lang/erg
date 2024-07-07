@@ -4,6 +4,7 @@ use std::fmt;
 use std::ops::Deref;
 use std::path::{Component, Path, PathBuf};
 
+use crate::consts::PYTHON_MODE;
 use crate::env::erg_pkgs_path;
 use crate::{normalize_path, Str};
 
@@ -337,29 +338,86 @@ pub fn mod_name(path: &Path) -> Str {
     Str::from(name)
 }
 
-pub fn project_root_dir_of(path: &Path) -> Option<PathBuf> {
+fn erg_project_entry_dir_of(path: &Path) -> Option<PathBuf> {
     if path.is_dir() && path.join("package.er").exists() {
-        return Some(path.to_path_buf());
+        if path.join("src").exists() {
+            return Some(path.join("src"));
+        } else {
+            return Some(path.to_path_buf());
+        }
     }
     let mut path = path.to_path_buf();
     while let Some(parent) = path.parent() {
         if parent.join("package.er").exists() {
-            return Some(parent.to_path_buf());
+            if parent.join("src").exists() {
+                return Some(parent.join("src"));
+            } else {
+                return Some(parent.to_path_buf());
+            }
         }
         path = parent.to_path_buf();
     }
     None
 }
 
-pub fn project_entry_file_of(path: &Path) -> Option<PathBuf> {
-    let project_root = project_root_dir_of(path)?;
-    if project_root.join("src/lib.er").exists() {
-        Some(project_root.join("src/lib.er"))
-    } else if project_root.join("src/main.er").exists() {
-        Some(project_root.join("src/main.er"))
-    } else if project_root.join("src/lib.d.er").exists() {
-        Some(project_root.join("src/lib.d.er"))
+fn py_project_entry_dir_of(path: &Path) -> Option<PathBuf> {
+    let dir_name = path.file_name()?;
+    if path.is_dir() && path.join("pyproject.toml").exists() {
+        if path.join(dir_name).exists() {
+            return Some(path.join(dir_name));
+        } else if path.join("src").join(dir_name).exists() {
+            return Some(path.join("src").join(dir_name));
+        }
+    }
+    let mut path = path.to_path_buf();
+    while let Some(parent) = path.parent() {
+        let dir_name = parent.file_name()?;
+        if parent.join("pyproject.toml").exists() {
+            if parent.join(dir_name).exists() {
+                return Some(parent.join(dir_name));
+            } else if parent.join("src").join(dir_name).exists() {
+                return Some(parent.join("src").join(dir_name));
+            }
+        }
+        path = parent.to_path_buf();
+    }
+    None
+}
+
+pub fn project_entry_dir_of(path: &Path) -> Option<PathBuf> {
+    if PYTHON_MODE {
+        py_project_entry_dir_of(path)
+    } else {
+        erg_project_entry_dir_of(path)
+    }
+}
+
+fn erg_project_entry_file_of(path: &Path) -> Option<PathBuf> {
+    let entry = erg_project_entry_dir_of(path)?;
+    if entry.join("lib.er").exists() {
+        Some(entry.join("lib.er"))
+    } else if entry.join("main.er").exists() {
+        Some(entry.join("main.er"))
+    } else if entry.join("lib.d.er").exists() {
+        Some(entry.join("lib.d.er"))
     } else {
         None
+    }
+}
+
+fn py_project_entry_file_of(path: &Path) -> Option<PathBuf> {
+    let entry = py_project_entry_dir_of(path)?;
+    if entry.join("__init__.py").exists() {
+        Some(entry.join("__init__.py"))
+    } else {
+        None
+    }
+}
+
+pub fn project_entry_file_of(path: &Path) -> Option<PathBuf> {
+    if PYTHON_MODE {
+        py_project_entry_file_of(path)
+    } else {
+        erg_project_entry_file_of(path)
     }
 }
