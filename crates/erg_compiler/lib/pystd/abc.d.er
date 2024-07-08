@@ -1,6 +1,6 @@
-.abstructmethod: |F <: GenericCallable|(F) -> F
-.abstructclassmethod: |F <: GenericCallable|(F) -> F
-.abstructstaticmethod: |F <: GenericCallable|(F) -> F
+.abstractmethod: |F <: GenericCallable|(F) -> F
+.abstractclassmethod: |F <: GenericCallable|(F) -> F
+.abstractstaticmethod: |F <: GenericCallable|(F) -> F
 
 .ABCMeta: ClassType
 .ABCMeta <: Type
