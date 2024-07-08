@@ -7,6 +7,7 @@
 .ABCMeta.
     __instancecheck__: (self: .ABCMeta, instance: Obj) -> Bool
     __subclasscheck__: (self: .ABCMeta, subclass: Type) -> Bool
+    __subclasshook__: (self: .ABCMeta, subclass: Type) -> Bool
     register: (self: .ABCMeta, subclass: Type) -> NoneType
 
 .ABC: ClassType
