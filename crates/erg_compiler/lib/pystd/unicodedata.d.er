@@ -1,0 +1,32 @@
+.UCD: ClassType
+.UCD.
+    lookup: (self: UCD, name: Str) -> Str
+    name: (self: UCD, chr: Str, default := Str) -> Str
+    decimal: (self: UCD, chr: Str, default := Str) -> Str
+    digit: (self: UCD, chr: Str, default := Str) -> Str
+    numeric: (self: UCD, chr: Str, default := Str) -> Str
+    category: (self: UCD, chr: Str,) -> Str
+    bidirectional: (self: UCD, chr: Str,) -> Str
+    combining: (self: UCD, chr: Str,) -> Str
+    east_asian_width: (self: UCD, chr: Str,) -> Str
+    mirrored: (self: UCD, chr: Str,) -> Str
+    decomposition: (self: UCD, chr: Str,) -> Str
+    normalize: (self: UCD, form: Str, unistr: Str) -> Str
+    is_normalized: (self: UCD, form: Str, unistr: Str) -> Bool
+
+.unidata_version: Str
+.ucd_3_2_0: UCD
+
+.lookup: Str -> Str
+.name: (chr: Str, default := Str) -> Str
+.decimal: (chr: Str, default := Str) -> Str
+.digit: (chr: Str, default := Str) -> Str
+.numeric: (chr: Str, default := Str) -> Str
+.category: (chr: Str,) -> Str
+.bidirectional: (chr: Str,) -> Str
+.combining: (chr: Str,) -> Str
+.east_asian_width: (chr: Str,) -> Str
+.mirrored: (chr: Str,) -> Str
+.decomposition: (chr: Str,) -> Str
+.normalize: (form: Str, unistr: Str) -> Str
+.is_normalized: (form: Str, unistr: Str) -> Bool
