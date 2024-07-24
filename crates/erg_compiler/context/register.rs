@@ -1711,126 +1711,7 @@ impl Context {
                     concat_result(res, res2)
                 }
             }
-            GenTypeObj::Subclass(_) => {
-                let mut errs = CompileErrors::empty();
-                if gen.typ().is_monomorphic() {
-                    let super_classes = gen.base_or_sup().map_or(vec![], |t| vec![t.typ().clone()]);
-                    // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
-                    let mut ctx = Self::mono_class(
-                        gen.typ().qual_name(),
-                        self.cfg.clone(),
-                        self.shared.clone(),
-                        2,
-                        self.level,
-                    );
-                    for sup in super_classes.into_iter() {
-                        let sup_ctx = match self.get_nominal_type_ctx(&sup).ok_or_else(|| {
-                            TyCheckErrors::from(TyCheckError::type_not_found(
-                                self.cfg.input.clone(),
-                                line!() as usize,
-                                ident.loc(),
-                                self.caused_by(),
-                                &sup,
-                            ))
-                        }) {
-                            Ok(ctx) => ctx,
-                            Err(es) => {
-                                errs.extend(es);
-                                continue;
-                            }
-                        };
-                        ctx.register_superclass(sup, sup_ctx);
-                    }
-                    let mut methods =
-                        Self::methods(None, self.cfg.clone(), self.shared.clone(), 2, self.level);
-                    if let Some(sup) = gen.base_or_sup() {
-                        let param_t = match sup {
-                            TypeObj::Builtin { t, .. } => Some(t),
-                            TypeObj::Generated(t) => t.base_or_sup().map(|t| t.typ()),
-                        };
-                        // `Super.Requirement := {x = Int}` and `Self.Additional := {y = Int}`
-                        // => `Self.Requirement := {x = Int; y = Int}`
-                        let param_t = if let Some(additional) = gen.additional() {
-                            if let TypeObj::Builtin {
-                                t: Type::Record(rec),
-                                ..
-                            } = additional
-                            {
-                                if let Err(es) = self.register_instance_attrs(&mut ctx, rec, call) {
-                                    errs.extend(es);
-                                }
-                            }
-                            param_t
-                                .map(|t| self.intersection(t, additional.typ()))
-                                .or(Some(additional.typ().clone()))
-                        } else {
-                            self.get_nominal_type_ctx(sup.typ())
-                                .and_then(|ctx| {
-                                    ctx.get_class_attr(&VarName::from_static("__call__"), ctx)
-                                })
-                                .and_then(|vi| vi.t.param_ts().first().cloned())
-                        };
-                        let new_t = if let Some(t) = param_t {
-                            func1(t, gen.typ().clone())
-                        } else {
-                            func0(gen.typ().clone())
-                        };
-                        if let Err(es) = methods.register_fixed_auto_impl(
-                            "__call__",
-                            new_t.clone(),
-                            Immutable,
-                            Visibility::private(ctx.name.clone()),
-                            None,
-                        ) {
-                            errs.extend(es);
-                        }
-                        // 必要なら、ユーザーが独自に上書きする
-                        if let Err(es) = methods.register_auto_impl(
-                            "new",
-                            new_t,
-                            Immutable,
-                            Visibility::public(ctx.name.clone()),
-                            None,
-                        ) {
-                            errs.extend(es);
-                        }
-                        ctx.methods_list.push(MethodContext::new(
-                            DefId(0),
-                            ClassDefType::Simple(gen.typ().clone()),
-                            methods,
-                        ));
-                        if let Err(es) = self.register_gen_mono_type(ident, gen, ctx, Const) {
-                            errs.extend(es);
-                        }
-                        if errs.is_empty() {
-                            Ok(())
-                        } else {
-                            Err(errs)
-                        }
-                    } else {
-                        let class_name = gen
-                            .base_or_sup()
-                            .map(|t| t.typ().local_name())
-                            .unwrap_or(Str::from("?"));
-                        Err(CompileErrors::from(CompileError::no_type_error(
-                            self.cfg.input.clone(),
-                            line!() as usize,
-                            ident.loc(),
-                            self.caused_by(),
-                            &class_name,
-                            self.get_similar_name(&class_name),
-                        )))
-                    }
-                } else {
-                    feature_error!(
-                        CompileErrors,
-                        CompileError,
-                        self,
-                        ident.loc(),
-                        "polymorphic class definition"
-                    )
-                }
-            }
+            GenTypeObj::Subclass(_) => self.register_gen_subclass(ident, gen, call),
             GenTypeObj::Trait(_) => {
                 if gen.typ().is_monomorphic() {
                     let mut ctx = Self::mono_trait(
@@ -1936,6 +1817,182 @@ impl Context {
                 ident.loc(),
                 &format!("{other} definition")
             ),
+        }
+    }
+
+    fn register_gen_subclass(
+        &mut self,
+        ident: &Identifier,
+        gen: GenTypeObj,
+        call: Option<&ast::Call>,
+    ) -> CompileResult<()> {
+        let mut errs = CompileErrors::empty();
+        if gen.typ().is_monomorphic() {
+            let super_classes = gen.base_or_sup().map_or(vec![], |t| vec![t.typ().clone()]);
+            // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
+            let mut ctx = Self::mono_class(
+                gen.typ().qual_name(),
+                self.cfg.clone(),
+                self.shared.clone(),
+                2,
+                self.level,
+            );
+            for sup in super_classes.into_iter() {
+                let sup_ctx = match self.get_nominal_type_ctx(&sup).ok_or_else(|| {
+                    TyCheckErrors::from(TyCheckError::type_not_found(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        ident.loc(),
+                        self.caused_by(),
+                        &sup,
+                    ))
+                }) {
+                    Ok(ctx) => ctx,
+                    Err(es) => {
+                        errs.extend(es);
+                        continue;
+                    }
+                };
+                ctx.register_superclass(sup, sup_ctx);
+            }
+            let mut methods =
+                Self::methods(None, self.cfg.clone(), self.shared.clone(), 2, self.level);
+            if let Some(sup) = gen.base_or_sup() {
+                let param_t = match sup {
+                    TypeObj::Builtin { t, .. } => Some(t),
+                    TypeObj::Generated(t) => t.base_or_sup().map(|t| t.typ()),
+                };
+                // `Super.Requirement := {x = Int}` and `Self.Additional := {y = Int}`
+                // => `Self.Requirement := {x = Int; y = Int}`
+                let call_t = {
+                    let (nd_params, var_params, d_params, kw_var_params) =
+                        if let Some(additional) = gen.additional() {
+                            if let TypeObj::Builtin {
+                                t: Type::Record(rec),
+                                ..
+                            } = additional
+                            {
+                                if let Err(es) = self.register_instance_attrs(&mut ctx, rec, call) {
+                                    errs.extend(es);
+                                }
+                            }
+                            let nd_params = param_t
+                                .map(|t| self.intersection(t, additional.typ()))
+                                .or(Some(additional.typ().clone()))
+                                .map_or(vec![], |t| vec![ParamTy::Pos(t)]);
+                            (nd_params, None, vec![], None)
+                        } else {
+                            self.get_nominal_type_ctx(sup.typ())
+                                .and_then(|ctx| {
+                                    ctx.get_class_attr(&VarName::from_static("__call__"), ctx)
+                                })
+                                .and_then(|vi| {
+                                    Some((
+                                        vi.t.non_default_params()?.clone(),
+                                        vi.t.var_params().cloned(),
+                                        vi.t.default_params()?.clone(),
+                                        vi.t.kw_var_params().cloned(),
+                                    ))
+                                })
+                                .unwrap_or((vec![], None, vec![], None))
+                        };
+                    func(
+                        nd_params,
+                        var_params,
+                        d_params,
+                        kw_var_params,
+                        gen.typ().clone(),
+                    )
+                };
+                let new_t = {
+                    let (nd_params, var_params, d_params, kw_var_params) = if let Some(additional) =
+                        gen.additional()
+                    {
+                        let nd_params = param_t
+                            .map(|t| self.intersection(t, additional.typ()))
+                            .or(Some(additional.typ().clone()))
+                            .map_or(vec![], |t| vec![ParamTy::Pos(t)]);
+                        (nd_params, None, vec![], None)
+                    } else {
+                        self.get_nominal_type_ctx(sup.typ())
+                            .and_then(|ctx| {
+                                ctx.get_class_attr(&VarName::from_static("new"), ctx)
+                                    .or_else(|| {
+                                        ctx.get_class_attr(&VarName::from_static("__call__"), ctx)
+                                    })
+                            })
+                            .and_then(|vi| {
+                                Some((
+                                    vi.t.non_default_params()?.clone(),
+                                    vi.t.var_params().cloned(),
+                                    vi.t.default_params()?.clone(),
+                                    vi.t.kw_var_params().cloned(),
+                                ))
+                            })
+                            .unwrap_or((vec![], None, vec![], None))
+                    };
+                    func(
+                        nd_params,
+                        var_params,
+                        d_params,
+                        kw_var_params,
+                        gen.typ().clone(),
+                    )
+                };
+                if let Err(es) = methods.register_fixed_auto_impl(
+                    "__call__",
+                    call_t,
+                    Immutable,
+                    Visibility::private(ctx.name.clone()),
+                    None,
+                ) {
+                    errs.extend(es);
+                }
+                // 必要なら、ユーザーが独自に上書きする
+                if let Err(es) = methods.register_auto_impl(
+                    "new",
+                    new_t,
+                    Immutable,
+                    Visibility::public(ctx.name.clone()),
+                    None,
+                ) {
+                    errs.extend(es);
+                }
+                ctx.methods_list.push(MethodContext::new(
+                    DefId(0),
+                    ClassDefType::Simple(gen.typ().clone()),
+                    methods,
+                ));
+                if let Err(es) = self.register_gen_mono_type(ident, gen, ctx, Const) {
+                    errs.extend(es);
+                }
+                if errs.is_empty() {
+                    Ok(())
+                } else {
+                    Err(errs)
+                }
+            } else {
+                let class_name = gen
+                    .base_or_sup()
+                    .map(|t| t.typ().local_name())
+                    .unwrap_or(Str::from("?"));
+                Err(CompileErrors::from(CompileError::no_type_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    ident.loc(),
+                    self.caused_by(),
+                    &class_name,
+                    self.get_similar_name(&class_name),
+                )))
+            }
+        } else {
+            feature_error!(
+                CompileErrors,
+                CompileError,
+                self,
+                ident.loc(),
+                "polymorphic class definition"
+            )
         }
     }
 

@@ -3648,6 +3648,19 @@ impl Type {
         }
     }
 
+    pub fn kw_var_params(&self) -> Option<&ParamTy> {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => {
+                fv.forced_as_ref().linked().and_then(|t| t.kw_var_params())
+            }
+            Self::Refinement(refine) => refine.t.kw_var_params(),
+            Self::Subr(SubrType { kw_var_params, .. }) => kw_var_params.as_deref(),
+            Self::Quantified(quant) => quant.kw_var_params(),
+            Self::Callable { param_ts: _, .. } => todo!(),
+            _ => None,
+        }
+    }
+
     pub fn non_var_params(&self) -> Option<impl Iterator<Item = &ParamTy> + Clone> {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => {

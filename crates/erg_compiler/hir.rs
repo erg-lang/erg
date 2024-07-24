@@ -278,6 +278,10 @@ impl Args {
         Self::new(pos_args, None, vec![], None, paren)
     }
 
+    pub fn var_args(var_args: PosArg, paren: Option<(Token, Token)>) -> Self {
+        Self::new(vec![], Some(var_args), vec![], None, paren)
+    }
+
     pub fn empty() -> Self {
         Self::new(vec![], None, vec![], None, None)
     }
@@ -1989,6 +1993,14 @@ impl Params {
         Self::new(vec![sig], None, vec![], None, vec![], None)
     }
 
+    pub fn non_default_only(non_defaults: Vec<NonDefaultParamSignature>) -> Self {
+        Self::new(non_defaults, None, vec![], None, vec![], None)
+    }
+
+    pub fn var_params(sig: NonDefaultParamSignature) -> Self {
+        Self::new(vec![], Some(Box::new(sig)), vec![], None, vec![], None)
+    }
+
     pub const fn ref_deconstruct(&self) -> RefRawParams {
         (
             &self.non_defaults,
@@ -2024,6 +2036,22 @@ impl Params {
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    pub fn push_non_default(&mut self, sig: NonDefaultParamSignature) {
+        self.non_defaults.push(sig);
+    }
+
+    pub fn push_var(&mut self, sig: NonDefaultParamSignature) {
+        self.var_params = Some(Box::new(sig));
+    }
+
+    pub fn push_default(&mut self, sig: DefaultParamSignature) {
+        self.defaults.push(sig);
+    }
+
+    pub fn push_kw_var(&mut self, sig: NonDefaultParamSignature) {
+        self.kw_var_params = Some(Box::new(sig));
     }
 }
 
@@ -2285,6 +2313,13 @@ impl Signature {
         match self {
             Self::Var(_) => None,
             Self::Subr(s) => Some(&s.params),
+        }
+    }
+
+    pub fn default_params(&self) -> Option<impl Iterator<Item = &DefaultParamSignature>> {
+        match self {
+            Self::Var(_) => None,
+            Self::Subr(s) => Some(s.params.defaults.iter()),
         }
     }
 

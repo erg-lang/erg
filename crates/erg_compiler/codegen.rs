@@ -44,6 +44,7 @@ use crate::hir::{
 };
 use crate::ty::codeobj::{CodeObj, CodeObjFlags, MakeFunctionFlags};
 use crate::ty::value::{GenTypeObj, ValueObj};
+use crate::ty::SubrType;
 use crate::ty::{HasType, Type, TypeCode, TypePair, VisibilityModifier};
 use crate::varinfo::VarInfo;
 use AccessKind::*;
@@ -3639,21 +3640,30 @@ impl PyCodeGenerator {
         let mut ident = Identifier::public_with_line(DOT, Str::ever("new"), line);
         let class = Expr::Accessor(Accessor::Ident(class_ident.clone()));
         ident.vi.t = constructor;
-        if let Some(new_first_param) = ident.vi.t.non_default_params().unwrap().first() {
-            let param_name = new_first_param
-                .name()
-                .cloned()
-                .unwrap_or_else(|| self.fresh_gen.fresh_varname());
-            let param = VarName::from_str_and_line(param_name.clone(), line);
-            let vi = VarInfo::nd_parameter(
-                new_first_param.typ().clone(),
-                ident.vi.def_loc.clone(),
-                "?".into(),
-            );
-            let raw =
-                erg_parser::ast::NonDefaultParamSignature::new(ParamPattern::VarName(param), None);
-            let param = NonDefaultParamSignature::new(raw, vi, None);
-            let params = Params::single(param);
+        if let Ok(subr) = <&SubrType>::try_from(&ident.vi.t) {
+            let mut params = Params::empty();
+            let mut args = Args::empty();
+            for nd_param in subr.non_default_params.iter() {
+                let param_name = nd_param
+                    .name()
+                    .cloned()
+                    .unwrap_or_else(|| self.fresh_gen.fresh_varname());
+                let param = VarName::from_str_and_line(param_name.clone(), line);
+                let vi = VarInfo::nd_parameter(
+                    nd_param.typ().clone(),
+                    ident.vi.def_loc.clone(),
+                    "?".into(),
+                );
+                let raw = erg_parser::ast::NonDefaultParamSignature::new(
+                    ParamPattern::VarName(param),
+                    None,
+                );
+                let param = NonDefaultParamSignature::new(raw, vi, None);
+                params.push_non_default(param);
+                let arg = PosArg::new(Expr::Accessor(Accessor::public_with_line(param_name, line)));
+                args.push_pos(arg);
+            }
+            // FIXME: var params, default params, kw var params
             let bounds = TypeBoundSpecs::empty();
             let sig = SubrSignature::new(
                 set! {},
@@ -3663,10 +3673,7 @@ impl PyCodeGenerator {
                 sig.t_spec_with_op().cloned(),
                 vec![],
             );
-            let arg = PosArg::new(Expr::Accessor(Accessor::private_with_line(
-                param_name, line,
-            )));
-            let call = class.call_expr(Args::single(arg));
+            let call = class.call_expr(args);
             let block = Block::new(vec![call]);
             let body = DefBody::new(EQUAL, block, DefId(0));
             self.emit_subr_def(Some(class_ident.inspect()), sig, body);
