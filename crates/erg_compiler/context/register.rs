@@ -1769,7 +1769,6 @@ impl Context {
                                     ctx.get_class_attr(&VarName::from_static("__call__"), ctx)
                                 })
                                 .and_then(|vi| vi.t.param_ts().first().cloned())
-                                .or(param_t.cloned())
                         };
                         let new_t = if let Some(t) = param_t {
                             func1(t, gen.typ().clone())

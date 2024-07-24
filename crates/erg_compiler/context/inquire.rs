@@ -2086,7 +2086,7 @@ impl Context {
                 if let Some(call_vi) =
                     typ_ctx.get_current_scope_var(&VarName::from_static("__call__"))
                 {
-                    if call_vi.vis.is_private() {
+                    if ERG_MODE && call_vi.vis.is_private() {
                         self.validate_visibility(
                             &Identifier::private_with_loc("__call__".into(), obj.loc()),
                             call_vi,
