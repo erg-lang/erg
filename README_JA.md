@@ -190,7 +190,7 @@ cd erg
 nix-build
 ```
 
-[Nix Flakes](https://nixos.wiki/wiki/Flakes)を有効化している場合は次のコマンドでも良いです.
+[Nix Flakes](https://wiki.nixos.org/wiki/Flakes)を有効化している場合は次のコマンドでも良いです.
 
 ```sh
 git clone https://github.com/erg-lang/erg.git

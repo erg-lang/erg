@@ -188,7 +188,7 @@ cd erg
 nix-build
 ```
 
-If you've been enabled [Nix Flakes](https://nixos.wiki/wiki/Flakes).
+If you've been enabled [Nix Flakes](https://wiki.nixos.org/wiki/Flakes).
 
 ```sh
 git clone https://github.com/erg-lang/erg.git
