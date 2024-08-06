@@ -1207,7 +1207,7 @@ passed keyword args:    {kw_args_len}"
             "traditional_chinese" => candidate.push_str("候選: "),
             "english" => candidate.push_str("candidates: "),
         );
-        candidate.push_str_with_color_and_attr(&fmt_vec(candidates), WARN, ATTR);
+        candidate.push_str_with_color_and_attr(fmt_vec(candidates), WARN, ATTR);
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::ambiguous_new(
@@ -1258,7 +1258,7 @@ passed keyword args:    {kw_args_len}"
             "traditional_chinese" => candidate.push_str("候選: "),
             "english" => candidate.push_str("candidates: "),
         );
-        candidate.push_str_with_color_and_attr(&fmt_vec(candidates), WARN, ATTR);
+        candidate.push_str_with_color_and_attr(fmt_vec(candidates), WARN, ATTR);
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::ambiguous_new(

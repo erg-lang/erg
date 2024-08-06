@@ -566,11 +566,6 @@ impl RegistrationMode {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ContextInfo {
-    mod_id: usize,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MethodPair {
     definition_type: Type,

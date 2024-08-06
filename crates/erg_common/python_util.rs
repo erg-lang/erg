@@ -852,7 +852,7 @@ pub fn _eval_pyc<S: Into<String>>(file: S, py_command: Option<&str>) -> String {
         Command::new("cmd")
             .arg("/C")
             .arg(command)
-            .arg(&file.into())
+            .arg(file.into())
             .spawn()
             .expect("cannot execute python")
     } else {

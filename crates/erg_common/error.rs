@@ -587,19 +587,19 @@ fn format_context<E: ErrorDisplay + ?Sized>(
         if i == 0 && i == final_step {
             context.push_str(&" ".repeat(col_begin));
             context.push_str_with_color(
-                &mark.repeat(cmp::max(1, col_end.saturating_sub(col_begin))),
+                mark.repeat(cmp::max(1, col_end.saturating_sub(col_begin))),
                 err_color,
             );
         } else if i == 0 {
             context.push_str(&" ".repeat(col_begin));
             context.push_str_with_color(
-                &mark.repeat(cmp::max(1, codes[i].len().saturating_sub(col_begin))),
+                mark.repeat(cmp::max(1, codes[i].len().saturating_sub(col_begin))),
                 err_color,
             );
         } else if i == final_step {
-            context.push_str_with_color(&mark.repeat(col_end), err_color);
+            context.push_str_with_color(mark.repeat(col_end), err_color);
         } else {
-            context.push_str_with_color(&mark.repeat(cmp::max(1, codes[i].len())), err_color);
+            context.push_str_with_color(mark.repeat(cmp::max(1, codes[i].len())), err_color);
         }
         context.push_str("\n");
     }
@@ -609,9 +609,9 @@ fn format_context<E: ErrorDisplay + ?Sized>(
         context.push_str_with_color(&offset, gutter_color);
         context.push_str(&" ".repeat(col_end.saturating_sub(1)));
         if i == msg_num && hint.is_none() {
-            context.push_str_with_color(&chars.left_bottom_line(), err_color);
+            context.push_str_with_color(chars.left_bottom_line(), err_color);
         } else {
-            context.push_str_with_color(&chars.left_cross(), err_color);
+            context.push_str_with_color(chars.left_cross(), err_color);
         }
         context.push_str(msg);
         context.push_str("\n")
@@ -619,7 +619,7 @@ fn format_context<E: ErrorDisplay + ?Sized>(
     if let Some(hint) = hint {
         context.push_str_with_color(&offset, gutter_color);
         context.push_str(&" ".repeat(col_end.saturating_sub(1)));
-        context.push_str_with_color(&chars.left_bottom_line(), err_color);
+        context.push_str_with_color(chars.left_bottom_line(), err_color);
         context.push_str(hint);
         context.push_str("\n")
     }
@@ -751,7 +751,7 @@ impl SubMessage {
                         gutter_color,
                     );
                     cxt.push_str(&" ".repeat(lineno.to_string().len()));
-                    cxt.push_str_with_color(&mark.repeat(cmp::max(1, codes[i].len())), err_color);
+                    cxt.push_str_with_color(mark.repeat(cmp::max(1, codes[i].len())), err_color);
                     cxt.push_str("\n");
                 }
                 cxt.push_str("\n");

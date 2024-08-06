@@ -278,7 +278,7 @@ impl Input {
 
     pub fn read(&mut self) -> String {
         match &mut self.kind {
-            InputKind::File(filename) => match VFS.read(&filename) {
+            InputKind::File(filename) => match VFS.read(filename.as_path()) {
                 Ok(s) => s,
                 Err(e) => {
                     let code = e.raw_os_error().unwrap_or(1);
@@ -589,7 +589,7 @@ impl Input {
     /// 4.  `{path/to}/__pycache__/__init__.d.er`
     /// 5.  `{path.d/to.d}/__init__.d.er`
     /// 6.  `{path.d/to.d}/__pycache__/__init__.d.er`
-    /// (and repeat for the project root)
+    /// * (and repeat for the project root)
     /// 7.  `std/{path/to}.d.er`
     /// 8.  `std/{path/to}/__init__.d.er`
     /// 9.  `pkgs/{path/to}/src/lib.d.er`
