@@ -1,6 +1,7 @@
 from _erg_control import then__
 from _erg_result import Error
 from _erg_type import MutType
+from _erg_ratio import Ratio
 
 
 class Int(int):
@@ -34,8 +35,8 @@ class Int(int):
     def __mul__(self, other):
         return then__(int.__mul__(self, other), Int)
 
-    def __div__(self, other):
-        return then__(int.__div__(self, other), Int)
+    def __truediv__(self, other):
+        return then__(Ratio((self, other)), Ratio)
 
     def __floordiv__(self, other):
         return then__(int.__floordiv__(self, other), Int)

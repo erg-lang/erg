@@ -8,17 +8,31 @@ from _erg_float import Float, FloatMut
 from _erg_int import Int, IntMut
 from _erg_mutate_operator import mutate_operator
 from _erg_nat import Nat, NatMut
-from _erg_range import (ClosedRange, LeftOpenRange, OpenRange, Range,
-                        RangeIterator, RightOpenRange)
+from _erg_range import (
+    ClosedRange,
+    LeftOpenRange,
+    OpenRange,
+    Range,
+    RangeIterator,
+    RightOpenRange,
+)
 from _erg_result import Error, is_ok
 from _erg_ratio import Ratio, RatioMut
 from _erg_set import Set
 from _erg_str import Str, StrMut
 from _erg_type import MutType as _MutType
-from _erg_iterable import (iterable_map, iterable_filter, iterable_reduce,
-                        iterable_nth, iterable_skip, iterable_all,
-                        iterable_any, iterable_position, iterable_find,
-                        iterable_chain)
+from _erg_iterable import (
+    iterable_map,
+    iterable_filter,
+    iterable_reduce,
+    iterable_nth,
+    iterable_skip,
+    iterable_all,
+    iterable_any,
+    iterable_position,
+    iterable_find,
+    iterable_chain,
+)
 
 Record = tuple
 
