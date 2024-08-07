@@ -2,4 +2,4 @@ perform f, x, y = f x, y
 assert 3 == perform `_+_`, 1, 2
 assert -1 == perform `_-_`, 1, 2
 assert 2 == perform `*`, 1, 2
-assert 0.5 - perform(`/`, 1, 2) < Float.EPSILON
+assert 0.5 - perform(`/`, 1, 2) == 0.0
