@@ -3351,7 +3351,7 @@ impl PyCodeGenerator {
         let mut wrapped = true;
         if !self.cfg.no_std && expr.should_wrap() {
             match expr.ref_t().derefine() {
-                v @ (Bool | Nat | Int | Float | Str) => {
+                v @ (Bool | Nat | Int | Ratio | Float | Str) => {
                     self.emit_push_null();
                     self.emit_load_name_instr(Identifier::public(&v.qual_name()));
                 }

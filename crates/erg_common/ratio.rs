@@ -64,16 +64,18 @@ impl Ratio {
         self.numer as f64 / self.denom as f64
     }
 
-    pub fn to_int(self) -> i32 {
-        (self.numer / self.denom) as i32
+    pub fn to_int(self) -> i64 {
+        self.numer / self.denom
     }
 
     pub fn denom(&self) -> i64 {
         self.denom
     }
+
     pub fn numer(&self) -> i64 {
         self.numer
     }
+
     pub fn to_le_bytes(&self) -> Vec<u8> {
         [self.numer.to_le_bytes(), self.denom.to_le_bytes()].concat()
     }

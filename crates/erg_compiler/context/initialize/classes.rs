@@ -490,7 +490,7 @@ impl Context {
 
         /* Int */
         let mut int = Self::builtin_mono_class(INT, 2);
-        int.register_superclass(Float, &float); // TODO: Float -> Ratio
+        int.register_superclass(Ratio, &ratio);
         int.register_trait(self, mono(NUM)).unwrap();
         // class("Rational"),
         // class("Integral"),
@@ -641,7 +641,7 @@ impl Context {
         let mut int_div = Self::builtin_methods(Some(poly(DIV, vec![ty_tp(Int)])), 2);
         int_div.register_builtin_erg_impl(
             OP_DIV,
-            fn1_met(Int, Int, Float),
+            fn1_met(Int, Int, Ratio),
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
@@ -649,7 +649,7 @@ impl Context {
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
             None,
-            ValueObj::builtin_class(Float),
+            ValueObj::builtin_class(Ratio),
         );
         int_div.register_builtin_const(
             MOD_OUTPUT,
@@ -801,7 +801,7 @@ impl Context {
         let mut nat_div = Self::builtin_methods(Some(poly(DIV, vec![ty_tp(Nat)])), 2);
         nat_div.register_builtin_erg_impl(
             OP_DIV,
-            fn1_met(Nat, Nat, Float),
+            fn1_met(Nat, Nat, Ratio),
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
@@ -809,7 +809,7 @@ impl Context {
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
             None,
-            ValueObj::builtin_class(Float),
+            ValueObj::builtin_class(Ratio),
         );
         nat_div.register_builtin_const(
             MOD_OUTPUT,
@@ -2830,7 +2830,7 @@ impl Context {
         /* Int! */
         let mut int_mut = Self::builtin_mono_class(MUT_INT, 2);
         int_mut.register_superclass(Int, &int);
-        int_mut.register_superclass(mono(MUT_FLOAT), &float_mut);
+        int_mut.register_superclass(mono(MUT_RATIO), &ratio_mut);
         let t = pr_met(mono(MUT_INT), vec![], None, vec![kw(KW_I, Int)], NoneType);
         int_mut.register_builtin_py_impl(
             PROC_INC,
