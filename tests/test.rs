@@ -534,7 +534,7 @@ fn exec_collection_err() -> Result<(), ()> {
 
 #[test]
 fn exec_default_param_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/default_param.er", 0, 3)
+    expect_failure("tests/should_err/default_param.er", 0, 4)
 }
 
 #[test]
