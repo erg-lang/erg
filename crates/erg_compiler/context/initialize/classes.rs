@@ -1690,6 +1690,8 @@ impl Context {
         )
         .quantify();
         list_.register_builtin_erg_impl(FUNC_GET, t_get, Immutable, Visibility::BUILTIN_PUBLIC);
+        let t_index = fn1_met(lis_t.clone(), T.clone(), Nat).quantify();
+        list_.register_builtin_erg_impl(FUNC_INDEX, t_index, Immutable, Visibility::BUILTIN_PUBLIC);
         // List(T, N)|<: Add(List(T, M))|.
         //     Output = List(T, N + M)
         //     __add__: (self: List(T, N), other: List(T, M)) -> List(T, N + M) = List.concat
