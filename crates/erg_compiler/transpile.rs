@@ -470,6 +470,8 @@ impl PyScriptGenerator {
             .replace("from _erg_nat import Nat", "")
             .replace("from _erg_int import IntMut", "")
             .replace("from _erg_int import Int", "")
+            .replace("from _erg_ratio import RatioMut", "")
+            .replace("from _erg_ratio import Ratio", "")
             .replace("from _erg_bool import BoolMut", "")
             .replace("from _erg_bool import Bool", "")
             .replace("from _erg_str import StrMut", "")
@@ -666,6 +668,7 @@ impl PyScriptGenerator {
             ValueObj::Bool(_)
                 | ValueObj::Int(_)
                 | ValueObj::Nat(_)
+                | ValueObj::Ratio(_)
                 | ValueObj::Str(_)
                 | ValueObj::Float(_)
         ) {
@@ -756,7 +759,7 @@ impl PyScriptGenerator {
     fn transpile_acc(&mut self, acc: Accessor) -> String {
         let mut prefix = "".to_string();
         match acc.ref_t().derefine() {
-            v @ (Type::Bool | Type::Nat | Type::Int | Type::Float | Type::Str) => {
+            v @ (Type::Bool | Type::Nat | Type::Int | Type::Ratio | Type::Float | Type::Str) => {
                 self.load_builtin_types_if_not();
                 prefix.push_str(&v.qual_name());
                 prefix.push('(');
@@ -773,15 +776,15 @@ impl PyScriptGenerator {
         match acc {
             Accessor::Ident(ident) => {
                 match &ident.inspect()[..] {
-                    "Str" | "Bytes" | "Bool" | "Nat" | "Int" | "Float" | "List" | "Dict"
-                    | "Set" | "Str!" | "Bytes!" | "Bool!" | "Nat!" | "Int!" | "Float!"
-                    | "List!" => {
+                    "Str" | "Bytes" | "Bool" | "Nat" | "Int" | "Ratio" | "Float" | "List"
+                    | "Dict" | "Set" | "Str!" | "Bytes!" | "Bool!" | "Nat!" | "Int!" | "Ratio!"
+                    | "Float!" | "List!" => {
                         self.load_builtin_types_if_not();
                     }
                     "if" | "if!" | "for!" | "while" | "discard" => {
                         self.load_builtin_controls_if_not();
                     }
-                    "int" | "nat" | "float" | "str" => {
+                    "int" | "nat" | "ratio" | "float" | "str" => {
                         self.load_convertors_if_not();
                     }
                     _ => {}

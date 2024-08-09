@@ -1,13 +1,27 @@
+from fractions import Fraction
+
 from _erg_control import then__
 from _erg_result import Error
 from _erg_type import MutType
-from _erg_ratio import Ratio
 
 
-class Int(int):
-    def try_new(i):  # -> Result[Nat]
-        if isinstance(i, int):
-            return Int(i)
+class Ratio(Fraction):
+    def __new__(cls, fraction: int | tuple[int, int] | Fraction):
+        if isinstance(fraction, int):
+            return super().__new__(cls, fraction, 1)
+
+        if isinstance(fraction, Fraction):
+            return super().__new__(cls, fraction)
+
+        numerator, denominator = fraction
+        if isinstance(numerator, int) and isinstance(denominator, int):
+            return super().__new__(cls, numerator, denominator)
+        else:
+            raise ValueError("This class only accepts the fraction")
+
+    def try_new(numerator: int, denominator: int):
+        if isinstance(numerator, int) and isinstance(denominator, int):
+            return Ratio(numerator, denominator)
         else:
             return Error("not an integer")
 
@@ -18,47 +32,47 @@ class Int(int):
             return bin(self).count("1")
 
     def succ(self):
-        return Int(self + 1)
+        return Ratio(self + 1)
 
     def pred(self):
-        return Int(self - 1)
+        return Ratio(self - 1)
 
     def mutate(self):
-        return IntMut(self)
+        return RatioMut(self)
 
     def __add__(self, other):
-        return then__(int.__add__(self, other), Int)
+        return then__(super().__add__(other), Ratio)
 
     def __sub__(self, other):
-        return then__(int.__sub__(self, other), Int)
+        return then__(super().__sub__(other), Ratio)
 
     def __mul__(self, other):
-        return then__(int.__mul__(self, other), Int)
+        return then__(super().__mul__(other), Ratio)
 
     def __truediv__(self, other):
         return then__(Ratio((self, other)), Ratio)
 
     def __floordiv__(self, other):
-        return then__(int.__floordiv__(self, other), Int)
+        return then__(super().__floordiv__(other), Ratio)
 
     def __pow__(self, other):
-        return then__(int.__pow__(self, other), Int)
+        return then__(super().__pow__(other), Ratio)
 
     def __rpow__(self, other):
-        return then__(int.__pow__(other, self), Int)
+        return then__(super().__rpow__(other), Ratio)
 
     def __pos__(self):
         return self
 
     def __neg__(self):
-        return then__(int.__neg__(self), Int)
+        return then__(super().__neg__(), Ratio)
 
 
-class IntMut(MutType):  # inherits Int
-    value: Int
+class RatioMut(MutType):
+    value: Ratio
 
-    def __init__(self, i):
-        self.value = Int(i)
+    def __init__(self, i, denominator: int):
+        self.value = Ratio(i, denominator)
 
     def __int__(self):
         return self.value.__int__()
@@ -110,54 +124,54 @@ class IntMut(MutType):  # inherits Int
 
     def __add__(self, other):
         if isinstance(other, MutType):
-            return IntMut(self.value + other.value)
+            return RatioMut(self.value + other.value)
         else:
-            return IntMut(self.value + other)
+            return RatioMut(self.value + other)
 
     def __sub__(self, other):
         if isinstance(other, MutType):
-            return IntMut(self.value - other.value)
+            return RatioMut(self.value - other.value)
         else:
-            return IntMut(self.value - other)
+            return RatioMut(self.value - other)
 
     def __mul__(self, other):
         if isinstance(other, MutType):
-            return IntMut(self.value * other.value)
+            return RatioMut(self.value * other.value)
         else:
-            return IntMut(self.value * other)
+            return RatioMut(self.value * other)
 
     def __floordiv__(self, other):
         if isinstance(other, MutType):
-            return IntMut(self.value // other.value)
+            return RatioMut(self.value // other.value)
         else:
-            return IntMut(self.value // other)
+            return RatioMut(self.value // other)
 
     def __truediv__(self, other):
         if isinstance(other, MutType):
-            return IntMut(self.value / other.value)
+            return RatioMut(self.value / other.value)
         else:
-            return IntMut(self.value / other)
+            return RatioMut(self.value / other)
 
     def __pow__(self, other):
         if isinstance(other, MutType):
-            return IntMut(self.value**other.value)
+            return RatioMut(self.value**other.value)
         else:
-            return IntMut(self.value**other)
+            return RatioMut(self.value**other)
 
     def __pos__(self):
         return self
 
     def __neg__(self):
-        return IntMut(-self.value)
+        return RatioMut(-self.value)
 
     def update(self, f):
-        self.value = Int(f(self.value))
+        self.value = Ratio(f(self.value))
 
     def inc(self, i=1):
-        self.value = Int(self.value + i)
+        self.value = Ratio(self.value + i)
 
     def dec(self, i=1):
-        self.value = Int(self.value - i)
+        self.value = Ratio(self.value - i)
 
     def succ(self):
         return self.value.succ()
@@ -166,4 +180,4 @@ class IntMut(MutType):  # inherits Int
         return self.value.pred()
 
     def copy(self):
-        return IntMut(self.value)
+        return RatioMut(self.value)

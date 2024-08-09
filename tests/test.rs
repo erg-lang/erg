@@ -630,7 +630,7 @@ fn exec_pyimport_err() -> Result<(), ()> {
 
 #[test]
 fn exec_set() -> Result<(), ()> {
-    expect_failure("examples/set.er", 3, 1)
+    expect_success("examples/set.er", 3)
 }
 
 #[test]
