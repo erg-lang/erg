@@ -18,3 +18,14 @@ assert w == 1
 
 gt|T, U| x: Structural({.__gt__ = (self: T, other: U) -> Bool}), y: U = x.__gt__ y
 assert gt(2, True)
+
+length|T| x: Structural { .__len__ = (self: T) -> Nat } = x.__len__()
+
+assert length("aaa") == 3
+assert length(bytes("aaa", "utf-8")) == 3
+assert length([1, 2]) == 2
+assert length({"a": 1}) == 1
+assert length({1, 2, 3}) == 3
+assert length((1, 2, 3)) == 3
+s as Str or Bytes = "a"
+assert length(s) == 1

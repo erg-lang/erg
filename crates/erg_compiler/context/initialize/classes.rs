@@ -2038,6 +2038,14 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
+        let mut generic_set_sized = Self::builtin_methods(Some(mono(SIZED)), 2);
+        generic_set_sized.register_builtin_erg_impl(
+            FUNDAMENTAL_LEN,
+            fn0_met(mono(GENERIC_SET), Nat),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        generic_set.register_trait_methods(mono(GENERIC_SET), generic_set_sized);
         /* Set */
         let mut set_ =
             Self::builtin_poly_class(SET, vec![PS::t_nd(TY_T), PS::named_nd(TY_N, Nat)], 10);
@@ -2128,6 +2136,14 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         generic_dict.register_trait_methods(g_dict_t.clone(), generic_dict_eq);
+        let mut generic_dict_sized = Self::builtin_methods(Some(mono(SIZED)), 2);
+        generic_dict_sized.register_builtin_erg_impl(
+            FUNDAMENTAL_LEN,
+            fn0_met(g_dict_t.clone(), Nat).quantify(),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        generic_dict.register_trait_methods(g_dict_t.clone(), generic_dict_sized);
         let D = mono_q_tp(TY_D, instanceof(mono(GENERIC_DICT)));
         // .get: _: T -> T or None
         let dict_get_t = fn1_met(g_dict_t.clone(), T.clone(), or(T.clone(), NoneType)).quantify();
@@ -2334,9 +2350,14 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
-        bytes
-            .register_trait(self, poly(SEQUENCE, vec![ty_tp(Int)]))
-            .unwrap();
+        let mut bytes_seq = Self::builtin_methods(Some(poly(SEQUENCE, vec![ty_tp(Int)])), 2);
+        bytes_seq.register_builtin_erg_impl(
+            FUNDAMENTAL_LEN,
+            fn0_met(mono(BYTES), Nat),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        bytes.register_trait_methods(Str, bytes_seq);
         let mut bytes_eq = Self::builtin_methods(Some(mono(EQ)), 2);
         bytes_eq.register_builtin_erg_impl(
             OP_EQ,
@@ -2375,6 +2396,14 @@ impl Context {
         );
         generic_tuple.register_trait_methods(mono(GENERIC_TUPLE), tuple_hash);
         generic_tuple.register_trait(self, mono(EQ_HASH)).unwrap();
+        let mut generic_tuple_sized = Self::builtin_methods(Some(mono(SIZED)), 2);
+        generic_tuple_sized.register_builtin_erg_impl(
+            FUNDAMENTAL_LEN,
+            fn0_met(mono(GENERIC_TUPLE), Nat),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        generic_tuple.register_trait_methods(mono(GENERIC_TUPLE), generic_tuple_sized);
         /* HomogenousTuple */
         let mut homo_tuple = Self::builtin_poly_class(HOMOGENOUS_TUPLE, vec![PS::t_nd(TY_T)], 1);
         homo_tuple.register_superclass(mono(GENERIC_TUPLE), &generic_tuple);

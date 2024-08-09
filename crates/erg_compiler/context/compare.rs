@@ -869,6 +869,22 @@ impl Context {
             Type::NamedTuple(fields) => fields.iter().cloned().collect(),
             Type::Refinement(refine) => self.fields(&refine.t),
             Type::Structural(t) => self.fields(t),
+            Type::Or(l, r) => {
+                let l_fields = self.fields(l);
+                let r_fields = self.fields(r);
+                let l_field_names = l_fields.keys().collect::<Set<_>>();
+                let r_field_names = r_fields.keys().collect::<Set<_>>();
+                let field_names = l_field_names.intersection(&r_field_names);
+                let mut fields = Dict::new();
+                for (name, l_t, r_t) in field_names
+                    .iter()
+                    .map(|&name| (name, &l_fields[name], &r_fields[name]))
+                {
+                    let union = self.union(l_t, r_t);
+                    fields.insert(name.clone(), union);
+                }
+                fields
+            }
             other => {
                 let Some(ctx) = self.get_nominal_type_ctx(other) else {
                     return Dict::new();
