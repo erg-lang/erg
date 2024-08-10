@@ -569,7 +569,7 @@ fn which_python_from_toml() -> Option<String> {
     let f = File::open("pyproject.toml").ok()?;
     let mut reader = std::io::BufReader::new(f);
     let mut line = String::new();
-    while reader.read_line(&mut line).is_ok() {
+    while reader.read_line(&mut line).is_ok_and(|i| i > 0) {
         if line.starts_with("[tool.erg.python]") || line.starts_with("[tool.pylyzer.python]") {
             line.clear();
             reader.read_line(&mut line).ok()?;
