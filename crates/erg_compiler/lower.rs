@@ -1833,60 +1833,41 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 );
             }
         }
-        let (non_default_params, default_params): (Vec<_>, Vec<_>) = self
-            .module
-            .context
-            .params
+        let non_default_params = params
+            .non_defaults
             .iter()
-            .partition(|(_, vi)| !vi.kind.has_default());
-        #[cfg(not(feature = "py_compat"))]
-        let (var_params, non_default_params) = {
-            let (var_params, non_default_params): (Vec<_>, Vec<_>) = non_default_params
-                .into_iter()
-                .partition(|(_, vi)| vi.kind.is_var_params());
-            // vi.t: `[T; _]`
-            // pt: `name: T`
-            let var_params = var_params.first().map(|(name, vi)| {
+            .map(|param| {
                 ParamTy::pos_or_kw(
-                    name.as_ref().map(|n| n.inspect().clone()),
-                    vi.t.inner_ts().first().map_or(Type::Obj, |t| t.clone()),
+                    param.name().map(|n| n.inspect().clone()),
+                    param.vi.t.clone(),
                 )
-            });
-            (var_params, non_default_params.into_iter())
-        };
-        #[cfg(feature = "py_compat")]
-        let (var_params, non_default_params) = {
-            let (var_params, non_default_params): (Vec<_>, Vec<_>) = non_default_params
-                .into_iter()
-                .partition(|(_, vi)| vi.kind.is_var_params());
-            let var_params = var_params.get(0).map(|(name, vi)| {
-                ParamTy::pos_or_kw(
-                    name.as_ref().map(|n| n.inspect().clone()),
-                    vi.t.inner_ts().first().map_or(Type::Obj, |t| t.clone()),
-                )
-            });
-            let non_default_params = non_default_params.into_iter().filter(|(name, _)| {
-                params
-                    .non_defaults
-                    .iter()
-                    .any(|nd| nd.name() == name.as_ref())
-            });
-            (var_params, non_default_params)
-        };
-        let non_default_param_tys = non_default_params
-            .map(|(name, vi)| {
-                ParamTy::pos_or_kw(name.as_ref().map(|n| n.inspect().clone()), vi.t.clone())
             })
-            .collect();
-        #[cfg(not(feature = "py_compat"))]
-        let default_params = default_params.into_iter();
-        #[cfg(feature = "py_compat")]
-        let default_params = default_params
-            .into_iter()
-            .filter(|(name, _)| params.defaults.iter().any(|d| d.name() == name.as_ref()));
-        let default_param_tys = default_params
-            .map(|(name, vi)| ParamTy::kw(name.as_ref().unwrap().inspect().clone(), vi.t.clone()))
-            .collect();
+            .collect::<Vec<_>>();
+        let default_params = params
+            .defaults
+            .iter()
+            .map(|param| {
+                ParamTy::kw(
+                    param.name().unwrap().inspect().clone(),
+                    param.sig.vi.t.clone(),
+                )
+            })
+            .collect::<Vec<_>>();
+        let var_params = params.var_params.as_ref().map(|param| {
+            ParamTy::pos_or_kw(
+                param.name().map(|n| n.inspect().clone()),
+                param
+                    .vi
+                    .t
+                    .inner_ts()
+                    .first()
+                    .map_or(Type::Obj, |t| t.clone()),
+            )
+        });
+        let kw_var_params = params
+            .kw_var_params
+            .as_ref()
+            .map(|param| ParamTy::kw(param.name().unwrap().inspect().clone(), param.vi.t.clone()));
         let captured_names = mem::take(&mut self.module.context.captured_names);
         if in_statement {
             // For example, `i` in `for i in ...` is a parameter,
@@ -1910,18 +1891,18 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         }
         let ty = if is_procedural {
             proc(
-                non_default_param_tys,
+                non_default_params,
                 var_params,
-                default_param_tys,
-                None,
+                default_params,
+                kw_var_params,
                 body.t(),
             )
         } else {
             func(
-                non_default_param_tys,
+                non_default_params,
                 var_params,
-                default_param_tys,
-                None,
+                default_params,
+                kw_var_params,
                 body.t(),
             )
         };
