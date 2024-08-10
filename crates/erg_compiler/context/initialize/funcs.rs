@@ -73,11 +73,12 @@ impl Context {
             mono(MUT_BYTEARRAY),
         );
         let t_callable = func1(Obj, Bool);
-        let t_chr = nd_func(
-            vec![kw(KW_I, Type::from(value(0usize)..=value(1_114_111usize)))],
-            None,
-            Str,
-        );
+        let t_chr_in = if PYTHON_MODE {
+            Int
+        } else {
+            Type::from(value(0usize)..=value(1_114_111usize))
+        };
+        let t_chr = nd_func(vec![kw(KW_I, t_chr_in)], None, Str);
         let F = mono_q(TY_F, instanceof(mono(GENERIC_CALLABLE)));
         let t_classmethod = nd_func(vec![kw(KW_FUNC, F.clone())], None, F.clone()).quantify();
         let t_classof = nd_func(vec![kw(KW_OLD, Obj)], None, ClassType);
@@ -360,7 +361,12 @@ impl Context {
         )
         .quantify();
         let t_staticmethod = nd_func(vec![kw(KW_FUNC, F.clone())], None, F.clone()).quantify();
-        let t_str = nd_func(vec![kw(KW_OBJECT, Obj)], None, Str);
+        let t_str = nd_func(vec![kw(KW_OBJECT, Obj)], None, Str)
+            & nd_func(
+                vec![kw(KW_BYTES_OR_BUFFER, mono(BYTES)), kw(KW_ENCODING, Str)],
+                None,
+                Str,
+            );
         let str_ = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_STR,
             str_func,

@@ -1275,7 +1275,12 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_FROM_),
         );
-        let str_getitem_t = fn1_kw_met(Str, kw(KW_IDX, Nat | poly(RANGE, vec![ty_tp(Int)])), Str);
+        let idx_t = if PYTHON_MODE {
+            Int | poly(RANGE, vec![ty_tp(Int)])
+        } else {
+            Nat | poly(RANGE, vec![ty_tp(Int)])
+        };
+        let str_getitem_t = fn1_kw_met(Str, kw(KW_IDX, idx_t), Str);
         str_.register_builtin_erg_impl(
             FUNDAMENTAL_GETITEM,
             str_getitem_t,
@@ -1284,7 +1289,12 @@ impl Context {
         );
         str_.register_trait(self, poly(INDEXABLE, vec![ty_tp(Nat), ty_tp(Str)]))
             .unwrap();
-        let t_call = func(vec![], None, vec![kw(KW_OBJECT, Obj)], None, Str);
+        let t_call = func(vec![], None, vec![kw(KW_OBJECT, Obj)], None, Str)
+            & nd_func(
+                vec![kw(KW_BYTES_OR_BUFFER, mono(BYTES)), kw(KW_ENCODING, Str)],
+                None,
+                Str,
+            );
         str_.register_builtin_erg_impl(
             FUNDAMENTAL_CALL,
             t_call,
@@ -1741,11 +1751,15 @@ impl Context {
         );
         list_.register_trait_methods(lis_t.clone(), list_mutizable);
         let var = FRESH_GEN.fresh_varname();
-        let input = refinement(
-            var.clone(),
-            Nat,
-            Predicate::le(var, N.clone() - value(1usize)),
-        );
+        let input = if PYTHON_MODE {
+            Int
+        } else {
+            refinement(
+                var.clone(),
+                Nat,
+                Predicate::le(var, N.clone() - value(1usize)),
+            )
+        };
         // __getitem__: |T, N|(self: [T; N], _: {I: Nat | I <= N}) -> T
         //              and (self: [T; N], _: Range(Int) | Slice) -> [T; _]
         let list_getitem_t =
@@ -2338,7 +2352,8 @@ impl Context {
             Str,
         );
         bytes.register_py_builtin(FUNC_DECODE, decode_t, Some(FUNC_DECODE), 6);
-        let bytes_getitem_t = fn1_kw_met(mono(BYTES), kw(KW_IDX, Nat), Int)
+        let idx_t = if PYTHON_MODE { Int } else { Nat };
+        let bytes_getitem_t = fn1_kw_met(mono(BYTES), kw(KW_IDX, idx_t), Int)
             & fn1_kw_met(
                 mono(BYTES),
                 kw(KW_IDX, poly(RANGE, vec![ty_tp(Int)])),
@@ -2349,6 +2364,268 @@ impl Context {
             bytes_getitem_t,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
+        );
+        bytes.register_builtin_py_impl(
+            FUNC_CENTER,
+            fn_met(
+                mono(BYTES),
+                vec![kw(KW_WIDTH, Nat)],
+                None,
+                vec![kw(KW_FILLCHAR, mono(BYTES))],
+                None,
+                mono(BYTES),
+            ),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_CENTER),
+        );
+        bytes.register_builtin_erg_impl(
+            FUNC_LOWER,
+            fn_met(mono(BYTES), vec![], None, vec![], None, mono(BYTES)),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        bytes.register_builtin_erg_impl(
+            FUNC_UPPER,
+            fn_met(mono(BYTES), vec![], None, vec![], None, mono(BYTES)),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        let t_startswith = fn1_met(mono(BYTES), mono(BYTES), Bool);
+        bytes.register_builtin_py_impl(
+            FUNC_STARTSWITH,
+            t_startswith,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_STARTSWITH),
+        );
+        let t_endswith = fn1_met(mono(BYTES), mono(BYTES), Bool);
+        bytes.register_builtin_py_impl(
+            FUNC_ENDSWITH,
+            t_endswith,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_ENDSWITH),
+        );
+        // TODO: resolve type inference conflict with `Str.split`
+        /*bytes.register_builtin_py_impl(
+            FUNC_SPLIT,
+            fn_met(
+                mono(BYTES),
+                vec![kw(KW_SEP, mono(BYTES))],
+                None,
+                vec![kw(KW_MAXSPLIT, Nat)],
+                None,
+                unknown_len_list_t(mono(BYTES)),
+            ),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_SPLIT),
+        );
+        let t_replace = fn_met(
+            mono(BYTES),
+            vec![kw(KW_PAT, mono(BYTES)), kw(KW_INTO, mono(BYTES))],
+            None,
+            vec![],
+            None,
+            mono(BYTES),
+        );
+        bytes.register_builtin_py_impl(
+            FUNC_REPLACE,
+            t_replace,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_REPLACE),
+        );*/
+        bytes.register_builtin_py_impl(
+            FUNC_SPLITLINES,
+            fn_met(
+                mono(BYTES),
+                vec![],
+                None,
+                vec![kw(KW_KEEPENDS, Bool)],
+                None,
+                unknown_len_list_t(mono(BYTES)),
+            ),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_SPLITLINES),
+        );
+        let t_join = fn1_met(
+            mono(BYTES),
+            poly(ITERABLE, vec![ty_tp(mono(BYTES))]),
+            mono(BYTES),
+        );
+        bytes.register_builtin_py_impl(
+            FUNC_JOIN,
+            t_join,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_JOIN),
+        );
+        bytes.register_builtin_py_impl(
+            FUNC_INDEX,
+            fn_met(
+                mono(BYTES),
+                vec![kw(KW_SUB, mono(BYTES))],
+                None,
+                vec![kw(KW_START, Nat), kw(KW_END, Nat)],
+                None,
+                Nat,
+            ),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_INDEX),
+        );
+        bytes.register_builtin_py_impl(
+            FUNC_RINDEX,
+            fn_met(
+                mono(BYTES),
+                vec![kw(KW_SUB, mono(BYTES))],
+                None,
+                vec![kw(KW_START, Nat), kw(KW_END, Nat)],
+                None,
+                Nat,
+            ),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_RINDEX),
+        );
+        let t_find = fn_met(
+            mono(BYTES),
+            vec![kw(KW_SUB, mono(BYTES))],
+            None,
+            vec![kw(KW_START, Nat), kw(KW_END, Nat)],
+            None,
+            or(Nat, v_enum(set! {(-1).into()})),
+        );
+        bytes.register_builtin_py_impl(
+            FUNC_FIND,
+            t_find,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_FIND),
+        );
+        bytes.register_builtin_py_impl(
+            FUNC_RFIND,
+            fn_met(
+                mono(BYTES),
+                vec![kw(KW_SUB, mono(BYTES))],
+                None,
+                vec![kw(KW_START, Nat), kw(KW_END, Nat)],
+                None,
+                or(Nat, v_enum(set! {(-1).into()})),
+            ),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_RFIND),
+        );
+        bytes.register_builtin_py_impl(
+            FUNC_COUNT,
+            fn_met(
+                mono(BYTES),
+                vec![kw(KW_SUB, mono(BYTES))],
+                None,
+                vec![kw(KW_START, Nat), kw(KW_END, Nat)],
+                None,
+                Nat,
+            ),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_COUNT),
+        );
+        bytes.register_builtin_py_impl(
+            FUNC_CAPITALIZE,
+            fn0_met(mono(BYTES), mono(BYTES)),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_CAPITALIZE),
+        );
+        bytes.register_builtin_py_impl(
+            FUNC_STRIP,
+            fn_met(
+                mono(BYTES),
+                vec![],
+                None,
+                vec![kw(KW_CHARS, mono(BYTES) | NoneType)],
+                None,
+                mono(BYTES),
+            ),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_STRIP),
+        );
+        bytes.register_builtin_py_impl(
+            FUNC_REMOVEPREFIX,
+            fn1_met(mono(BYTES), mono(BYTES), mono(BYTES)),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_REMOVEPREFIX),
+        );
+        bytes.register_builtin_py_impl(
+            FUNC_REMOVESUFFIX,
+            fn1_met(mono(BYTES), mono(BYTES), mono(BYTES)),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_REMOVESUFFIX),
+        );
+        bytes.register_builtin_py_impl(
+            FUNC_ISALNUM,
+            fn0_met(mono(BYTES), Bool),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_ISALNUM),
+        );
+        let t_isalpha = fn0_met(mono(BYTES), Bool);
+        bytes.register_builtin_py_impl(
+            FUNC_ISALPHA,
+            t_isalpha,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_ISALPHA),
+        );
+        let t_isascii = fn0_met(mono(BYTES), Bool);
+        bytes.register_builtin_py_impl(
+            FUNC_ISASCII,
+            t_isascii,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_ISASCII),
+        );
+        bytes.register_builtin_py_impl(
+            FUNC_ISDIGIT,
+            fn0_met(mono(BYTES), Bool),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_ISDIGIT),
+        );
+        bytes.register_builtin_py_impl(
+            FUNC_ISLOWER,
+            fn0_met(mono(BYTES), Bool),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_ISLOWER),
+        );
+        bytes.register_builtin_py_impl(
+            FUNC_ISSPACE,
+            fn0_met(mono(BYTES), Bool),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_ISSPACE),
+        );
+        bytes.register_builtin_py_impl(
+            FUNC_ISTITLE,
+            fn0_met(mono(BYTES), Bool),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_ISTITLE),
+        );
+        bytes.register_builtin_py_impl(
+            FUNC_ISUPPER,
+            fn0_met(mono(BYTES), Bool),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_ISUPPER),
         );
         let mut bytes_seq = Self::builtin_methods(Some(poly(SEQUENCE, vec![ty_tp(Int)])), 2);
         bytes_seq.register_builtin_erg_impl(
@@ -2412,7 +2689,8 @@ impl Context {
             .unwrap();
         let homo_tuple_t = poly(HOMOGENOUS_TUPLE, vec![ty_tp(T.clone())]);
         // __getitem__: (self: HomogenousTuple(T), Nat) -> T
-        let tuple_getitem_t = fn1_met(homo_tuple_t.clone(), Nat, T.clone()).quantify();
+        let idx_t = if PYTHON_MODE { Int } else { Nat };
+        let tuple_getitem_t = fn1_met(homo_tuple_t.clone(), idx_t, T.clone()).quantify();
         homo_tuple.register_builtin_py_impl(
             FUNDAMENTAL_GETITEM,
             tuple_getitem_t,
