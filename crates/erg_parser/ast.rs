@@ -5743,6 +5743,7 @@ impl_locational!(ReDef, attr, expr);
 #[pymethods]
 impl ReDef {
     #[staticmethod]
+    #[pyo3(signature = (attr, t_spec, expr))]
     pub fn new(attr: Accessor, t_spec: Option<TypeSpecWithOp>, expr: Expr) -> Self {
         Self {
             attr,

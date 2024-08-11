@@ -1401,7 +1401,7 @@ impl Context {
             .map_err(|mut errs| errs.remove(0))?;
         if &coerced != obj.ref_t() {
             let hash = get_hash(obj.ref_t());
-            obj.ref_t().destructive_coerce();
+            obj.ref_t().destructive_link(&coerced);
             if get_hash(obj.ref_t()) != hash {
                 return self
                     .search_method_info(obj, attr_name, pos_args, kw_args, input, namespace);
@@ -1530,7 +1530,7 @@ impl Context {
             .map_err(|mut errs| errs.remove(0))?;
         if &coerced != obj.ref_t() {
             let hash = get_hash(obj.ref_t());
-            obj.ref_t().destructive_coerce();
+            obj.ref_t().destructive_link(&coerced);
             if get_hash(obj.ref_t()) != hash {
                 return self.search_method_info_without_args(obj, attr_name, input, namespace);
             }
