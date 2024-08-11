@@ -1212,11 +1212,7 @@ impl NestedDisplay for ClassAttrs {
 
 impl Locational for ClassAttrs {
     fn loc(&self) -> Location {
-        if self.is_empty() {
-            Location::Unknown
-        } else {
-            Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
-        }
+        Location::stream(&self.0)
     }
 }
 
@@ -5778,7 +5774,7 @@ impl NestedDisplay for Methods {
 }
 
 impl_display_from_nested!(Methods);
-impl_locational!(Methods, class, attrs);
+impl_locational!(Methods, lossy class, attrs);
 
 impl Methods {
     pub fn new(

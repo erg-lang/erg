@@ -276,7 +276,7 @@ impl fmt::Display for Location {
                 col_end,
             } => write!(f, "{ln_begin}:{col_begin}-{ln_end}:{col_end}"),
             Self::LineRange(ln_begin, ln_end) => write!(f, "{ln_begin}:?-{ln_end}:?"),
-            Self::Line(ln) => write!(f, "{ln}:?-{ln}:?"),
+            Self::Line(ln) => write!(f, "{ln}:??-{ln}:??"),
             Self::Unknown => write!(f, "?"),
         }
     }
@@ -427,11 +427,11 @@ impl Location {
     pub fn stream<L: Locational>(ls: &[L]) -> Self {
         if ls.is_empty() {
             return Self::Unknown;
-        };
+        }
         let Some(first_known) = ls.iter().find(|l| !l.loc().is_unknown()) else {
             return Self::Unknown;
         };
-        let Some(last_known) = ls.iter().rev().find(|l| !l.loc().is_unknown()) else {
+        let Some(last_known) = ls.iter().rfind(|l| !l.loc().is_unknown()) else {
             return Self::Unknown;
         };
         Self::concat(first_known, last_known)
@@ -481,7 +481,7 @@ impl Location {
 
     pub const fn ln_end(&self) -> Option<u32> {
         match self {
-            Self::Range { ln_end, .. } | Self::LineRange(ln_end, _) | Self::Line(ln_end) => {
+            Self::Range { ln_end, .. } | Self::LineRange(_, ln_end) | Self::Line(ln_end) => {
                 Some(*ln_end)
             }
             Self::Unknown => None,
