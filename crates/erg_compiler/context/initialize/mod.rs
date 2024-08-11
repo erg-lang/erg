@@ -744,6 +744,7 @@ const KW_EPSILON: &str = "epsilon";
 const KW_PATH: &str = "Path";
 const KW_NDIGITS: &str = "ndigits";
 const KW_BYTES_OR_BUFFER: &str = "bytes_or_buffer";
+const KW_COUNT: &str = "count";
 
 pub fn builtins_path() -> PathBuf {
     erg_pystd_path().join("builtins.d.er")

@@ -332,10 +332,13 @@ impl Desugarer {
                     .collect();
                 Expr::PatchDef(PatchDef::new(def, methods))
             }
-            Expr::ReDef(redef) => {
+            Expr::ReDef(mut redef) => {
                 let expr = desugar(*redef.expr);
+                if let Some(t_op) = &mut redef.t_spec {
+                    *t_op.t_spec_as_expr = desugar(*t_op.t_spec_as_expr.clone());
+                }
                 let attr = Self::perform_desugar_acc(desugar, redef.attr);
-                Expr::ReDef(ReDef::new(attr, expr))
+                Expr::ReDef(ReDef::new(attr, redef.t_spec, expr))
             }
             Expr::Lambda(mut lambda) => {
                 let mut chunks = vec![];

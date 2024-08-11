@@ -5725,6 +5725,7 @@ impl Def {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ReDef {
     pub attr: Accessor,
+    pub t_spec: Option<TypeSpecWithOp>,
     pub expr: Box<Expr>,
 }
 
@@ -5742,9 +5743,10 @@ impl_locational!(ReDef, attr, expr);
 #[pymethods]
 impl ReDef {
     #[staticmethod]
-    pub fn new(attr: Accessor, expr: Expr) -> Self {
+    pub fn new(attr: Accessor, t_spec: Option<TypeSpecWithOp>, expr: Expr) -> Self {
         Self {
             attr,
+            t_spec,
             expr: Box::new(expr),
         }
     }

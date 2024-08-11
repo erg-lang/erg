@@ -897,7 +897,7 @@ impl Context {
             Str,
             vec![kw(KW_PAT, Str), kw(KW_INTO, Str)],
             None,
-            vec![],
+            vec![kw(KW_COUNT, Int)],
             None,
             Str,
         );
