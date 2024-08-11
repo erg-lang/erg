@@ -551,6 +551,9 @@ pub struct Free<T: Send + Clone>(Forkable<FreeKind<T>>);
 
 impl Hash for Free<Type> {
     fn hash<H: Hasher>(&self, state: &mut H) {
+        if self.0.dec_recursion_counter() == 1 {
+            return;
+        }
         if let Some(name) = self.unbound_name() {
             name.hash(state);
         }
