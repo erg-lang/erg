@@ -6,9 +6,7 @@ from _erg_type import MutType
 
 
 class Ratio(Fraction):
-    def __new__(cls, fraction: int | tuple[int, int] | Fraction):
-        if isinstance(fraction, int):
-            return super().__new__(cls, fraction, 1)
+    FRAC_ZERO = Fraction(0)
 
     def __new__(cls, fraction):
         if isinstance(fraction, (int, float, Fraction)):
@@ -18,7 +16,8 @@ class Ratio(Fraction):
         if isinstance(numerator, (int, float, Fraction)) and isinstance(
             denominator, (int, float, Fraction)
         ):
-        if isinstance(numerator, int) and isinstance(denominator, int):
+            if (numerator, denominator) == (cls.FRAC_ZERO, cls.FRAC_ZERO):
+                return super().__new__(cls, cls.FRAC_ZERO)
             return super().__new__(cls, numerator, denominator)
         else:
             raise ValueError("This class only accepts the fraction")
