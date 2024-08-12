@@ -10,10 +10,14 @@ class Ratio(Fraction):
         if isinstance(fraction, int):
             return super().__new__(cls, fraction, 1)
 
-        if isinstance(fraction, Fraction):
+    def __new__(cls, fraction):
+        if isinstance(fraction, (int, float, Fraction)):
             return super().__new__(cls, fraction)
 
         numerator, denominator = fraction
+        if isinstance(numerator, (int, float, Fraction)) and isinstance(
+            denominator, (int, float, Fraction)
+        ):
         if isinstance(numerator, int) and isinstance(denominator, int):
             return super().__new__(cls, numerator, denominator)
         else:
