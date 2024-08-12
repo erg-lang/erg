@@ -1,7 +1,7 @@
 use std::cmp::Ordering::{self, Equal, Greater, Less};
 use std::fmt::Display;
 use std::ops::Neg;
-use std::ops::{Add, Div, Mul, Sub};
+use std::ops::{Add, Div, Mul, Rem, Sub};
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Hash)]
 pub struct Ratio {
@@ -130,6 +130,24 @@ impl Div for Ratio {
         let ac = gcd(self.numer, rhs.numer);
         let bd = gcd(self.denom, rhs.denom);
         Self::new(self.numer / ac, self.denom / bd * (rhs.numer / ac))
+    }
+}
+
+impl Rem for Ratio {
+    type Output = Self;
+
+    #[inline]
+    fn rem(self, rhs: Self) -> Self::Output {
+        if self == rhs {
+            return Self::zero();
+        } else if rhs == Self::one() {
+            return self;
+        }
+        let common_denom = gcd(self.denom, rhs.denom);
+        let numer =
+            (self.numer * (rhs.denom / common_denom)) % (rhs.numer * (self.denom / common_denom));
+        let denom = self.denom * (rhs.denom / common_denom);
+        Self::new(numer, denom)
     }
 }
 
@@ -283,6 +301,32 @@ mod test {
         let a = Ratio::new(i64::MAX, i64::MIN + 1);
         let b = Ratio::new(i64::MAX, i64::MIN + 1);
         assert_eq!(Ratio::new(1, 1), a / b);
+    }
+
+    #[test]
+    fn test_rational_rem() {
+        let a = Ratio::new(i64::MAX, i64::MIN + 1);
+        let b = Ratio::new(i64::MAX, i64::MIN + 1);
+        assert_eq!(Ratio::zero(), a % b);
+        let a = Ratio::new(i64::MAX, 127);
+        let b = Ratio::new(i64::MAX, 7);
+        assert_eq!(Ratio::new(72624976668147841, 1), a % b);
+
+        let a = Ratio::new(2, 1);
+        let b = Ratio::new(10, 1);
+        assert_eq!(Ratio::new(2, 1), a % b);
+        let a = Ratio::new(3, 2);
+        let b = Ratio::new(3, 2);
+        assert_eq!(Ratio::zero(), a % b);
+        let a = Ratio::new(5, 2);
+        let b = Ratio::new(5, 3);
+        assert_eq!(Ratio::new(5, 6), a % b);
+        let a = Ratio::new(5, 2);
+        let b = Ratio::new(5, 3);
+        assert_eq!(Ratio::new(5, 6), a % b);
+        let a = Ratio::new(7, 2);
+        let b = Ratio::new(2, 5);
+        assert_eq!(Ratio::new(3, 10), a % b);
     }
 
     #[test]
