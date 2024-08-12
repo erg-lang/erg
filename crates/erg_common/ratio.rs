@@ -10,7 +10,7 @@ pub struct Ratio {
 }
 
 impl Ratio {
-    pub fn new(numer: i64, denom: i64) -> Self {
+    pub const fn new(numer: i64, denom: i64) -> Self {
         if numer == 0 {
             return Self::zero();
         }
@@ -25,8 +25,10 @@ impl Ratio {
         }
     }
 
-    pub fn zero() -> Self {
-        Self { numer: 0, denom: 1 }
+    pub const fn zero() -> Self {
+        Self { numer: 0, denom: 0 }
+    }
+
     }
 
     const EPSILON: f64 = 1e-10;
@@ -183,7 +185,34 @@ impl Display for Ratio {
     }
 }
 
-fn gcd(x: i64, y: i64) -> i64 {
+pub const RATIO_E: Ratio = Ratio::new(268876667, 98914198);
+pub const RATIO_TAU: Ratio = Ratio::new(411557987, 65501488);
+pub const RATIO_EGAMMA: Ratio = Ratio::new(240627391, 416876058);
+pub const RATIO_PHI: Ratio = Ratio::new(240627391, 416876058);
+
+pub const RATIO_LN_2: Ratio = Ratio::new(49180508, 70952475);
+pub const RATIO_LN_2_10: Ratio = Ratio::new(146964308, 44240665);
+pub const RATIO_LN_2_E: Ratio = Ratio::new(161546953, 111975815);
+pub const RATIO_LN_10: Ratio = Ratio::new(239263565, 103910846);
+pub const RATIO_LN_10_2: Ratio = Ratio::new(44240665, 146964308);
+pub const RATIO_LN_10_E: Ratio = Ratio::new(118568075, 273013082);
+
+pub const RATIO_PI: Ratio = Ratio::new(245850922, 78256779);
+pub const RATIO_PI_2: Ratio = Ratio::new(122925461, 78256779);
+pub const RATIO_PI_3: Ratio = Ratio::new(112277827, 107217427);
+pub const RATIO_PI_4: Ratio = Ratio::new(101534659, 129277943);
+pub const RATIO_PI_6: Ratio = Ratio::new(69496223, 132728009);
+pub const RATIO_PI_8: Ratio = Ratio::new(101534659, 258555886);
+pub const RATIO_PI_10: Ratio = Ratio::new(122925461, 78256779);
+pub const RATIO_FRAC_1_PI: Ratio = Ratio::new(78256779, 245850922);
+pub const RATIO_FRAC_2_PI: Ratio = Ratio::new(78256779, 122925461);
+
+pub const RATIO_SQRT_2: Ratio = Ratio::new(131836323, 93222358);
+pub const RATIO_FRAC_2_SQRT_PI: Ratio = Ratio::new(37593262, 33316161);
+pub const RATIO_FRAC_1_SQRT_2: Ratio = Ratio::new(131836323, 186444716);
+pub const RATIO_FRAC_1_SQRT_3: Ratio = Ratio::new(109552575, 189750626);
+
+const fn gcd(x: i64, y: i64) -> i64 {
     if y > x {
         return gcd(y, x);
     }
@@ -206,8 +235,17 @@ fn lcm(x: i64, y: i64) -> i64 {
 
 #[cfg(test)]
 mod test {
+    use std::f64::consts::{
+        E, FRAC_1_PI, FRAC_1_SQRT_2, FRAC_2_PI, FRAC_PI_2, FRAC_PI_3, FRAC_PI_4, LN_10, LN_2,
+        LOG10_2, LOG10_E, LOG2_10, LOG2_E, PI, SQRT_2, TAU,
+    };
+
     use super::Ratio;
-    use crate::ratio::{gcd, lcm};
+    use crate::ratio::{
+        gcd, lcm, RATIO_E, RATIO_FRAC_1_PI, RATIO_FRAC_1_SQRT_2, RATIO_FRAC_2_PI, RATIO_LN_10,
+        RATIO_LN_10_2, RATIO_LN_10_E, RATIO_LN_2, RATIO_LN_2_10, RATIO_LN_2_E, RATIO_PI,
+        RATIO_PI_2, RATIO_PI_3, RATIO_PI_4, RATIO_SQRT_2, RATIO_TAU,
+    };
 
     #[test]
     fn test_gcd() {
@@ -331,17 +369,34 @@ mod test {
 
     #[test]
     fn test_float_new() {
-        let a = Ratio::float_new(1.0);
-        assert_eq!(Ratio::new(1, 1), a);
-        let a = Ratio::float_new(-1.0);
-        assert_eq!(Ratio::new(-1, 1), a);
-        let a = Ratio::float_new(2.7);
-        assert_eq!(Ratio::new(27, 10), a);
-        let a = Ratio::float_new(1.0);
-        assert_eq!(Ratio::new(1, 1), a);
-        let a = Ratio::float_new(0.3333333333);
-        assert_eq!(Ratio::new(1, 3), a);
-        let a = Ratio::float_new(1.47);
-        assert_eq!(Ratio::new(147, 100), a);
+        assert_eq!(Ratio::new(-1, 1), Ratio::float_new(-1.0));
+        assert_eq!(Ratio::new(3, 10), Ratio::float_new(0.3));
+        assert_eq!(Ratio::new(1, 7), Ratio::float_new(0.14285714285714285));
+        assert_eq!(Ratio::new(1, 997), Ratio::float_new(0.0010030090270812437));
+    }
+
+    #[test]
+    fn test_ratio_const_float() {
+        assert_eq!(RATIO_E, Ratio::float_new(E));
+        assert_eq!(RATIO_PI, Ratio::float_new(PI));
+        assert_eq!(RATIO_TAU, Ratio::float_new(TAU));
+
+        assert_eq!(RATIO_SQRT_2, Ratio::float_new(SQRT_2));
+        assert_eq!(RATIO_FRAC_1_SQRT_2, Ratio::float_new(FRAC_1_SQRT_2));
+        assert_eq!(RATIO_FRAC_1_SQRT_2, Ratio::float_new(FRAC_1_SQRT_2));
+
+        assert_eq!(RATIO_LN_2, Ratio::float_new(LN_2));
+        assert_eq!(RATIO_LN_10, Ratio::float_new(LN_10));
+        assert_eq!(RATIO_LN_2_10, Ratio::float_new(LOG2_10));
+        assert_eq!(RATIO_LN_2_E, Ratio::float_new(LOG2_E));
+        assert_eq!(RATIO_LN_10_2, Ratio::float_new(LOG10_2));
+        assert_eq!(RATIO_LN_10_E, Ratio::float_new(LOG10_E));
+
+        assert_eq!(RATIO_PI_2, Ratio::float_new(FRAC_PI_2));
+        assert_eq!(RATIO_PI_3, Ratio::float_new(FRAC_PI_3));
+        assert_eq!(RATIO_PI_4, Ratio::float_new(FRAC_PI_4));
+        assert_eq!(RATIO_FRAC_1_PI, Ratio::float_new(FRAC_1_PI));
+        assert_eq!(RATIO_FRAC_2_PI, Ratio::float_new(FRAC_2_PI));
+        assert_eq!(RATIO_FRAC_1_SQRT_2, Ratio::float_new(FRAC_1_SQRT_2));
     }
 }
