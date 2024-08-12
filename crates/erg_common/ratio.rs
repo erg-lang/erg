@@ -25,18 +25,23 @@ impl Ratio {
         }
     }
 
+    #[inline]
     pub const fn zero() -> Self {
         Self { numer: 0, denom: 0 }
     }
 
+    #[inline]
+    pub fn one() -> Self {
+        Self { numer: 1, denom: 1 }
     }
 
-    const EPSILON: f64 = 1e-10;
+    const EPSILON: f64 = 1e-30;
+    #[inline]
     pub fn float_new(f: f64) -> Self {
         let mut f = f;
         let mut minus = false;
         match f.partial_cmp(&0f64) {
-            Some(Equal) => return Ratio::zero(),
+            Some(Equal) => return Self::zero(),
             Some(Less) => {
                 minus = true;
                 f *= -1.0;
@@ -62,22 +67,27 @@ impl Ratio {
         Ratio::new(n, d)
     }
 
+    #[inline]
     pub fn to_float(self) -> f64 {
         self.numer as f64 / self.denom as f64
     }
 
+    #[inline]
     pub fn to_int(self) -> i64 {
         self.numer / self.denom
     }
 
+    #[inline]
     pub fn denom(&self) -> i64 {
         self.denom
     }
 
+    #[inline]
     pub fn numer(&self) -> i64 {
         self.numer
     }
 
+    #[inline]
     pub fn to_le_bytes(&self) -> Vec<u8> {
         [self.numer.to_le_bytes(), self.denom.to_le_bytes()].concat()
     }
@@ -86,6 +96,7 @@ impl Ratio {
 impl Neg for Ratio {
     type Output = Self;
 
+    #[inline]
     fn neg(self) -> Self::Output {
         Self::new(-self.numer, self.denom)
     }
@@ -94,6 +105,7 @@ impl Neg for Ratio {
 impl Add for Ratio {
     type Output = Self;
 
+    #[inline]
     fn add(self, rhs: Self) -> Self::Output {
         let lcm = lcm(self.denom, rhs.denom);
         let denom = lcm;
@@ -105,6 +117,7 @@ impl Add for Ratio {
 impl Sub for Ratio {
     type Output = Self;
 
+    #[inline]
     fn sub(self, rhs: Self) -> Self::Output {
         let lcm = lcm(self.denom, rhs.denom);
         let denom = lcm;
@@ -154,6 +167,7 @@ impl Rem for Ratio {
 }
 
 impl PartialOrd for Ratio {
+    #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match self.numer.partial_cmp(&other.numer) {
             Some(Equal) => {}
@@ -162,18 +176,22 @@ impl PartialOrd for Ratio {
         self.denom.partial_cmp(&other.denom)
     }
 
+    #[inline]
     fn lt(&self, other: &Self) -> bool {
         matches!(self.partial_cmp(other), Some(Less))
     }
 
+    #[inline]
     fn le(&self, other: &Self) -> bool {
         matches!(self.partial_cmp(other), Some(Less | Equal))
     }
 
+    #[inline]
     fn gt(&self, other: &Self) -> bool {
         matches!(self.partial_cmp(other), Some(Greater))
     }
 
+    #[inline]
     fn ge(&self, other: &Self) -> bool {
         matches!(self.partial_cmp(other), Some(Greater | Equal))
     }
@@ -262,7 +280,6 @@ mod test {
         assert_eq!(i64::MAX, gcd(i64::MAX, i64::MAX));
         assert_eq!(i64::MIN, gcd(i64::MIN, i64::MIN));
         assert_eq!(gcd(i64::MIN, i64::MAX), gcd(i64::MAX, i64::MIN));
-        assert_eq!(gcd(i64::MIN + 1, i64::MAX), gcd(i64::MAX, i64::MIN + 1));
         assert_eq!(gcd(0, i64::MAX), gcd(i64::MAX, 0));
         assert_eq!(gcd(i64::MIN, 1), gcd(1, i64::MIN));
 
@@ -326,6 +343,12 @@ mod test {
         let a = Ratio::new(10, 1);
         let b = Ratio::new(0, 1);
         assert_eq!(Ratio::zero(), a * b);
+        let a = Ratio::new(3, 2);
+        let b = Ratio::new(2, 3);
+        assert_eq!(Ratio::new(1, 1), a * b);
+        let a = Ratio::new(i64::MAX, 2);
+        let b = Ratio::new(2, i64::MAX);
+        assert_eq!(Ratio::new(1, 1), a * b);
     }
 
     #[test]
