@@ -131,9 +131,12 @@ impl Mul for Ratio {
 
     #[inline]
     fn mul(self, rhs: Self) -> Self {
-        let numer = self.numer * rhs.numer;
-        let denom = self.denom * rhs.denom;
-        Self::new(numer, denom)
+        let ac = gcd(self.numer, rhs.denom);
+        let bd = gcd(rhs.numer, self.denom);
+        Self::new(
+            self.numer / ac * rhs.numer / bd,
+            self.denom / bd * rhs.denom / ac,
+        )
     }
 }
 
@@ -269,6 +272,10 @@ mod test {
     fn test_gcd() {
         assert_eq!(1, gcd(1, 1));
         assert_eq!(-1, gcd(-1, -1));
+
+        assert_eq!(1, gcd(1, 1));
+        assert_eq!(-1, gcd(-5, -7));
+        assert_eq!(3, gcd(111, 30));
 
         assert_eq!(0, gcd(0, 0));
         assert_eq!(5, gcd(0, 5));
