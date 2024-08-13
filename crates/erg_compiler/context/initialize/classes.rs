@@ -2249,12 +2249,21 @@ impl Context {
             ValueObj::builtin_class(dict_keys_iterator),
         );
         dict_.register_trait_methods(dict_t.clone(), dict_iterable);
-        dict_
-            .register_trait(
-                self,
-                poly(CONTAINER, vec![ty_tp(proj_call(D.clone(), KEYS, vec![]))]),
-            )
-            .unwrap();
+        let mut dict_collection = Self::builtin_methods(
+            Some(poly(
+                CONTAINER,
+                vec![ty_tp(proj_call(D.clone(), KEYS, vec![]))],
+            )),
+            4,
+        );
+        // TODO: Obj => D.keys() (Structural { .__contains__ = ... })
+        dict_collection.register_builtin_erg_impl(
+            FUNDAMENTAL_CONTAINS,
+            fn1_met(dict_t.clone(), Obj, Bool).quantify(),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        dict_.register_trait_methods(dict_t.clone(), dict_collection);
         let dict_values_t = fn0_met(
             dict_t.clone(),
             poly(
