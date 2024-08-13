@@ -66,11 +66,19 @@
 .assert_never: (arg: Obj) -> NoneType
 .assert_type: (val: Obj, typ: Type) -> NoneType
 .cast: |T|(typ: {T}, val: Obj) -> T
+.clear_overloads!: () => NoneType
 .final: |C <: GenericCallable or Type|(func_or_type: C) -> C
+.get_args: (type: Type) -> [Type; _]
 .get_type_hints: (obj: Obj, globalns: {Str: Obj}, localns: {Str: Obj}) -> {Str: Obj}
+.get_origin: (type: Type) -> Type
+.get_overloads: (func: GenericCallable) -> [Obj; _]
+.is_typeddict: (type: Type) -> Bool
+.no_type_check: |C <: GenericCallable|(func: C) -> C
+.no_type_check_decorator: |C <: GenericCallable|(func: C) -> C
 .overload: |C <: GenericCallable|(func: C) -> C
 .override: |C <: GenericCallable|(func: C) -> C
 .reveal_type: (obj: Obj) -> NoneType
+.type_check_only: |C <: GenericCallable|(func: C) -> C
 
 .AbstractSet: ClassType
 .AbstractSet.

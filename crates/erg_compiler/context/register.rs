@@ -1838,6 +1838,9 @@ impl Context {
                 self.level,
             );
             for sup in super_classes.into_iter() {
+                if sup.is_failure() {
+                    continue;
+                }
                 let sup_ctx = match self.get_nominal_type_ctx(&sup).ok_or_else(|| {
                     TyCheckErrors::from(TyCheckError::type_not_found(
                         self.cfg.input.clone(),
