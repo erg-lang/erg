@@ -1848,6 +1848,11 @@ impl Context {
                     res
                 }
             }
+            Type::And(_, _) => {
+                let instance =
+                    self.resolve_overload(obj, instance.clone(), pos_args, kw_args, &obj)?;
+                self.substitute_call(obj, attr_name, &instance, pos_args, kw_args, namespace)
+            }
             Type::Failure => Ok(SubstituteResult::Ok),
             _ => {
                 self.substitute_dunder_call(obj, attr_name, instance, pos_args, kw_args, namespace)
@@ -2095,7 +2100,13 @@ impl Context {
                         )?;
                     }
                     let instance = self.instantiate_def_type(&call_vi.t)?;
-                    self.substitute_call(obj, attr_name, &instance, pos_args, kw_args, namespace)?;
+                    let instance = match self
+                        .substitute_call(obj, attr_name, &instance, pos_args, kw_args, namespace)?
+                    {
+                        SubstituteResult::__Call__(instance)
+                        | SubstituteResult::Coerced(instance) => instance,
+                        SubstituteResult::Ok => instance,
+                    };
                     return Ok(SubstituteResult::__Call__(instance));
                 }
             // instance method __call__
@@ -2106,7 +2117,14 @@ impl Context {
                 })
             {
                 let instance = self.instantiate_def_type(&call_vi.t)?;
-                self.substitute_call(obj, attr_name, &instance, pos_args, kw_args, namespace)?;
+                let instance = match self
+                    .substitute_call(obj, attr_name, &instance, pos_args, kw_args, namespace)?
+                {
+                    SubstituteResult::__Call__(instance) | SubstituteResult::Coerced(instance) => {
+                        instance
+                    }
+                    SubstituteResult::Ok => instance,
+                };
                 return Ok(SubstituteResult::__Call__(instance));
             }
         }

@@ -13,3 +13,7 @@ assert func() == "foo"
 assert module::__file__.endswith "dunder.er"
 assert C.new().__file__ == "bar"
 assert imp.func().endswith "import.er"
+
+discard Str()
+discard Str(1)
+discard Str(bytes("aaa", "utf-8"), "utf-8")
