@@ -975,6 +975,25 @@ impl Context {
                     Err((Type::NamedTuple(ts), errs))
                 }
             }
+            "classof" => {
+                let Some(arg) = args.pos_args().next() else {
+                    return Err((
+                        Failure,
+                        TyCheckErrors::from(TyCheckError::args_missing_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            args.loc(),
+                            "classof",
+                            self.caused_by(),
+                            vec![Str::from("obj")],
+                        )),
+                    ));
+                };
+                let tp = self
+                    .instantiate_const_expr(&arg.expr, None, tmp_tv_cache, not_found_is_qvar)
+                    .map_err(|(_, errs)| (Type::Failure, errs))?;
+                self.get_tp_t(&tp).map_err(|errs| (Type::Failure, errs))
+            }
             other => {
                 let Some(ctx) = self.get_type_ctx(other).or_else(|| {
                     self.consts

@@ -81,7 +81,6 @@ impl Context {
         let t_chr = nd_func(vec![kw(KW_I, t_chr_in)], None, Str);
         let F = mono_q(TY_F, instanceof(mono(GENERIC_CALLABLE)));
         let t_classmethod = nd_func(vec![kw(KW_FUNC, F.clone())], None, F.clone()).quantify();
-        let t_classof = nd_func(vec![kw(KW_OLD, Obj)], None, ClassType);
         let t_compile = nd_func(vec![kw(KW_SRC, Str)], None, Code);
         let t_cond = nd_func(
             vec![
@@ -466,13 +465,6 @@ impl Context {
             Immutable,
             vis.clone(),
             Some(FUNC_CLASSMETHOD),
-        );
-        self.register_builtin_py_impl(
-            FUNC_CLASSOF,
-            t_classof,
-            Immutable,
-            vis.clone(),
-            Some(FUNC_TYPE),
         );
         self.register_builtin_py_impl(
             FUNC_COMPILE,
@@ -929,6 +921,20 @@ impl Context {
             None,
         ));
         self.register_builtin_const(FUNC_DEREFINE, vis.clone(), None, ValueObj::Subr(derefine));
+        let t_classof = nd_func(vec![kw(KW_OBJ, Obj)], None, ClassType);
+        let classof = ConstSubr::Builtin(BuiltinConstSubr::new(
+            FUNC_CLASSOF,
+            classof_func,
+            t_classof,
+            None,
+        ));
+        self._register_builtin_const(
+            FUNC_CLASSOF,
+            vis.clone(),
+            None,
+            ValueObj::Subr(classof),
+            Some(FUNC_TYPE.into()),
+        );
         let t_fill_ord = nd_func(vec![kw(KW_T, Type)], None, Type);
         let fill_ord = ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_FILL_ORD,

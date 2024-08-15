@@ -891,6 +891,10 @@ impl Context {
         /* Str */
         let mut str_ = Self::builtin_mono_class(STR, 10);
         str_.register_superclass(Obj, &obj);
+        str_.register_py_builtin(OP_GT, fn1_met(Str, Str, Bool), Some(OP_GT), 0);
+        str_.register_py_builtin(OP_GE, fn1_met(Str, Str, Bool), Some(OP_GE), 0);
+        str_.register_py_builtin(OP_LT, fn1_met(Str, Str, Bool), Some(OP_LT), 0);
+        str_.register_py_builtin(OP_LE, fn1_met(Str, Str, Bool), Some(OP_LE), 0);
         str_.register_trait(self, mono(ORD)).unwrap();
         str_.register_trait(self, mono(PATH_LIKE)).unwrap();
         let t_s_replace = fn_met(
@@ -1276,9 +1280,9 @@ impl Context {
             Some(FUNC_FROM_),
         );
         let idx_t = if PYTHON_MODE {
-            Int | poly(RANGE, vec![ty_tp(Int)])
+            Int | poly(RANGE, vec![ty_tp(Int)]) | mono(SLICE)
         } else {
-            Nat | poly(RANGE, vec![ty_tp(Int)])
+            Nat | poly(RANGE, vec![ty_tp(Int)]) | mono(SLICE)
         };
         let str_getitem_t = fn1_kw_met(Str, kw(KW_IDX, idx_t), Str);
         str_.register_builtin_erg_impl(
@@ -2353,6 +2357,31 @@ impl Context {
         /* Bytes */
         let mut bytes = Self::builtin_mono_class(BYTES, 2);
         bytes.register_superclass(Obj, &obj);
+        bytes.register_py_builtin(
+            OP_GT,
+            fn1_met(mono(BYTES), mono(BYTES), Bool),
+            Some(OP_GT),
+            0,
+        );
+        bytes.register_py_builtin(
+            OP_GE,
+            fn1_met(mono(BYTES), mono(BYTES), Bool),
+            Some(OP_GE),
+            0,
+        );
+        bytes.register_py_builtin(
+            OP_LT,
+            fn1_met(mono(BYTES), mono(BYTES), Bool),
+            Some(OP_LT),
+            0,
+        );
+        bytes.register_py_builtin(
+            OP_LE,
+            fn1_met(mono(BYTES), mono(BYTES), Bool),
+            Some(OP_LE),
+            0,
+        );
+        bytes.register_trait(self, mono(ORD)).unwrap();
         let decode_t = pr_met(
             mono(BYTES),
             vec![],
@@ -2365,7 +2394,7 @@ impl Context {
         let bytes_getitem_t = fn1_kw_met(mono(BYTES), kw(KW_IDX, idx_t), Int)
             & fn1_kw_met(
                 mono(BYTES),
-                kw(KW_IDX, poly(RANGE, vec![ty_tp(Int)])),
+                kw(KW_IDX, poly(RANGE, vec![ty_tp(Int)]) | mono(SLICE)),
                 mono(BYTES),
             );
         bytes.register_builtin_erg_impl(
@@ -2751,9 +2780,11 @@ impl Context {
             .unwrap();
         // __Tuple_getitem__: (self: Tuple(Ts), _: {N}) -> Ts[N]
         let input_t = tp_enum(Nat, set! {N.clone()});
+        let slice_t = poly(RANGE, vec![ty_tp(Int)]) | mono(SLICE);
         let return_t = proj_call(Ts.clone(), FUNDAMENTAL_GETITEM, vec![N.clone()]);
-        let tuple_getitem_t =
-            fn1_met(_tuple_t.clone(), input_t.clone(), return_t.clone()).quantify();
+        let tuple_getitem_t = (fn1_met(_tuple_t.clone(), input_t.clone(), return_t.clone())
+            & fn1_met(_tuple_t.clone(), slice_t.clone(), _tuple_t.clone()))
+        .quantify();
         tuple_.register_builtin_py_impl(
             FUNDAMENTAL_TUPLE_GETITEM,
             tuple_getitem_t.clone(),

@@ -1591,3 +1591,14 @@ pub(crate) fn fill_ord_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResu
     };
     Ok(TyParam::t(t))
 }
+
+/// TODO: accept non-const expr
+/// ```erg
+/// classof(1) == Nat
+/// ```
+pub(crate) fn classof_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let val = args
+        .remove_left_or_key("obj")
+        .ok_or_else(|| not_passed("obj"))?;
+    Ok(TyParam::t(val.class()))
+}

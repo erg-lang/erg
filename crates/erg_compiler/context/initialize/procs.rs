@@ -59,10 +59,14 @@ impl Context {
             or(T.clone(), U.clone()),
         )
         .quantify();
+        let t_proc_ret = if PYTHON_MODE { Obj } else { NoneType };
         let t_for = nd_proc(
             vec![
                 kw("iterable", poly("Iterable", vec![ty_tp(T.clone())])),
-                kw("proc!", nd_proc(vec![anon(T.clone())], None, NoneType)),
+                kw(
+                    "proc!",
+                    nd_proc(vec![anon(T.clone())], None, t_proc_ret.clone()),
+                ),
             ],
             None,
             NoneType,
@@ -89,7 +93,7 @@ impl Context {
         let t_while = nd_proc(
             vec![
                 kw("cond!", t_cond),
-                kw("proc!", nd_proc(vec![], None, NoneType)),
+                kw("proc!", nd_proc(vec![], None, t_proc_ret)),
             ],
             None,
             NoneType,
