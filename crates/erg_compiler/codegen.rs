@@ -36,6 +36,7 @@ use crate::compile::{AccessKind, Name, StoreLoadKind};
 use crate::context::ControlKind;
 use crate::error::CompileError;
 use crate::hir::DefaultParamSignature;
+use crate::hir::GlobSignature;
 use crate::hir::ListWithLength;
 use crate::hir::{
     Accessor, Args, BinOp, Block, Call, ClassDef, Def, DefBody, Expr, GuardClause, Identifier,
@@ -1159,6 +1160,7 @@ impl PyCodeGenerator {
         match def.sig {
             Signature::Subr(sig) => self.emit_subr_def(None, sig, def.body),
             Signature::Var(sig) => self.emit_var_def(sig, def.body),
+            Signature::Glob(sig) => self.emit_glob_def(sig, def.body),
         }
     }
 
@@ -1472,6 +1474,8 @@ impl PyCodeGenerator {
             self.emit_store_instr(sig.ident, Name);
         }
     }
+
+    fn emit_glob_def(&mut self, _sig: GlobSignature, _body: DefBody) {}
 
     /// No parameter mangling is used
     /// so that Erg functions can be called from Python with keyword arguments.

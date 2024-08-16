@@ -667,6 +667,7 @@ impl<'a> HIRVisitor<'a> {
                         .as_ref()
                         .and_then(|t_spec| self.get_expr_info(&t_spec.expr, token))
                 }),
+            Signature::Glob(_) => None,
         }
     }
 

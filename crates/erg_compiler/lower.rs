@@ -2051,6 +2051,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     ast::VarPattern::Discard(token) => {
                         ast::Identifier::private_from_token(token.clone())
                     }
+                    ast::VarPattern::Glob(token) => {
+                        return self
+                            .lower_glob(token.clone(), hir::DefBody::new(body.op, block, body.id));
+                    }
                     other => {
                         log!(err "unexpected pattern: {other}");
                         return unreachable_error!(LowerErrors, LowerError, self.module.context);
@@ -2112,6 +2116,25 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 Err(errs)
             }
         }
+    }
+
+    fn lower_glob(&mut self, token: Token, body: hir::DefBody) -> LowerResult<hir::Def> {
+        let names = vec![];
+        if let Some(path) = body.ref_t().module_path() {
+            if let Some(module) = self.module.context.get_mod_with_path(&path) {
+                for (name, vi) in module.local_dir().cloned() {
+                    self.module
+                        .context
+                        .get_mut_outer()
+                        .unwrap()
+                        .locals
+                        .insert(name, vi);
+                }
+            }
+        }
+        let vis = VisibilityModifier::Public;
+        let sig = hir::Signature::Glob(hir::GlobSignature::new(token, vis, names, body.t()));
+        Ok(hir::Def::new(sig, body))
     }
 
     // NOTE: Note that this is in the inner scope while being called.

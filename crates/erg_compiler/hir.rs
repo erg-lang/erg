@@ -1753,6 +1753,48 @@ impl VarSignature {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct GlobSignature {
+    pub dummy_ident: Identifier,
+    pub vis: VisibilityModifier,
+    pub names: Vec<VarName>,
+    /// RHS type
+    pub t: Type,
+}
+
+impl_locational!(GlobSignature, dummy_ident);
+impl_t!(GlobSignature);
+impl_display_from_nested!(GlobSignature);
+
+impl NestedDisplay for GlobSignature {
+    fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
+        write!(f, "{}*", self.vis)
+    }
+}
+
+impl GlobSignature {
+    pub fn new(token: Token, vis: VisibilityModifier, names: Vec<VarName>, t: Type) -> Self {
+        let loc = token.loc();
+        let raw = ast::Identifier::new(
+            ast::VisModifierSpec::Auto,
+            VarName::from_str_and_loc(token.content, loc),
+        );
+        Self {
+            dummy_ident: Identifier::new(
+                raw,
+                None,
+                VarInfo {
+                    t: t.clone(),
+                    ..Default::default()
+                },
+            ),
+            vis,
+            names,
+            t,
+        }
+    }
+}
+
 /// Once the default_value is set to Some, all subsequent values must be Some
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NonDefaultParamSignature {
@@ -2220,22 +2262,28 @@ impl Lambda {
 pub enum Signature {
     Var(VarSignature),
     Subr(SubrSignature),
+    Glob(GlobSignature),
 }
 
-impl_nested_display_for_chunk_enum!(Signature; Var, Subr);
-impl_display_for_enum!(Signature; Var, Subr,);
-impl_t_for_enum!(Signature; Var, Subr);
-impl_locational_for_enum!(Signature; Var, Subr,);
+impl_nested_display_for_chunk_enum!(Signature; Var, Subr, Glob);
+impl_display_for_enum!(Signature; Var, Subr, Glob);
+impl_t_for_enum!(Signature; Var, Subr, Glob);
+impl_locational_for_enum!(Signature; Var, Subr, Glob);
 
 impl Signature {
     pub const fn is_subr(&self) -> bool {
         matches!(self, Self::Subr(_))
     }
 
+    pub const fn is_glob(&self) -> bool {
+        matches!(self, Self::Glob(_))
+    }
+
     pub fn is_const(&self) -> bool {
         match self {
             Self::Var(v) => v.ident.is_const(),
             Self::Subr(s) => s.ident.is_const(),
+            Self::Glob(_) => false,
         }
     }
 
@@ -2243,6 +2291,7 @@ impl Signature {
         match self {
             Self::Var(v) => v.ident.is_procedural(),
             Self::Subr(s) => s.ident.is_procedural(),
+            Self::Glob(_) => false,
         }
     }
 
@@ -2250,6 +2299,7 @@ impl Signature {
         match self {
             Self::Var(v) => v.ident.vis(),
             Self::Subr(s) => s.ident.vis(),
+            Self::Glob(g) => &g.vis,
         }
     }
 
@@ -2257,6 +2307,7 @@ impl Signature {
         match self {
             Self::Var(v) => v.ident.inspect(),
             Self::Subr(s) => s.ident.inspect(),
+            Self::Glob(g) => g.dummy_ident.inspect(),
         }
     }
 
@@ -2264,6 +2315,7 @@ impl Signature {
         match self {
             Self::Var(v) => &v.ident,
             Self::Subr(s) => &s.ident,
+            Self::Glob(g) => &g.dummy_ident,
         }
     }
 
@@ -2271,6 +2323,7 @@ impl Signature {
         match self {
             Self::Var(v) => &mut v.ident,
             Self::Subr(s) => &mut s.ident,
+            Self::Glob(g) => &mut g.dummy_ident,
         }
     }
 
@@ -2278,6 +2331,7 @@ impl Signature {
         match self {
             Self::Var(v) => v.ident,
             Self::Subr(s) => s.ident,
+            Self::Glob(g) => g.dummy_ident,
         }
     }
 
@@ -2285,6 +2339,7 @@ impl Signature {
         match self {
             Self::Var(v) => v.name(),
             Self::Subr(s) => s.name(),
+            Self::Glob(g) => &g.dummy_ident.raw.name,
         }
     }
 
@@ -2292,6 +2347,7 @@ impl Signature {
         match self {
             Self::Var(v) => v.t_spec.as_ref().map(|t| &t.raw.t_spec),
             Self::Subr(s) => s.return_t_spec.as_ref().map(|t| &t.raw.t_spec),
+            Self::Glob(_) => None,
         }
     }
 
@@ -2299,6 +2355,7 @@ impl Signature {
         match self {
             Self::Var(v) => v.t_spec.as_ref(),
             Self::Subr(s) => s.return_t_spec.as_ref(),
+            Self::Glob(_) => None,
         }
     }
 
@@ -2306,6 +2363,7 @@ impl Signature {
         match self {
             Self::Var(_) => None,
             Self::Subr(s) => Some(&mut s.params),
+            Self::Glob(_) => None,
         }
     }
 
@@ -2313,6 +2371,7 @@ impl Signature {
         match self {
             Self::Var(_) => None,
             Self::Subr(s) => Some(&s.params),
+            Self::Glob(_) => None,
         }
     }
 
@@ -2320,6 +2379,7 @@ impl Signature {
         match self {
             Self::Var(_) => None,
             Self::Subr(s) => Some(s.params.defaults.iter()),
+            Self::Glob(_) => None,
         }
     }
 
@@ -2327,6 +2387,7 @@ impl Signature {
         match self {
             Self::Var(_) => &[],
             Self::Subr(s) => &s.captured_names,
+            Self::Glob(_) => &[],
         }
     }
 }

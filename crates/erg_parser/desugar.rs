@@ -755,7 +755,7 @@ impl Desugarer {
                         self.desugar_nested_var_pattern(new, rhs, &buf_name, BufIndex::Record(lhs));
                     }
                 }
-                VarPattern::Ident(_) | VarPattern::Discard(_) => {
+                VarPattern::Ident(_) | VarPattern::Discard(_) | VarPattern::Glob(_) => {
                     if let VarPattern::Ident(ident) = v.pat {
                         v.pat = VarPattern::Ident(Self::desugar_ident(ident));
                     }
@@ -958,7 +958,7 @@ impl Desugarer {
                     );
                 }
             }
-            VarPattern::Ident(_) | VarPattern::Discard(_) => {
+            VarPattern::Ident(_) | VarPattern::Discard(_) | VarPattern::Glob(_) => {
                 let def = Def::new(Signature::Var(sig.clone()), body);
                 new_module.push(Expr::Def(def));
             }

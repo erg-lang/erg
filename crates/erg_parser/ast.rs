@@ -4433,6 +4433,7 @@ impl VarDataPackPattern {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum VarPattern {
     Discard(Token),
+    Glob(Token),
     Ident(Identifier),
     /// e.g. `[x, y, z]` of `[x, y, z] = [1, 2, 3]`
     List(VarListPattern),
@@ -4448,6 +4449,7 @@ impl NestedDisplay for VarPattern {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         match self {
             Self::Discard(_) => write!(f, "_"),
+            Self::Glob(_) => write!(f, "*"),
             Self::Ident(ident) => write!(f, "{ident}"),
             Self::List(l) => write!(f, "{l}"),
             Self::Tuple(t) => write!(f, "{t}"),
@@ -4458,9 +4460,9 @@ impl NestedDisplay for VarPattern {
 }
 
 impl_display_from_nested!(VarPattern);
-impl_locational_for_enum!(VarPattern; Discard, Ident, List, Tuple, Record, DataPack);
-impl_into_py_for_enum!(VarPattern; Discard, Ident, List, Tuple, Record, DataPack);
-impl_from_py_for_enum!(VarPattern; Discard(Token), Ident(Identifier), List(VarListPattern), Tuple(VarTuplePattern), Record(VarRecordPattern), DataPack(VarDataPackPattern));
+impl_locational_for_enum!(VarPattern; Discard, Glob, Ident, List, Tuple, Record, DataPack);
+impl_into_py_for_enum!(VarPattern; Discard, Glob, Ident, List, Tuple, Record, DataPack);
+impl_from_py_for_enum!(VarPattern; Discard(Token), Glob(Token), Ident(Identifier), List(VarListPattern), Tuple(VarTuplePattern), Record(VarRecordPattern), DataPack(VarDataPackPattern));
 
 impl VarPattern {
     pub const fn inspect(&self) -> Option<&Str> {

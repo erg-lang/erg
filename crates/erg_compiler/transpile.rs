@@ -1181,6 +1181,7 @@ impl PyScriptGenerator {
                 code += &self.transpile_block(def.body.block, Return);
                 code
             }
+            Signature::Glob(_) => todo!(),
         }
     }
 
