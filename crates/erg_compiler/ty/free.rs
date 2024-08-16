@@ -1,4 +1,4 @@
-use std::cell::{Ref, RefMut};
+use std::cell::{BorrowError, BorrowMutError, Ref, RefMut};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::mem;
@@ -665,6 +665,14 @@ impl<T: Send + Clone> Free<T> {
     #[track_caller]
     pub fn borrow_mut(&self) -> RefMut<'_, FreeKind<T>> {
         self.0.borrow_mut()
+    }
+    #[track_caller]
+    pub fn try_borrow(&self) -> Result<Ref<'_, FreeKind<T>>, BorrowError> {
+        self.0.try_borrow()
+    }
+    #[track_caller]
+    pub fn try_borrow_mut(&self) -> Result<RefMut<'_, FreeKind<T>>, BorrowMutError> {
+        self.0.try_borrow_mut()
     }
     /// very unsafe, use `force_replace` instead whenever possible
     pub fn as_ptr(&self) -> *mut FreeKind<T> {

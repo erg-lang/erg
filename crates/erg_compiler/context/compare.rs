@@ -13,7 +13,7 @@ use erg_common::{Str, Triple};
 use crate::context::eval::UndoableLinkedList;
 use crate::context::initialize::const_func::sub_tpdict_get;
 use crate::ty::constructors::{self, and, bounded, not, or, poly, refinement};
-use crate::ty::free::{Constraint, FreeKind, FreeTyVar};
+use crate::ty::free::{Constraint, FreeTyVar};
 use crate::ty::typaram::{TyParam, TyParamOrdering};
 use crate::ty::value::ValueObj;
 use crate::ty::value::ValueObj::Inf;
@@ -82,23 +82,19 @@ impl Context {
                         .zip(rargs.iter())
                         .all(|(l, r)| self.eq_tp(l, r))
             }
-            (TyParam::FreeVar(fv), other) | (other, TyParam::FreeVar(fv)) => match &*fv.borrow() {
-                FreeKind::Linked(linked) | FreeKind::UndoableLinked { t: linked, .. } => {
-                    return self.eq_tp(linked, other);
+            (TyParam::FreeVar(fv), other) | (other, TyParam::FreeVar(fv)) if fv.is_linked() => {
+                return self.eq_tp(&fv.get_linked().unwrap(), other)
+            }
+            (TyParam::FreeVar(fv), other) | (other, TyParam::FreeVar(fv))
+                if fv.get_type().is_some() =>
+            {
+                let t = fv.get_type().unwrap();
+                if DEBUG_MODE && t == Uninited {
+                    panic!("Uninited type variable: {fv}");
                 }
-                FreeKind::Unbound { constraint, .. }
-                | FreeKind::NamedUnbound { constraint, .. } => {
-                    let Some(t) = constraint.get_type() else {
-                        log!(err "Invalid type variable: {fv}");
-                        return false;
-                    };
-                    if DEBUG_MODE && t == &Uninited {
-                        panic!("Uninited type variable: {fv}");
-                    }
-                    let other_t = self.type_of(other);
-                    return self.same_type_of(t, &other_t);
-                }
-            },
+                let other_t = self.type_of(other);
+                return self.same_type_of(&t, &other_t);
+            }
             (TyParam::Value(ValueObj::Type(l)), TyParam::Type(r)) => {
                 return self.same_type_of(l.typ(), r.as_ref());
             }
@@ -864,7 +860,7 @@ impl Context {
 
     pub fn fields(&self, t: &Type) -> Dict<Field, Type> {
         match t {
-            Type::FreeVar(fv) if fv.is_linked() => self.fields(&fv.crack()),
+            Type::FreeVar(fv) if fv.is_linked() => self.fields(fv.unsafe_crack()),
             Type::Record(fields) => fields.clone(),
             Type::NamedTuple(fields) => fields.iter().cloned().collect(),
             Type::Refinement(refine) => self.fields(&refine.t),
@@ -1239,10 +1235,10 @@ impl Context {
                 } else { Some(Any) }
             },
             (TyParam::FreeVar(fv), p) if fv.is_linked() => {
-                self.try_cmp(&fv.crack(), p)
+                self.try_cmp(fv.unsafe_crack(), p)
             }
             (p, TyParam::FreeVar(fv)) if fv.is_linked() => {
-                self.try_cmp(p, &fv.crack())
+                self.try_cmp(p, fv.unsafe_crack())
             }
             (
                 l @ (TyParam::FreeVar(_) | TyParam::Erased(_)),
@@ -1353,7 +1349,7 @@ impl Context {
         }
         match (lhs, rhs) {
             (FreeVar(fv), other) | (other, FreeVar(fv)) if fv.is_linked() => {
-                self.union(&fv.crack(), other)
+                self.union(fv.unsafe_crack(), other)
             }
             (Refinement(l), Refinement(r)) => Type::Refinement(self.union_refinement(l, r)),
             (Refinement(refine), other) | (other, Refinement(refine))
@@ -1592,7 +1588,7 @@ impl Context {
         }
         match (lhs, rhs) {
             (FreeVar(fv), other) | (other, FreeVar(fv)) if fv.is_linked() => {
-                self.intersection(&fv.crack(), other)
+                self.intersection(fv.unsafe_crack(), other)
             }
             (Refinement(l), Refinement(r)) => Type::Refinement(self.intersection_refinement(l, r)),
             (Structural(l), Structural(r)) => self.intersection(l, r).structuralize(),
@@ -1609,7 +1605,7 @@ impl Context {
             // {i = Int; j = Int} and not {i = Int} == {j = Int}
             // not {i = Int} and {i = Int; j = Int} == {j = Int}
             (other @ Record(rec), Not(t)) | (Not(t), other @ Record(rec)) => match t.as_ref() {
-                Type::FreeVar(fv) => self.intersection(&fv.crack(), other),
+                Type::FreeVar(fv) => self.intersection(fv.unsafe_crack(), other),
                 Type::Record(rec2) => Type::Record(rec.clone().diff(rec2)),
                 _ => Type::Never,
             },
@@ -1837,7 +1833,7 @@ impl Context {
     #[allow(clippy::only_used_in_recursion)]
     pub(crate) fn complement(&self, ty: &Type) -> Type {
         match ty {
-            FreeVar(fv) if fv.is_linked() => self.complement(&fv.crack()),
+            FreeVar(fv) if fv.is_linked() => self.complement(fv.unsafe_crack()),
             Not(t) => *t.clone(),
             Refinement(r) => Type::Refinement(r.clone().invert()),
             Guard(guard) => Type::Guard(GuardType::new(
@@ -1862,7 +1858,7 @@ impl Context {
             _ => {}
         }
         match lhs {
-            Type::FreeVar(fv) if fv.is_linked() => self.diff(&fv.crack(), rhs),
+            Type::FreeVar(fv) if fv.is_linked() => self.diff(fv.unsafe_crack(), rhs),
             // Type::And(l, r) => self.intersection(&self.diff(l, rhs), &self.diff(r, rhs)),
             Type::Or(l, r) => self.union(&self.diff(l, rhs), &self.diff(r, rhs)),
             _ => lhs.clone(),

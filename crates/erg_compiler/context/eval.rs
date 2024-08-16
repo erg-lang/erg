@@ -3466,7 +3466,7 @@ impl Context {
         match p {
             TyParam::Value(v) => Ok(v_enum(set![v])),
             TyParam::Erased(t) => Ok((*t).clone()),
-            TyParam::FreeVar(fv) if fv.is_linked() => self.get_tp_t(&fv.crack()),
+            TyParam::FreeVar(fv) if fv.is_linked() => self.get_tp_t(fv.unsafe_crack()),
             TyParam::FreeVar(fv) => {
                 if let Some(t) = fv.get_type() {
                     Ok(t)
