@@ -2672,7 +2672,7 @@ impl Context {
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        bytes.register_trait_methods(Str, bytes_seq);
+        bytes.register_trait_methods(mono(BYTES), bytes_seq);
         let mut bytes_eq = Self::builtin_methods(Some(mono(EQ)), 2);
         bytes_eq.register_builtin_erg_impl(
             OP_EQ,
@@ -3573,6 +3573,14 @@ impl Context {
         /* ByteArray! */
         let bytearray_mut_t = mono(MUT_BYTEARRAY);
         let mut bytearray_mut = Self::builtin_mono_class(MUT_BYTEARRAY, 2);
+        let mut bytearray_seq = Self::builtin_methods(Some(poly(SEQUENCE, vec![ty_tp(Int)])), 2);
+        bytearray_seq.register_builtin_erg_impl(
+            FUNDAMENTAL_LEN,
+            fn0_met(mono(MUT_BYTEARRAY), Nat),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        bytearray_mut.register_trait_methods(mono(MUT_BYTEARRAY), bytearray_seq);
         let t_append = pr_met(
             ref_mut(bytearray_mut_t.clone(), None),
             vec![kw(KW_ELEM, int_interval(IntervalOp::Closed, 0, 255))],
