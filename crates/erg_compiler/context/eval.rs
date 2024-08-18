@@ -677,6 +677,7 @@ impl Context {
                             .into(),
                         )
                     })?;
+                    // TODO: __call__
                     let subr = option_enum_unwrap!(obj, ValueObj::Subr)
                         .ok_or_else(|| {
                             (

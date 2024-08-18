@@ -4,6 +4,7 @@
 //! e.g. Literal parameters, Multi assignment
 //! 型チェックなどによる検証は行わない
 
+use erg_common::consts::PYTHON_MODE;
 use erg_common::error::Location;
 use erg_common::fresh::FreshNameGenerator;
 use erg_common::traits::{Locational, Stream};
@@ -1737,7 +1738,11 @@ impl Desugarer {
                 let (mut op, lhs, rhs) = bin.deconstruct();
                 op.content = Str::from("contains");
                 op.kind = TokenKind::ContainsOp;
-                let not = Identifier::private("not".into());
+                let not = if PYTHON_MODE {
+                    Identifier::public("not".into())
+                } else {
+                    Identifier::private("not".into())
+                };
                 let bin = Expr::BinOp(BinOp::new(op, rhs, lhs));
                 Expr::Accessor(Accessor::Ident(not)).call1(bin)
             }
