@@ -34,16 +34,42 @@
     __getitem__: (*Type) -> Type
 .TypeVar: ClassType
 .TypeVar.
-    __call__: (Str, *types: Type, bound := Str) -> Type
+    __name__: Str
+    __covariant__: Bool
+    __contravariant__: Bool
+    __infer_variance__: Bool
+    __bound__: Type or NoneType
+    __constraints__: [Type; _]
+    __call__: (
+        Str,
+        *constraints: Type,
+        bound := Type,
+        covariant := Bool,
+        cotravariant := Bool,
+        infer_variance := Bool,
+    ) -> Type
 .TypeVarTuple: ClassType
 .TypeVarTuple.
+    __name__: Str
     __call__: (Str) -> Type
 .Unpack: (Type) -> Type
-.ParamSpec: (Str) -> Type
+.ParamSpecArgs: ClassType
+.ParamSpecKwargs: ClassType
+.ParamSpec: ClassType
+.ParamSpec.
+    __name__: Str
+    args: ParamSpecArgs
+    kwargs: ParamSpecKwargs
+    __call__: (Str, bound := Type, covariant := Bool, contravariant := Bool) -> ParamSpec
 .AnyStr: ClassType
 .Protocol: (Type := NoneType) -> Type
 .NamedTuple: ClassType
-.NewType: (Str, Type) -> Type
+.NewType: ClassType
+.NewType.
+    __module__: Str
+    __name__: Str
+    __supertype__: Type
+    __call__: (name: Str, tp: Type) -> NewType
 .TypedDict: (Str, Type) -> Type
 .Dict: (Type, Type) -> Type
 .List: (Type) -> Type
@@ -79,6 +105,7 @@
 .override: |C <: GenericCallable|(func: C) -> C
 .reveal_type: (obj: Obj) -> NoneType
 .type_check_only: |C <: GenericCallable|(func: C) -> C
+.runtime_checkable: (cls: Type) -> Type
 
 .AbstractSet: ClassType
 .AbstractSet.
