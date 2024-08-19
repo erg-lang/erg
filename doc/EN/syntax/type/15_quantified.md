@@ -86,6 +86,15 @@ f|X, Y, Z| x: X, y: Y, z: Z =
     x + y + z + x
 ```
 
+```python
+# T is a subclass of Int or Str
+f|T: {Int, Str}|(x: T, _: T): T = x
+
+_: Int = f 1, 2
+_: Str = f "a", "b"
+_ = f None, None # ERROR
+```
+
 Unlike many languages with generics, all declared type variables must be used either in the temporary argument list (the `x: X, y: Y, z: Z` part) or in the arguments of other type variables.
 This is a requirement from Erg's language design that all type variables are inferrable from real arguments.
 So information that cannot be inferred, such as the return type, is passed from real arguments; Erg allows types to be passed from real arguments.

@@ -552,6 +552,22 @@ impl Args {
             })
         }
     }
+
+    #[to_owned(cloned)]
+    pub fn get_nth(&self, nth: usize) -> Option<&Expr> {
+        self.pos_args.get(nth).map(|a| &a.expr)
+    }
+
+    #[to_owned(cloned)]
+    pub fn get_with_key(&self, key: &str) -> Option<&Expr> {
+        self.kw_args.iter().find_map(|a| {
+            if &a.keyword.content[..] == key {
+                Some(&a.expr)
+            } else {
+                None
+            }
+        })
+    }
 }
 
 #[pyclass]

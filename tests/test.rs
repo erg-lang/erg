@@ -398,6 +398,11 @@ fn exec_self_type() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_set_type() -> Result<(), ()> {
+    expect_success("tests/should_ok/set_type.er", 0)
+}
+
+#[test]
 fn exec_slice() -> Result<(), ()> {
     expect_success("tests/should_ok/slice.er", 0)
 }
@@ -636,6 +641,11 @@ fn exec_pyimport_err() -> Result<(), ()> {
 #[test]
 fn exec_set() -> Result<(), ()> {
     expect_failure("examples/set.er", 3, 1)
+}
+
+#[test]
+fn exec_set_type_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/set_type.er", 0, 3)
 }
 
 #[test]

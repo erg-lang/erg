@@ -1351,6 +1351,14 @@ impl Context {
                                 if let Err((_, es)) = self.pre_define_var(sig, id) {
                                     errs.extend(es);
                                 }
+                                if let Some(ident) = sig.ident() {
+                                    let _ = self.register_gen_const(
+                                        ident,
+                                        obj,
+                                        call,
+                                        def.def_kind().is_other(),
+                                    );
+                                }
                                 if errs.is_empty() {
                                     return Ok(());
                                 } else {

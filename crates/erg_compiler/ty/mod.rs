@@ -1619,9 +1619,17 @@ impl CanbeFree for Type {
     }
 
     fn destructive_update_constraint(&self, new_constraint: Constraint, in_instantiation: bool) {
-        if let Some(fv) = self.as_free() {
-            fv.update_constraint(new_constraint, in_instantiation);
+        let Some(fv) = self.as_free() else {
+            return;
+        };
+        // self: T
+        // new_constraint: (:> T, <: U) => <: U
+        if new_constraint.get_sub_sup().is_some_and(|(sub, sup)| {
+            sub.contains_tvar_in_constraint(fv) || sup.contains_tvar_in_constraint(fv)
+        }) {
+            return;
         }
+        fv.update_constraint(new_constraint, in_instantiation);
     }
 }
 
@@ -2731,6 +2739,28 @@ impl Type {
         }
     }
 
+    pub fn contains_tvar_in_constraint(&self, target: &FreeTyVar) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_tvar_in_constraint(target),
+            Self::FreeVar(fv) if fv.constraint_is_typeof() => {
+                ref_addr_eq!(fv.forced_as_ref(), target.forced_as_ref())
+            }
+            Self::FreeVar(fv) => {
+                ref_addr_eq!(fv.forced_as_ref(), target.forced_as_ref())
+                    || fv
+                        .get_subsup()
+                        .map(|(sub, sup)| {
+                            fv.do_avoiding_recursion(|| {
+                                sub.contains_tvar_in_constraint(target)
+                                    || sup.contains_tvar_in_constraint(target)
+                            })
+                        })
+                        .unwrap_or(false)
+            }
+            _ => false,
+        }
+    }
+
     pub fn contains_type(&self, target: &Type) -> bool {
         if self == target {
             // This operation can also be performed for recursive types
@@ -3091,6 +3121,14 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().get_sub(),
             Self::FreeVar(fv) if fv.is_unbound() => fv.get_sub(),
+            _ => None,
+        }
+    }
+
+    pub fn get_meta_type(&self) -> Option<Type> {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().get_meta_type(),
+            Self::FreeVar(fv) if fv.is_unbound() => fv.get_type(),
             _ => None,
         }
     }
@@ -3521,6 +3559,15 @@ impl Type {
 
     pub fn has_no_unbound_var(&self) -> bool {
         !self.has_unbound_var()
+    }
+
+    pub fn is_meta_type(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_meta_type(),
+            Self::Refinement(refine) => refine.t.is_meta_type(),
+            Self::ClassType | Self::TraitType | Self::Type => true,
+            _ => false,
+        }
     }
 
     pub fn typarams_len(&self) -> Option<usize> {

@@ -418,9 +418,26 @@ impl Context {
             // ?T(<: Int) :> ?U(:> Int)
             // ?T(<: Nat) !:> ?U(:> Int) (if the upper bound of LHS is smaller than the lower bound of RHS, LHS cannot not be a supertype)
             // ?T(<: Nat) :> ?U(<: Int) (?U can be smaller than ?T)
+            // ?T(:> ?U) :> ?U
+            // ?U :> ?T(<: ?U)
+            // ?T(: {Int, Str}) :> ?U(<: Int)
             (FreeVar(lfv), FreeVar(rfv)) => match (lfv.get_subsup(), rfv.get_subsup()) {
                 (Some((_, l_sup)), Some((r_sub, _))) => self.supertype_of(&l_sup, &r_sub),
+                (Some((l_sub, _)), None) if &l_sub == rhs => true,
+                (None, Some((_, r_sup))) if lhs == &r_sup => true,
                 _ => {
+                    let lfvt = lfv.get_type();
+                    // lfv: T: {Int, Str}, rhs: Int
+                    if let Some(tys) = lfvt.as_ref().and_then(|t| t.refinement_values()) {
+                        for tp in tys {
+                            let Ok(ty) = self.convert_tp_into_type(tp.clone()) else {
+                                continue;
+                            };
+                            if self.supertype_of(&ty, rhs) {
+                                return true;
+                            }
+                        }
+                    }
                     if lfv.is_linked() {
                         self.supertype_of(lfv.unsafe_crack(), rhs)
                     } else if rfv.is_linked() {
@@ -504,6 +521,17 @@ impl Context {
                 if let Some((_sub, sup)) = lfv.get_subsup() {
                     lfv.do_avoiding_recursion_with(rhs, || self.supertype_of(&sup, rhs))
                 } else if let Some(lfvt) = lfv.get_type() {
+                    // lfv: T: {Int, Str}, rhs: Int
+                    if let Some(tys) = lfvt.refinement_values() {
+                        for tp in tys {
+                            let Ok(ty) = self.convert_tp_into_type(tp.clone()) else {
+                                continue;
+                            };
+                            if self.supertype_of(&ty, rhs) {
+                                return true;
+                            }
+                        }
+                    }
                     // e.g. lfv: ?L(: Int) is unreachable
                     // but
                     // ?L(: List(Type, 3)) :> List(Int, 3)

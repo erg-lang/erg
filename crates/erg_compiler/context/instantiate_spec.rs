@@ -183,7 +183,7 @@ impl Context {
                     }
                     _ => unreachable!(),
                 };
-                if constr.get_sub_sup().is_none() {
+                if constr.get_type().is_some_and(|t| !t.is_meta_type()) {
                     let tp = TyParam::named_free_var(lhs.inspect().clone(), self.level, constr);
                     tv_cache.push_or_init_typaram(lhs, &tp, self)?;
                 } else {
