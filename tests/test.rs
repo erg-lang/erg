@@ -17,6 +17,11 @@ fn exec_advanced_type_spec() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_args_expansion() -> Result<(), ()> {
+    expect_success("tests/should_ok/args_expansion.er", 0)
+}
+
+#[test]
 fn exec_list_test() -> Result<(), ()> {
     expect_success("tests/should_ok/list.er", 0)
 }
@@ -500,6 +505,11 @@ fn exec_advanced_type_spec_err() -> Result<(), ()> {
 #[test]
 fn exec_args() -> Result<(), ()> {
     expect_failure("tests/should_err/args.er", 0, 19)
+}
+
+#[test]
+fn exec_args_expansion_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/args_expansion.er", 0, 4)
 }
 
 #[test]

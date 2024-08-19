@@ -113,8 +113,10 @@ impl_u8_enum! {Opcode309;
     BUILD_TUPLE_UNPACK_WITH_CALL = 158,
     LOAD_METHOD = 160,
     CALL_METHOD = 161,
-    CALL_FINALLY = 162,
-    POP_FINALLY = 163,
+    LIST_EXTEND = 162,
+    SET_UPDATE = 163,
+    DICT_MERGE = 164,
+    DICT_UPDATE = 165,
     // Erg-specific opcodes (must have a unary `ERG_`)
     // Define in descending order from 219, 255
     ERG_POP_NTH = 196,

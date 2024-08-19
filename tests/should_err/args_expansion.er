@@ -1,0 +1,8 @@
+foo first: Int, second: Int = log first, second
+
+foo(1, 2, *[1, 2]) # ERR
+data = {"first": 1, "second": 2}
+foo(1, 2, **data) # ERR
+
+foo(1, *2) # ERR
+foo(1, **[2]) # ERR

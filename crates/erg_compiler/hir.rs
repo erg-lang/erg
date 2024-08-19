@@ -290,7 +290,8 @@ impl Args {
     pub fn len(&self) -> usize {
         #[allow(clippy::bool_to_int_with_if)]
         let var_argc = if self.var_args.is_none() { 0 } else { 1 };
-        self.pos_args.len() + var_argc + self.kw_args.len()
+        let kw_var_argc = if self.kw_var.is_none() { 0 } else { 1 };
+        self.pos_args.len() + var_argc + self.kw_args.len() + kw_var_argc
     }
 
     #[inline]

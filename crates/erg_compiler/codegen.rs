@@ -609,7 +609,7 @@ impl PyCodeGenerator {
     }
 
     fn stack_dec_n(&mut self, n: usize) {
-        if n > 0 && self.stack_len() == 0 {
+        if n as u32 > self.stack_len() {
             let lasti = self.lasti();
             let last = self.cur_block_codeobj().code.last().unwrap();
             self.crash(&format!(
@@ -2825,6 +2825,19 @@ impl PyCodeGenerator {
             self.write_instr(Opcode310::LIST_TO_TUPLE);
             self.write_arg(0);
         }
+        self.stack_dec();
+    }
+
+    fn emit_kw_var_args_311(&mut self, pos_len: usize, kw_var: &PosArg) {
+        self.write_instr(BUILD_TUPLE);
+        self.write_arg(pos_len);
+        self.stack_dec_n(pos_len.saturating_sub(1));
+        self.write_instr(BUILD_MAP);
+        self.write_arg(0);
+        self.emit_expr(kw_var.expr.clone());
+        self.write_instr(Opcode311::DICT_MERGE);
+        self.write_arg(1);
+        self.stack_dec();
     }
 
     fn emit_var_args_308(&mut self, pos_len: usize, var_args: &PosArg) {
@@ -2837,6 +2850,14 @@ impl PyCodeGenerator {
             self.write_instr(Opcode309::BUILD_TUPLE_UNPACK_WITH_CALL);
             self.write_arg(2);
         }
+    }
+
+    fn emit_kw_var_args_308(&mut self, pos_len: usize, kw_var: &PosArg) {
+        self.write_instr(BUILD_TUPLE);
+        self.write_arg(pos_len);
+        self.emit_expr(kw_var.expr.clone());
+        self.stack_dec_n(pos_len.saturating_sub(1));
+        self.stack_dec();
     }
 
     fn emit_args_311(&mut self, mut args: Args, kind: AccessKind) {
@@ -2857,6 +2878,13 @@ impl PyCodeGenerator {
             kws.push(ValueObj::Str(arg.keyword.content));
             self.emit_expr(arg.expr);
         }
+        if let Some(kw_var) = &args.kw_var {
+            if self.py_version.minor >= Some(10) {
+                self.emit_kw_var_args_311(pos_len, kw_var);
+            } else {
+                self.emit_kw_var_args_308(pos_len, kw_var);
+            }
+        }
         let kwsc = if !kws.is_empty() {
             self.emit_call_kw_instr(argc, kws);
             #[allow(clippy::bool_to_int_with_if)]
@@ -2866,9 +2894,9 @@ impl PyCodeGenerator {
                 1
             }
         } else {
-            if args.var_args.is_some() {
+            if args.var_args.is_some() || args.kw_var.is_some() {
                 self.write_instr(CALL_FUNCTION_EX);
-                if kws.is_empty() {
+                if kws.is_empty() && args.kw_var.is_none() {
                     self.write_arg(0);
                 } else {
                     self.write_arg(1);

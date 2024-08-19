@@ -1409,6 +1409,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             &call.attr_name,
             &hir_args.pos_args,
             &hir_args.kw_args,
+            (hir_args.var_args.as_deref(), hir_args.kw_var.as_deref()),
             &self.cfg.input,
             &self.module.context,
         ) {
@@ -1566,6 +1567,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             &Some(attr_name.clone()),
             &args,
             &[],
+            (None, None),
             &self.cfg.input,
             &self.module.context,
         ) {
