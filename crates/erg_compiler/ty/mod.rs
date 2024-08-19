@@ -973,6 +973,16 @@ impl From<TokenKind> for SubrKind {
     }
 }
 
+impl BitOr for SubrKind {
+    type Output = Self;
+    fn bitor(self, rhs: Self) -> Self {
+        match (self, rhs) {
+            (Self::Func, Self::Func) => Self::Func,
+            _ => Self::Proc,
+        }
+    }
+}
+
 impl SubrKind {
     pub const fn arrow(&self) -> Str {
         match self {
@@ -2485,6 +2495,17 @@ impl Type {
             Self::Refinement(refine) => refine.t.is_subr(),
             Self::And(l, r) => l.is_subr() && r.is_subr(),
             _ => false,
+        }
+    }
+
+    pub fn subr_kind(&self) -> Option<SubrKind> {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().subr_kind(),
+            Self::Subr(subr) => Some(subr.kind),
+            Self::Refinement(refine) => refine.t.subr_kind(),
+            Self::Quantified(quant) => quant.subr_kind(),
+            Self::And(l, r) => l.subr_kind().and_then(|k| r.subr_kind().map(|k2| k | k2)),
+            _ => None,
         }
     }
 

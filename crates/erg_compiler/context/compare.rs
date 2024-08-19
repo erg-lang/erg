@@ -215,7 +215,11 @@ impl Context {
                 Some((Type::Never, Type::Obj)) => (Absolutely, true),
                 _ => (Maybe, false),
             },
-            (Mono(n), Subr(_) | Quantified(_)) if &n[..] == "Subroutine" => (Absolutely, true),
+            (Mono(n), Subr(_) | Quantified(_))
+                if &n[..] == "Subroutine" || &n[..] == "GenericCallable" =>
+            {
+                (Absolutely, true)
+            }
             (lhs, rhs) if lhs.is_mono_value_class() && rhs.is_mono_value_class() => {
                 (Absolutely, false)
             }

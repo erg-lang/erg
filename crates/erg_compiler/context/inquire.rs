@@ -1379,10 +1379,26 @@ impl Context {
                 }
                 return Ok(method.method_info.clone());
             }
-            Triple::Err(err) => {
+            Triple::Err(err) if ERG_MODE => {
                 return Err(err);
             }
             _ => {}
+        }
+        if PYTHON_MODE {
+            if let Some(subr_t) = self.get_union_attr_type_by_name(attr_name) {
+                let muty = Mutability::from(&attr_name.inspect()[..]);
+                let vi = VarInfo::new(
+                    subr_t,
+                    muty,
+                    Visibility::DUMMY_PUBLIC,
+                    VarKind::Builtin,
+                    None,
+                    ContextKind::Dummy,
+                    None,
+                    AbsLocation::unknown(),
+                );
+                return Ok(vi);
+            }
         }
         for patch in self.find_patches_of(obj.ref_t()) {
             if let Some(vi) = patch.get_current_scope_non_param(&attr_name.name) {
@@ -1508,7 +1524,7 @@ impl Context {
                 }
                 return Ok(method.method_info.clone());
             }
-            Triple::Err(err) => {
+            Triple::Err(err) if ERG_MODE => {
                 return Err(err);
             }
             _ => {}
@@ -3551,6 +3567,7 @@ impl Context {
             // if all methods have the same return type, the minimum type (has biggest param types) is selected
             // e.g. [Float -> Bool, Int -> Bool] => Float -> Bool
             // REVIEW: should [Int -> Bool, Str -> Bool] => (Str or Int) -> Bool?
+            // -> get_union_method_type
             if let Some(min) = self.min_type(candidates.iter().map(|mp| &mp.method_info.t)) {
                 let min_pair = candidates
                     .iter()
@@ -3574,6 +3591,55 @@ impl Context {
         ))
     }
 
+    // (Int -> Bool, Float -> Bool) => Int or Float -> Bool
+    fn get_union_method_type(&self, candidates: &[MethodPair]) -> Option<Type> {
+        let fst = candidates.first()?;
+        let mut kind = fst.method_info.t.subr_kind()?;
+        let mut union_nds = fst.method_info.t.non_default_params()?.clone();
+        let mut union_var = fst.method_info.t.var_params().cloned();
+        let mut union_ds = fst.method_info.t.default_params()?.clone();
+        let mut union_kw_var = fst.method_info.t.kw_var_params().cloned();
+        let mut union_return = fst.method_info.t.return_t()?.clone();
+        for cand in candidates.iter().skip(1) {
+            kind = kind | cand.method_info.t.subr_kind()?;
+            for (union, r) in union_nds
+                .iter_mut()
+                .zip(cand.method_info.t.non_default_params()?)
+            {
+                *union.typ_mut() = self.union(union.typ(), r.typ());
+            }
+            if let Some((union, r)) = union_var.as_mut().zip(cand.method_info.t.var_params()) {
+                *union.typ_mut() = self.union(union.typ(), r.typ());
+            }
+            for (union, r) in union_ds
+                .iter_mut()
+                .zip(cand.method_info.t.default_params()?)
+            {
+                *union.typ_mut() = self.union(union.typ(), r.typ());
+            }
+            if let Some((union, r)) = union_kw_var
+                .as_mut()
+                .zip(cand.method_info.t.kw_var_params())
+            {
+                *union.typ_mut() = self.union(union.typ(), r.typ());
+            }
+            union_return = self.union(&union_return, cand.method_info.t.return_t()?);
+        }
+        let subr = Type::Subr(SubrType::new(
+            kind,
+            union_nds,
+            union_var,
+            union_ds,
+            union_kw_var,
+            union_return,
+        ));
+        if subr.has_qvar() {
+            Some(subr.quantify())
+        } else {
+            Some(subr)
+        }
+    }
+
     /// Infer the receiver type from the attribute name.
     /// Returns an error if multiple candidates are found. If nothing is found, returns None.
     fn get_attr_type_by_name(
@@ -3592,6 +3658,20 @@ impl Context {
             outer.get_attr_type_by_name(receiver, attr, namespace)
         } else {
             Triple::None
+        }
+    }
+
+    fn get_union_attr_type_by_name(&self, attr: &Identifier) -> Option<Type> {
+        if let Some(candidates) = self.method_to_traits.get(attr.inspect()) {
+            return self.get_union_method_type(candidates);
+        }
+        if let Some(candidates) = self.method_to_classes.get(attr.inspect()) {
+            return self.get_union_method_type(candidates);
+        }
+        if let Some(outer) = self.get_outer_scope_or_builtins() {
+            outer.get_union_attr_type_by_name(attr)
+        } else {
+            None
         }
     }
 
