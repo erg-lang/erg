@@ -61,6 +61,7 @@ impl Context {
                 vec![kw(KW_ERRORS, Str)],
                 mono(BYTES),
             )
+            // (iterable_of_ints) -> bytes | (bytes_or_buffer) -> bytes & nat -> bytes
             & nd_func(
                 // TODO: Bytes-like
                 vec![pos(poly(ITERABLE, vec![ty_tp(Nat)]) | Nat | mono(BYTES))],
@@ -361,9 +362,9 @@ impl Context {
         .quantify();
         let t_staticmethod = nd_func(vec![kw(KW_FUNC, F.clone())], None, F.clone()).quantify();
         let t_str = nd_func(vec![kw(KW_OBJECT, Obj)], None, Str)
-            & nd_func(
+            & no_var_func(
                 vec![kw(KW_BYTES_OR_BUFFER, mono(BYTES)), kw(KW_ENCODING, Str)],
-                None,
+                vec![kw(KW_ERRORS, Str)],
                 Str,
             );
         let str_ = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(

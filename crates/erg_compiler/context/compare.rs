@@ -370,6 +370,10 @@ impl Context {
                             if !self.subtype_of(lpt.typ(), rpt.typ()) {
                                 return false;
                             }
+                        } else if let Some(kw) = rs.kw_var_params.as_ref() {
+                            if !self.subtype_of(lpt.typ(), kw.typ()) {
+                                return false;
+                            }
                         } else {
                             return false;
                         }

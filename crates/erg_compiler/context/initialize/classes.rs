@@ -114,7 +114,8 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_CONJUGATE),
         );
-        let t = no_var_func(vec![], vec![kw(REAL, Float), kw(IMAG, Float)], Complex);
+        let t = no_var_func(vec![], vec![kw(REAL, Float), kw(IMAG, Float)], Complex)
+            & no_var_func(vec![kw(KW_OBJECT, Str | Float)], vec![], Complex);
         complex.register_builtin_py_impl(
             FUNDAMENTAL_CALL,
             t,
@@ -1294,9 +1295,9 @@ impl Context {
         str_.register_trait(self, poly(INDEXABLE, vec![ty_tp(Nat), ty_tp(Str)]))
             .unwrap();
         let t_call = func(vec![], None, vec![kw(KW_OBJECT, Obj)], None, Str)
-            & nd_func(
+            & no_var_func(
                 vec![kw(KW_BYTES_OR_BUFFER, mono(BYTES)), kw(KW_ENCODING, Str)],
-                None,
+                vec![kw(KW_ERRORS, Str)],
                 Str,
             );
         str_.register_builtin_erg_impl(
@@ -2176,7 +2177,14 @@ impl Context {
             poly(ITERABLE, vec![inner]),
             dict! { T.clone() => U.clone() }.into(),
         )
-        .quantify();
+        .quantify()
+            & func(
+                vec![],
+                None,
+                vec![],
+                Some(ParamTy::Pos(Obj)),
+                mono(GENERIC_DICT),
+            );
         generic_dict.register_builtin_erg_impl(
             FUNDAMENTAL_CALL,
             t_call,
@@ -2693,6 +2701,25 @@ impl Context {
         );
         bytes.register_trait_methods(mono(BYTES), bytes_hash);
         bytes.register_trait(self, mono(EQ_HASH)).unwrap();
+        let t_call = func0(mono(BYTES))
+            & no_var_func(
+                vec![kw(KW_STR, Str), kw(KW_ENCODING, Str)],
+                vec![kw(KW_ERRORS, Str)],
+                mono(BYTES),
+            )
+            // (iterable_of_ints) -> bytes | (bytes_or_buffer) -> bytes & nat -> bytes
+            & nd_func(
+                // TODO: Bytes-like
+                vec![pos(poly(ITERABLE, vec![ty_tp(Nat)]) | Nat | mono(BYTES) | mono(MUT_BYTEARRAY))],
+                None,
+                mono(BYTES),
+            );
+        bytes.register_builtin_erg_impl(
+            FUNDAMENTAL_CALL,
+            t_call,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
         /* GenericTuple */
         let mut generic_tuple = Self::builtin_mono_class(GENERIC_TUPLE, 1);
         generic_tuple.register_superclass(Obj, &obj);
@@ -2722,6 +2749,17 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         generic_tuple.register_trait_methods(mono(GENERIC_TUPLE), generic_tuple_sized);
+        let t_call = func1(
+            poly(ITERABLE, vec![ty_tp(T.clone())]),
+            tuple_t(vec![T.clone()]),
+        )
+        .quantify();
+        generic_tuple.register_builtin_erg_impl(
+            FUNDAMENTAL_CALL,
+            t_call,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
         /* HomogenousTuple */
         let mut homo_tuple = Self::builtin_poly_class(HOMOGENOUS_TUPLE, vec![PS::t_nd(TY_T)], 1);
         homo_tuple.register_superclass(mono(GENERIC_TUPLE), &generic_tuple);
@@ -3666,6 +3704,25 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_REVERSE),
+        );
+        let t_call = func0(bytearray_mut_t.clone())
+            & no_var_func(
+                vec![kw(KW_STR, Str), kw(KW_ENCODING, Str)],
+                vec![kw(KW_ERRORS, Str)],
+                bytearray_mut_t.clone(),
+            )
+            // (iterable_of_ints) -> bytes | (bytes_or_buffer) -> bytes & nat -> bytes
+            & nd_func(
+                // TODO: Bytes-like
+                vec![pos(poly(ITERABLE, vec![ty_tp(Nat)]) | Nat | mono(BYTES) | bytearray_mut_t.clone())],
+                None,
+                bytearray_mut_t.clone(),
+            );
+        bytearray_mut.register_builtin_erg_impl(
+            FUNDAMENTAL_CALL,
+            t_call,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
         );
         /* Dict! */
         let dict_mut_t = poly(MUT_DICT, vec![D.clone()]);

@@ -143,10 +143,10 @@ impl From<&str> for OptionalFeatures {
 
 #[macro_export]
 macro_rules! _log {
-    ($self:ident, $($arg:tt)*) => {
+    ($self:ident, $($arg:tt)*) => {{
         let s = format!($($arg)*);
         let _ = $self.send_log(format!("{}@{}: {s}", file!(), line!()));
-    };
+    }};
 }
 
 pub const TRIGGER_CHARS: [&str; 4] = [".", ":", "(", " "];
