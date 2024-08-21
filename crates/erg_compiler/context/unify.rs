@@ -1372,10 +1372,22 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                             self.sub_unify(sup.typ(), sub.typ())
                         })?;
                 } else {
-                    sub_subr
-                        .non_default_params
-                        .iter()
-                        .chain(sub_subr.default_params.iter())
+                    // (self: Self, Int) -> ... <: T -> ...
+                    let sub_params = if !sup_subr.is_method() && sub_subr.is_method() {
+                        sub_subr
+                            .non_default_params
+                            .iter()
+                            .skip(1)
+                            .chain(&sub_subr.default_params)
+                    } else {
+                        #[allow(clippy::iter_skip_zero)]
+                        sub_subr
+                            .non_default_params
+                            .iter()
+                            .skip(0)
+                            .chain(&sub_subr.default_params)
+                    };
+                    sub_params
                         .zip(sup_subr.non_default_params.iter())
                         .try_for_each(|(sub, sup)| {
                             // contravariant
