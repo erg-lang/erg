@@ -1067,9 +1067,9 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             ast::Expr::Literal(lit) if lit.is_doc_comment() => {
                 Ok(hir::Expr::Literal(self.lower_literal(lit, None)?))
             }
-            ast::Expr::Accessor(acc) if allow_acc => {
-                Ok(hir::Expr::Accessor(self.lower_acc(acc, None)?))
-            }
+            ast::Expr::Accessor(acc) if allow_acc => Ok(hir::Expr::Accessor(
+                self.lower_acc(acc, None).map_err(|(_, errs)| errs)?,
+            )),
             ast::Expr::Def(def) => Ok(hir::Expr::Def(self.declare_def(def)?)),
             ast::Expr::TypeAscription(tasc) => Ok(hir::Expr::TypeAsc(self.declare_ident(tasc)?)),
             ast::Expr::Call(call)
@@ -1078,7 +1078,9 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     .map(|op| op.is_import())
                     .unwrap_or(false) =>
             {
-                Ok(hir::Expr::Call(self.lower_call(call, None)))
+                Ok(hir::Expr::Call(
+                    self.lower_call(call, None).map_err(|(_, errs)| errs)?,
+                ))
             }
             ast::Expr::Compound(compound) => {
                 let mut chunks = vec![];
@@ -1097,7 +1099,9 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 Ok(hir::Expr::Dummy(hir::Dummy::new(dummy_)))
             }
             ast::Expr::InlineModule(inline) => {
-                let import = self.lower_inline_module(inline, None);
+                let import = self
+                    .lower_inline_module(inline, None)
+                    .map_err(|(_, es)| es)?;
                 Ok(hir::Expr::Call(import))
             }
             other => Err(LowerErrors::from(LowerError::declare_error(

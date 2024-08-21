@@ -265,7 +265,10 @@ impl<ASTBuilder: ASTBuildable> GenericASTLowerer<ASTBuilder> {
                 Ok(chunk) => {
                     module.push(chunk);
                 }
-                Err(errs) => {
+                Err((chunk, errs)) => {
+                    if let Some(chunk) = chunk {
+                        module.push(chunk);
+                    }
                     self.errs.extend(errs);
                 }
             }

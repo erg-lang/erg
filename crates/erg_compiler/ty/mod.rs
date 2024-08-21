@@ -447,6 +447,17 @@ impl StructuralEq for SubrType {
 }
 
 impl SubrType {
+    pub fn failed() -> Self {
+        Self::new(
+            SubrKind::Func,
+            vec![],
+            Some(ParamTy::Pos(Type::Obj)),
+            vec![],
+            Some(ParamTy::Pos(Type::Obj)),
+            Type::Failure,
+        )
+    }
+
     pub fn new(
         kind: SubrKind,
         non_default_params: Vec<ParamTy>,
