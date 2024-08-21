@@ -916,6 +916,20 @@ impl ErrorCore {
         None
     }
 
+    pub fn hints(&self) -> Vec<&str> {
+        self.sub_messages
+            .iter()
+            .filter_map(|sub| sub.hint.as_deref())
+            .collect()
+    }
+
+    pub fn mut_hints(&mut self) -> Vec<&mut String> {
+        self.sub_messages
+            .iter_mut()
+            .filter_map(|sub| sub.hint.as_mut())
+            .collect()
+    }
+
     pub fn fmt_header(&self, color: Color, caused_by: &str, input: &str) -> String {
         let loc = match self.loc {
             Location::Range {
