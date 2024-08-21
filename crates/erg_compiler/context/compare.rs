@@ -386,6 +386,7 @@ impl Context {
                 // (Int, n := Int, m := Int) -> Int <: (Int, Int) -> Int
                 // (Int, n := Int) -> Int <!: (Int, Int, Int) -> Int
                 // (*Int) -> Int <: (Int, Int) -> Int
+                // (self: Self, T) -> U <: T -> U
                 let len_judge = ls.non_default_params.len()
                     <= rs.non_default_params.len() + rs.default_params.len()
                     || rs.var_params.is_some();
@@ -401,9 +402,21 @@ impl Context {
                         .zip(repeat(r_var))
                         .all(|(l, r)| self.subtype_of(l.typ(), r.typ()))
                 } else {
+                    let rs_params = if !ls.is_method() && rs.is_method() {
+                        rs.non_default_params
+                            .iter()
+                            .skip(1)
+                            .chain(&rs.default_params)
+                    } else {
+                        #[allow(clippy::iter_skip_zero)]
+                        rs.non_default_params
+                            .iter()
+                            .skip(0)
+                            .chain(&rs.default_params)
+                    };
                     ls.non_default_params
                         .iter()
-                        .zip(rs.non_default_params.iter().chain(rs.default_params.iter()))
+                        .zip(rs_params)
                         .all(|(l, r)| self.subtype_of(l.typ(), r.typ()))
                 };
                 let var_params_judge = ls

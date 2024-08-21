@@ -1273,6 +1273,8 @@ impl Context {
     ) -> SingleTyCheckResult<VarInfo> {
         // search_method_info(?T, aaa, pos_args: [1, 2]) == None
         // => ?T(<: Structural({ .aaa = (self: ?T, ?U, ?V) -> ?W }))
+        // search_method_info(?T, aaa, kw_args: [b:=1, c:=2]) == None
+        // => ?T(<: Structural({ .aaa = (self: ?T, b: ?U, c: ?V) -> ?W }))
         if PYTHON_MODE
             && obj
                 .var_info()
@@ -1553,6 +1555,22 @@ impl Context {
                 return Err(err);
             }
             _ => {}
+        }
+        if PYTHON_MODE {
+            if let Some(subr_t) = self.get_union_attr_type_by_name(attr_name) {
+                let muty = Mutability::from(&attr_name.inspect()[..]);
+                let vi = VarInfo::new(
+                    subr_t,
+                    muty,
+                    Visibility::DUMMY_PUBLIC,
+                    VarKind::Builtin,
+                    None,
+                    ContextKind::Dummy,
+                    None,
+                    AbsLocation::unknown(),
+                );
+                return Ok(vi);
+            }
         }
         for patch in self.find_patches_of(obj.ref_t()) {
             if let Some(vi) = patch.get_current_scope_callable(&attr_name.name) {
