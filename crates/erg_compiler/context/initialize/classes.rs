@@ -1444,6 +1444,19 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
+        let t = if PYTHON_MODE { Type | NoneType } else { Type };
+        type_.register_builtin_erg_impl(
+            OP_OR,
+            fn1_met(t.clone(), t.clone(), Type),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        type_.register_builtin_erg_impl(
+            OP_AND,
+            fn1_met(t.clone(), t.clone(), Type),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
         type_.register_trait(self, mono(NAMED)).unwrap();
         let mut type_container = Self::builtin_methods(Some(poly(CONTAINER, vec![ty_tp(Obj)])), 2);
         type_container.register_builtin_erg_impl(
@@ -3071,11 +3084,57 @@ impl Context {
         let mut frozenset = Self::builtin_poly_class(FROZENSET, vec![PS::t_nd(TY_T)], 2);
         frozenset.register_superclass(Obj, &obj);
         frozenset
-            .register_trait(self, poly(ITERABLE, vec![ty_tp(T.clone())]))
-            .unwrap();
-        frozenset
             .register_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
             .unwrap();
+        let mut fset_iterable =
+            Self::builtin_methods(Some(poly(ITERABLE, vec![ty_tp(T.clone())])), 2);
+        let set_iter = poly(SET_ITERATOR, vec![ty_tp(T.clone())]);
+        let t = fn0_met(fset_t.clone(), set_iter.clone()).quantify();
+        fset_iterable.register_builtin_py_impl(
+            FUNC_ITER,
+            t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNDAMENTAL_ITER),
+        );
+        fset_iterable.register_builtin_const(
+            ITERATOR,
+            vis.clone(),
+            None,
+            ValueObj::builtin_class(set_iter),
+        );
+        frozenset.register_trait_methods(fset_t.clone(), fset_iterable);
+        let mut fset_collection =
+            Self::builtin_methods(Some(poly(COLLECTION, vec![ty_tp(T.clone())])), 4);
+        fset_collection.register_builtin_erg_impl(
+            FUNDAMENTAL_CONTAINS,
+            fn1_met(fset_t.clone(), T.clone(), Bool).quantify(),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        frozenset.register_trait_methods(fset_t.clone(), fset_collection);
+        frozenset
+            .register_trait(self, poly(COLLECTION, vec![ty_tp(T.clone())]))
+            .unwrap();
+        frozenset
+            .register_trait(self, poly(SEQUENCE, vec![ty_tp(T.clone())]))
+            .unwrap();
+        let mut fset_eq = Self::builtin_methods(Some(mono(EQ)), 2);
+        fset_eq.register_builtin_erg_impl(
+            OP_EQ,
+            fn1_met(fset_t.clone(), fset_t.clone(), Bool).quantify(),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        frozenset.register_trait_methods(fset_t.clone(), fset_eq);
+        let mut fset_show = Self::builtin_methods(Some(mono(SHOW)), 1);
+        fset_show.register_builtin_erg_impl(
+            FUNDAMENTAL_STR,
+            fn0_met(fset_t.clone(), Str).quantify(),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        frozenset.register_trait_methods(fset_t.clone(), fset_show);
         let t = fn0_met(fset_t.clone(), fset_t.clone()).quantify();
         let mut frozenset_copy = Self::builtin_methods(Some(mono(COPY)), 1);
         frozenset_copy.register_py_builtin(FUNC_COPY, t, Some(FUNC_COPY), 3);
