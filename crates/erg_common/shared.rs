@@ -334,10 +334,10 @@ impl<T: Send + Clone> Forkable<T> {
 
     /// return 1 if the recursion limit is reached.
     pub fn dec_recursion_counter(&self) -> u32 {
-        if self.recursion_counter.load(Ordering::SeqCst) == 0 {
-            self.recursion_counter.store(256, Ordering::SeqCst);
+        if self.recursion_counter.load(Ordering::Relaxed) == 0 {
+            self.recursion_counter.store(256, Ordering::Relaxed);
         }
-        self.recursion_counter.fetch_sub(1, Ordering::SeqCst)
+        self.recursion_counter.fetch_sub(1, Ordering::Relaxed)
     }
 
     pub fn update_init(&mut self) {

@@ -3518,13 +3518,7 @@ impl Type {
 
     pub fn has_unbound_var(&self) -> bool {
         match self {
-            Self::FreeVar(fv) => {
-                if fv.is_unbound() {
-                    true
-                } else {
-                    fv.crack().has_unbound_var()
-                }
-            }
+            Self::FreeVar(fv) => fv.has_unbound_var(),
             Self::Ref(t) => t.has_unbound_var(),
             Self::RefMut { before, after } => {
                 before.has_unbound_var()

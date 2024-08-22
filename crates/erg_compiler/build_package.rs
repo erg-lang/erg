@@ -13,7 +13,7 @@ use std::time::{Duration, SystemTime};
 use erg_common::config::ErgMode;
 
 use erg_common::config::ErgConfig;
-use erg_common::consts::{DEBUG_MODE, ELS};
+use erg_common::consts::{DEBUG_MODE, ELS, ERG_MODE};
 use erg_common::debug_power_assert;
 use erg_common::dict::Dict;
 use erg_common::env::is_std_decl_path;
@@ -680,7 +680,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         let path = Path::new(&__name__[..]);
         let import_path = match cfg.input.resolve_path(path, cfg) {
             Some(path) => path,
-            None => {
+            None if ERG_MODE => {
                 for _ in 0..600 {
                     if !Self::analysis_in_progress(path) {
                         break;
@@ -698,6 +698,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
                     return Ok(());
                 }
             }
+            None => return Ok(()),
         };
         let from_path = NormalizedPathBuf::from(cfg.input.path());
         let mut import_cfg = cfg.inherit(import_path.clone());
@@ -838,7 +839,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
 
     fn build_inlined_module(&mut self, path: &NormalizedPathBuf, graph: &mut ModuleGraph) {
         if self.shared.get_module(path).is_some() {
-            // return;
+            // do nothing
         } else if let Some(inliner) = self.inlines.get(path).cloned() {
             self.build_deps_and_module(&inliner, graph);
         } else if DEBUG_MODE {

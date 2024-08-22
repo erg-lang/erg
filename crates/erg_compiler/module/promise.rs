@@ -73,6 +73,13 @@ impl Promise {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Progress {
+    pub total: usize,
+    pub running: usize,
+    pub finished: usize,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct SharedPromises {
     graph: SharedModuleGraph,
@@ -207,6 +214,25 @@ impl SharedPromises {
         let paths = self.promises.borrow().keys().cloned().collect::<Vec<_>>();
         for path in paths {
             let _result = self.join(&path);
+        }
+    }
+
+    pub fn progress(&self) -> Progress {
+        let mut total = 0;
+        let mut running = 0;
+        let mut finished = 0;
+        for promise in self.promises.borrow().values() {
+            match promise {
+                Promise::Running { .. } => running += 1,
+                Promise::Joining => finished += 1,
+                Promise::Joined => finished += 1,
+            }
+            total += 1;
+        }
+        Progress {
+            total,
+            running,
+            finished,
         }
     }
 }
