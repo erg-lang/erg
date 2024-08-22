@@ -1398,13 +1398,7 @@ impl TyParam {
 
     pub fn has_unbound_var(&self) -> bool {
         match self {
-            Self::FreeVar(fv) => {
-                if fv.is_unbound() {
-                    true
-                } else {
-                    fv.crack().has_unbound_var()
-                }
-            }
+            Self::FreeVar(fv) => fv.has_unbound_var(),
             Self::Type(t) => t.has_unbound_var(),
             Self::Proj { obj, .. } => obj.has_unbound_var(),
             Self::ProjCall { obj, args, .. } => {

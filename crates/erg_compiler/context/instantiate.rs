@@ -582,10 +582,11 @@ impl Context {
                 let t = self.instantiate_t_inner(t.into_typ(), tmp_tv_cache, loc)?;
                 Ok(TyParam::t(t))
             }
-            p @ (TyParam::Value(_)
-            | TyParam::Mono(_)
-            | TyParam::FreeVar(_)
-            | TyParam::Erased(_)) => Ok(p),
+            TyParam::Erased(t) => {
+                let t = self.instantiate_t_inner(*t, tmp_tv_cache, loc)?;
+                Ok(TyParam::Erased(Box::new(t)))
+            }
+            p @ (TyParam::Value(_) | TyParam::Mono(_) | TyParam::FreeVar(_)) => Ok(p),
             other => {
                 type_feature_error!(
                     self,
@@ -954,6 +955,11 @@ impl Context {
                     guard.target,
                     to,
                 )))
+            }
+            Bounded { sub, sup } => {
+                let sub = self.instantiate_t_inner(*sub, tmp_tv_cache, loc)?;
+                let sup = self.instantiate_t_inner(*sup, tmp_tv_cache, loc)?;
+                Ok(bounded(sub, sup))
             }
             other if other.is_monomorphic() => Ok(other),
             other => type_feature_error!(self, loc.loc(), &format!("instantiating type {other}")),

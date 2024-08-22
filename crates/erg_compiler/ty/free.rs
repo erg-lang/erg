@@ -551,7 +551,7 @@ pub struct Free<T: Send + Clone>(Forkable<FreeKind<T>>);
 
 impl Hash for Free<Type> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        if self.0.dec_recursion_counter() == 1 {
+        if self.dec_recursion_counter() == 1 {
             return;
         }
         if let Some(name) = self.unbound_name() {
@@ -681,6 +681,9 @@ impl<T: Send + Clone> Free<T> {
     pub fn forced_as_ref(&self) -> &FreeKind<T> {
         unsafe { self.as_ptr().as_ref() }.unwrap()
     }
+    pub fn dec_recursion_counter(&self) -> u32 {
+        self.0.dec_recursion_counter()
+    }
 }
 
 impl Free<Type> {
@@ -715,6 +718,14 @@ impl Free<Type> {
 
     pub fn do_avoiding_recursion_with<O, F: FnOnce() -> O>(&self, placeholder: &Type, f: F) -> O {
         self._do_avoiding_recursion(Some(placeholder), f)
+    }
+
+    pub fn has_unbound_var(&self) -> bool {
+        if self.is_unbound() {
+            true
+        } else {
+            self.crack().has_unbound_var()
+        }
     }
 }
 
@@ -758,6 +769,14 @@ impl Free<TyParam> {
         f: F,
     ) -> O {
         self._do_avoiding_recursion(Some(placeholder), f)
+    }
+
+    pub fn has_unbound_var(&self) -> bool {
+        if self.is_unbound() {
+            true
+        } else {
+            self.crack().has_unbound_var()
+        }
     }
 }
 
