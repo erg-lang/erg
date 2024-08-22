@@ -1626,6 +1626,20 @@ impl TyParam {
         }
         match self {
             Self::FreeVar(fv) => fv.undoable_link(to),
+            Self::Type(t) => {
+                if let Ok(to) = <&Type>::try_from(to) {
+                    t.undoable_link(to, list);
+                } else {
+                    panic!("{to} is not a type");
+                }
+            }
+            Self::Value(ValueObj::Type(t)) => {
+                if let Ok(to) = <&Type>::try_from(to) {
+                    t.typ().undoable_link(to, list);
+                } else {
+                    panic!("{to} is not a type");
+                }
+            }
             _ => panic!("{self} is not a free variable"),
         }
     }

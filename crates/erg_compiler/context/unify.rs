@@ -929,8 +929,8 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
     /// ```
     fn sub_unify(&self, maybe_sub: &Type, maybe_sup: &Type) -> TyCheckResult<()> {
         log!(info "trying {}sub_unify:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}", self.undoable.map_or("", |_| "undoable_"));
-        self.recursion_limit.fetch_sub(1, Ordering::SeqCst);
-        if self.recursion_limit.load(Ordering::SeqCst) == 0 {
+        if self.recursion_limit.fetch_sub(1, Ordering::SeqCst) == 0 {
+            self.recursion_limit.store(128, Ordering::SeqCst);
             log!(err "recursion limit exceeded: {maybe_sub} / {maybe_sup}");
             return Err(TyCheckError::recursion_limit(
                 self.ctx.cfg.input.clone(),

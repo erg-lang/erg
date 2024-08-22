@@ -4421,7 +4421,11 @@ impl Type {
         match self {
             Self::FreeVar(fv) => fv.link(&to),
             Self::Refinement(refine) => refine.t.destructive_link(&to),
-            _ => panic!("{self} is not a free variable"),
+            _ => {
+                if DEBUG_MODE {
+                    panic!("{self} is not a free variable");
+                }
+            }
         }
     }
 
@@ -4434,10 +4438,15 @@ impl Type {
             self.inc_undo_count();
             return;
         }
+        let to = to.clone().eliminate_sub(self);
         match self {
-            Self::FreeVar(fv) => fv.undoable_link(to),
-            Self::Refinement(refine) => refine.t.undoable_link(to, list),
-            _ => panic!("{self} is not a free variable"),
+            Self::FreeVar(fv) => fv.undoable_link(&to),
+            Self::Refinement(refine) => refine.t.undoable_link(&to, list),
+            _ => {
+                if DEBUG_MODE {
+                    panic!("{self} is not a free variable")
+                }
+            }
         }
     }
 
