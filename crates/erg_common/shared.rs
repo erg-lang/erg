@@ -1,6 +1,5 @@
 use std::fmt;
 use std::hash::{Hash, Hasher};
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::thread::ThreadId;
 // use std::rc::Rc;
 pub use parking_lot::{
@@ -293,7 +292,6 @@ pub struct Forkable<T: Send + Clone> {
     last_borrowed_at: Arc<ThreadLocal<RefCell<BorrowInfo>>>,
     #[cfg(any(feature = "backtrace", feature = "debug"))]
     last_mut_borrowed_at: Arc<ThreadLocal<RefCell<BorrowInfo>>>,
-    recursion_counter: Arc<AtomicU32>,
 }
 
 impl<T: fmt::Debug + Send + Clone> fmt::Debug for Forkable<T> {
@@ -328,16 +326,7 @@ impl<T: Send + Clone> Forkable<T> {
             last_borrowed_at: Arc::new(ThreadLocal::new()),
             #[cfg(any(feature = "backtrace", feature = "debug"))]
             last_mut_borrowed_at: Arc::new(ThreadLocal::new()),
-            recursion_counter: Arc::new(AtomicU32::new(0)),
         }
-    }
-
-    /// return 1 if the recursion limit is reached.
-    pub fn dec_recursion_counter(&self) -> u32 {
-        if self.recursion_counter.load(Ordering::Relaxed) == 0 {
-            self.recursion_counter.store(256, Ordering::Relaxed);
-        }
-        self.recursion_counter.fetch_sub(1, Ordering::Relaxed)
     }
 
     pub fn update_init(&mut self) {

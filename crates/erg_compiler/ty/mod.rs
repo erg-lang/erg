@@ -521,6 +521,23 @@ impl SubrType {
             || self.return_t.contains_tp(target)
     }
 
+    pub fn map(self, f: impl Fn(Type) -> Type) -> Self {
+        Self::new(
+            self.kind,
+            self.non_default_params
+                .into_iter()
+                .map(|pt| pt.map_type(&f))
+                .collect(),
+            self.var_params.map(|pt| pt.map_type(&f)),
+            self.default_params
+                .into_iter()
+                .map(|pt| pt.map_type(&f).map_default_type(&f))
+                .collect(),
+            self.kw_var_params.map(|pt| pt.map_type(&f)),
+            f(*self.return_t),
+        )
+    }
+
     pub fn contains_value(&self, target: &ValueObj) -> bool {
         self.non_default_params
             .iter()
@@ -3908,37 +3925,112 @@ impl Type {
         }
     }
 
-    pub fn eliminate(self, target: &Type) -> Self {
+    /// ```erg
+    /// (T or U).eliminate_sub(T) == U
+    /// ?X(<: T or U).eliminate_sub(T) == ?X(<: U)
+    /// ```
+    pub fn eliminate_sub(self, target: &Type) -> Self {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => {
-                let t = fv.crack().clone();
-                t.eliminate(target)
-            }
+            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().eliminate_sub(target),
             Self::FreeVar(ref fv) if fv.constraint_is_sandwiched() => {
                 let (sub, sup) = fv.get_subsup().unwrap();
                 fv.do_avoiding_recursion(|| {
-                    let sub = sub.eliminate(target);
-                    let sup = sup.eliminate(target);
+                    let sub = sub.eliminate_sub(target);
+                    let sup = sup.eliminate_sub(target);
                     self.update_tyvar(sub, sup, None, false);
                 });
                 self
             }
             Self::And(l, r) => {
                 if l.addr_eq(target) {
-                    return r.eliminate(target);
+                    return r.eliminate_sub(target);
                 } else if r.addr_eq(target) {
-                    return l.eliminate(target);
+                    return l.eliminate_sub(target);
                 }
-                l.eliminate(target) & r.eliminate(target)
+                l.eliminate_sub(target) & r.eliminate_sub(target)
             }
             Self::Or(l, r) => {
                 if l.addr_eq(target) {
-                    return r.eliminate(target);
+                    return r.eliminate_sub(target);
                 } else if r.addr_eq(target) {
-                    return l.eliminate(target);
+                    return l.eliminate_sub(target);
                 }
-                l.eliminate(target) | r.eliminate(target)
+                l.eliminate_sub(target) | r.eliminate_sub(target)
             }
+            other => other,
+        }
+    }
+
+    /// ```erg
+    /// ?T(<: K(X)).eliminate_recursion(X) == ?T(<: K(X))
+    /// Tuple(X).eliminate_recursion(X) == Tuple(Never)
+    /// ```
+    pub fn eliminate_recursion(self, target: &Type) -> Self {
+        if self.addr_eq(target) {
+            return Self::Never;
+        }
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().eliminate_recursion(target),
+            Self::Refinement(mut refine) => {
+                refine.t = Box::new(refine.t.eliminate_recursion(target));
+                Self::Refinement(refine)
+            }
+            Self::Record(mut rec) => {
+                for v in rec.values_mut() {
+                    *v = std::mem::take(v).eliminate_recursion(target);
+                }
+                Self::Record(rec)
+            }
+            Self::NamedTuple(mut r) => {
+                for (_, v) in r.iter_mut() {
+                    *v = std::mem::take(v).eliminate_recursion(target);
+                }
+                Self::NamedTuple(r)
+            }
+            Self::Subr(subr) => Self::Subr(subr.map(|t| t.eliminate_recursion(target))),
+            Self::Callable { param_ts, return_t } => {
+                let param_ts = param_ts
+                    .into_iter()
+                    .map(|t| t.eliminate_recursion(target))
+                    .collect();
+                let return_t = Box::new(return_t.eliminate_recursion(target));
+                Self::Callable { param_ts, return_t }
+            }
+            Self::Quantified(quant) => quant.eliminate_recursion(target).quantify(),
+            Self::Poly { name, params } => {
+                let params = params
+                    .into_iter()
+                    .map(|tp| tp.eliminate_t(target))
+                    .collect();
+                Self::Poly { name, params }
+            }
+            Self::Ref(t) => Self::Ref(Box::new(t.eliminate_recursion(target))),
+            Self::RefMut { before, after } => Self::RefMut {
+                before: Box::new(before.eliminate_recursion(target)),
+                after: after.map(|t| Box::new(t.eliminate_recursion(target))),
+            },
+            Self::And(l, r) => l.eliminate_recursion(target) & r.eliminate_recursion(target),
+            Self::Or(l, r) => l.eliminate_recursion(target) | r.eliminate_recursion(target),
+            Self::Not(ty) => !ty.eliminate_recursion(target),
+            Self::Proj { lhs, rhs } => lhs.eliminate_recursion(target).proj(rhs),
+            Self::ProjCall {
+                lhs,
+                attr_name,
+                args,
+            } => {
+                let args = args.into_iter().map(|tp| tp.eliminate_t(target)).collect();
+                proj_call(lhs.eliminate_t(target), attr_name, args)
+            }
+            Self::Structural(ty) => ty.eliminate_recursion(target).structuralize(),
+            Self::Guard(guard) => Self::Guard(GuardType::new(
+                guard.namespace,
+                guard.target.clone(),
+                guard.to.eliminate_recursion(target),
+            )),
+            Self::Bounded { sub, sup } => Self::Bounded {
+                sub: Box::new(sub.eliminate_recursion(target)),
+                sup: Box::new(sup.eliminate_recursion(target)),
+            },
             other => other,
         }
     }
@@ -4020,6 +4112,7 @@ impl Type {
         }
     }
 
+    /// Unlike `replace`, this does not make a look-up table.
     fn _replace(mut self, target: &Type, to: &Type) -> Type {
         if self.structural_eq(target) {
             self = to.clone();
@@ -4324,7 +4417,7 @@ impl Type {
             }
             return;
         }
-        let to = to.clone().eliminate(self);
+        let to = to.clone().eliminate_sub(self).eliminate_recursion(self);
         match self {
             Self::FreeVar(fv) => fv.link(&to),
             Self::Refinement(refine) => refine.t.destructive_link(&to),

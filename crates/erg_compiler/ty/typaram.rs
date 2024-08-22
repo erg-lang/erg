@@ -1531,93 +1531,7 @@ impl TyParam {
         if self.qual_name().is_some_and(|n| n == var) {
             return to.clone();
         }
-        match self {
-            TyParam::FreeVar(fv) if fv.is_linked() => fv.crack().clone().substitute(var, to),
-            TyParam::App { name, args } => {
-                let new_args = args
-                    .into_iter()
-                    .map(|arg| arg.substitute(var, to))
-                    .collect::<Vec<_>>();
-                TyParam::app(name, new_args)
-            }
-            TyParam::BinOp { op, lhs, rhs } => {
-                let new_lhs = lhs.substitute(var, to);
-                let new_rhs = rhs.substitute(var, to);
-                TyParam::bin(op, new_lhs, new_rhs)
-            }
-            TyParam::UnaryOp { op, val } => {
-                let new_val = val.substitute(var, to);
-                TyParam::unary(op, new_val)
-            }
-            TyParam::UnsizedList(elem) => TyParam::unsized_list(elem.substitute(var, to)),
-            TyParam::List(tps) => {
-                let new_tps = tps.into_iter().map(|t| t.substitute(var, to)).collect();
-                TyParam::List(new_tps)
-            }
-            TyParam::Tuple(tps) => {
-                let new_tps = tps.into_iter().map(|t| t.substitute(var, to)).collect();
-                TyParam::Tuple(new_tps)
-            }
-            TyParam::Set(tps) => {
-                let new_tps = tps.into_iter().map(|t| t.substitute(var, to)).collect();
-                TyParam::Set(new_tps)
-            }
-            TyParam::Dict(tps) => {
-                let new_tps = tps
-                    .into_iter()
-                    .map(|(k, v)| (k.substitute(var, to), v.substitute(var, to)))
-                    .collect();
-                TyParam::Dict(new_tps)
-            }
-            TyParam::Record(rec) => {
-                let new_rec = rec
-                    .into_iter()
-                    .map(|(k, v)| (k, v.substitute(var, to)))
-                    .collect();
-                TyParam::Record(new_rec)
-            }
-            TyParam::DataClass { name, fields } => {
-                let new_fields = fields
-                    .into_iter()
-                    .map(|(k, v)| (k, v.substitute(var, to)))
-                    .collect();
-                TyParam::DataClass {
-                    name,
-                    fields: new_fields,
-                }
-            }
-            TyParam::Lambda(lambda) => {
-                let new_body = lambda
-                    .body
-                    .into_iter()
-                    .map(|tp| tp.substitute(var, to))
-                    .collect();
-                TyParam::Lambda(TyParamLambda {
-                    body: new_body,
-                    ..lambda
-                })
-            }
-            TyParam::Proj { obj, attr } => {
-                let new_obj = obj.substitute(var, to);
-                TyParam::Proj {
-                    obj: Box::new(new_obj),
-                    attr,
-                }
-            }
-            TyParam::ProjCall { obj, attr, args } => {
-                let new_obj = obj.substitute(var, to);
-                let new_args = args
-                    .into_iter()
-                    .map(|arg| arg.substitute(var, to))
-                    .collect::<Vec<_>>();
-                TyParam::ProjCall {
-                    obj: Box::new(new_obj),
-                    attr,
-                    args: new_args,
-                }
-            }
-            self_ => self_,
-        }
+        self.map(|tp| tp.substitute(var, to))
     }
 
     pub fn replace(self, target: &TyParam, to: &TyParam) -> TyParam {
@@ -1630,103 +1544,31 @@ impl TyParam {
             return to.clone();
         }
         match self {
-            TyParam::FreeVar(fv) if fv.is_linked() => fv.crack().clone()._replace(target, to),
-            TyParam::App { name, args } => {
-                let new_args = args
-                    .into_iter()
-                    .map(|arg| arg._replace(target, to))
-                    .collect::<Vec<_>>();
-                TyParam::app(name, new_args)
-            }
-            TyParam::BinOp { op, lhs, rhs } => {
-                let new_lhs = lhs._replace(target, to);
-                let new_rhs = rhs._replace(target, to);
-                TyParam::bin(op, new_lhs, new_rhs)
-            }
-            TyParam::UnaryOp { op, val } => {
-                let new_val = val._replace(target, to);
-                TyParam::unary(op, new_val)
-            }
-            TyParam::UnsizedList(elem) => TyParam::unsized_list(elem._replace(target, to)),
-            TyParam::List(tps) => {
-                let new_tps = tps.into_iter().map(|t| t._replace(target, to)).collect();
-                TyParam::List(new_tps)
-            }
-            TyParam::Tuple(tps) => {
-                let new_tps = tps.into_iter().map(|t| t._replace(target, to)).collect();
-                TyParam::Tuple(new_tps)
-            }
-            TyParam::Set(tps) => {
-                let new_tps = tps.into_iter().map(|t| t._replace(target, to)).collect();
-                TyParam::Set(new_tps)
-            }
-            TyParam::Dict(tps) => {
-                let new_tps = tps
-                    .into_iter()
-                    .map(|(k, v)| (k._replace(target, to), v._replace(target, to)))
-                    .collect();
-                TyParam::Dict(new_tps)
-            }
-            TyParam::Record(rec) => {
-                let new_rec = rec
-                    .into_iter()
-                    .map(|(k, v)| (k, v._replace(target, to)))
-                    .collect();
-                TyParam::Record(new_rec)
-            }
-            TyParam::DataClass { name, fields } => {
-                let new_fields = fields
-                    .into_iter()
-                    .map(|(k, v)| (k, v._replace(target, to)))
-                    .collect();
-                TyParam::DataClass {
-                    name,
-                    fields: new_fields,
-                }
-            }
-            TyParam::Lambda(lambda) => {
-                let new_body = lambda
-                    .body
-                    .into_iter()
-                    .map(|tp| tp._replace(target, to))
-                    .collect();
-                TyParam::Lambda(TyParamLambda {
-                    body: new_body,
-                    ..lambda
-                })
-            }
-            TyParam::Proj { obj, attr } => {
-                let new_obj = obj._replace(target, to);
-                TyParam::Proj {
-                    obj: Box::new(new_obj),
-                    attr,
-                }
-            }
-            TyParam::ProjCall { obj, attr, args } => {
-                let new_obj = obj._replace(target, to);
-                let new_args = args
-                    .into_iter()
-                    .map(|arg| arg._replace(target, to))
-                    .collect::<Vec<_>>();
-                TyParam::ProjCall {
-                    obj: Box::new(new_obj),
-                    attr,
-                    args: new_args,
-                }
-            }
             TyParam::Type(t) => TyParam::t(t._replace_tp(target, to)),
             TyParam::Value(val) => TyParam::value(val.replace_tp(target, to)),
-            self_ => self_,
+            self_ => self_.map(|tp| tp._replace(target, to)),
         }
     }
 
     pub fn replace_t(self, target: &Type, to: &Type) -> TyParam {
         match self {
-            TyParam::Value(val) => TyParam::Value(val.replace_t(target, to)),
-            TyParam::FreeVar(fv) if fv.is_linked() => fv.crack().clone().replace_t(target, to),
-            TyParam::Type(ty) => TyParam::t(ty._replace(target, to)),
-            self_ => self_,
+            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().replace_t(target, to),
+            Self::FreeVar(fv) if fv.get_type().is_some() => {
+                let typ = fv.get_type().unwrap()._replace(target, to);
+                fv.update_type(typ);
+                Self::FreeVar(fv)
+            }
+            Self::Type(t) => Self::t(t._replace(target, to)),
+            Self::Erased(t) => Self::erased(t._replace(target, to)),
+            Self::Value(ValueObj::Type(t)) => {
+                Self::value(ValueObj::Type(t.mapped_t(|t| t._replace(target, to))))
+            }
+            _ => self.map(|tp| tp.replace_t(target, to)),
         }
+    }
+
+    pub fn eliminate_t(self, target: &Type) -> Self {
+        self.replace_t(target, &Type::Never)
     }
 
     /// TyParam::Value(ValueObj::Type(_)) => TyParam::Type
@@ -1752,7 +1594,7 @@ impl TyParam {
         if self.addr_eq(to) {
             return;
         }
-        if self.level() == Some(GENERIC_LEVEL) {
+        if DEBUG_MODE && self.level() == Some(GENERIC_LEVEL) {
             panic!("{self} is fixed");
         }
         match self {
@@ -2001,6 +1843,61 @@ impl TyParam {
             Self::Type(t) | Self::Erased(t) => t.variables(),
             Self::Value(ValueObj::Type(t)) => t.typ().variables(),
             _ => set! {},
+        }
+    }
+
+    pub fn map(self, f: impl Fn(TyParam) -> TyParam) -> TyParam {
+        match self {
+            TyParam::FreeVar(fv) if fv.is_linked() => f(fv.unwrap_linked()),
+            TyParam::App { name, args } => {
+                let new_args = args.into_iter().map(f).collect::<Vec<_>>();
+                TyParam::app(name, new_args)
+            }
+            TyParam::BinOp { op, lhs, rhs } => {
+                let new_lhs = f(*lhs);
+                let new_rhs = f(*rhs);
+                TyParam::bin(op, new_lhs, new_rhs)
+            }
+            TyParam::UnaryOp { op, val } => TyParam::unary(op, f(*val)),
+            TyParam::UnsizedList(elem) => TyParam::unsized_list(f(*elem)),
+            TyParam::List(tps) => TyParam::List(tps.into_iter().map(f).collect()),
+            TyParam::Tuple(tps) => TyParam::Tuple(tps.into_iter().map(f).collect()),
+            TyParam::Set(tps) => TyParam::Set(tps.into_iter().map(f).collect()),
+            TyParam::Dict(tps) => {
+                let new_tps = tps.into_iter().map(|(k, v)| (f(k), f(v))).collect();
+                TyParam::Dict(new_tps)
+            }
+            TyParam::Record(rec) => {
+                let new_rec = rec.into_iter().map(|(k, v)| (k, f(v))).collect();
+                TyParam::Record(new_rec)
+            }
+            TyParam::DataClass { name, fields } => {
+                let new_fields = fields.into_iter().map(|(k, v)| (k, f(v))).collect();
+                TyParam::DataClass {
+                    name,
+                    fields: new_fields,
+                }
+            }
+            TyParam::Lambda(lambda) => {
+                let new_body = lambda.body.into_iter().map(f).collect();
+                TyParam::Lambda(TyParamLambda {
+                    body: new_body,
+                    ..lambda
+                })
+            }
+            TyParam::Proj { obj, attr } => TyParam::Proj {
+                obj: Box::new(f(*obj)),
+                attr,
+            },
+            TyParam::ProjCall { obj, attr, args } => {
+                let new_args = args.into_iter().map(&f).collect::<Vec<_>>();
+                TyParam::ProjCall {
+                    obj: Box::new(f(*obj)),
+                    attr,
+                    args: new_args,
+                }
+            }
+            self_ => self_,
         }
     }
 }

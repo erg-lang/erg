@@ -245,8 +245,8 @@ impl Constraint {
                 } else if sup.addr_eq(target) {
                     Self::new_supertype_of(sub)
                 } else {
-                    let sub = sub.eliminate(target);
-                    let sup = sup.eliminate(target);
+                    let sub = sub.eliminate_sub(target);
+                    let sup = sup.eliminate_sub(target);
                     Self::new_sandwiched(sub, sup)
                 }
             }
@@ -551,9 +551,6 @@ pub struct Free<T: Send + Clone>(Forkable<FreeKind<T>>);
 
 impl Hash for Free<Type> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        if self.dec_recursion_counter() == 1 {
-            return;
-        }
         if let Some(name) = self.unbound_name() {
             name.hash(state);
         }
@@ -680,9 +677,6 @@ impl<T: Send + Clone> Free<T> {
     }
     pub fn forced_as_ref(&self) -> &FreeKind<T> {
         unsafe { self.as_ptr().as_ref() }.unwrap()
-    }
-    pub fn dec_recursion_counter(&self) -> u32 {
-        self.0.dec_recursion_counter()
     }
 }
 
@@ -971,7 +965,7 @@ impl<T: Clone + Send + Sync + 'static> Free<T> {
     #[track_caller]
     pub(super) fn undoable_link(&self, to: &T) {
         if self.is_linked() && addr_eq!(*self.crack(), *to) {
-            panic!("link to self");
+            return;
         }
         let prev = self.clone_inner();
         let new = FreeKind::UndoableLinked {
