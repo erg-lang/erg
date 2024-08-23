@@ -1968,15 +1968,17 @@ impl Context {
                     TyParam::erased(t)
                 }
             },
-            TyParam::Value(ValueObj::Type(mut t)) => {
-                match t.try_map_t(|t| self.eval_t_params(t, self.level, &())) {
-                    Ok(_) => {}
+            TyParam::Value(val) => {
+                match val
+                    .clone()
+                    .try_map_t(&mut |t| self.eval_t_params(t, self.level, &()))
+                {
+                    Ok(val) => TyParam::Value(val),
                     Err((_t, es)) => {
                         errs.extend(es);
-                        *t.typ_mut() = _t;
+                        TyParam::Value(val)
                     }
                 }
-                TyParam::Value(ValueObj::Type(t))
             }
             TyParam::ProjCall { obj, attr, args } => {
                 match self.eval_proj_call(*obj, attr, args, &()) {
@@ -1994,7 +1996,6 @@ impl Context {
                     return Err((TyParam::Failure, errs));
                 }
             },
-            TyParam::Value(_) => p.clone(),
             other => {
                 errs.push(EvalError::feature_error(
                     self.cfg.input.clone(),

@@ -45,9 +45,7 @@ impl Generalizer {
     fn generalize_tp(&mut self, free: TyParam, uninit: bool) -> TyParam {
         match free {
             TyParam::Type(t) => TyParam::t(self.generalize_t(*t, uninit)),
-            TyParam::Value(ValueObj::Type(t)) => {
-                TyParam::t(self.generalize_t(t.into_typ(), uninit))
-            }
+            TyParam::Value(val) => TyParam::Value(val.map_t(&mut |t| self.generalize_t(t, uninit))),
             TyParam::FreeVar(fv) if fv.is_generalized() => TyParam::FreeVar(fv),
             TyParam::FreeVar(fv) if fv.is_linked() => {
                 let tp = fv.crack().clone();
@@ -328,9 +326,8 @@ impl Generalizer {
     fn generalize_pred(&mut self, pred: Predicate, uninit: bool) -> Predicate {
         match pred {
             Predicate::Const(_) | Predicate::Failure => pred,
-            Predicate::Value(ValueObj::Type(mut typ)) => {
-                *typ.typ_mut() = self.generalize_t(mem::take(typ.typ_mut()), uninit);
-                Predicate::Value(ValueObj::Type(typ))
+            Predicate::Value(val) => {
+                Predicate::Value(val.map_t(&mut |t| self.generalize_t(t, uninit)))
             }
             Predicate::Call {
                 receiver,
@@ -348,7 +345,6 @@ impl Generalizer {
                 let receiver = self.generalize_tp(receiver, uninit);
                 Predicate::attr(receiver, name)
             }
-            Predicate::Value(_) => pred,
             Predicate::GeneralEqual { lhs, rhs } => {
                 let lhs = self.generalize_pred(*lhs, uninit);
                 let rhs = self.generalize_pred(*rhs, uninit);

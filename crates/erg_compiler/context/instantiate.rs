@@ -578,15 +578,15 @@ impl Context {
                 let t = self.instantiate_t_inner(*t, tmp_tv_cache, loc)?;
                 Ok(TyParam::t(t))
             }
-            TyParam::Value(ValueObj::Type(t)) => {
-                let t = self.instantiate_t_inner(t.into_typ(), tmp_tv_cache, loc)?;
-                Ok(TyParam::t(t))
+            TyParam::Value(val) => {
+                let val = val.try_map_t(&mut |t| self.instantiate_t_inner(t, tmp_tv_cache, loc))?;
+                Ok(TyParam::Value(val))
             }
             TyParam::Erased(t) => {
                 let t = self.instantiate_t_inner(*t, tmp_tv_cache, loc)?;
                 Ok(TyParam::Erased(Box::new(t)))
             }
-            p @ (TyParam::Value(_) | TyParam::Mono(_) | TyParam::FreeVar(_)) => Ok(p),
+            p @ (TyParam::Mono(_) | TyParam::FreeVar(_)) => Ok(p),
             other => {
                 type_feature_error!(
                     self,

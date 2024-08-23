@@ -374,7 +374,11 @@ impl GenTypeObj {
     }
 
     pub fn map_t(&mut self, f: impl FnOnce(Type) -> Type) {
-        *self.typ_mut() = f(self.typ().clone());
+        *self.typ_mut() = f(std::mem::take(self.typ_mut()));
+    }
+
+    pub fn map_tp(&mut self, f: impl Fn(TyParam) -> TyParam + Copy) {
+        *self.typ_mut() = std::mem::take(self.typ_mut()).map_tp(f);
     }
 
     pub fn try_map_t<E>(&mut self, f: impl FnOnce(Type) -> Result<Type, E>) -> Result<(), E> {
@@ -484,13 +488,25 @@ impl TypeObj {
 
     pub fn map_t(&mut self, f: impl FnOnce(Type) -> Type) {
         match self {
-            TypeObj::Builtin { t, .. } => *t = f(t.clone()),
+            TypeObj::Builtin { t, .. } => *t = f(std::mem::take(t)),
             TypeObj::Generated(t) => t.map_t(f),
+        }
+    }
+
+    pub fn map_tp(&mut self, f: impl Fn(TyParam) -> TyParam + Copy) {
+        match self {
+            TypeObj::Builtin { t, .. } => *t = std::mem::take(t).map_tp(f),
+            TypeObj::Generated(t) => t.map_tp(f),
         }
     }
 
     pub fn mapped_t(mut self, f: impl FnOnce(Type) -> Type) -> Self {
         self.map_t(f);
+        self
+    }
+
+    pub fn mapped_tp(mut self, f: impl Fn(TyParam) -> TyParam + Copy) -> Self {
+        self.map_tp(f);
         self
     }
 
@@ -502,6 +518,11 @@ impl TypeObj {
             }
             TypeObj::Generated(t) => t.try_map_t(f),
         }
+    }
+
+    pub fn try_mapped_t<E>(mut self, f: impl FnOnce(Type) -> Result<Type, E>) -> Result<Self, E> {
+        self.try_map_t(f)?;
+        Ok(self)
     }
 }
 
@@ -1618,25 +1639,89 @@ impl ValueObj {
             ValueObj::Tuple(tup) => {
                 ValueObj::Tuple(tup.iter().map(|v| v.clone().map_t(f)).collect())
             }
-            ValueObj::Set(st) => ValueObj::Set(st.iter().map(|v| v.clone().map_t(f)).collect()),
+            ValueObj::Set(st) => ValueObj::Set(st.into_iter().map(|v| v.map_t(f)).collect()),
             ValueObj::Dict(dict) => ValueObj::Dict(
-                dict.iter()
-                    .map(|(k, v)| (k.clone().map_t(f), v.clone().map_t(f)))
+                dict.into_iter()
+                    .map(|(k, v)| (k.map_t(f), v.map_t(f)))
                     .collect(),
             ),
-            ValueObj::Record(rec) => ValueObj::Record(
-                rec.iter()
-                    .map(|(k, v)| (k.clone(), v.clone().map_t(f)))
-                    .collect(),
-            ),
+            ValueObj::Record(rec) => {
+                ValueObj::Record(rec.into_iter().map(|(k, v)| (k, v.map_t(f))).collect())
+            }
             ValueObj::DataClass { name, fields } => ValueObj::DataClass {
                 name,
-                fields: fields
-                    .iter()
-                    .map(|(k, v)| (k.clone(), v.clone().map_t(f)))
-                    .collect(),
+                fields: fields.into_iter().map(|(k, v)| (k, v.map_t(f))).collect(),
             },
             ValueObj::UnsizedList(elem) => ValueObj::UnsizedList(Box::new(elem.clone().map_t(f))),
+            self_ => self_,
+        }
+    }
+
+    pub fn try_map_t<E>(self, f: &mut impl FnMut(Type) -> Result<Type, E>) -> Result<Self, E> {
+        match self {
+            ValueObj::Type(obj) => Ok(ValueObj::Type(obj.try_mapped_t(f)?)),
+            ValueObj::List(lis) => Ok(ValueObj::List(
+                lis.iter()
+                    .map(|v| v.clone().try_map_t(f))
+                    .collect::<Result<Arc<_>, _>>()?,
+            )),
+            ValueObj::Tuple(tup) => Ok(ValueObj::Tuple(
+                tup.iter()
+                    .map(|v| v.clone().try_map_t(f))
+                    .collect::<Result<Arc<_>, _>>()?,
+            )),
+            ValueObj::Set(st) => Ok(ValueObj::Set(
+                st.into_iter()
+                    .map(|v| v.try_map_t(f))
+                    .collect::<Result<Set<_>, _>>()?,
+            )),
+            ValueObj::Dict(dict) => Ok(ValueObj::Dict(
+                dict.into_iter()
+                    .map(|(k, v)| Ok((k.try_map_t(f)?, v.try_map_t(f)?)))
+                    .collect::<Result<Dict<_, _>, _>>()?,
+            )),
+            ValueObj::Record(rec) => Ok(ValueObj::Record(
+                rec.into_iter()
+                    .map(|(k, v)| Ok((k, v.try_map_t(f)?)))
+                    .collect::<Result<Dict<_, _>, _>>()?,
+            )),
+            ValueObj::DataClass { name, fields } => Ok(ValueObj::DataClass {
+                name,
+                fields: fields
+                    .into_iter()
+                    .map(|(k, v)| Ok((k, v.try_map_t(f)?)))
+                    .collect::<Result<Dict<_, _>, _>>()?,
+            }),
+            ValueObj::UnsizedList(elem) => {
+                Ok(ValueObj::UnsizedList(Box::new(elem.clone().try_map_t(f)?)))
+            }
+            self_ => Ok(self_),
+        }
+    }
+
+    pub fn map_tp(self, f: impl Fn(TyParam) -> TyParam + Copy) -> Self {
+        match self {
+            ValueObj::Type(obj) => ValueObj::Type(obj.mapped_tp(f)),
+            ValueObj::List(lis) => {
+                ValueObj::List(lis.iter().map(|v| v.clone().map_tp(f)).collect())
+            }
+            ValueObj::Tuple(tup) => {
+                ValueObj::Tuple(tup.iter().map(|v| v.clone().map_tp(f)).collect())
+            }
+            ValueObj::Set(st) => ValueObj::Set(st.into_iter().map(|v| v.map_tp(f)).collect()),
+            ValueObj::Dict(dict) => ValueObj::Dict(
+                dict.into_iter()
+                    .map(|(k, v)| (k.map_tp(f), v.map_tp(f)))
+                    .collect(),
+            ),
+            ValueObj::Record(rec) => {
+                ValueObj::Record(rec.into_iter().map(|(k, v)| (k, v.map_tp(f))).collect())
+            }
+            ValueObj::DataClass { name, fields } => ValueObj::DataClass {
+                name,
+                fields: fields.into_iter().map(|(k, v)| (k, v.map_tp(f))).collect(),
+            },
+            ValueObj::UnsizedList(elem) => ValueObj::UnsizedList(Box::new(elem.clone().map_tp(f))),
             self_ => self_,
         }
     }

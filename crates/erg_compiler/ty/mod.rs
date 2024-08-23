@@ -303,7 +303,7 @@ impl TryFrom<Type> for SubrType {
     type Error = ();
     fn try_from(t: Type) -> Result<Self, ()> {
         match t {
-            Type::FreeVar(fv) if fv.is_linked() => Self::try_from(fv.crack().clone()),
+            Type::FreeVar(fv) if fv.is_linked() => Self::try_from(fv.unwrap_linked()),
             Type::Subr(st) => Ok(st),
             Type::Quantified(quant) => SubrType::try_from(*quant),
             Type::Refinement(refine) => Self::try_from(*refine.t),
@@ -2829,8 +2829,9 @@ impl Type {
             Self::Poly { params, .. } => params.iter().any(|tp| tp.contains_type(target)),
             Self::Quantified(t) => t.contains_type(target),
             Self::Subr(subr) => subr.contains_type(target),
-            // TODO: preds
-            Self::Refinement(refine) => refine.t.contains_type(target),
+            Self::Refinement(refine) => {
+                refine.t.contains_type(target) || refine.pred.contains_t(target)
+            }
             Self::Structural(ty) => ty.contains_type(target),
             Self::Proj { lhs, .. } => lhs.contains_type(target),
             Self::ProjCall { lhs, args, .. } => {
@@ -2929,7 +2930,9 @@ impl Type {
             Self::Poly { params, .. } => params.iter().any(|tp| tp.contains_type(self)),
             Self::Quantified(t) => t.contains_type(self),
             Self::Subr(subr) => subr.contains_type(self),
-            Self::Refinement(refine) => refine.t.contains_type(self),
+            Self::Refinement(refine) => {
+                refine.t.contains_type(self) || refine.pred.contains_t(self)
+            }
             Self::Structural(ty) => ty.contains_type(self),
             Self::Proj { lhs, .. } => lhs.contains_type(self),
             Self::ProjCall { lhs, args, .. } => {
@@ -3235,7 +3238,7 @@ impl Type {
     /// ```
     pub fn into_refinement(self) -> RefinementType {
         match self {
-            Type::FreeVar(fv) if fv.is_linked() => fv.crack().clone().into_refinement(),
+            Type::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().into_refinement(),
             Type::Nat => {
                 let var = FRESH_GEN.fresh_varname();
                 RefinementType::new(
@@ -3289,7 +3292,7 @@ impl Type {
 
     pub fn deconstruct_refinement(self) -> Result<(Str, Type, Predicate), Type> {
         match self {
-            Type::FreeVar(fv) if fv.is_linked() => fv.crack().clone().deconstruct_refinement(),
+            Type::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().deconstruct_refinement(),
             Type::Refinement(r) => Ok(r.deconstruct()),
             _ => Err(self),
         }
@@ -3993,6 +3996,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().eliminate_recursion(target),
             Self::Refinement(mut refine) => {
                 refine.t = Box::new(refine.t.eliminate_recursion(target));
+                refine.pred = Box::new(refine.pred.map_t(&mut |t| t.eliminate_recursion(target)));
                 Self::Refinement(refine)
             }
             Self::Record(mut rec) => {
@@ -4138,7 +4142,7 @@ impl Type {
             self = to.clone();
         }
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().clone()._replace(target, to),
+            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked()._replace(target, to),
             Self::FreeVar(fv) => {
                 let fv_clone = fv.deep_clone();
                 if let Some((sub, sup)) = fv_clone.get_subsup() {
@@ -4157,6 +4161,7 @@ impl Type {
             }
             Self::Refinement(mut refine) => {
                 refine.t = Box::new(refine.t._replace(target, to));
+                refine.pred = Box::new(refine.pred._replace_t(target, to));
                 Self::Refinement(refine)
             }
             Self::Record(mut rec) => {
@@ -4224,7 +4229,7 @@ impl Type {
 
     fn _replace_tp(self, target: &TyParam, to: &TyParam) -> Type {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().clone()._replace_tp(target, to),
+            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked()._replace_tp(target, to),
             Self::FreeVar(fv) => {
                 let fv_clone = fv.deep_clone();
                 if let Some((sub, sup)) = fv_clone.get_subsup() {
@@ -4245,7 +4250,7 @@ impl Type {
             }
             Self::Refinement(mut refine) => {
                 refine.t = Box::new(refine.t._replace_tp(target, to));
-                // refine.pred = refine.pred.replace_tp(target, to);
+                refine.pred = Box::new(refine.pred._replace_tp(target, to));
                 Self::Refinement(refine)
             }
             Self::Record(mut rec) => {
@@ -4328,7 +4333,7 @@ impl Type {
             }
             Self::Refinement(mut refine) => {
                 refine.t = Box::new(refine.t.map_tp(f));
-                // refine.pred = refine.pred.replace_tp(target, to);
+                refine.pred = Box::new(refine.pred.map_tp(f));
                 Self::Refinement(refine)
             }
             Self::Record(mut rec) => {
@@ -4387,7 +4392,7 @@ impl Type {
 
     fn replace_param(self, target: &str, to: &str) -> Self {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().clone().replace_param(target, to),
+            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().replace_param(target, to),
             Self::Refinement(mut refine) => {
                 *refine.t = refine.t.replace_param(target, to);
                 Self::Refinement(refine)
@@ -4412,10 +4417,15 @@ impl Type {
     /// TyParam::Value(ValueObj::Type(_)) => TyParam::Type
     pub fn normalize(self) -> Self {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().clone().normalize(),
+            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().normalize(),
             Self::Poly { name, params } => {
                 let params = params.into_iter().map(|tp| tp.normalize()).collect();
                 Self::Poly { name, params }
+            }
+            Self::Refinement(mut refine) => {
+                refine.t = Box::new(refine.t.normalize());
+                refine.pred = Box::new(refine.pred.map_t(&mut |t| t.normalize()));
+                Self::Refinement(refine)
             }
             Self::Subr(mut subr) => {
                 for nd in subr.non_default_params.iter_mut() {
@@ -4738,7 +4748,10 @@ impl Type {
                 fv.update_init();
             }
             // TODO: T(:> X, <: Y).dereference()
-            Self::Refinement(refine) => refine.t.dereference(),
+            Self::Refinement(refine) => {
+                refine.t.dereference();
+                refine.pred.dereference();
+            }
             Self::Ref(t) => {
                 t.dereference();
             }

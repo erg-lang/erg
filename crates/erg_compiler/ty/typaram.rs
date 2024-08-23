@@ -1913,6 +1913,61 @@ impl TyParam {
             self_ => self_,
         }
     }
+
+    pub fn map_t(self, f: &mut impl FnMut(Type) -> Type) -> TyParam {
+        match self {
+            TyParam::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().map_t(f),
+            TyParam::App { name, args } => {
+                let new_args = args.into_iter().map(|tp| tp.map_t(f)).collect::<Vec<_>>();
+                TyParam::app(name, new_args)
+            }
+            TyParam::BinOp { op, lhs, rhs } => TyParam::bin(op, lhs.map_t(f), rhs.map_t(f)),
+            TyParam::UnaryOp { op, val } => TyParam::unary(op, val.map_t(f)),
+            TyParam::UnsizedList(elem) => TyParam::unsized_list(elem.map_t(f)),
+            TyParam::List(tps) => TyParam::List(tps.into_iter().map(|tp| tp.map_t(f)).collect()),
+            TyParam::Tuple(tps) => TyParam::Tuple(tps.into_iter().map(|tp| tp.map_t(f)).collect()),
+            TyParam::Set(tps) => TyParam::Set(tps.into_iter().map(|tp| tp.map_t(f)).collect()),
+            TyParam::Dict(tps) => {
+                let new_tps = tps
+                    .into_iter()
+                    .map(|(k, v)| (k.map_t(f), v.map_t(f)))
+                    .collect();
+                TyParam::Dict(new_tps)
+            }
+            TyParam::Record(rec) => {
+                let new_rec = rec.into_iter().map(|(k, v)| (k, v.map_t(f))).collect();
+                TyParam::Record(new_rec)
+            }
+            TyParam::DataClass { name, fields } => {
+                let new_fields = fields.into_iter().map(|(k, v)| (k, v.map_t(f))).collect();
+                TyParam::DataClass {
+                    name,
+                    fields: new_fields,
+                }
+            }
+            TyParam::Lambda(lambda) => {
+                let new_body = lambda.body.into_iter().map(|tp| tp.map_t(f)).collect();
+                TyParam::Lambda(TyParamLambda {
+                    body: new_body,
+                    ..lambda
+                })
+            }
+            TyParam::Proj { obj, attr } => TyParam::Proj {
+                obj: Box::new(obj.map_t(f)),
+                attr,
+            },
+            TyParam::ProjCall { obj, attr, args } => {
+                let new_args = args.into_iter().map(|tp| tp.map_t(f)).collect::<Vec<_>>();
+                TyParam::ProjCall {
+                    obj: Box::new(obj.map_t(f)),
+                    attr,
+                    args: new_args,
+                }
+            }
+            TyParam::Value(val) => TyParam::Value(val.map_t(f)),
+            self_ => self_,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

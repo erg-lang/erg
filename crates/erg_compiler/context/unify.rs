@@ -317,6 +317,22 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 }
                 Ok(())
             }
+            (ValueObj::Set(sub), ValueObj::Set(sup)) => {
+                if sub.len() == 1 && sup.len() == 1 {
+                    let sub = sub.iter().next().unwrap();
+                    let sup = sup.iter().next().unwrap();
+                    self.sub_unify_value(sub, sup)?;
+                    Ok(())
+                } else {
+                    Err(TyCheckErrors::from(TyCheckError::feature_error(
+                        self.ctx.cfg.input.clone(),
+                        line!() as usize,
+                        self.loc.loc(),
+                        &format!("unifying {sub} and {sup}"),
+                        self.ctx.caused_by(),
+                    )))
+                }
+            }
             (ValueObj::Record(sub), ValueObj::Record(sup)) => {
                 for (sub_k, sub_v) in sub.iter() {
                     if let Some(sup_v) = sup.get(sub_k) {
