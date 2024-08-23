@@ -35,10 +35,10 @@ class Ratio(Fraction):
             return bin(self).count("1")
 
     def succ(self):
-        return Ratio(self + 1)
+        return Ratio(self) + 1
 
     def pred(self):
-        return Ratio(self - 1)
+        return Ratio(self) - 1
 
     def mutate(self):
         return RatioMut(self)
@@ -53,7 +53,7 @@ class Ratio(Fraction):
         return then__(super().__mul__(other), Ratio)
 
     def __truediv__(self, other):
-        return then__(Ratio((self, other)), Ratio)
+        return then__(super().__truediv__(other), Ratio)
 
     def __floordiv__(self, other):
         return then__(super().__floordiv__(other), Ratio)
@@ -74,8 +74,8 @@ class Ratio(Fraction):
 class RatioMut(MutType):
     value: Ratio
 
-    def __init__(self, i, denominator: int):
-        self.value = Ratio(i, denominator)
+    def __init__(self, fraction):
+        self.value = Ratio(fraction)
 
     def __int__(self):
         return self.value.__int__()
