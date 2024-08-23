@@ -1217,7 +1217,7 @@ impl TyParam {
             Self::BinOp { lhs, rhs, .. } => lhs.qvars().concat(rhs.qvars()),
             Self::App { args, .. } => args.iter().fold(set! {}, |acc, p| acc.concat(p.qvars())),
             Self::Erased(t) => t.qvars(),
-            Self::Value(ValueObj::Type(t)) => t.typ().qvars(),
+            Self::Value(val) => val.qvars(),
             _ => set! {},
         }
     }
@@ -1239,7 +1239,7 @@ impl TyParam {
             Self::BinOp { lhs, rhs, .. } => lhs.has_qvar() || rhs.has_qvar(),
             Self::App { args, .. } => args.iter().any(|p| p.has_qvar()),
             Self::Erased(t) => t.has_qvar(),
-            Self::Value(ValueObj::Type(t)) => t.typ().has_qvar(),
+            Self::Value(val) => val.has_qvar(),
             _ => false,
         }
     }
@@ -1262,7 +1262,7 @@ impl TyParam {
             Self::UnaryOp { val, .. } => val.contains_tvar(target),
             Self::BinOp { lhs, rhs, .. } => lhs.contains_tvar(target) || rhs.contains_tvar(target),
             Self::App { args, .. } => args.iter().any(|p| p.contains_tvar(target)),
-            Self::Value(ValueObj::Type(t)) => t.typ().contains_tvar(target),
+            Self::Value(val) => val.contains_tvar(target),
             _ => false,
         }
     }
@@ -1289,7 +1289,7 @@ impl TyParam {
             Self::UnaryOp { val, .. } => val.contains_type(target),
             Self::BinOp { lhs, rhs, .. } => lhs.contains_type(target) || rhs.contains_type(target),
             Self::App { args, .. } => args.iter().any(|p| p.contains_type(target)),
-            Self::Value(ValueObj::Type(t)) => t.typ().contains_type(target),
+            Self::Value(val) => val.contains_type(target),
             _ => false,
         }
     }
@@ -1319,7 +1319,7 @@ impl TyParam {
             Self::UnaryOp { val, .. } => val.contains_tp(target),
             Self::BinOp { lhs, rhs, .. } => lhs.contains_tp(target) || rhs.contains_tp(target),
             Self::App { args, .. } => args.iter().any(|p| p.contains_tp(target)),
-            Self::Value(ValueObj::Type(t)) => t.typ().contains_tp(target),
+            Self::Value(val) => val.contains_tp(target),
             _ => false,
         }
     }
@@ -1381,7 +1381,7 @@ impl TyParam {
                 .iter()
                 .any(|(k, v)| k.contains_tp(self) || v.contains_tp(self)),
             Self::Type(t) => t.contains_tp(self),
-            Self::Value(ValueObj::Type(t)) => t.typ().contains_tp(self),
+            Self::Value(val) => val.contains_tp(self),
             Self::Erased(t) => t.contains_tp(self),
             _ => false,
         }
@@ -1418,7 +1418,7 @@ impl TyParam {
             Self::BinOp { lhs, rhs, .. } => lhs.has_unbound_var() || rhs.has_unbound_var(),
             Self::App { args, .. } => args.iter().any(|p| p.has_unbound_var()),
             Self::Erased(t) => t.has_unbound_var(),
-            Self::Value(ValueObj::Type(t)) => t.typ().has_unbound_var(),
+            Self::Value(val) => val.has_unbound_var(),
             _ => false,
         }
     }
@@ -1451,7 +1451,7 @@ impl TyParam {
             }
             Self::App { args, .. } => args.iter().any(|p| p.has_undoable_linked_var()),
             Self::Erased(t) => t.has_undoable_linked_var(),
-            Self::Value(ValueObj::Type(t)) => t.typ().has_undoable_linked_var(),
+            Self::Value(val) => val.has_undoable_linked_var(),
             _ => false,
         }
     }
@@ -1560,9 +1560,7 @@ impl TyParam {
             }
             Self::Type(t) => Self::t(t._replace(target, to)),
             Self::Erased(t) => Self::erased(t._replace(target, to)),
-            Self::Value(ValueObj::Type(t)) => {
-                Self::value(ValueObj::Type(t.mapped_t(|t| t._replace(target, to))))
-            }
+            Self::Value(val) => Self::Value(val.replace_t(target, to)),
             _ => self.map(|tp| tp.replace_t(target, to)),
         }
     }
@@ -1709,7 +1707,7 @@ impl TyParam {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().typarams(),
             Self::Type(t) => t.typarams(),
-            Self::Value(ValueObj::Type(t)) => t.typ().typarams(),
+            Self::Value(val) => val.typarams(),
             Self::App { args, .. } => args.clone(),
             _ => vec![],
         }
@@ -1719,7 +1717,7 @@ impl TyParam {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().contained_ts(),
             Self::Type(t) => t.contained_ts(),
-            Self::Value(ValueObj::Type(t)) => t.typ().contained_ts(),
+            Self::Value(val) => val.contained_ts(),
             Self::App { args, .. } => args
                 .iter()
                 .fold(set! {}, |acc, p| acc.concat(p.contained_ts())),
@@ -1738,7 +1736,7 @@ impl TyParam {
                 fv.update_init();
             }
             Self::Type(t) => t.dereference(),
-            Self::Value(ValueObj::Type(t)) => t.typ_mut().dereference(),
+            Self::Value(val) => val.dereference(),
             Self::App { args, .. } => {
                 for arg in args {
                     arg.dereference();
@@ -1855,12 +1853,12 @@ impl TyParam {
                 set
             }
             Self::Type(t) | Self::Erased(t) => t.variables(),
-            Self::Value(ValueObj::Type(t)) => t.typ().variables(),
+            Self::Value(val) => val.variables(),
             _ => set! {},
         }
     }
 
-    pub fn map(self, f: impl Fn(TyParam) -> TyParam) -> TyParam {
+    pub fn map(self, f: impl Fn(TyParam) -> TyParam + Copy) -> TyParam {
         match self {
             TyParam::FreeVar(fv) if fv.is_linked() => f(fv.unwrap_linked()),
             TyParam::App { name, args } => {
@@ -1904,13 +1902,14 @@ impl TyParam {
                 attr,
             },
             TyParam::ProjCall { obj, attr, args } => {
-                let new_args = args.into_iter().map(&f).collect::<Vec<_>>();
+                let new_args = args.into_iter().map(f).collect::<Vec<_>>();
                 TyParam::ProjCall {
                     obj: Box::new(f(*obj)),
                     attr,
                     args: new_args,
                 }
             }
+            TyParam::Value(val) => TyParam::Value(val.map_t(&mut |t| t.map_tp(f))),
             self_ => self_,
         }
     }

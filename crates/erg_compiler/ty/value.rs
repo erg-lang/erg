@@ -26,6 +26,7 @@ use self::value_set::inner_class;
 
 use super::codeobj::{tuple_into_bytes, CodeObj};
 use super::constructors::{dict_t, list_t, refinement, set_t, tuple_t, unsized_list_t};
+use super::free::{Constraint, FreeTyVar};
 use super::typaram::{OpKind, TyParam};
 use super::{ConstSubr, Field, HasType, Predicate, Type};
 use super::{CONTAINER_OMIT_THRESHOLD, STR_OMIT_THRESHOLD};
@@ -1610,96 +1611,42 @@ impl ValueObj {
         }
     }
 
-    pub fn replace_t(self, target: &Type, to: &Type) -> Self {
+    pub fn map_t(self, f: &mut impl FnMut(Type) -> Type) -> Self {
         match self {
-            ValueObj::Type(obj) => ValueObj::Type(obj.mapped_t(|t| t._replace(target, to))),
-            ValueObj::List(lis) => ValueObj::List(
-                lis.iter()
-                    .map(|v| v.clone().replace_t(target, to))
-                    .collect(),
-            ),
-            ValueObj::Tuple(tup) => ValueObj::Tuple(
-                tup.iter()
-                    .map(|v| v.clone().replace_t(target, to))
-                    .collect(),
-            ),
-            ValueObj::Set(st) => {
-                ValueObj::Set(st.iter().map(|v| v.clone().replace_t(target, to)).collect())
+            ValueObj::Type(obj) => ValueObj::Type(obj.mapped_t(f)),
+            ValueObj::List(lis) => ValueObj::List(lis.iter().map(|v| v.clone().map_t(f)).collect()),
+            ValueObj::Tuple(tup) => {
+                ValueObj::Tuple(tup.iter().map(|v| v.clone().map_t(f)).collect())
             }
+            ValueObj::Set(st) => ValueObj::Set(st.iter().map(|v| v.clone().map_t(f)).collect()),
             ValueObj::Dict(dict) => ValueObj::Dict(
                 dict.iter()
-                    .map(|(k, v)| {
-                        (
-                            k.clone().replace_t(target, to),
-                            v.clone().replace_t(target, to),
-                        )
-                    })
+                    .map(|(k, v)| (k.clone().map_t(f), v.clone().map_t(f)))
                     .collect(),
             ),
             ValueObj::Record(rec) => ValueObj::Record(
                 rec.iter()
-                    .map(|(k, v)| (k.clone(), v.clone().replace_t(target, to)))
+                    .map(|(k, v)| (k.clone(), v.clone().map_t(f)))
                     .collect(),
             ),
             ValueObj::DataClass { name, fields } => ValueObj::DataClass {
                 name,
                 fields: fields
                     .iter()
-                    .map(|(k, v)| (k.clone(), v.clone().replace_t(target, to)))
+                    .map(|(k, v)| (k.clone(), v.clone().map_t(f)))
                     .collect(),
             },
-            ValueObj::UnsizedList(elem) => {
-                ValueObj::UnsizedList(Box::new(elem.clone().replace_t(target, to)))
-            }
+            ValueObj::UnsizedList(elem) => ValueObj::UnsizedList(Box::new(elem.clone().map_t(f))),
             self_ => self_,
         }
     }
 
+    pub fn replace_t(self, target: &Type, to: &Type) -> Self {
+        self.map_t(&mut |t| t._replace(target, to))
+    }
+
     pub fn replace_tp(self, target: &TyParam, to: &TyParam) -> Self {
-        match self {
-            ValueObj::Type(obj) => ValueObj::Type(obj.mapped_t(|t| t._replace_tp(target, to))),
-            ValueObj::List(lis) => ValueObj::List(
-                lis.iter()
-                    .map(|v| v.clone().replace_tp(target, to))
-                    .collect(),
-            ),
-            ValueObj::Tuple(tup) => ValueObj::Tuple(
-                tup.iter()
-                    .map(|v| v.clone().replace_tp(target, to))
-                    .collect(),
-            ),
-            ValueObj::Set(st) => ValueObj::Set(
-                st.iter()
-                    .map(|v| v.clone().replace_tp(target, to))
-                    .collect(),
-            ),
-            ValueObj::Dict(dict) => ValueObj::Dict(
-                dict.iter()
-                    .map(|(k, v)| {
-                        (
-                            k.clone().replace_tp(target, to),
-                            v.clone().replace_tp(target, to),
-                        )
-                    })
-                    .collect(),
-            ),
-            ValueObj::Record(rec) => ValueObj::Record(
-                rec.iter()
-                    .map(|(k, v)| (k.clone(), v.clone().replace_tp(target, to)))
-                    .collect(),
-            ),
-            ValueObj::DataClass { name, fields } => ValueObj::DataClass {
-                name,
-                fields: fields
-                    .iter()
-                    .map(|(k, v)| (k.clone(), v.clone().replace_tp(target, to)))
-                    .collect(),
-            },
-            ValueObj::UnsizedList(elem) => {
-                ValueObj::UnsizedList(Box::new(elem.clone().replace_tp(target, to)))
-            }
-            self_ => self_,
-        }
+        self.map_t(&mut |t| t._replace_tp(target, to))
     }
 
     pub fn contains(&self, val: &ValueObj) -> bool {
@@ -1712,6 +1659,165 @@ impl ValueObj {
             ValueObj::DataClass { fields, .. } => fields.iter().any(|(_, v)| v.contains(val)),
             ValueObj::UnsizedList(elem) => elem.contains(val),
             _ => self == val,
+        }
+    }
+
+    pub fn contains_type(&self, target: &Type) -> bool {
+        match self {
+            Self::Type(t) => t.typ().contains_type(target),
+            Self::List(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.contains_type(target)),
+            Self::UnsizedList(elem) => elem.contains_type(target),
+            Self::Set(ts) => ts.iter().any(|t| t.contains_type(target)),
+            Self::Dict(ts) => ts
+                .iter()
+                .any(|(k, v)| k.contains_type(target) || v.contains_type(target)),
+            Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
+                rec.iter().any(|(_, tp)| tp.contains_type(target))
+            }
+            _ => false,
+        }
+    }
+
+    pub fn contains_tp(&self, target: &TyParam) -> bool {
+        match self {
+            Self::Type(t) => t.typ().contains_tp(target),
+            Self::List(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.contains_tp(target)),
+            Self::UnsizedList(elem) => elem.contains_tp(target),
+            Self::Set(ts) => ts.iter().any(|t| t.contains_tp(target)),
+            Self::Dict(ts) => ts
+                .iter()
+                .any(|(k, v)| k.contains_tp(target) || v.contains_tp(target)),
+            Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
+                rec.iter().any(|(_, tp)| tp.contains_tp(target))
+            }
+            _ => false,
+        }
+    }
+
+    pub fn has_unbound_var(&self) -> bool {
+        match self {
+            Self::Type(t) => t.typ().has_unbound_var(),
+            Self::List(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.has_unbound_var()),
+            Self::UnsizedList(elem) => elem.has_unbound_var(),
+            Self::Set(ts) => ts.iter().any(|t| t.has_unbound_var()),
+            Self::Dict(ts) => ts
+                .iter()
+                .any(|(k, v)| k.has_unbound_var() || v.has_unbound_var()),
+            Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
+                rec.iter().any(|(_, tp)| tp.has_unbound_var())
+            }
+            _ => false,
+        }
+    }
+
+    pub fn has_undoable_linked_var(&self) -> bool {
+        match self {
+            Self::Type(t) => t.typ().has_undoable_linked_var(),
+            Self::List(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.has_undoable_linked_var()),
+            Self::UnsizedList(elem) => elem.has_undoable_linked_var(),
+            Self::Set(ts) => ts.iter().any(|t| t.has_undoable_linked_var()),
+            Self::Dict(ts) => ts
+                .iter()
+                .any(|(k, v)| k.has_undoable_linked_var() || v.has_undoable_linked_var()),
+            Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
+                rec.iter().any(|(_, tp)| tp.has_undoable_linked_var())
+            }
+            _ => false,
+        }
+    }
+
+    pub fn has_qvar(&self) -> bool {
+        match self {
+            Self::Type(t) => t.typ().has_qvar(),
+            Self::List(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.has_qvar()),
+            Self::UnsizedList(elem) => elem.has_qvar(),
+            Self::Set(ts) => ts.iter().any(|t| t.has_qvar()),
+            Self::Dict(ts) => ts.iter().any(|(k, v)| k.has_qvar() || v.has_qvar()),
+            Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
+                rec.iter().any(|(_, tp)| tp.has_qvar())
+            }
+            _ => false,
+        }
+    }
+
+    pub fn contains_tvar(&self, target: &FreeTyVar) -> bool {
+        match self {
+            Self::Type(t) => t.typ().contains_tvar(target),
+            Self::List(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.contains_tvar(target)),
+            Self::UnsizedList(elem) => elem.contains_tvar(target),
+            Self::Set(ts) => ts.iter().any(|t| t.contains_tvar(target)),
+            Self::Dict(ts) => ts
+                .iter()
+                .any(|(k, v)| k.contains_tvar(target) || v.contains_tvar(target)),
+            Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
+                rec.iter().any(|(_, tp)| tp.contains_tvar(target))
+            }
+            _ => false,
+        }
+    }
+
+    pub fn qvars(&self) -> Set<(Str, Constraint)> {
+        match self {
+            Self::Type(t) => t.typ().qvars(),
+            Self::List(ts) | Self::Tuple(ts) => ts.iter().flat_map(|t| t.qvars()).collect(),
+            Self::UnsizedList(elem) => elem.qvars(),
+            Self::Set(ts) => ts.iter().flat_map(|t| t.qvars()).collect(),
+            Self::Dict(ts) => ts
+                .iter()
+                .flat_map(|(k, v)| k.qvars().concat(v.qvars()))
+                .collect(),
+            Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
+                rec.iter().flat_map(|(_, tp)| tp.qvars()).collect()
+            }
+            _ => Set::new(),
+        }
+    }
+
+    pub fn typarams(&self) -> Vec<TyParam> {
+        match self {
+            Self::Type(t) => t.typ().typarams(),
+            _ => Vec::new(),
+        }
+    }
+
+    pub fn contained_ts(&self) -> Set<Type> {
+        match self {
+            Self::Type(t) => t.typ().contained_ts(),
+            Self::List(ts) | Self::Tuple(ts) => ts.iter().flat_map(|t| t.contained_ts()).collect(),
+            Self::UnsizedList(elem) => elem.contained_ts(),
+            Self::Set(ts) => ts.iter().flat_map(|t| t.contained_ts()).collect(),
+            Self::Dict(ts) => ts
+                .iter()
+                .flat_map(|(k, v)| k.contained_ts().concat(v.contained_ts()))
+                .collect(),
+            Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
+                rec.iter().flat_map(|(_, tp)| tp.contained_ts()).collect()
+            }
+            _ => Set::new(),
+        }
+    }
+
+    pub fn dereference(&mut self) {
+        *self = std::mem::take(self).map_t(&mut |mut t| {
+            t.dereference();
+            t
+        });
+    }
+
+    pub fn variables(&self) -> Set<Str> {
+        match self {
+            Self::Type(t) => t.typ().variables(),
+            Self::List(ts) | Self::Tuple(ts) => ts.iter().flat_map(|t| t.variables()).collect(),
+            Self::UnsizedList(elem) => elem.variables(),
+            Self::Set(ts) => ts.iter().flat_map(|t| t.variables()).collect(),
+            Self::Dict(ts) => ts
+                .iter()
+                .flat_map(|(k, v)| k.variables().concat(v.variables()))
+                .collect(),
+            Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
+                rec.iter().flat_map(|(_, tp)| tp.variables()).collect()
+            }
+            _ => Set::new(),
         }
     }
 }

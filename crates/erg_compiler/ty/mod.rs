@@ -233,10 +233,7 @@ impl ParamTy {
         }
     }
 
-    pub fn map_type<F>(self, f: F) -> Self
-    where
-        F: FnOnce(Type) -> Type,
-    {
+    pub fn map_type(self, f: impl FnOnce(Type) -> Type) -> Self {
         match self {
             Self::Pos(ty) => Self::Pos(f(ty)),
             Self::Kw { name, ty } => Self::Kw { name, ty: f(ty) },
@@ -248,10 +245,7 @@ impl ParamTy {
         }
     }
 
-    pub fn map_default_type<F>(self, f: F) -> Self
-    where
-        F: FnOnce(Type) -> Type,
-    {
+    pub fn map_default_type(self, f: impl FnOnce(Type) -> Type) -> Self {
         match self {
             Self::KwWithDefault { name, ty, default } => Self::KwWithDefault {
                 name,
@@ -521,19 +515,37 @@ impl SubrType {
             || self.return_t.contains_tp(target)
     }
 
-    pub fn map(self, f: impl Fn(Type) -> Type) -> Self {
+    pub fn map(self, f: impl Fn(Type) -> Type + Copy) -> Self {
         Self::new(
             self.kind,
             self.non_default_params
                 .into_iter()
-                .map(|pt| pt.map_type(&f))
+                .map(|pt| pt.map_type(f))
                 .collect(),
-            self.var_params.map(|pt| pt.map_type(&f)),
+            self.var_params.map(|pt| pt.map_type(f)),
             self.default_params
                 .into_iter()
-                .map(|pt| pt.map_type(&f).map_default_type(&f))
+                .map(|pt| pt.map_type(f).map_default_type(f))
                 .collect(),
-            self.kw_var_params.map(|pt| pt.map_type(&f)),
+            self.kw_var_params.map(|pt| pt.map_type(f)),
+            f(*self.return_t),
+        )
+    }
+
+    pub fn map_tp(self, f: impl Fn(TyParam) -> TyParam + Copy) -> Self {
+        let f = |t: Type| t.map_tp(f);
+        Self::new(
+            self.kind,
+            self.non_default_params
+                .into_iter()
+                .map(|pt| pt.map_type(f))
+                .collect(),
+            self.var_params.map(|pt| pt.map_type(f)),
+            self.default_params
+                .into_iter()
+                .map(|pt| pt.map_type(f).map_default_type(f))
+                .collect(),
+            self.kw_var_params.map(|pt| pt.map_type(f)),
             f(*self.return_t),
         )
     }
@@ -2725,6 +2737,14 @@ impl Type {
         <&FreeTyVar>::try_from(self).ok()
     }
 
+    pub fn into_free(self) -> Option<FreeTyVar> {
+        match self {
+            Type::FreeVar(fv) => Some(fv),
+            Type::Refinement(refine) => refine.t.into_free(),
+            _ => None,
+        }
+    }
+
     pub fn contains_tvar(&self, target: &FreeTyVar) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_tvar(target),
@@ -4283,6 +4303,83 @@ impl Type {
             Self::Bounded { sub, sup } => Self::Bounded {
                 sub: Box::new(sub._replace_tp(target, to)),
                 sup: Box::new(sup._replace_tp(target, to)),
+            },
+            other => other,
+        }
+    }
+
+    fn map_tp(self, f: impl Fn(TyParam) -> TyParam + Copy) -> Type {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().map_tp(f),
+            Self::FreeVar(fv) => {
+                let fv_clone = fv.deep_clone();
+                if let Some((sub, sup)) = fv_clone.get_subsup() {
+                    fv.dummy_link();
+                    fv_clone.dummy_link();
+                    let sub = sub.map_tp(f);
+                    let sup = sup.map_tp(f);
+                    fv.undo();
+                    fv_clone.undo();
+                    fv_clone.update_constraint(Constraint::new_sandwiched(sub, sup), true);
+                } else if let Some(ty) = fv_clone.get_type() {
+                    fv_clone.update_constraint(Constraint::new_type_of(ty.map_tp(f)), true);
+                }
+                Self::FreeVar(fv_clone)
+            }
+            Self::Refinement(mut refine) => {
+                refine.t = Box::new(refine.t.map_tp(f));
+                // refine.pred = refine.pred.replace_tp(target, to);
+                Self::Refinement(refine)
+            }
+            Self::Record(mut rec) => {
+                for v in rec.values_mut() {
+                    *v = std::mem::take(v).map_tp(f);
+                }
+                Self::Record(rec)
+            }
+            Self::NamedTuple(mut r) => {
+                for (_, v) in r.iter_mut() {
+                    *v = std::mem::take(v).map_tp(f);
+                }
+                Self::NamedTuple(r)
+            }
+            Self::Subr(subr) => Self::Subr(subr.map_tp(f)),
+            Self::Callable { param_ts, return_t } => {
+                let param_ts = param_ts.into_iter().map(|t| t.map_tp(f)).collect();
+                let return_t = Box::new(return_t.map_tp(f));
+                Self::Callable { param_ts, return_t }
+            }
+            Self::Quantified(quant) => quant.map_tp(f).quantify(),
+            Self::Poly { name, params } => {
+                let params = params.into_iter().map(|tp| tp.map(f)).collect();
+                Self::Poly { name, params }
+            }
+            Self::Ref(t) => Self::Ref(Box::new(t.map_tp(f))),
+            Self::RefMut { before, after } => Self::RefMut {
+                before: Box::new(before.map_tp(f)),
+                after: after.map(|t| Box::new(t.map_tp(f))),
+            },
+            Self::And(l, r) => l.map_tp(f) & r.map_tp(f),
+            Self::Or(l, r) => l.map_tp(f) | r.map_tp(f),
+            Self::Not(ty) => !ty.map_tp(f),
+            Self::Proj { lhs, rhs } => lhs.map_tp(f).proj(rhs),
+            Self::ProjCall {
+                lhs,
+                attr_name,
+                args,
+            } => {
+                let args = args.into_iter().map(|tp| tp.map(f)).collect();
+                proj_call(lhs.map(f), attr_name, args)
+            }
+            Self::Structural(ty) => ty.map_tp(f).structuralize(),
+            Self::Guard(guard) => Self::Guard(GuardType::new(
+                guard.namespace,
+                guard.target.clone(),
+                guard.to.map_tp(f),
+            )),
+            Self::Bounded { sub, sup } => Self::Bounded {
+                sub: Box::new(sub.map_tp(f)),
+                sup: Box::new(sup.map_tp(f)),
             },
             other => other,
         }

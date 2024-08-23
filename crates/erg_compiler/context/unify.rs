@@ -292,6 +292,15 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 Ok(())
             }
             (ValueObj::Dict(sub), ValueObj::Dict(sup)) => {
+                if sub.len() == 1 && sup.len() == 1 {
+                    let sub_key = sub.keys().next().unwrap();
+                    let sup_key = sup.keys().next().unwrap();
+                    self.sub_unify_value(sub_key, sup_key)?;
+                    let sub_value = sub.values().next().unwrap();
+                    let sup_value = sup.values().next().unwrap();
+                    self.sub_unify_value(sub_value, sup_value)?;
+                    return Ok(());
+                }
                 for (sub_k, sub_v) in sub.iter() {
                     if let Some(sup_v) = sup.get(sub_k) {
                         self.sub_unify_value(sub_v, sup_v)?;
