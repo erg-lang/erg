@@ -37,7 +37,7 @@ use crate::error::{EvalError, EvalErrors, EvalResult, Failable, SingleEvalResult
 use crate::varinfo::{AbsLocation, VarInfo};
 
 use super::instantiate::TyVarCache;
-use Type::{Failure, Never, Subr};
+use Type::{Failure, Never};
 
 macro_rules! feature_error {
     ($ctx: expr, $loc: expr, $name: expr) => {
@@ -1748,21 +1748,38 @@ impl Context {
 
     fn eval_unary_val(&self, op: OpKind, val: ValueObj) -> EvalResult<ValueObj> {
         match op {
-            Pos => Err(EvalErrors::from(EvalError::unreachable(
-                self.cfg.input.clone(),
-                fn_name!(),
-                line!(),
-            ))),
-            Neg => Err(EvalErrors::from(EvalError::unreachable(
-                self.cfg.input.clone(),
-                fn_name!(),
-                line!(),
-            ))),
-            Invert => Err(EvalErrors::from(EvalError::unreachable(
-                self.cfg.input.clone(),
-                fn_name!(),
-                line!(),
-            ))),
+            Pos => match val {
+                ValueObj::Nat(_)
+                | ValueObj::Int(_)
+                | ValueObj::Float(_)
+                | ValueObj::Inf
+                | ValueObj::NegInf => Ok(val),
+                _ => Err(EvalErrors::from(EvalError::unreachable(
+                    self.cfg.input.clone(),
+                    fn_name!(),
+                    line!(),
+                ))),
+            },
+            Neg => match val {
+                ValueObj::Nat(n) => Ok(ValueObj::Int(-(n as i32))),
+                ValueObj::Int(i) => Ok(ValueObj::Int(-i)),
+                ValueObj::Float(f) => Ok(ValueObj::Float(-f)),
+                ValueObj::Inf => Ok(ValueObj::NegInf),
+                ValueObj::NegInf => Ok(ValueObj::Inf),
+                _ => Err(EvalErrors::from(EvalError::unreachable(
+                    self.cfg.input.clone(),
+                    fn_name!(),
+                    line!(),
+                ))),
+            },
+            Invert => match val {
+                ValueObj::Bool(b) => Ok(ValueObj::Bool(!b)),
+                _ => Err(EvalErrors::from(EvalError::unreachable(
+                    self.cfg.input.clone(),
+                    fn_name!(),
+                    line!(),
+                ))),
+            },
             Not => match val {
                 ValueObj::Bool(b) => Ok(ValueObj::Bool(!b)),
                 ValueObj::Type(lhs) => Ok(self.eval_not_type(lhs)),
@@ -1815,16 +1832,13 @@ impl Context {
     pub(crate) fn eval_tp(&self, p: TyParam) -> Failable<TyParam> {
         let mut errs = EvalErrors::empty();
         let tp = match p {
-            TyParam::FreeVar(fv) if fv.is_linked() => {
-                let tp = fv.crack().clone();
-                match self.eval_tp(tp) {
-                    Ok(tp) => tp,
-                    Err((tp, es)) => {
-                        errs.extend(es);
-                        tp
-                    }
+            TyParam::FreeVar(fv) if fv.is_linked() => match self.eval_tp(fv.unwrap_linked()) {
+                Ok(tp) => tp,
+                Err((tp, es)) => {
+                    errs.extend(es);
+                    tp
                 }
-            }
+            },
             TyParam::FreeVar(_) => p,
             TyParam::Mono(name) => match self
                 .rec_get_const_obj(&name)
@@ -2050,8 +2064,7 @@ impl Context {
         let mut errs = EvalErrors::empty();
         match substituted {
             Type::FreeVar(fv) if fv.is_linked() => {
-                let t = fv.crack().clone();
-                self.eval_t_params(t, level, t_loc)
+                self.eval_t_params(fv.unwrap_linked(), level, t_loc)
             }
             Type::FreeVar(fv) if fv.constraint_is_sandwiched() => {
                 let (sub, sup) = fv.get_subsup().unwrap();
@@ -2074,9 +2087,9 @@ impl Context {
                     *pt.typ_mut() = match self.eval_t_params(mem::take(pt.typ_mut()), level, t_loc)
                     {
                         Ok(t) => t,
-                        Err((_, errs)) => {
-                            // `mem::take` replaces the type with `Type::Failure`, so it can return as is
-                            return Err((Subr(subr), errs));
+                        Err((t, es)) => {
+                            errs.extend(es);
+                            t
                         }
                     };
                 }
@@ -2084,19 +2097,28 @@ impl Context {
                     *var_args.typ_mut() =
                         match self.eval_t_params(mem::take(var_args.typ_mut()), level, t_loc) {
                             Ok(t) => t,
-                            Err((_, errs)) => return Err((Subr(subr), errs)),
+                            Err((t, es)) => {
+                                errs.extend(es);
+                                t
+                            }
                         };
                 }
                 for pt in subr.default_params.iter_mut() {
                     *pt.typ_mut() = match self.eval_t_params(mem::take(pt.typ_mut()), level, t_loc)
                     {
                         Ok(t) => t,
-                        Err((_, errs)) => return Err((Subr(subr), errs)),
+                        Err((t, es)) => {
+                            errs.extend(es);
+                            t
+                        }
                     };
                     if let Some(default) = pt.default_typ_mut() {
                         *default = match self.eval_t_params(mem::take(default), level, t_loc) {
                             Ok(t) => t,
-                            Err((_, errs)) => return Err((Subr(subr), errs)),
+                            Err((t, es)) => {
+                                errs.extend(es);
+                                t
+                            }
                         };
                     }
                 }
@@ -2104,31 +2126,37 @@ impl Context {
                     *kw_var_args.typ_mut() =
                         match self.eval_t_params(mem::take(kw_var_args.typ_mut()), level, t_loc) {
                             Ok(t) => t,
-                            Err((_, errs)) => return Err((Subr(subr), errs)),
+                            Err((t, es)) => {
+                                errs.extend(es);
+                                t
+                            }
                         };
                 }
-                match self.eval_t_params(*subr.return_t, level, t_loc) {
-                    Ok(return_t) => Ok(subr_t(
-                        subr.kind,
-                        subr.non_default_params,
-                        subr.var_params.map(|v| *v),
-                        subr.default_params,
-                        subr.kw_var_params.map(|v| *v),
-                        return_t,
-                    )),
-                    Err((_, errs)) => {
-                        let subr = subr_t(
-                            subr.kind,
-                            subr.non_default_params,
-                            subr.var_params.map(|v| *v),
-                            subr.default_params,
-                            subr.kw_var_params.map(|v| *v),
-                            Failure,
-                        );
-                        Err((subr, errs))
+                let return_t = match self.eval_t_params(*subr.return_t, level, t_loc) {
+                    Ok(return_t) => return_t,
+                    Err((return_t, es)) => {
+                        errs.extend(es);
+                        return_t
                     }
+                };
+                let subr = subr_t(
+                    subr.kind,
+                    subr.non_default_params,
+                    subr.var_params.map(|v| *v),
+                    subr.default_params,
+                    subr.kw_var_params.map(|v| *v),
+                    return_t,
+                );
+                if errs.is_empty() {
+                    Ok(subr)
+                } else {
+                    Err((subr, errs))
                 }
             }
+            Type::Quantified(quant) => match self.eval_t_params(*quant, level, t_loc) {
+                Ok(t) => Ok(t.quantify()),
+                Err((t, es)) => Err((t.quantify(), es)),
+            },
             Type::Refinement(refine) => {
                 if refine.pred.variables().is_empty() {
                     let pred = match self.eval_pred(*refine.pred) {
@@ -2158,27 +2186,33 @@ impl Context {
                 .map_err(|errs| (Failure, errs)),
             Type::Ref(l) => match self.eval_t_params(*l, level, t_loc) {
                 Ok(t) => Ok(ref_(t)),
-                Err((_, errs)) => Err((ref_(Failure), errs)),
+                Err((t, errs)) => Err((ref_(t), errs)),
             },
             Type::RefMut { before, after } => {
                 let before = match self.eval_t_params(*before, level, t_loc) {
                     Ok(before) => before,
-                    Err((_, errs)) => {
-                        return Err((ref_mut(Failure, after.map(|x| *x)), errs));
+                    Err((before, es)) => {
+                        errs.extend(es);
+                        before
                     }
                 };
                 let after = if let Some(after) = after {
                     let aft = match self.eval_t_params(*after, level, t_loc) {
                         Ok(aft) => aft,
-                        Err((_, errs)) => {
-                            return Err((ref_mut(before, Some(Failure)), errs));
+                        Err((aft, es)) => {
+                            errs.extend(es);
+                            aft
                         }
                     };
                     Some(aft)
                 } else {
                     None
                 };
-                Ok(ref_mut(before, after))
+                if errs.is_empty() {
+                    Ok(ref_mut(before, after))
+                } else {
+                    Err((ref_mut(before, after), errs))
+                }
             }
             Type::Poly { name, mut params } => {
                 for p in params.iter_mut() {
@@ -2209,82 +2243,115 @@ impl Context {
             Type::And(l, r) => {
                 let l = match self.eval_t_params(*l, level, t_loc) {
                     Ok(l) => l,
-                    Err((_, errs)) => {
-                        return Err((Failure, errs));
+                    Err((l, es)) => {
+                        errs.extend(es);
+                        l
                     }
                 };
                 let r = match self.eval_t_params(*r, level, t_loc) {
                     Ok(r) => r,
-                    Err((_, errs)) => {
-                        // L and Never == Never
-                        return Err((Failure, errs));
+                    Err((r, es)) => {
+                        errs.extend(es);
+                        r
                     }
                 };
-                Ok(self.intersection(&l, &r))
+                let intersec = self.intersection(&l, &r);
+                if errs.is_empty() {
+                    Ok(intersec)
+                } else {
+                    Err((intersec, errs))
+                }
             }
             Type::Or(l, r) => {
                 let l = match self.eval_t_params(*l, level, t_loc) {
                     Ok(l) => l,
-                    Err((_, errs)) => {
-                        return Err((Failure, errs));
+                    Err((l, es)) => {
+                        errs.extend(es);
+                        l
                     }
                 };
                 let r = match self.eval_t_params(*r, level, t_loc) {
                     Ok(r) => r,
-                    Err((_, errs)) => {
-                        // L or Never == L
-                        return Err((l, errs));
+                    Err((r, es)) => {
+                        errs.extend(es);
+                        r
                     }
                 };
-                Ok(self.union(&l, &r))
+                let union = self.union(&l, &r);
+                if errs.is_empty() {
+                    Ok(union)
+                } else {
+                    Err((union, errs))
+                }
             }
             Type::Not(ty) => match self.eval_t_params(*ty, level, t_loc) {
                 Ok(ty) => Ok(self.complement(&ty)),
-                Err((_, errs)) => Err((Failure, errs)),
+                Err((ty, errs)) => Err((self.complement(&ty), errs)),
             },
-            Type::Structural(typ) => {
-                let typ = self.eval_t_params(*typ, level, t_loc)?;
-                Ok(typ.structuralize())
-            }
+            Type::Structural(typ) => match self.eval_t_params(*typ, level, t_loc) {
+                Ok(typ) => Ok(typ.structuralize()),
+                Err((t, errs)) => Err((t.structuralize(), errs)),
+            },
             Type::Record(rec) => {
                 let mut fields = dict! {};
-                for (name, tp) in rec.into_iter() {
-                    fields.insert(name, self.eval_t_params(tp, level, t_loc)?);
+                for (name, ty) in rec.into_iter() {
+                    match self.eval_t_params(ty, level, t_loc) {
+                        Ok(ty) => {
+                            fields.insert(name, ty);
+                        }
+                        Err((tp, es)) => {
+                            fields.insert(name, tp);
+                            errs.extend(es);
+                        }
+                    }
                 }
                 Ok(Type::Record(fields))
             }
             Type::NamedTuple(tuple) => {
                 let mut new_tuple = vec![];
-                for (name, tp) in tuple.into_iter() {
-                    new_tuple.push((name, self.eval_t_params(tp, level, t_loc)?));
+                for (name, ty) in tuple.into_iter() {
+                    match self.eval_t_params(ty, level, t_loc) {
+                        Ok(ty) => new_tuple.push((name, ty)),
+                        Err((ty, es)) => {
+                            new_tuple.push((name, ty));
+                            errs.extend(es);
+                        }
+                    }
                 }
                 Ok(Type::NamedTuple(new_tuple))
             }
             Type::Bounded { sub, sup } => {
                 let sub = match self.eval_t_params(*sub, level, t_loc) {
                     Ok(sub) => sub,
-                    Err((_, errs)) => {
-                        return Err((Failure, errs));
+                    Err((sub, es)) => {
+                        errs.extend(es);
+                        sub
                     }
                 };
                 let sup = match self.eval_t_params(*sup, level, t_loc) {
                     Ok(sup) => sup,
-                    Err((_, errs)) => {
-                        return Err((Failure, errs));
+                    Err((sup, es)) => {
+                        errs.extend(es);
+                        sup
                     }
                 };
-                Ok(bounded(sub, sup))
+                if errs.is_empty() {
+                    Ok(bounded(sub, sup))
+                } else {
+                    Err((bounded(sub, sup), errs))
+                }
             }
-            Type::Guard(grd) => {
-                let to = self.eval_t_params(*grd.to, level, t_loc)?;
-                Ok(guard(grd.namespace, grd.target, to))
-            }
+            Type::Guard(grd) => match self.eval_t_params(*grd.to, level, t_loc) {
+                Ok(to) => Ok(guard(grd.namespace, grd.target, to)),
+                Err((to, es)) => Err((guard(grd.namespace, grd.target, to), es)),
+            },
             other if other.is_monomorphic() => Ok(other),
             other => feature_error!(self, t_loc.loc(), &format!("eval {other}"))
                 .map_err(|errs| (other, errs)),
         }
     }
 
+    /// This may do nothing (be careful with recursive calls).
     /// lhs: mainly class
     pub(crate) fn eval_proj(
         &self,
@@ -2658,10 +2725,12 @@ impl Context {
         }
     }
 
+    // FIXME: Failable<Type>
     pub(crate) fn convert_value_into_type(&self, val: ValueObj) -> Result<Type, ValueObj> {
         match val {
             ValueObj::Failure => Ok(Type::Failure),
             ValueObj::Ellipsis => Ok(Type::Ellipsis),
+            ValueObj::NotImplemented => Ok(Type::NotImplementedType),
             ValueObj::Type(t) => Ok(t.into_typ()),
             ValueObj::Record(rec) => {
                 let mut fields = dict! {};
@@ -2813,6 +2882,30 @@ impl Context {
                 }
                 Ok(new_dict)
             }
+            Type::Proj { lhs, rhs } => {
+                let old = proj(*lhs.clone(), rhs.clone());
+                let eval = self.eval_proj(*lhs, rhs, self.level, &()).map_err(|_| ())?;
+                if eval != old {
+                    self.convert_type_to_dict_type(eval)
+                } else {
+                    Err(())
+                }
+            }
+            Type::ProjCall {
+                lhs,
+                attr_name,
+                args,
+            } => {
+                let old = proj_call(*lhs.clone(), attr_name.clone(), args.clone());
+                let eval = self
+                    .eval_proj_call_t(*lhs, attr_name, args, self.level, &())
+                    .map_err(|_| ())?;
+                if eval != old {
+                    self.convert_type_to_dict_type(eval)
+                } else {
+                    Err(())
+                }
+            }
             _ => Err(()),
         }
     }
@@ -2832,6 +2925,31 @@ impl Context {
                     tys.push(elem);
                 }
                 Ok(tys)
+            }
+            Type::NamedTuple(tuple) => Ok(tuple.into_iter().map(|(_, ty)| ty).collect()),
+            Type::Proj { lhs, rhs } => {
+                let old = proj(*lhs.clone(), rhs.clone());
+                let eval = self.eval_proj(*lhs, rhs, self.level, &()).map_err(|_| ())?;
+                if eval != old {
+                    self.convert_type_to_tuple_type(eval)
+                } else {
+                    Err(())
+                }
+            }
+            Type::ProjCall {
+                lhs,
+                attr_name,
+                args,
+            } => {
+                let old = proj_call(*lhs.clone(), attr_name.clone(), args.clone());
+                let eval = self
+                    .eval_proj_call_t(*lhs, attr_name, args, self.level, &())
+                    .map_err(|_| ())?;
+                if eval != old {
+                    self.convert_type_to_tuple_type(eval)
+                } else {
+                    Err(())
+                }
             }
             _ => Err(()),
         }
@@ -2857,6 +2975,24 @@ impl Context {
                     return Err(poly(name, params));
                 };
                 Ok(vec![ValueObj::builtin_type(t); len])
+            }
+            Type::Proj { lhs, rhs } => {
+                let old = proj(*lhs.clone(), rhs.clone());
+                match self.eval_proj(*lhs, rhs, self.level, &()) {
+                    Ok(eval) if eval != old => self.convert_type_to_list(eval),
+                    _ => Err(old),
+                }
+            }
+            Type::ProjCall {
+                lhs,
+                attr_name,
+                args,
+            } => {
+                let old = proj_call(*lhs.clone(), attr_name.clone(), args.clone());
+                match self.eval_proj_call_t(*lhs, attr_name, args, self.level, &()) {
+                    Ok(eval) if eval != old => self.convert_type_to_list(eval),
+                    _ => Err(old),
+                }
             }
             _ => Err(ty),
         }
@@ -3075,6 +3211,7 @@ impl Context {
         })
     }
 
+    /// This may do nothing (be careful with recursive calls)
     pub(crate) fn eval_proj_call_t(
         &self,
         lhs: TyParam,
