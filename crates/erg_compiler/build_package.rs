@@ -13,7 +13,7 @@ use std::time::{Duration, SystemTime};
 use erg_common::config::ErgMode;
 
 use erg_common::config::ErgConfig;
-use erg_common::consts::{DEBUG_MODE, ELS, ERG_MODE};
+use erg_common::consts::{ELS, ERG_MODE};
 use erg_common::debug_power_assert;
 use erg_common::dict::Dict;
 use erg_common::env::is_std_decl_path;
@@ -155,6 +155,18 @@ pub struct ResolveError {
 
 pub type ResolveResult<T> = Result<T, Vec<ResolveError>>;
 
+#[derive(Debug, Clone)]
+pub struct ASTEntry {
+    name: Str,
+    ast: AST,
+}
+
+impl ASTEntry {
+    pub const fn new(name: Str, ast: AST) -> Self {
+        Self { name, ast }
+    }
+}
+
 /// Resolve dependencies and build a package.
 /// This object should be a singleton.
 ///
@@ -171,7 +183,7 @@ pub struct GenericPackageBuilder<
     cyclic: Vec<NormalizedPathBuf>,
     // key: inlined module, value: inliner module (child)
     inlines: Dict<NormalizedPathBuf, NormalizedPathBuf>,
-    asts: Dict<NormalizedPathBuf, (Str, AST)>,
+    asts: Dict<NormalizedPathBuf, ASTEntry>,
     parse_errors: ErrorArtifact,
     _parser: PhantomData<fn() -> ASTBuilder>,
 }
@@ -725,10 +737,12 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
                     || self.asts.contains_key(&root_import_path)
                 {
                     // pass
-                } else if let Ok(mut ast) = self.parse(cfg, &mut root_import_cfg, &root_import_path)
+                } else if let Some(mut ast) =
+                    self.parse(cfg, &mut root_import_cfg, &root_import_path)
                 {
                     let _ = self.resolve(&mut ast, &root_import_cfg);
-                    let prev = self.asts.insert(root_import_path, (__name__.clone(), ast));
+                    let entry = ASTEntry::new(__name__.clone(), ast);
+                    let prev = self.asts.insert(root_import_path, entry);
                     debug_assert!(prev.is_none());
                 }
             }
@@ -747,7 +761,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         {
             return Ok(());
         }
-        let Ok(mut ast) = self.parse(cfg, &mut import_cfg, &import_path) else {
+        let Some(mut ast) = self.parse(cfg, &mut import_cfg, &import_path) else {
             return Ok(());
         };
         if let Err(mut errs) = self.resolve(&mut ast, &import_cfg) {
@@ -765,19 +779,21 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
                 return Err(errs);
             }
         }
-        let prev = self.asts.insert(import_path, (__name__.clone(), ast));
+        let entry = ASTEntry::new(__name__.clone(), ast);
+        let prev = self.asts.insert(import_path, entry);
         debug_assert!(prev.is_none());
         Ok(())
     }
 
+    /// Parse the file and build the AST. It may return `Some()` even if there are errors.
     fn parse(
         &mut self,
         cfg: &ErgConfig,
         import_cfg: &mut ErgConfig,
         import_path: &NormalizedPathBuf,
-    ) -> Result<AST, ()> {
+    ) -> Option<AST> {
         let Ok(src) = import_cfg.input.try_read() else {
-            return Err(());
+            return None;
         };
         let result = if import_path.extension() == Some(OsStr::new("er")) {
             let mut ast_builder = DefaultASTBuilder::new(cfg.copy());
@@ -791,7 +807,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
                 self.parse_errors
                     .warns
                     .extend(CompileErrors::from(art.warns));
-                Ok(art.ast)
+                Some(art.ast)
             }
             Err(iart) => {
                 self.parse_errors
@@ -800,11 +816,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
                 self.parse_errors
                     .warns
                     .extend(CompileErrors::from(iart.warns));
-                if let Some(ast) = iart.ast {
-                    Ok(ast)
-                } else {
-                    Err(())
-                }
+                iart.ast
             }
         }
     }
@@ -826,8 +838,8 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         while let Some(ancestor) = ancestors.pop() {
             if graph.ancestors(&ancestor).is_empty() {
                 graph.remove(&ancestor);
-                if let Some((__name__, ancestor_ast)) = self.asts.remove(&ancestor) {
-                    self.start_analysis_process(ancestor_ast, __name__, ancestor);
+                if let Some(entry) = self.asts.remove(&ancestor) {
+                    self.start_analysis_process(entry.ast, entry.name, ancestor);
                 } else {
                     self.build_inlined_module(&ancestor, graph);
                 }
@@ -840,10 +852,12 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
     fn build_inlined_module(&mut self, path: &NormalizedPathBuf, graph: &mut ModuleGraph) {
         if self.shared.get_module(path).is_some() {
             // do nothing
+        } else if self.shared.promises.is_registered(path) {
+            self.shared.promises.wait_until_finished(path);
         } else if let Some(inliner) = self.inlines.get(path).cloned() {
             self.build_deps_and_module(&inliner, graph);
-        } else if DEBUG_MODE {
-            todo!("{path} is not found in self.inlines and self.asts");
+        } else {
+            unreachable!("{path} is not found in self.inlines and self.asts");
         }
     }
 

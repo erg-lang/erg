@@ -152,13 +152,17 @@ impl SharedPromises {
             .is_some_and(|promise| promise.is_finished())
     }
 
+    pub fn wait_until_finished(&self, path: &NormalizedPathBuf) {
+        while !self.is_finished(path) {
+            safe_yield();
+        }
+    }
+
     pub fn join(&self, path: &NormalizedPathBuf) -> std::thread::Result<()> {
         if self.graph.ancestors(path).contains(&self.path) {
             // cycle detected, `self.path` must not in the dependencies
             // Erg analysis processes never join ancestor threads (although joining ancestors itself is allowed in Rust)
-            while !self.is_finished(path) {
-                safe_yield();
-            }
+            self.wait_until_finished(path);
             return Ok(());
         }
         // Suppose A depends on B and C, and B depends on C.
@@ -168,9 +172,7 @@ impl SharedPromises {
             if child == &self.path {
                 continue;
             } else if self.graph.depends_on(&self.path, child) {
-                while !self.is_finished(path) {
-                    safe_yield();
-                }
+                self.wait_until_finished(path);
                 return Ok(());
             }
         }
@@ -183,9 +185,7 @@ impl SharedPromises {
         let promise = self.promises.borrow_mut().get_mut(path).unwrap().take();
         let Promise::Running { handle, .. } = promise else {
             *self.promises.borrow_mut().get_mut(path).unwrap() = promise;
-            while !self.is_finished(path) {
-                safe_yield();
-            }
+            self.wait_until_finished(path);
             return Ok(());
         };
         if handle.thread().id() == current().id() {
