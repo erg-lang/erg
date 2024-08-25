@@ -228,6 +228,11 @@ fn exec_int() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_ratio() -> Result<(), ()> {
+    expect_success("tests/should_ok/ratio.er", 0)
+}
+
+#[test]
 fn exec_interpolation() -> Result<(), ()> {
     expect_success("tests/should_ok/interpolation.er", 0)
 }

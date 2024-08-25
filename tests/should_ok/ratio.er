@@ -1,0 +1,27 @@
+r: Ratio = 7.5
+# basic operations
+assert r == 15 / 2
+assert r + 1 == 17 / 2
+assert r - 1 == 13 / 2
+assert r * 2 == 15
+assert r / 2 == 15 / 4
+assert r % 2 == 3 / 2
+
+r_zero: Ratio = 0.0
+# zero operations
+assert r_zero + 1 == 1
+assert r_zero - 1 == -1
+assert r_zero * 2 == 0
+assert r_zero / 1 == 0
+
+
+# # comparison
+assert r == 7.5
+assert r > 7.4
+assert r >= 7.5
+assert r <= 7.5
+assert r < 7.6
+
+
+# TODO: This is not working
+# print! 0.00000000001
