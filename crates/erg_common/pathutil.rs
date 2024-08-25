@@ -66,6 +66,10 @@ impl NormalizedPathBuf {
     pub fn to_path_buf(&self) -> PathBuf {
         self.0.clone()
     }
+
+    pub fn try_read(&self) -> std::io::Result<String> {
+        std::fs::read_to_string(&self.0)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

@@ -713,7 +713,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
             None => return Ok(()),
         };
         let from_path = NormalizedPathBuf::from(cfg.input.path());
-        let mut import_cfg = cfg.inherit(import_path.clone());
+        let import_cfg = cfg.inherit(import_path.clone());
         let import_path = NormalizedPathBuf::from(import_path.clone());
         self.shared.graph.add_node_if_none(&import_path);
         // If we import `foo/bar`, we also need to import `foo`
@@ -726,7 +726,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         let root_import_path = root_path.and_then(|path| cfg.input.resolve_path(path, cfg));
         if let Some(root_import_path) = root_import_path.map(NormalizedPathBuf::from) {
             if project_entry_dir_of(&root_import_path) != project_entry_dir_of(&from_path) {
-                let mut root_import_cfg = cfg.inherit(root_import_path.to_path_buf());
+                let root_import_cfg = cfg.inherit(root_import_path.to_path_buf());
                 self.shared.graph.add_node_if_none(&root_import_path);
                 let _ = self
                     .shared
@@ -737,9 +737,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
                     || self.asts.contains_key(&root_import_path)
                 {
                     // pass
-                } else if let Some(mut ast) =
-                    self.parse(cfg, &mut root_import_cfg, &root_import_path)
-                {
+                } else if let Some(mut ast) = self.parse(&root_import_path) {
                     let _ = self.resolve(&mut ast, &root_import_cfg);
                     let entry = ASTEntry::new(__name__.clone(), ast);
                     let prev = self.asts.insert(root_import_path, entry);
@@ -761,7 +759,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         {
             return Ok(());
         }
-        let Some(mut ast) = self.parse(cfg, &mut import_cfg, &import_path) else {
+        let Some(mut ast) = self.parse(&import_path) else {
             return Ok(());
         };
         if let Err(mut errs) = self.resolve(&mut ast, &import_cfg) {
@@ -786,15 +784,11 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
     }
 
     /// Parse the file and build the AST. It may return `Some()` even if there are errors.
-    fn parse(
-        &mut self,
-        cfg: &ErgConfig,
-        import_cfg: &mut ErgConfig,
-        import_path: &NormalizedPathBuf,
-    ) -> Option<AST> {
-        let Ok(src) = import_cfg.input.try_read() else {
+    fn parse(&mut self, import_path: &NormalizedPathBuf) -> Option<AST> {
+        let Ok(src) = import_path.try_read() else {
             return None;
         };
+        let cfg = self.cfg.inherit(import_path.to_path_buf());
         let result = if import_path.extension() == Some(OsStr::new("er")) {
             let mut ast_builder = DefaultASTBuilder::new(cfg.copy());
             ast_builder.build_ast(src)
