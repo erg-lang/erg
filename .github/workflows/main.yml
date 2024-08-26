@@ -49,7 +49,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: rustup update stable
       - uses: taiki-e/install-action@nextest
-      - run: cargo test run --features backtrace --all --exclude els --verbose -- --include-ignored --nocapture
+      - run: cargo test --features backtrace --all --exclude els --verbose -- --include-ignored --nocapture
       # FIXME: Currently, when running ELS tests in the GitHub actions environment,
       # the tests fail probabilistically on Windows and MacOS.
       # This is likely due to a delay in processing timing.
