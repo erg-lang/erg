@@ -13,7 +13,7 @@ use erg_common::{Str, Triple};
 use crate::context::eval::UndoableLinkedList;
 use crate::context::initialize::const_func::sub_tpdict_get;
 use crate::ty::constructors::{self, and, bounded, not, or, poly, refinement};
-use crate::ty::free::{Constraint, FreeKind, FreeTyVar};
+use crate::ty::free::{Constraint, FreeTyVar};
 use crate::ty::typaram::{TyParam, TyParamOrdering};
 use crate::ty::value::ValueObj;
 use crate::ty::value::ValueObj::Inf;
@@ -82,23 +82,19 @@ impl Context {
                         .zip(rargs.iter())
                         .all(|(l, r)| self.eq_tp(l, r))
             }
-            (TyParam::FreeVar(fv), other) | (other, TyParam::FreeVar(fv)) => match &*fv.borrow() {
-                FreeKind::Linked(linked) | FreeKind::UndoableLinked { t: linked, .. } => {
-                    return self.eq_tp(linked, other);
+            (TyParam::FreeVar(fv), other) | (other, TyParam::FreeVar(fv)) if fv.is_linked() => {
+                return self.eq_tp(&fv.get_linked().unwrap(), other)
+            }
+            (TyParam::FreeVar(fv), other) | (other, TyParam::FreeVar(fv))
+                if fv.get_type().is_some() =>
+            {
+                let t = fv.get_type().unwrap();
+                if DEBUG_MODE && t == Uninited {
+                    panic!("Uninited type variable: {fv}");
                 }
-                FreeKind::Unbound { constraint, .. }
-                | FreeKind::NamedUnbound { constraint, .. } => {
-                    let Some(t) = constraint.get_type() else {
-                        log!(err "Invalid type variable: {fv}");
-                        return false;
-                    };
-                    if DEBUG_MODE && t == &Uninited {
-                        panic!("Uninited type variable: {fv}");
-                    }
-                    let other_t = self.type_of(other);
-                    return self.same_type_of(t, &other_t);
-                }
-            },
+                let other_t = self.type_of(other);
+                return self.same_type_of(&t, &other_t);
+            }
             (TyParam::Value(ValueObj::Type(l)), TyParam::Type(r)) => {
                 return self.same_type_of(l.typ(), r.as_ref());
             }
@@ -219,7 +215,11 @@ impl Context {
                 Some((Type::Never, Type::Obj)) => (Absolutely, true),
                 _ => (Maybe, false),
             },
-            (Mono(n), Subr(_) | Quantified(_)) if &n[..] == "Subroutine" => (Absolutely, true),
+            (Mono(n), Subr(_) | Quantified(_))
+                if &n[..] == "Subroutine" || &n[..] == "GenericCallable" =>
+            {
+                (Absolutely, true)
+            }
             (lhs, rhs) if lhs.is_mono_value_class() && rhs.is_mono_value_class() => {
                 (Absolutely, false)
             }
@@ -370,6 +370,10 @@ impl Context {
                             if !self.subtype_of(lpt.typ(), rpt.typ()) {
                                 return false;
                             }
+                        } else if let Some(kw) = rs.kw_var_params.as_ref() {
+                            if !self.subtype_of(lpt.typ(), kw.typ()) {
+                                return false;
+                            }
                         } else {
                             return false;
                         }
@@ -382,6 +386,7 @@ impl Context {
                 // (Int, n := Int, m := Int) -> Int <: (Int, Int) -> Int
                 // (Int, n := Int) -> Int <!: (Int, Int, Int) -> Int
                 // (*Int) -> Int <: (Int, Int) -> Int
+                // (self: Self, T) -> U <: T -> U
                 let len_judge = ls.non_default_params.len()
                     <= rs.non_default_params.len() + rs.default_params.len()
                     || rs.var_params.is_some();
@@ -397,9 +402,21 @@ impl Context {
                         .zip(repeat(r_var))
                         .all(|(l, r)| self.subtype_of(l.typ(), r.typ()))
                 } else {
+                    let rs_params = if !ls.is_method() && rs.is_method() {
+                        rs.non_default_params
+                            .iter()
+                            .skip(1)
+                            .chain(&rs.default_params)
+                    } else {
+                        #[allow(clippy::iter_skip_zero)]
+                        rs.non_default_params
+                            .iter()
+                            .skip(0)
+                            .chain(&rs.default_params)
+                    };
                     ls.non_default_params
                         .iter()
-                        .zip(rs.non_default_params.iter().chain(rs.default_params.iter()))
+                        .zip(rs_params)
                         .all(|(l, r)| self.subtype_of(l.typ(), r.typ()))
                 };
                 let var_params_judge = ls
@@ -418,9 +435,26 @@ impl Context {
             // ?T(<: Int) :> ?U(:> Int)
             // ?T(<: Nat) !:> ?U(:> Int) (if the upper bound of LHS is smaller than the lower bound of RHS, LHS cannot not be a supertype)
             // ?T(<: Nat) :> ?U(<: Int) (?U can be smaller than ?T)
+            // ?T(:> ?U) :> ?U
+            // ?U :> ?T(<: ?U)
+            // ?T(: {Int, Str}) :> ?U(<: Int)
             (FreeVar(lfv), FreeVar(rfv)) => match (lfv.get_subsup(), rfv.get_subsup()) {
                 (Some((_, l_sup)), Some((r_sub, _))) => self.supertype_of(&l_sup, &r_sub),
+                (Some((l_sub, _)), None) if &l_sub == rhs => true,
+                (None, Some((_, r_sup))) if lhs == &r_sup => true,
                 _ => {
+                    let lfvt = lfv.get_type();
+                    // lfv: T: {Int, Str}, rhs: Int
+                    if let Some(tys) = lfvt.as_ref().and_then(|t| t.refinement_values()) {
+                        for tp in tys {
+                            let Ok(ty) = self.convert_tp_into_type(tp.clone()) else {
+                                continue;
+                            };
+                            if self.supertype_of(&ty, rhs) {
+                                return true;
+                            }
+                        }
+                    }
                     if lfv.is_linked() {
                         self.supertype_of(lfv.unsafe_crack(), rhs)
                     } else if rfv.is_linked() {
@@ -504,6 +538,17 @@ impl Context {
                 if let Some((_sub, sup)) = lfv.get_subsup() {
                     lfv.do_avoiding_recursion_with(rhs, || self.supertype_of(&sup, rhs))
                 } else if let Some(lfvt) = lfv.get_type() {
+                    // lfv: T: {Int, Str}, rhs: Int
+                    if let Some(tys) = lfvt.refinement_values() {
+                        for tp in tys {
+                            let Ok(ty) = self.convert_tp_into_type(tp.clone()) else {
+                                continue;
+                            };
+                            if self.supertype_of(&ty, rhs) {
+                                return true;
+                            }
+                        }
+                    }
                     // e.g. lfv: ?L(: Int) is unreachable
                     // but
                     // ?L(: List(Type, 3)) :> List(Int, 3)
@@ -864,11 +909,27 @@ impl Context {
 
     pub fn fields(&self, t: &Type) -> Dict<Field, Type> {
         match t {
-            Type::FreeVar(fv) if fv.is_linked() => self.fields(&fv.crack()),
+            Type::FreeVar(fv) if fv.is_linked() => self.fields(fv.unsafe_crack()),
             Type::Record(fields) => fields.clone(),
             Type::NamedTuple(fields) => fields.iter().cloned().collect(),
             Type::Refinement(refine) => self.fields(&refine.t),
             Type::Structural(t) => self.fields(t),
+            Type::Or(l, r) => {
+                let l_fields = self.fields(l);
+                let r_fields = self.fields(r);
+                let l_field_names = l_fields.keys().collect::<Set<_>>();
+                let r_field_names = r_fields.keys().collect::<Set<_>>();
+                let field_names = l_field_names.intersection(&r_field_names);
+                let mut fields = Dict::new();
+                for (name, l_t, r_t) in field_names
+                    .iter()
+                    .map(|&name| (name, &l_fields[name], &r_fields[name]))
+                {
+                    let union = self.union(l_t, r_t);
+                    fields.insert(name.clone(), union);
+                }
+                fields
+            }
             other => {
                 let Some(ctx) = self.get_nominal_type_ctx(other) else {
                     return Dict::new();
@@ -1223,10 +1284,10 @@ impl Context {
                 } else { Some(Any) }
             },
             (TyParam::FreeVar(fv), p) if fv.is_linked() => {
-                self.try_cmp(&fv.crack(), p)
+                self.try_cmp(fv.unsafe_crack(), p)
             }
             (p, TyParam::FreeVar(fv)) if fv.is_linked() => {
-                self.try_cmp(p, &fv.crack())
+                self.try_cmp(p, fv.unsafe_crack())
             }
             (
                 l @ (TyParam::FreeVar(_) | TyParam::Erased(_)),
@@ -1337,7 +1398,7 @@ impl Context {
         }
         match (lhs, rhs) {
             (FreeVar(fv), other) | (other, FreeVar(fv)) if fv.is_linked() => {
-                self.union(&fv.crack(), other)
+                self.union(fv.unsafe_crack(), other)
             }
             (Refinement(l), Refinement(r)) => Type::Refinement(self.union_refinement(l, r)),
             (Refinement(refine), other) | (other, Refinement(refine))
@@ -1576,7 +1637,7 @@ impl Context {
         }
         match (lhs, rhs) {
             (FreeVar(fv), other) | (other, FreeVar(fv)) if fv.is_linked() => {
-                self.intersection(&fv.crack(), other)
+                self.intersection(fv.unsafe_crack(), other)
             }
             (Refinement(l), Refinement(r)) => Type::Refinement(self.intersection_refinement(l, r)),
             (Structural(l), Structural(r)) => self.intersection(l, r).structuralize(),
@@ -1593,7 +1654,7 @@ impl Context {
             // {i = Int; j = Int} and not {i = Int} == {j = Int}
             // not {i = Int} and {i = Int; j = Int} == {j = Int}
             (other @ Record(rec), Not(t)) | (Not(t), other @ Record(rec)) => match t.as_ref() {
-                Type::FreeVar(fv) => self.intersection(&fv.crack(), other),
+                Type::FreeVar(fv) => self.intersection(fv.unsafe_crack(), other),
                 Type::Record(rec2) => Type::Record(rec.clone().diff(rec2)),
                 _ => Type::Never,
             },
@@ -1821,7 +1882,7 @@ impl Context {
     #[allow(clippy::only_used_in_recursion)]
     pub(crate) fn complement(&self, ty: &Type) -> Type {
         match ty {
-            FreeVar(fv) if fv.is_linked() => self.complement(&fv.crack()),
+            FreeVar(fv) if fv.is_linked() => self.complement(fv.unsafe_crack()),
             Not(t) => *t.clone(),
             Refinement(r) => Type::Refinement(r.clone().invert()),
             Guard(guard) => Type::Guard(GuardType::new(
@@ -1846,7 +1907,7 @@ impl Context {
             _ => {}
         }
         match lhs {
-            Type::FreeVar(fv) if fv.is_linked() => self.diff(&fv.crack(), rhs),
+            Type::FreeVar(fv) if fv.is_linked() => self.diff(fv.unsafe_crack(), rhs),
             // Type::And(l, r) => self.intersection(&self.diff(l, rhs), &self.diff(r, rhs)),
             Type::Or(l, r) => self.union(&self.diff(l, rhs), &self.diff(r, rhs)),
             _ => lhs.clone(),

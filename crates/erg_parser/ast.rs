@@ -552,6 +552,22 @@ impl Args {
             })
         }
     }
+
+    #[to_owned(cloned)]
+    pub fn get_nth(&self, nth: usize) -> Option<&Expr> {
+        self.pos_args.get(nth).map(|a| &a.expr)
+    }
+
+    #[to_owned(cloned)]
+    pub fn get_with_key(&self, key: &str) -> Option<&Expr> {
+        self.kw_args.iter().find_map(|a| {
+            if &a.keyword.content[..] == key {
+                Some(&a.expr)
+            } else {
+                None
+            }
+        })
+    }
 }
 
 #[pyclass]
@@ -1212,11 +1228,7 @@ impl NestedDisplay for ClassAttrs {
 
 impl Locational for ClassAttrs {
     fn loc(&self) -> Location {
-        if self.is_empty() {
-            Location::Unknown
-        } else {
-            Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
-        }
+        Location::stream(&self.0)
     }
 }
 
@@ -4437,6 +4449,7 @@ impl VarDataPackPattern {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum VarPattern {
     Discard(Token),
+    Glob(Token),
     Ident(Identifier),
     /// e.g. `[x, y, z]` of `[x, y, z] = [1, 2, 3]`
     List(VarListPattern),
@@ -4452,6 +4465,7 @@ impl NestedDisplay for VarPattern {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         match self {
             Self::Discard(_) => write!(f, "_"),
+            Self::Glob(_) => write!(f, "*"),
             Self::Ident(ident) => write!(f, "{ident}"),
             Self::List(l) => write!(f, "{l}"),
             Self::Tuple(t) => write!(f, "{t}"),
@@ -4462,9 +4476,9 @@ impl NestedDisplay for VarPattern {
 }
 
 impl_display_from_nested!(VarPattern);
-impl_locational_for_enum!(VarPattern; Discard, Ident, List, Tuple, Record, DataPack);
-impl_into_py_for_enum!(VarPattern; Discard, Ident, List, Tuple, Record, DataPack);
-impl_from_py_for_enum!(VarPattern; Discard(Token), Ident(Identifier), List(VarListPattern), Tuple(VarTuplePattern), Record(VarRecordPattern), DataPack(VarDataPackPattern));
+impl_locational_for_enum!(VarPattern; Discard, Glob, Ident, List, Tuple, Record, DataPack);
+impl_into_py_for_enum!(VarPattern; Discard, Glob, Ident, List, Tuple, Record, DataPack);
+impl_from_py_for_enum!(VarPattern; Discard(Token), Glob(Token), Ident(Identifier), List(VarListPattern), Tuple(VarTuplePattern), Record(VarRecordPattern), DataPack(VarDataPackPattern));
 
 impl VarPattern {
     pub const fn inspect(&self) -> Option<&Str> {
@@ -5725,6 +5739,7 @@ impl Def {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ReDef {
     pub attr: Accessor,
+    pub t_spec: Option<TypeSpecWithOp>,
     pub expr: Box<Expr>,
 }
 
@@ -5742,9 +5757,11 @@ impl_locational!(ReDef, attr, expr);
 #[pymethods]
 impl ReDef {
     #[staticmethod]
-    pub fn new(attr: Accessor, expr: Expr) -> Self {
+    #[pyo3(signature = (attr, t_spec, expr))]
+    pub fn new(attr: Accessor, t_spec: Option<TypeSpecWithOp>, expr: Expr) -> Self {
         Self {
             attr,
+            t_spec,
             expr: Box::new(expr),
         }
     }
@@ -5775,7 +5792,7 @@ impl NestedDisplay for Methods {
 }
 
 impl_display_from_nested!(Methods);
-impl_locational!(Methods, class, attrs);
+impl_locational!(Methods, lossy class, attrs);
 
 impl Methods {
     pub fn new(

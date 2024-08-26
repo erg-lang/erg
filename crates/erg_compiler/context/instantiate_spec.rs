@@ -183,7 +183,7 @@ impl Context {
                     }
                     _ => unreachable!(),
                 };
-                if constr.get_sub_sup().is_none() {
+                if constr.get_type().is_some_and(|t| !t.is_meta_type()) {
                     let tp = TyParam::named_free_var(lhs.inspect().clone(), self.level, constr);
                     tv_cache.push_or_init_typaram(lhs, &tp, self)?;
                 } else {
@@ -974,6 +974,25 @@ impl Context {
                 } else {
                     Err((Type::NamedTuple(ts), errs))
                 }
+            }
+            "classof" => {
+                let Some(arg) = args.pos_args().next() else {
+                    return Err((
+                        Failure,
+                        TyCheckErrors::from(TyCheckError::args_missing_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            args.loc(),
+                            "classof",
+                            self.caused_by(),
+                            vec![Str::from("obj")],
+                        )),
+                    ));
+                };
+                let tp = self
+                    .instantiate_const_expr(&arg.expr, None, tmp_tv_cache, not_found_is_qvar)
+                    .map_err(|(_, errs)| (Type::Failure, errs))?;
+                self.get_tp_t(&tp).map_err(|errs| (Type::Failure, errs))
             }
             other => {
                 let Some(ctx) = self.get_type_ctx(other).or_else(|| {

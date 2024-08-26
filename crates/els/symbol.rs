@@ -87,7 +87,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     fn symbol(&self, chunk: &Expr) -> Option<DocumentSymbol> {
         match chunk {
             Expr::Def(def) => {
-                if def.sig.inspect().starts_with(['%']) {
+                if def.sig.is_glob() || def.sig.inspect().starts_with(['%']) {
                     return None;
                 }
                 let range = loc_to_range(def.loc())?;

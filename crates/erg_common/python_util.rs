@@ -560,7 +560,38 @@ fn escape_py_code(code: &str) -> String {
     code.replace('"', "\\\"").replace('`', "\\`")
 }
 
+/// ```toml
+/// [tool.pylyzer.python]
+/// path = "path/to/python"
+/// ```
+fn which_python_from_toml() -> Option<String> {
+    use std::io::BufRead;
+    let f = File::open("pyproject.toml").ok()?;
+    let mut reader = std::io::BufReader::new(f);
+    let mut line = String::new();
+    while reader.read_line(&mut line).is_ok_and(|i| i > 0) {
+        if line.starts_with("[tool.erg.python]") || line.starts_with("[tool.pylyzer.python]") {
+            line.clear();
+            reader.read_line(&mut line).ok()?;
+            return Some(
+                line.split('#')
+                    .next()
+                    .unwrap()
+                    .trim_start_matches("path = ")
+                    .trim_matches('"')
+                    .trim()
+                    .to_string(),
+            );
+        }
+        line.clear();
+    }
+    None
+}
+
 pub fn opt_which_python() -> Result<String, String> {
+    if let Some(path) = which_python_from_toml() {
+        return Ok(path);
+    }
     let (cmd, python) = if cfg!(windows) {
         ("where", "python")
     } else {

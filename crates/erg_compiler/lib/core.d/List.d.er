@@ -63,3 +63,10 @@
     assert [1, 2, 3, 4, 5].from(2) == [3, 4, 5]
     '''
     from: |T: Type|(self: List(T, _), nth: Nat) -> List(T, _)
+    '''
+    Return the index of the first occurrence of `x` in the array.
+    '''
+    '''erg
+    assert [1, 2, 3].index(2) == 1
+    '''
+    index: |T: Type|(self: List(T, _), x: T) -> Nat

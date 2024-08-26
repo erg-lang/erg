@@ -23,7 +23,7 @@ use erg_compiler::erg_parser::token::TokenKind;
 use erg_compiler::hir::Expr;
 use erg_compiler::module::SharedCompilerResource;
 use erg_compiler::ty::{HasType, ParamTy, Type};
-use erg_compiler::varinfo::{AbsLocation, VarInfo};
+use erg_compiler::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
 use TokenKind::*;
 
 use lsp_types::{
@@ -35,17 +35,40 @@ use crate::_log;
 use crate::server::{ELSResult, Flags, RedirectableStdout, Server};
 use crate::util::{self, loc_to_pos, NormalizedUrl};
 
-fn comp_item_kind(vi: &VarInfo) -> CompletionItemKind {
-    match &vi.t {
+fn comp_item_kind(t: &Type, muty: Mutability) -> CompletionItemKind {
+    match t {
         Type::Subr(subr) if subr.self_t().is_some() => CompletionItemKind::METHOD,
         Type::Quantified(quant) if quant.self_t().is_some() => CompletionItemKind::METHOD,
         Type::Subr(_) | Type::Quantified(_) => CompletionItemKind::FUNCTION,
         Type::ClassType => CompletionItemKind::CLASS,
         Type::TraitType => CompletionItemKind::INTERFACE,
+        Type::Or(l, r) => {
+            let l = comp_item_kind(l, muty);
+            let r = comp_item_kind(r, muty);
+            if l == r {
+                l
+            } else if muty.is_const() {
+                CompletionItemKind::CONSTANT
+            } else {
+                CompletionItemKind::VARIABLE
+            }
+        }
+        Type::And(l, r) => {
+            let l = comp_item_kind(l, muty);
+            let r = comp_item_kind(r, muty);
+            if l == CompletionItemKind::VARIABLE {
+                r
+            } else {
+                l
+            }
+        }
+        Type::Refinement(r) => comp_item_kind(&r.t, muty),
+        Type::Bounded { sub, .. } => comp_item_kind(sub, muty),
         t if matches!(&t.qual_name()[..], "Module" | "PyModule" | "GenericModule") => {
             CompletionItemKind::MODULE
         }
-        _ if vi.muty.is_const() => CompletionItemKind::CONSTANT,
+        Type::Type => CompletionItemKind::CONSTANT,
+        _ if muty.is_const() => CompletionItemKind::CONSTANT,
         _ => CompletionItemKind::VARIABLE,
     }
 }
@@ -112,7 +135,8 @@ impl CompletionOrder {
 }
 
 pub struct CompletionOrderSetter<'b> {
-    vi: &'b VarInfo,
+    t: &'b Type,
+    kind: &'b VarKind,
     arg_pt: Option<&'b ParamTy>,
     mod_ctx: &'b Context, // for subtype judgement, not for variable lookup
     label: String,
@@ -120,13 +144,15 @@ pub struct CompletionOrderSetter<'b> {
 
 impl<'b> CompletionOrderSetter<'b> {
     pub fn new(
-        vi: &'b VarInfo,
+        t: &'b Type,
+        kind: &'b VarKind,
         arg_pt: Option<&'b ParamTy>,
         mod_ctx: &'b Context,
         label: String,
     ) -> Self {
         Self {
-            vi,
+            t,
+            kind,
             arg_pt,
             mod_ctx,
             label,
@@ -140,7 +166,7 @@ impl<'b> CompletionOrderSetter<'b> {
         } else if self.label.starts_with('_') {
             orders.push(CompletionOrder::Escaped);
         }
-        if self.vi.kind.is_builtin() {
+        if self.kind.is_builtin() {
             orders.push(CompletionOrder::Builtin);
         }
         if self
@@ -152,11 +178,11 @@ impl<'b> CompletionOrderSetter<'b> {
         #[allow(clippy::blocks_in_conditions)]
         if self
             .arg_pt
-            .map_or(false, |pt| self.mod_ctx.subtype_of(&self.vi.t, pt.typ()))
+            .map_or(false, |pt| self.mod_ctx.subtype_of(self.t, pt.typ()))
         {
             orders.push(CompletionOrder::TypeMatched);
         } else if self.arg_pt.map_or(false, |pt| {
-            let Some(return_t) = self.vi.t.return_t() else {
+            let Some(return_t) = self.t.return_t() else {
                 return false;
             };
             if return_t.has_qvar() {
@@ -196,7 +222,7 @@ fn external_item(name: &str, vi: &VarInfo, mod_name: &str) -> CompletionItem {
     let mut item =
         CompletionItem::new_simple(format!("{name} (import from {mod_name})"), vi.t.to_string());
     item.sort_text = Some(format!("{}_{}", CompletionOrder::STD_ITEM, item.label));
-    item.kind = Some(comp_item_kind(vi));
+    item.kind = Some(comp_item_kind(&vi.t, vi.muty));
     let import = if PYTHON_MODE {
         format!("from {mod_name} import {name}\n")
     } else {
@@ -467,10 +493,16 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     continue;
                 }
                 let mut item = CompletionItem::new_simple(label, vi.t.to_string());
-                CompletionOrderSetter::new(vi, arg_pt.as_ref(), mod_ctx, item.label.clone())
-                    .set(&mut item);
+                CompletionOrderSetter::new(
+                    &vi.t,
+                    &vi.kind,
+                    arg_pt.as_ref(),
+                    mod_ctx,
+                    item.label.clone(),
+                )
+                .set(&mut item);
                 // item.sort_text = Some(format!("{}_{}", CompletionOrder::OtherNamespace, item.label));
-                item.kind = Some(comp_item_kind(vi));
+                item.kind = Some(comp_item_kind(&vi.t, vi.muty));
                 item.data = Some(Value::String(vi.def_loc.to_string()));
                 let import = if PYTHON_MODE {
                     format!("from {path} import {name}\n")
@@ -590,6 +622,25 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             _log!(self, "module context not found: {uri}");
             return Ok(Some(CompletionResponse::Array(result)));
         };
+        if PYTHON_MODE {
+            if let Some(receiver_t) = &receiver_t {
+                for (field, ty) in mod_ctx.context.fields(receiver_t) {
+                    let mut item =
+                        CompletionItem::new_simple(field.symbol.to_string(), ty.to_string());
+                    CompletionOrderSetter::new(
+                        &ty,
+                        &VarKind::Builtin,
+                        arg_pt.as_ref(),
+                        &mod_ctx.context,
+                        item.label.clone(),
+                    )
+                    .set(&mut item);
+                    item.kind = Some(comp_item_kind(&ty, Mutability::Immutable));
+                    already_appeared.insert(item.label.clone());
+                    result.push(item);
+                }
+            }
+        }
         for (name, vi) in contexts.into_iter().flat_map(|ctx| ctx.local_dir()) {
             if comp_kind.should_be_method() && vi.vis.is_private() {
                 continue;
@@ -621,9 +672,15 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             }
             let readable_t = mod_ctx.context.readable_type(vi.t.clone());
             let mut item = CompletionItem::new_simple(label, readable_t.to_string());
-            CompletionOrderSetter::new(vi, arg_pt.as_ref(), &mod_ctx.context, item.label.clone())
-                .set(&mut item);
-            item.kind = Some(comp_item_kind(vi));
+            CompletionOrderSetter::new(
+                &vi.t,
+                &vi.kind,
+                arg_pt.as_ref(),
+                &mod_ctx.context,
+                item.label.clone(),
+            )
+            .set(&mut item);
+            item.kind = Some(comp_item_kind(&vi.t, vi.muty));
             item.data = Some(Value::String(vi.def_loc.to_string()));
             already_appeared.insert(item.label.clone());
             result.push(item);

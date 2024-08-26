@@ -4,6 +4,7 @@
 //! e.g. Literal parameters, Multi assignment
 //! 型チェックなどによる検証は行わない
 
+use erg_common::consts::PYTHON_MODE;
 use erg_common::error::Location;
 use erg_common::fresh::FreshNameGenerator;
 use erg_common::traits::{Locational, Stream};
@@ -332,10 +333,13 @@ impl Desugarer {
                     .collect();
                 Expr::PatchDef(PatchDef::new(def, methods))
             }
-            Expr::ReDef(redef) => {
+            Expr::ReDef(mut redef) => {
                 let expr = desugar(*redef.expr);
+                if let Some(t_op) = &mut redef.t_spec {
+                    *t_op.t_spec_as_expr = desugar(*t_op.t_spec_as_expr.clone());
+                }
                 let attr = Self::perform_desugar_acc(desugar, redef.attr);
-                Expr::ReDef(ReDef::new(attr, expr))
+                Expr::ReDef(ReDef::new(attr, redef.t_spec, expr))
             }
             Expr::Lambda(mut lambda) => {
                 let mut chunks = vec![];
@@ -752,7 +756,7 @@ impl Desugarer {
                         self.desugar_nested_var_pattern(new, rhs, &buf_name, BufIndex::Record(lhs));
                     }
                 }
-                VarPattern::Ident(_) | VarPattern::Discard(_) => {
+                VarPattern::Ident(_) | VarPattern::Discard(_) | VarPattern::Glob(_) => {
                     if let VarPattern::Ident(ident) = v.pat {
                         v.pat = VarPattern::Ident(Self::desugar_ident(ident));
                     }
@@ -955,7 +959,7 @@ impl Desugarer {
                     );
                 }
             }
-            VarPattern::Ident(_) | VarPattern::Discard(_) => {
+            VarPattern::Ident(_) | VarPattern::Discard(_) | VarPattern::Glob(_) => {
                 let def = Def::new(Signature::Var(sig.clone()), body);
                 new_module.push(Expr::Def(def));
             }
@@ -1734,7 +1738,11 @@ impl Desugarer {
                 let (mut op, lhs, rhs) = bin.deconstruct();
                 op.content = Str::from("contains");
                 op.kind = TokenKind::ContainsOp;
-                let not = Identifier::private("not".into());
+                let not = if PYTHON_MODE {
+                    Identifier::public("not".into())
+                } else {
+                    Identifier::private("not".into())
+                };
                 let bin = Expr::BinOp(BinOp::new(op, rhs, lhs));
                 Expr::Accessor(Accessor::Ident(not)).call1(bin)
             }

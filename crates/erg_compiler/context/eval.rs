@@ -677,6 +677,7 @@ impl Context {
                             .into(),
                         )
                     })?;
+                    // TODO: __call__
                     let subr = option_enum_unwrap!(obj, ValueObj::Subr)
                         .ok_or_else(|| {
                             (
@@ -1543,6 +1544,14 @@ impl Context {
             (ValueObj::Bool(l), ValueObj::Bool(r)) => Ok(ValueObj::Bool(l || r)),
             (ValueObj::Int(l), ValueObj::Int(r)) => Ok(ValueObj::Int(l | r)),
             (ValueObj::Type(lhs), ValueObj::Type(rhs)) => Ok(self.eval_or_type(lhs, rhs)),
+            // `T or None` should be `T or NoneType`.
+            // The type checker will report an error, so here it will be interpreted as `T or NoneType`.
+            (ValueObj::Type(lhs), ValueObj::None) => {
+                Ok(self.eval_or_type(lhs, TypeObj::builtin_type(Type::NoneType)))
+            }
+            (ValueObj::None, ValueObj::Type(rhs)) => {
+                Ok(self.eval_or_type(TypeObj::builtin_type(Type::NoneType), rhs))
+            }
             (lhs, rhs) => {
                 let lhs = self.convert_value_into_type(lhs).ok();
                 let rhs = self.convert_value_into_type(rhs).ok();
@@ -3466,7 +3475,7 @@ impl Context {
         match p {
             TyParam::Value(v) => Ok(v_enum(set![v])),
             TyParam::Erased(t) => Ok((*t).clone()),
-            TyParam::FreeVar(fv) if fv.is_linked() => self.get_tp_t(&fv.crack()),
+            TyParam::FreeVar(fv) if fv.is_linked() => self.get_tp_t(fv.unsafe_crack()),
             TyParam::FreeVar(fv) => {
                 if let Some(t) = fv.get_type() {
                     Ok(t)

@@ -1,0 +1,6 @@
+C = Class { .x = Int }
+C.
+    foo(self) = self.x
+    bar(self) =
+        if self.does_not_exist(), do: # ERR
+            discard self.foo() # OK

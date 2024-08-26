@@ -857,6 +857,24 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                     Ok(Type::FreeVar(fv))
                 }
             }
+            FreeVar(fv) if fv.get_type().is_some() => {
+                let ty = fv.get_type().unwrap();
+                if self.level <= fv.level().unwrap() {
+                    // T: {Int, Str} => Int or Str
+                    if let Some(tys) = ty.refinement_values() {
+                        let mut union = Never;
+                        for tp in tys {
+                            if let Ok(ty) = self.ctx.convert_tp_into_type(tp.clone()) {
+                                union = self.ctx.union(&union, &ty);
+                            }
+                        }
+                        return Ok(union);
+                    }
+                    Ok(Type::FreeVar(fv))
+                } else {
+                    Ok(Type::FreeVar(fv))
+                }
+            }
             FreeVar(fv) if fv.is_unbound() => {
                 if self.level == 0 {
                     match &*fv.crack_constraint() {

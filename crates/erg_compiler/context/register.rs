@@ -82,7 +82,7 @@ impl Context {
         let muty = Mutability::from(&sig.inspect().unwrap_or(UBAR)[..]);
         let ident = match &sig.pat {
             ast::VarPattern::Ident(ident) => ident,
-            ast::VarPattern::Discard(_) => {
+            ast::VarPattern::Discard(_) | ast::VarPattern::Glob(_) => {
                 return Ok(());
             }
             other => unreachable!("{other}"),
@@ -1277,14 +1277,29 @@ impl Context {
         match &def.sig {
             ast::Signature::Subr(sig) => {
                 if sig.is_const() {
-                    let tv_cache = self
-                        .instantiate_ty_bounds(&sig.bounds, PreRegister)
-                        .map_err(|(_, errs)| errs)?;
+                    let tv_cache = match self.instantiate_ty_bounds(&sig.bounds, PreRegister) {
+                        Ok(tv_cache) => tv_cache,
+                        Err((tv_cache, es)) => {
+                            errs.extend(es);
+                            tv_cache
+                        }
+                    };
                     let vis = self.instantiate_vis_modifier(sig.vis())?;
                     self.grow(__name__, ContextKind::Proc, vis, Some(tv_cache));
                     let (obj, const_t) = match self.eval_const_block(&def.body.block) {
                         Ok(obj) => (obj.clone(), v_enum(set! {obj})),
                         Err((obj, es)) => {
+                            if PYTHON_MODE {
+                                self.pop();
+                                if let Err(es) = self.declare_sub(sig, id) {
+                                    errs.extend(es);
+                                }
+                                if errs.is_empty() {
+                                    return Ok(());
+                                } else {
+                                    return Err(errs);
+                                }
+                            }
                             errs.extend(es);
                             (obj.clone(), v_enum(set! {obj}))
                         }
@@ -1311,14 +1326,16 @@ impl Context {
                             })?;
                     }
                     self.pop();
-                    self.register_gen_const(
+                    if let Err(es) = self.register_gen_const(
                         def.sig.ident().unwrap(),
                         obj,
                         call,
                         def.def_kind().is_other(),
-                    )?;
-                } else {
-                    self.declare_sub(sig, id)?;
+                    ) {
+                        errs.extend(es);
+                    }
+                } else if let Err(es) = self.declare_sub(sig, id) {
+                    errs.extend(es);
                 }
             }
             ast::Signature::Var(sig) => {
@@ -1329,6 +1346,25 @@ impl Context {
                     let (obj, const_t) = match self.eval_const_block(&def.body.block) {
                         Ok(obj) => (obj.clone(), v_enum(set! {obj})),
                         Err((obj, es)) => {
+                            if PYTHON_MODE {
+                                self.pop();
+                                if let Err((_, es)) = self.pre_define_var(sig, id) {
+                                    errs.extend(es);
+                                }
+                                if let Some(ident) = sig.ident() {
+                                    let _ = self.register_gen_const(
+                                        ident,
+                                        obj,
+                                        call,
+                                        def.def_kind().is_other(),
+                                    );
+                                }
+                                if errs.is_empty() {
+                                    return Ok(());
+                                } else {
+                                    return Err(errs);
+                                }
+                            }
                             errs.extend(es);
                             (obj.clone(), v_enum(set! {obj}))
                         }
@@ -1356,7 +1392,11 @@ impl Context {
                     }
                     self.pop();
                     if let Some(ident) = sig.ident() {
-                        self.register_gen_const(ident, obj, call, def.def_kind().is_other())?;
+                        if let Err(es) =
+                            self.register_gen_const(ident, obj, call, def.def_kind().is_other())
+                        {
+                            errs.extend(es);
+                        }
                     }
                 } else if let Err((_, es)) = self.pre_define_var(sig, id) {
                     errs.extend(es);
@@ -1838,6 +1878,9 @@ impl Context {
                 self.level,
             );
             for sup in super_classes.into_iter() {
+                if sup.is_failure() {
+                    continue;
+                }
                 let sup_ctx = match self.get_nominal_type_ctx(&sup).ok_or_else(|| {
                     TyCheckErrors::from(TyCheckError::type_not_found(
                         self.cfg.input.clone(),

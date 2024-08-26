@@ -983,7 +983,7 @@ impl Context {
             // (obj: Failure).foo: Failure
             Type::Failure => Triple::Ok(VarInfo::ILLEGAL),
             Type::FreeVar(fv) if fv.is_linked() => {
-                self.get_attr_info_from_attributive(&fv.crack(), ident, namespace)
+                self.get_attr_info_from_attributive(fv.unsafe_crack(), ident, namespace)
             }
             Type::FreeVar(fv) if fv.get_super().is_some() => {
                 let sup = fv.get_super().unwrap();
@@ -1081,12 +1081,14 @@ impl Context {
     }
 
     // returns callee's type, not the return type
+    #[allow(clippy::too_many_arguments)]
     fn search_callee_info(
         &self,
         obj: &hir::Expr,
         attr_name: &Option<Identifier>,
         pos_args: &[hir::PosArg],
         kw_args: &[hir::KwArg],
+        (var_args, kw_var_args): (Option<&hir::PosArg>, Option<&hir::PosArg>),
         input: &Input,
         namespace: &Context,
     ) -> SingleTyCheckResult<VarInfo> {
@@ -1107,10 +1109,24 @@ impl Context {
         if let Some(attr_name) = attr_name.as_ref() {
             let mut vi =
                 self.search_method_info(obj, attr_name, pos_args, kw_args, input, namespace)?;
-            vi.t = self.resolve_overload(obj, vi.t, pos_args, kw_args, attr_name)?;
+            vi.t = self.resolve_overload(
+                obj,
+                vi.t,
+                pos_args,
+                kw_args,
+                (var_args, kw_var_args),
+                attr_name,
+            )?;
             Ok(vi)
         } else {
-            let t = self.resolve_overload(obj, obj.t(), pos_args, kw_args, obj)?;
+            let t = self.resolve_overload(
+                obj,
+                obj.t(),
+                pos_args,
+                kw_args,
+                (var_args, kw_var_args),
+                obj,
+            )?;
             Ok(VarInfo {
                 t,
                 ..VarInfo::default()
@@ -1155,6 +1171,7 @@ impl Context {
         instance: Type,
         pos_args: &[hir::PosArg],
         kw_args: &[hir::KwArg],
+        (var_args, kw_var_args): (Option<&hir::PosArg>, Option<&hir::PosArg>),
         loc: &impl Locational,
     ) -> SingleTyCheckResult<Type> {
         let intersecs = instance.intersection_types();
@@ -1195,7 +1212,15 @@ impl Context {
                 if self.subtype_of(ty, &input_t) {
                     if let Ok(instance) = self.instantiate(ty.clone(), obj) {
                         let subst = self
-                            .substitute_call(obj, &None, &instance, pos_args, kw_args, self)
+                            .substitute_call(
+                                obj,
+                                &None,
+                                &instance,
+                                pos_args,
+                                kw_args,
+                                (var_args, kw_var_args),
+                                self,
+                            )
                             .is_ok();
                         let eval = self.eval_t_params(instance, self.level, obj).is_ok();
                         if subst && eval {
@@ -1248,6 +1273,8 @@ impl Context {
     ) -> SingleTyCheckResult<VarInfo> {
         // search_method_info(?T, aaa, pos_args: [1, 2]) == None
         // => ?T(<: Structural({ .aaa = (self: ?T, ?U, ?V) -> ?W }))
+        // search_method_info(?T, aaa, kw_args: [b:=1, c:=2]) == None
+        // => ?T(<: Structural({ .aaa = (self: ?T, b: ?U, c: ?V) -> ?W }))
         if PYTHON_MODE
             && obj
                 .var_info()
@@ -1379,10 +1406,26 @@ impl Context {
                 }
                 return Ok(method.method_info.clone());
             }
-            Triple::Err(err) => {
+            Triple::Err(err) if ERG_MODE => {
                 return Err(err);
             }
             _ => {}
+        }
+        if PYTHON_MODE {
+            if let Some(subr_t) = self.get_union_attr_type_by_name(attr_name) {
+                let muty = Mutability::from(&attr_name.inspect()[..]);
+                let vi = VarInfo::new(
+                    subr_t,
+                    muty,
+                    Visibility::DUMMY_PUBLIC,
+                    VarKind::Builtin,
+                    None,
+                    ContextKind::Dummy,
+                    None,
+                    AbsLocation::unknown(),
+                );
+                return Ok(vi);
+            }
         }
         for patch in self.find_patches_of(obj.ref_t()) {
             if let Some(vi) = patch.get_current_scope_non_param(&attr_name.name) {
@@ -1401,7 +1444,7 @@ impl Context {
             .map_err(|mut errs| errs.remove(0))?;
         if &coerced != obj.ref_t() {
             let hash = get_hash(obj.ref_t());
-            obj.ref_t().destructive_coerce();
+            obj.ref_t().destructive_link(&coerced);
             if get_hash(obj.ref_t()) != hash {
                 return self
                     .search_method_info(obj, attr_name, pos_args, kw_args, input, namespace);
@@ -1508,10 +1551,26 @@ impl Context {
                 }
                 return Ok(method.method_info.clone());
             }
-            Triple::Err(err) => {
+            Triple::Err(err) if ERG_MODE => {
                 return Err(err);
             }
             _ => {}
+        }
+        if PYTHON_MODE {
+            if let Some(subr_t) = self.get_union_attr_type_by_name(attr_name) {
+                let muty = Mutability::from(&attr_name.inspect()[..]);
+                let vi = VarInfo::new(
+                    subr_t,
+                    muty,
+                    Visibility::DUMMY_PUBLIC,
+                    VarKind::Builtin,
+                    None,
+                    ContextKind::Dummy,
+                    None,
+                    AbsLocation::unknown(),
+                );
+                return Ok(vi);
+            }
         }
         for patch in self.find_patches_of(obj.ref_t()) {
             if let Some(vi) = patch.get_current_scope_callable(&attr_name.name) {
@@ -1530,7 +1589,7 @@ impl Context {
             .map_err(|mut errs| errs.remove(0))?;
         if &coerced != obj.ref_t() {
             let hash = get_hash(obj.ref_t());
-            obj.ref_t().destructive_coerce();
+            obj.ref_t().destructive_link(&coerced);
             if get_hash(obj.ref_t()) != hash {
                 return self.search_method_info_without_args(obj, attr_name, input, namespace);
             }
@@ -1625,7 +1684,7 @@ impl Context {
                 )
             })?;
         let op = hir::Expr::Accessor(hir::Accessor::private(symbol, t));
-        self.get_call_t(&op, &None, args, &[], input, namespace)
+        self.get_call_t(&op, &None, args, &[], (None, None), input, namespace)
             .map_err(|(_, errs)| {
                 let hir::Expr::Accessor(hir::Accessor::Ident(op_ident)) = op else {
                     return errs;
@@ -1679,7 +1738,7 @@ impl Context {
                 )
             })?;
         let op = hir::Expr::Accessor(hir::Accessor::private(symbol, vi));
-        self.get_call_t(&op, &None, args, &[], input, namespace)
+        self.get_call_t(&op, &None, args, &[], (None, None), input, namespace)
             .map_err(|(_, errs)| {
                 let hir::Expr::Accessor(hir::Accessor::Ident(op_ident)) = op else {
                     return errs;
@@ -1771,6 +1830,7 @@ impl Context {
     /// ↓ don't substitute `Int` to `self`
     /// substitute_call(obj: Int, instance: ((self: Int, other: Int) -> Int), [1, 2]) => instance: (Int, Int) -> Int
     /// ```
+    #[allow(clippy::too_many_arguments)]
     fn substitute_call(
         &self,
         obj: &hir::Expr,
@@ -1778,12 +1838,19 @@ impl Context {
         instance: &Type,
         pos_args: &[hir::PosArg],
         kw_args: &[hir::KwArg],
+        (var_args, kw_var_args): (Option<&hir::PosArg>, Option<&hir::PosArg>),
         namespace: &Context,
     ) -> TyCheckResult<SubstituteResult> {
         match instance {
-            Type::FreeVar(fv) if fv.is_linked() => {
-                self.substitute_call(obj, attr_name, &fv.crack(), pos_args, kw_args, namespace)
-            }
+            Type::FreeVar(fv) if fv.is_linked() => self.substitute_call(
+                obj,
+                attr_name,
+                fv.unsafe_crack(),
+                pos_args,
+                kw_args,
+                (var_args, kw_var_args),
+                namespace,
+            ),
             Type::FreeVar(fv) => {
                 if let Some(sub) = fv.get_sub() {
                     if !self.subtype_of(&sub, &mono("GenericCallable")) {
@@ -1795,12 +1862,24 @@ impl Context {
                         if instance.is_quantified_subr() {
                             let instance = self.instantiate(instance.clone(), obj)?;
                             self.substitute_call(
-                                obj, attr_name, &instance, pos_args, kw_args, namespace,
+                                obj,
+                                attr_name,
+                                &instance,
+                                pos_args,
+                                kw_args,
+                                (var_args, kw_var_args),
+                                namespace,
                             )?;
                             return Ok(SubstituteResult::Coerced(instance));
                         } else if get_hash(instance) != hash {
                             return self.substitute_call(
-                                obj, attr_name, instance, pos_args, kw_args, namespace,
+                                obj,
+                                attr_name,
+                                instance,
+                                pos_args,
+                                kw_args,
+                                (var_args, kw_var_args),
+                                namespace,
                             );
                         }
                     }
@@ -1831,27 +1910,71 @@ impl Context {
                     Ok(SubstituteResult::Ok)
                 }
             }
-            Type::Refinement(refine) => {
-                self.substitute_call(obj, attr_name, &refine.t, pos_args, kw_args, namespace)
-            }
+            Type::Refinement(refine) => self.substitute_call(
+                obj,
+                attr_name,
+                &refine.t,
+                pos_args,
+                kw_args,
+                (var_args, kw_var_args),
+                namespace,
+            ),
             // instance must be instantiated
             Type::Quantified(_) => unreachable_error!(TyCheckErrors, TyCheckError, self),
             Type::Subr(subr) => {
-                let res = self.substitute_subr_call(obj, attr_name, subr, pos_args, kw_args);
+                let res = self.substitute_subr_call(
+                    obj,
+                    attr_name,
+                    subr,
+                    pos_args,
+                    kw_args,
+                    (var_args, kw_var_args),
+                );
                 // TODO: change polymorphic type syntax
                 if res.is_err() && subr.return_t.is_class_type() {
                     self.substitute_dunder_call(
-                        obj, attr_name, instance, pos_args, kw_args, namespace,
+                        obj,
+                        attr_name,
+                        instance,
+                        pos_args,
+                        kw_args,
+                        (var_args, kw_var_args),
+                        namespace,
                     )
                     .or(res)
                 } else {
                     res
                 }
             }
-            Type::Failure => Ok(SubstituteResult::Ok),
-            _ => {
-                self.substitute_dunder_call(obj, attr_name, instance, pos_args, kw_args, namespace)
+            Type::And(_, _) => {
+                let instance = self.resolve_overload(
+                    obj,
+                    instance.clone(),
+                    pos_args,
+                    kw_args,
+                    (var_args, kw_var_args),
+                    &obj,
+                )?;
+                self.substitute_call(
+                    obj,
+                    attr_name,
+                    &instance,
+                    pos_args,
+                    kw_args,
+                    (var_args, kw_var_args),
+                    namespace,
+                )
             }
+            Type::Failure => Ok(SubstituteResult::Ok),
+            _ => self.substitute_dunder_call(
+                obj,
+                attr_name,
+                instance,
+                pos_args,
+                kw_args,
+                (var_args, kw_var_args),
+                namespace,
+            ),
         }
     }
 
@@ -1862,6 +1985,7 @@ impl Context {
         subr: &SubrType,
         pos_args: &[hir::PosArg],
         kw_args: &[hir::KwArg],
+        (var_args, kw_var_args): (Option<&hir::PosArg>, Option<&hir::PosArg>),
     ) -> TyCheckResult<SubstituteResult> {
         let mut errs = TyCheckErrors::empty();
         // method: obj: 1, subr: (self: Int, other: Int) -> Int
@@ -1885,7 +2009,10 @@ impl Context {
         } else {
             subr.non_default_params.len() + subr.default_params.len()
         };
-        if (params_len < pos_args.len() || params_len < pos_args.len() + kw_args.len())
+        let there_var = var_args.is_some() || kw_var_args.is_some();
+        if (params_len < pos_args.len()
+            || params_len < pos_args.len() + kw_args.len()
+            || (params_len == pos_args.len() + kw_args.len() && there_var))
             && subr.is_no_var()
         {
             return Err(self.gen_too_many_args_error(&callee, subr, is_method, pos_args, kw_args));
@@ -2021,7 +2148,59 @@ impl Context {
                         .into()
                 })
                 .collect::<Vec<_>>();
-            if !missing_params.is_empty() {
+            if let Some(var_args) = var_args {
+                if !self.subtype_of(
+                    var_args.expr.ref_t(),
+                    &poly("Iterable", vec![TyParam::t(Obj)]),
+                ) {
+                    let err = TyCheckError::type_mismatch_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        var_args.loc(),
+                        self.caused_by(),
+                        "_",
+                        None,
+                        &poly("Iterable", vec![TyParam::t(Obj)]),
+                        var_args.expr.ref_t(),
+                        None,
+                        None,
+                    );
+                    errs.push(err);
+                }
+            }
+            if let Some(kw_var_args) = kw_var_args {
+                if !self.subtype_of(
+                    kw_var_args.expr.ref_t(),
+                    &poly("Mapping", vec![TyParam::t(Obj), TyParam::t(Obj)]),
+                ) {
+                    let err = TyCheckError::type_mismatch_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        kw_var_args.loc(),
+                        self.caused_by(),
+                        "_",
+                        None,
+                        &poly("Mapping", vec![TyParam::t(Obj), TyParam::t(Obj)]),
+                        kw_var_args.expr.ref_t(),
+                        None,
+                        None,
+                    );
+                    errs.push(err);
+                }
+            }
+            if missing_params.is_empty() && (var_args.is_some() || kw_var_args.is_some()) {
+                return Err(TyCheckErrors::from(TyCheckError::too_many_args_error(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    callee.loc(),
+                    &callee.to_string(),
+                    self.caused_by(),
+                    params_len,
+                    pos_args.len(),
+                    kw_args.len(),
+                )));
+            }
+            if !missing_params.is_empty() && var_args.is_none() && kw_var_args.is_none() {
                 return Err(TyCheckErrors::from(TyCheckError::args_missing_error(
                     self.cfg.input.clone(),
                     line!() as usize,
@@ -2042,6 +2221,7 @@ impl Context {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn substitute_dunder_call(
         &self,
         obj: &hir::Expr,
@@ -2049,6 +2229,7 @@ impl Context {
         instance: &Type,
         pos_args: &[hir::PosArg],
         kw_args: &[hir::KwArg],
+        (var_args, kw_var_args): (Option<&hir::PosArg>, Option<&hir::PosArg>),
         namespace: &Context,
     ) -> TyCheckResult<SubstituteResult> {
         let ctxs = self
@@ -2095,7 +2276,19 @@ impl Context {
                         )?;
                     }
                     let instance = self.instantiate_def_type(&call_vi.t)?;
-                    self.substitute_call(obj, attr_name, &instance, pos_args, kw_args, namespace)?;
+                    let instance = match self.substitute_call(
+                        obj,
+                        attr_name,
+                        &instance,
+                        pos_args,
+                        kw_args,
+                        (var_args, kw_var_args),
+                        namespace,
+                    )? {
+                        SubstituteResult::__Call__(instance)
+                        | SubstituteResult::Coerced(instance) => instance,
+                        SubstituteResult::Ok => instance,
+                    };
                     return Ok(SubstituteResult::__Call__(instance));
                 }
             // instance method __call__
@@ -2106,7 +2299,20 @@ impl Context {
                 })
             {
                 let instance = self.instantiate_def_type(&call_vi.t)?;
-                self.substitute_call(obj, attr_name, &instance, pos_args, kw_args, namespace)?;
+                let instance = match self.substitute_call(
+                    obj,
+                    attr_name,
+                    &instance,
+                    pos_args,
+                    kw_args,
+                    (var_args, kw_var_args),
+                    namespace,
+                )? {
+                    SubstituteResult::__Call__(instance) | SubstituteResult::Coerced(instance) => {
+                        instance
+                    }
+                    SubstituteResult::Ok => instance,
+                };
                 return Ok(SubstituteResult::__Call__(instance));
             }
         }
@@ -2430,12 +2636,14 @@ impl Context {
         Ok(res)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn get_call_t(
         &self,
         obj: &hir::Expr,
         attr_name: &Option<Identifier>,
         pos_args: &[hir::PosArg],
         kw_args: &[hir::KwArg],
+        (var_args, kw_var_args): (Option<&hir::PosArg>, Option<&hir::PosArg>),
         input: &Input,
         namespace: &Context,
     ) -> FailableOption<VarInfo> {
@@ -2453,7 +2661,15 @@ impl Context {
             }
         }
         let found = self
-            .search_callee_info(obj, attr_name, pos_args, kw_args, input, namespace)
+            .search_callee_info(
+                obj,
+                attr_name,
+                pos_args,
+                kw_args,
+                (var_args, kw_var_args),
+                input,
+                namespace,
+            )
             .map_err(|err| (None, TyCheckErrors::from(err)))?;
         log!(
             "Found:\ncallee: {obj}{}\nfound: {found}",
@@ -2468,7 +2684,15 @@ impl Context {
             fmt_slice(kw_args)
         );
         let instance = match self
-            .substitute_call(obj, attr_name, &instance, pos_args, kw_args, namespace)
+            .substitute_call(
+                obj,
+                attr_name,
+                &instance,
+                pos_args,
+                kw_args,
+                (var_args, kw_var_args),
+                namespace,
+            )
             .map_err(|errs| {
                 (
                     Some(VarInfo {
@@ -2774,7 +2998,9 @@ impl Context {
 
     pub fn get_nominal_super_type_ctxs<'a>(&'a self, t: &Type) -> Option<Vec<&'a TypeContext>> {
         match t {
-            Type::FreeVar(fv) if fv.is_linked() => self.get_nominal_super_type_ctxs(&fv.crack()),
+            Type::FreeVar(fv) if fv.is_linked() => {
+                self.get_nominal_super_type_ctxs(fv.unsafe_crack())
+            }
             Type::FreeVar(fv) => {
                 if let Some(sup) = fv.get_super() {
                     self.get_nominal_super_type_ctxs(&sup)
@@ -2880,7 +3106,7 @@ impl Context {
     pub(crate) fn get_nominal_type_ctx<'a>(&'a self, typ: &Type) -> Option<&'a TypeContext> {
         match typ {
             Type::FreeVar(fv) if fv.is_linked() => {
-                if let Some(res) = self.get_nominal_type_ctx(&fv.crack()) {
+                if let Some(res) = self.get_nominal_type_ctx(fv.unsafe_crack()) {
                     return Some(res);
                 }
             }
@@ -3057,7 +3283,7 @@ impl Context {
     ) -> Option<&'a mut TypeContext> {
         match typ {
             Type::FreeVar(fv) if fv.is_linked() => {
-                if let Some(res) = self.get_mut_nominal_type_ctx(&fv.crack()) {
+                if let Some(res) = self.get_mut_nominal_type_ctx(fv.unsafe_crack()) {
                     return Some(res);
                 }
             }
@@ -3526,6 +3752,7 @@ impl Context {
             // if all methods have the same return type, the minimum type (has biggest param types) is selected
             // e.g. [Float -> Bool, Int -> Bool] => Float -> Bool
             // REVIEW: should [Int -> Bool, Str -> Bool] => (Str or Int) -> Bool?
+            // -> get_union_method_type
             if let Some(min) = self.min_type(candidates.iter().map(|mp| &mp.method_info.t)) {
                 let min_pair = candidates
                     .iter()
@@ -3549,6 +3776,55 @@ impl Context {
         ))
     }
 
+    // (Int -> Bool, Float -> Bool) => Int or Float -> Bool
+    fn get_union_method_type(&self, candidates: &[MethodPair]) -> Option<Type> {
+        let fst = candidates.first()?;
+        let mut kind = fst.method_info.t.subr_kind()?;
+        let mut union_nds = fst.method_info.t.non_default_params()?.clone();
+        let mut union_var = fst.method_info.t.var_params().cloned();
+        let mut union_ds = fst.method_info.t.default_params()?.clone();
+        let mut union_kw_var = fst.method_info.t.kw_var_params().cloned();
+        let mut union_return = fst.method_info.t.return_t()?.clone();
+        for cand in candidates.iter().skip(1) {
+            kind = kind | cand.method_info.t.subr_kind()?;
+            for (union, r) in union_nds
+                .iter_mut()
+                .zip(cand.method_info.t.non_default_params()?)
+            {
+                *union.typ_mut() = self.union(union.typ(), r.typ());
+            }
+            if let Some((union, r)) = union_var.as_mut().zip(cand.method_info.t.var_params()) {
+                *union.typ_mut() = self.union(union.typ(), r.typ());
+            }
+            for (union, r) in union_ds
+                .iter_mut()
+                .zip(cand.method_info.t.default_params()?)
+            {
+                *union.typ_mut() = self.union(union.typ(), r.typ());
+            }
+            if let Some((union, r)) = union_kw_var
+                .as_mut()
+                .zip(cand.method_info.t.kw_var_params())
+            {
+                *union.typ_mut() = self.union(union.typ(), r.typ());
+            }
+            union_return = self.union(&union_return, cand.method_info.t.return_t()?);
+        }
+        let subr = Type::Subr(SubrType::new(
+            kind,
+            union_nds,
+            union_var,
+            union_ds,
+            union_kw_var,
+            union_return,
+        ));
+        if subr.has_qvar() {
+            Some(subr.quantify())
+        } else {
+            Some(subr)
+        }
+    }
+
     /// Infer the receiver type from the attribute name.
     /// Returns an error if multiple candidates are found. If nothing is found, returns None.
     fn get_attr_type_by_name(
@@ -3567,6 +3843,20 @@ impl Context {
             outer.get_attr_type_by_name(receiver, attr, namespace)
         } else {
             Triple::None
+        }
+    }
+
+    fn get_union_attr_type_by_name(&self, attr: &Identifier) -> Option<Type> {
+        if let Some(candidates) = self.method_to_traits.get(attr.inspect()) {
+            return self.get_union_method_type(candidates);
+        }
+        if let Some(candidates) = self.method_to_classes.get(attr.inspect()) {
+            return self.get_union_method_type(candidates);
+        }
+        if let Some(outer) = self.get_outer_scope_or_builtins() {
+            outer.get_union_attr_type_by_name(attr)
+        } else {
+            None
         }
     }
 
@@ -3663,7 +3953,7 @@ impl Context {
         match typ {
             Type::And(_l, _r) => false,
             Type::Never => true,
-            Type::FreeVar(fv) if fv.is_linked() => self.is_class(&fv.crack()),
+            Type::FreeVar(fv) if fv.is_linked() => self.is_class(fv.unsafe_crack()),
             Type::FreeVar(_) => false,
             Type::Or(l, r) => self.is_class(l) && self.is_class(r),
             Type::Proj { lhs, rhs } => self
@@ -3686,7 +3976,7 @@ impl Context {
     pub fn is_trait(&self, typ: &Type) -> bool {
         match typ {
             Type::Never => false,
-            Type::FreeVar(fv) if fv.is_linked() => self.is_class(&fv.crack()),
+            Type::FreeVar(fv) if fv.is_linked() => self.is_class(fv.unsafe_crack()),
             Type::FreeVar(_) => false,
             Type::And(l, r) | Type::Or(l, r) => self.is_trait(l) && self.is_trait(r),
             Type::Proj { lhs, rhs } => self

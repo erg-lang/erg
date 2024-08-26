@@ -1,0 +1,4 @@
+f|T: {Int, Str}|(x: T, _: T): T = x
+
+_ = f 1.1, 1.2 # ERR
+_ = f "a", None # ERR

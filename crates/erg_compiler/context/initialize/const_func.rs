@@ -58,6 +58,17 @@ fn type_mismatch(expected: impl Display, got: impl Display, param: &str) -> Eval
     .into()
 }
 
+fn todo(msg: &str) -> EvalValueError {
+    ErrorCore::new(
+        vec![SubMessage::only_loc(Location::Unknown)],
+        format!("{msg} is not supported yet in const context"),
+        line!() as usize,
+        ErrorKind::FeatureError,
+        Location::Unknown,
+    )
+    .into()
+}
+
 /// Base := Type or NoneType, Impl := Type -> ClassType
 pub(crate) fn class_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let base = args.remove_left_or_key("Base");
@@ -1392,6 +1403,9 @@ pub(crate) fn str_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<T
     let val = args
         .remove_left_or_key("val")
         .ok_or_else(|| not_passed("val"))?;
+    if let Some(_encoding) = args.remove_left_or_key("encoding") {
+        return Err(todo("encoding"));
+    }
     Ok(ValueObj::Str(val.to_string().into()).into())
 }
 
@@ -1576,4 +1590,15 @@ pub(crate) fn fill_ord_func(mut args: ValueArgs, ctx: &Context) -> EvalValueResu
         }
     };
     Ok(TyParam::t(t))
+}
+
+/// TODO: accept non-const expr
+/// ```erg
+/// classof(1) == Nat
+/// ```
+pub(crate) fn classof_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
+    let val = args
+        .remove_left_or_key("obj")
+        .ok_or_else(|| not_passed("obj"))?;
+    Ok(TyParam::t(val.class()))
 }

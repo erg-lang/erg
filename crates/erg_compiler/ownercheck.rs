@@ -101,6 +101,7 @@ impl OwnershipChecker {
                 let name = match &def.sig {
                     Signature::Var(var) => var.inspect().clone(),
                     Signature::Subr(subr) => subr.ident.inspect().clone(),
+                    Signature::Glob(_) => Str::from("*"),
                 };
                 self.path_stack
                     .push(Visibility::new(def.sig.vis().clone(), name));
@@ -339,6 +340,7 @@ impl OwnershipChecker {
                     .alive_vars
                     .insert(sig.ident.inspect().clone());
             }
+            Signature::Glob(_) => {}
         }
     }
 

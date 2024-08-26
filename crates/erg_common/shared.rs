@@ -367,7 +367,7 @@ impl<T: Send + Clone> Forkable<T> {
                 }
                 #[cfg(not(any(feature = "backtrace", feature = "debug")))]
                 {
-                    panic!("Forkable::borrow: {err}")
+                    panic!("Forkable::borrow: {err:?}")
                 }
             }
         }
@@ -406,7 +406,7 @@ impl<T: Send + Clone> Forkable<T> {
                 }
                 #[cfg(not(any(feature = "backtrace", feature = "debug")))]
                 {
-                    panic!("Forkable::borrow_mut: {err}")
+                    panic!("Forkable::borrow_mut: {err:?}")
                 }
             }
         }

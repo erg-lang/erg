@@ -1,4 +1,4 @@
-use std::cell::{Ref, RefMut};
+use std::cell::{BorrowError, BorrowMutError, Ref, RefMut};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::mem;
@@ -245,8 +245,8 @@ impl Constraint {
                 } else if sup.addr_eq(target) {
                     Self::new_supertype_of(sub)
                 } else {
-                    let sub = sub.eliminate(target);
-                    let sup = sup.eliminate(target);
+                    let sub = sub.eliminate_sub(target);
+                    let sup = sup.eliminate_sub(target);
                     Self::new_sandwiched(sub, sup)
                 }
             }
@@ -663,6 +663,14 @@ impl<T: Send + Clone> Free<T> {
     pub fn borrow_mut(&self) -> RefMut<'_, FreeKind<T>> {
         self.0.borrow_mut()
     }
+    #[track_caller]
+    pub fn try_borrow(&self) -> Result<Ref<'_, FreeKind<T>>, BorrowError> {
+        self.0.try_borrow()
+    }
+    #[track_caller]
+    pub fn try_borrow_mut(&self) -> Result<RefMut<'_, FreeKind<T>>, BorrowMutError> {
+        self.0.try_borrow_mut()
+    }
     /// very unsafe, use `force_replace` instead whenever possible
     pub fn as_ptr(&self) -> *mut FreeKind<T> {
         self.0.as_ptr()
@@ -704,6 +712,14 @@ impl Free<Type> {
 
     pub fn do_avoiding_recursion_with<O, F: FnOnce() -> O>(&self, placeholder: &Type, f: F) -> O {
         self._do_avoiding_recursion(Some(placeholder), f)
+    }
+
+    pub fn has_unbound_var(&self) -> bool {
+        if self.is_unbound() {
+            true
+        } else {
+            self.crack().has_unbound_var()
+        }
     }
 }
 
@@ -747,6 +763,14 @@ impl Free<TyParam> {
         f: F,
     ) -> O {
         self._do_avoiding_recursion(Some(placeholder), f)
+    }
+
+    pub fn has_unbound_var(&self) -> bool {
+        if self.is_unbound() {
+            true
+        } else {
+            self.crack().has_unbound_var()
+        }
     }
 }
 
@@ -941,7 +965,7 @@ impl<T: Clone + Send + Sync + 'static> Free<T> {
     #[track_caller]
     pub(super) fn undoable_link(&self, to: &T) {
         if self.is_linked() && addr_eq!(*self.crack(), *to) {
-            panic!("link to self");
+            return;
         }
         let prev = self.clone_inner();
         let new = FreeKind::UndoableLinked {

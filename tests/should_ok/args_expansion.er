@@ -1,0 +1,12 @@
+foo first: Int, second: Int, third: Int = log first, second, third
+
+foo(*[1, 2, 3])
+foo(1, *[2, 3])
+foo(1, 2, *[3])
+data = {"first": 1, "second": 2, "third": 3}
+foo(**data)
+foo(1, **{"second": 2, "third": 3})
+# FIXME:
+# foo(1, 2, **{"third": 3})
+
+print! "OK"

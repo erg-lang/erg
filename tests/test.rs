@@ -17,6 +17,11 @@ fn exec_advanced_type_spec() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_args_expansion() -> Result<(), ()> {
+    expect_success("tests/should_ok/args_expansion.er", 0)
+}
+
+#[test]
 fn exec_list_test() -> Result<(), ()> {
     expect_success("tests/should_ok/list.er", 0)
 }
@@ -403,6 +408,11 @@ fn exec_self_type() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_set_type() -> Result<(), ()> {
+    expect_success("tests/should_ok/set_type.er", 0)
+}
+
+#[test]
 fn exec_slice() -> Result<(), ()> {
     expect_success("tests/should_ok/slice.er", 0)
 }
@@ -503,6 +513,11 @@ fn exec_args() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_args_expansion_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/args_expansion.er", 0, 4)
+}
+
+#[test]
 fn exec_list_err() -> Result<(), ()> {
     expect_failure("examples/list.er", 0, 1)
 }
@@ -533,13 +548,18 @@ fn exec_class_attr_err() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_coercion_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/coercion.er", 0, 1)
+}
+
+#[test]
 fn exec_collection_err() -> Result<(), ()> {
     expect_failure("tests/should_err/collection.er", 0, 5)
 }
 
 #[test]
 fn exec_default_param_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/default_param.er", 0, 3)
+    expect_failure("tests/should_err/default_param.er", 0, 4)
 }
 
 #[test]
@@ -636,6 +656,11 @@ fn exec_pyimport_err() -> Result<(), ()> {
 #[test]
 fn exec_set() -> Result<(), ()> {
     expect_success("examples/set.er", 3)
+}
+
+#[test]
+fn exec_set_type_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/set_type.er", 0, 3)
 }
 
 #[test]

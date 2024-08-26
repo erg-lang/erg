@@ -781,7 +781,7 @@ passed keyword args:    {kw_args_len}"
             "japanese" => "型推論が失敗している可能性があります。型を明示的に指定してみてください。",
             "simplified_chinese" => "可能是编译器推断失败。请尝试明确指定类型。",
             "traditional_chinese" => "可能是編譯器推斷失敗。請嘗試明確指定類型。",
-            "english" => "The type checker may fail to inference types. Please try to explicitly specify the type.",
+            "english" => "The type checker may fail to infer types. Please try to explicitly specify the type.",
         );
         Self::new(
             ErrorCore::new(

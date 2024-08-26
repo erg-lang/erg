@@ -105,6 +105,15 @@ impl<K, V> Default for Dict<K, V> {
     }
 }
 
+impl<K: Clone + Hash + Eq, V: Clone> Dict<&K, &V> {
+    pub fn cloned(&self) -> Dict<K, V> {
+        self.dict
+            .iter()
+            .map(|(&k, &v)| (k.clone(), v.clone()))
+            .collect()
+    }
+}
+
 impl<K, V> Dict<K, V> {
     #[inline]
     pub fn new() -> Self {

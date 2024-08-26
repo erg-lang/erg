@@ -1,9 +1,71 @@
+.DEVNULL: Int
+.PIPE: Int
+.STDOUT: Int
+
+.SubprocessError: ClassType
+.SubprocessError <: Exception
+
+.TimeoutExpired: ClassType
+.TimeoutExpired <: SubprocessError
+.TimeoutExpired.
+    cmd: Str
+    timeout: Float
+    output: Bytes or NoneType
+    stdout: Bytes or NoneType
+    stderr: Bytes or NoneType
+
+.CalledProcessError: ClassType
+.CalledProcessError <: SubprocessError
+.CalledProcessError.
+    cmd: Str or [Str; _]
+    returncode: Int
+    output: Bytes or NoneType
+    stdout: Bytes or NoneType
+    stderr: Bytes or NoneType
+
 .CompletedProcess: ClassType
 .CompletedProcess.
     args: Str or [Str; _]
     returncode: Int
     stdout: Bytes or NoneType
     stderr: Bytes or NoneType
+
+.Popen: ClassType
+.Popen.
+    pid: Int
+    stdin: File!
+    stdout: File!
+    stderr: File!
+    __call__: (
+        args: Iterable(Str),
+        bufsize := Int,
+        executable := Str,
+        stdin := File! or Int or NoneType,
+        stdout := File! or Int or NoneType,
+        stderr := File! or Int or NoneType,
+        preexec_fn := (() => NoneType) or NoneType,
+        close_fds := Bool,
+        shell := Bool,
+        cwd := Str or NoneType,
+        env := {Str: Str} or NoneType,
+        universal_newlines := Bool,
+        startupinfo := Obj,
+        creationflags := Int,
+        restore_signals := Bool,
+        start_new_session := Bool,
+        pass_fds := Iterable(Int),
+        group := Int,
+        extra_groups := Iterable(Int),
+        user := Int,
+        umask := Int,
+        encoding := Str or NoneType,
+        errors := Str or NoneType,
+        text := Bool,
+        pipesize := Int,
+        process_group := Int,
+    ) -> .Popen
+    poll!: (self: .Popen) => Int or NoneType
+    wait!: (self: .Popen, timeout := Float) => Int
 
 .run!: (
     args: Str or [Str; _],

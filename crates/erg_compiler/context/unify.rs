@@ -84,8 +84,8 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             }
         }
         match (maybe_sub, maybe_sup) {
-            (FreeVar(fv), _) if fv.is_linked() => self.occur(&fv.crack(), maybe_sup),
-            (_, FreeVar(fv)) if fv.is_linked() => self.occur(maybe_sub, &fv.crack()),
+            (FreeVar(fv), _) if fv.is_linked() => self.occur(fv.unsafe_crack(), maybe_sup),
+            (_, FreeVar(fv)) if fv.is_linked() => self.occur(maybe_sub, fv.unsafe_crack()),
             (Subr(subr), FreeVar(fv)) if fv.is_unbound() => {
                 for default_t in subr.default_params.iter().map(|pt| pt.typ()) {
                     self.occur_inner(default_t, maybe_sup)?;
@@ -173,8 +173,8 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
 
     fn occur_inner(&self, maybe_sub: &Type, maybe_sup: &Type) -> TyCheckResult<()> {
         match (maybe_sub, maybe_sup) {
-            (FreeVar(fv), _) if fv.is_linked() => self.occur_inner(&fv.crack(), maybe_sup),
-            (_, FreeVar(fv)) if fv.is_linked() => self.occur_inner(maybe_sub, &fv.crack()),
+            (FreeVar(fv), _) if fv.is_linked() => self.occur_inner(fv.unsafe_crack(), maybe_sup),
+            (_, FreeVar(fv)) if fv.is_linked() => self.occur_inner(maybe_sub, fv.unsafe_crack()),
             (FreeVar(sub), FreeVar(sup)) => {
                 if sub.addr_eq(sup) {
                     Err(TyCheckErrors::from(TyCheckError::subtyping_error(
@@ -404,13 +404,10 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 Ok(())
             }
             (TyParam::FreeVar(sub_fv), sup_tp) => {
-                match &*sub_fv.borrow() {
-                    FreeKind::Linked(l) | FreeKind::UndoableLinked { t: l, .. } => {
-                        return self.sub_unify_tp(l, sup_tp, _variance, allow_divergence);
-                    }
-                    FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {}
-                } // &fv is dropped
-                  // sub_fvを参照しないようcloneする(あとでborrow_mutするため)
+                if let Some(l) = sub_fv.get_linked() {
+                    return self.sub_unify_tp(&l, sup_tp, _variance, allow_divergence);
+                }
+                // sub_fvを参照しないようcloneする(あとでborrow_mutするため)
                 let Some(fv_t) = sub_fv.constraint().unwrap().get_type().cloned() else {
                     return Err(TyCheckErrors::from(TyCheckError::feature_error(
                         self.ctx.cfg.input.clone(),
@@ -1375,10 +1372,22 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                             self.sub_unify(sup.typ(), sub.typ())
                         })?;
                 } else {
-                    sub_subr
-                        .non_default_params
-                        .iter()
-                        .chain(sub_subr.default_params.iter())
+                    // (self: Self, Int) -> ... <: T -> ...
+                    let sub_params = if !sup_subr.is_method() && sub_subr.is_method() {
+                        sub_subr
+                            .non_default_params
+                            .iter()
+                            .skip(1)
+                            .chain(&sub_subr.default_params)
+                    } else {
+                        #[allow(clippy::iter_skip_zero)]
+                        sub_subr
+                            .non_default_params
+                            .iter()
+                            .skip(0)
+                            .chain(&sub_subr.default_params)
+                    };
+                    sub_params
                         .zip(sup_subr.non_default_params.iter())
                         .try_for_each(|(sub, sup)| {
                             // contravariant
@@ -1817,8 +1826,8 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 }
                 return None;
             }
-            (Type::FreeVar(fv), _) if fv.is_linked() => return self.unify(&fv.crack(), rhs),
-            (_, Type::FreeVar(fv)) if fv.is_linked() => return self.unify(lhs, &fv.crack()),
+            (Type::FreeVar(fv), _) if fv.is_linked() => return self.unify(fv.unsafe_crack(), rhs),
+            (_, Type::FreeVar(fv)) if fv.is_linked() => return self.unify(lhs, fv.unsafe_crack()),
             // TODO: unify(?T, ?U) ?
             (Type::FreeVar(_), Type::FreeVar(_)) => {}
             (Type::FreeVar(fv), _) if fv.constraint_is_sandwiched() => {
