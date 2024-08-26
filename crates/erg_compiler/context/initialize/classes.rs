@@ -359,6 +359,20 @@ impl Context {
         ratio.register_superclass(Obj, &obj);
         ratio.register_builtin_py_impl(REAL, Ratio, Const, Visibility::BUILTIN_PUBLIC, Some(REAL));
         ratio.register_builtin_py_impl(IMAG, Ratio, Const, Visibility::BUILTIN_PUBLIC, Some(IMAG));
+        ratio.register_builtin_py_impl(
+            NUMERATOR,
+            Int,
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+            Some(NUMERATOR),
+        );
+        ratio.register_builtin_py_impl(
+            DENOMINATOR,
+            Int,
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+            Some(DENOMINATOR),
+        );
         ratio.register_trait(self, mono(NUM)).unwrap();
         ratio.register_trait(self, mono(ORD)).unwrap();
         let mut ratio_ord = Self::builtin_methods(Some(mono(ORD)), 2);
@@ -369,6 +383,10 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         ratio.register_trait_methods(Ratio, ratio_ord);
+        ratio.register_py_builtin(OP_GT, fn1_met(Ratio, Ratio, Bool), Some(OP_GT), 0);
+        ratio.register_py_builtin(OP_GE, fn1_met(Ratio, Ratio, Bool), Some(OP_GE), 0);
+        ratio.register_py_builtin(OP_LT, fn1_met(Ratio, Ratio, Bool), Some(OP_LT), 0);
+        ratio.register_py_builtin(OP_LE, fn1_met(Ratio, Ratio, Bool), Some(OP_LE), 0);
         let mut ratio_eq = Self::builtin_methods(Some(mono(EQ)), 2);
         ratio_eq.register_builtin_erg_impl(
             OP_EQ,
