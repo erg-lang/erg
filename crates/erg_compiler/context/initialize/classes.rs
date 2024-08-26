@@ -355,7 +355,6 @@ impl Context {
         float.register_trait_methods(Float, float_show);
 
         /* Ratio */
-        // TODO: Int, Nat, Boolの継承元をRatioにする(今はFloat)
         let mut ratio = Self::builtin_mono_class(RATIO, 2);
         ratio.register_superclass(Obj, &obj);
         ratio.register_builtin_py_impl(REAL, Ratio, Const, Visibility::BUILTIN_PUBLIC, Some(REAL));
@@ -405,6 +404,14 @@ impl Context {
         );
         ratio.register_trait_methods(Ratio, ratio_hash);
         ratio.register_trait(self, mono(EQ_HASH)).unwrap();
+        let mut ratio_to_float = Self::builtin_methods(Some(mono(TO_FLOAT)), 1);
+        ratio_to_float.register_builtin_erg_impl(
+            FUNDAMENTAL_FLOAT,
+            fn0_met(Ratio, Float),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        ratio.register_trait_methods(Ratio, ratio_to_float);
         let op_t = fn1_met(Ratio, Ratio, Ratio);
         let mut ratio_add = Self::builtin_methods(Some(poly(ADD, vec![ty_tp(Ratio)])), 2);
         ratio_add.register_builtin_erg_impl(
@@ -447,11 +454,12 @@ impl Context {
             None,
             ValueObj::builtin_class(Ratio),
         );
+        // power is not closed operation on Ratio (cast to Float)
         ratio_mul.register_builtin_const(
             POW_OUTPUT,
             Visibility::BUILTIN_PUBLIC,
             None,
-            ValueObj::builtin_class(Ratio),
+            ValueObj::builtin_class(Float),
         );
         ratio.register_trait_methods(Ratio, ratio_mul);
         let mut ratio_div = Self::builtin_methods(Some(poly(DIV, vec![ty_tp(Ratio)])), 2);

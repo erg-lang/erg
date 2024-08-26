@@ -3,7 +3,7 @@ from fractions import Fraction
 from _erg_control import then__
 from _erg_result import Error
 from _erg_type import MutType
-
+from _erg_float import FloatMut
 
 class Ratio(Fraction):
     FRAC_ZERO = Fraction(0)
@@ -59,10 +59,10 @@ class Ratio(Fraction):
         return then__(super().__floordiv__(other), Ratio)
 
     def __pow__(self, other):
-        return then__(super().__pow__(other), Ratio)
+        return float(self).__pow__(float(other))
 
     def __rpow__(self, other):
-        return then__(super().__rpow__(other), Ratio)
+        return float(self).__rpow__(float(other))
 
     def __pos__(self):
         return self
@@ -70,6 +70,8 @@ class Ratio(Fraction):
     def __neg__(self):
         return then__(super().__neg__(), Ratio)
 
+    def __float__(self):
+        return super().__float__()
 
 class RatioMut(MutType):
     value: Ratio
@@ -157,9 +159,9 @@ class RatioMut(MutType):
 
     def __pow__(self, other):
         if isinstance(other, MutType):
-            return RatioMut(self.value**other.value)
+            return FloatMut(self.value**other.value)
         else:
-            return RatioMut(self.value**other)
+            return FloatMut(self.value**other)
 
     def __pos__(self):
         return self
