@@ -1442,9 +1442,9 @@ impl Context {
         let coerced = self
             .coerce(obj.t(), &())
             .map_err(|mut errs| errs.remove(0))?;
-        if &coerced != obj.ref_t() {
+        if &coerced != obj.ref_t() && obj.ref_t().as_free().is_some() {
             let hash = get_hash(obj.ref_t());
-            obj.ref_t().destructive_link(&coerced);
+            obj.ref_t().destructive_link(&coerced); // obj.ref_t().coerce(None);
             if get_hash(obj.ref_t()) != hash {
                 return self
                     .search_method_info(obj, attr_name, pos_args, kw_args, input, namespace);
@@ -1587,9 +1587,10 @@ impl Context {
         let coerced = self
             .coerce(obj.t(), &())
             .map_err(|mut errs| errs.remove(0))?;
-        if &coerced != obj.ref_t() {
+        // REVIEW: if obj.ref_t() is not a free-var but contains free-vars
+        if &coerced != obj.ref_t() && obj.ref_t().as_free().is_some() {
             let hash = get_hash(obj.ref_t());
-            obj.ref_t().destructive_link(&coerced);
+            obj.ref_t().destructive_link(&coerced); // obj.ref_t().coerce(None);
             if get_hash(obj.ref_t()) != hash {
                 return self.search_method_info_without_args(obj, attr_name, input, namespace);
             }

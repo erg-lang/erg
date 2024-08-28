@@ -518,6 +518,34 @@ pub fn mono<S: Into<Str>>(name: S) -> Type {
     Type::Mono(name)
 }
 
+pub fn from_str(name: impl Into<Str>) -> Type {
+    let name = name.into();
+    match &name[..] {
+        "Obj" => Type::Obj,
+        "Int" => Type::Int,
+        "Nat" => Type::Nat,
+        "Ratio" => Type::Ratio,
+        "Float" => Type::Float,
+        "Complex" => Type::Complex,
+        "Bool" => Type::Bool,
+        "Str" => Type::Str,
+        "NoneType" => Type::NoneType,
+        "Code" => Type::Code,
+        "Frame" => Type::Frame,
+        "Error" => Type::Error,
+        "Inf" => Type::Inf,
+        "NegInf" => Type::NegInf,
+        "Type" => Type::Type,
+        "ClassType" => Type::ClassType,
+        "TraitType" => Type::TraitType,
+        "Patch" => Type::Patch,
+        "NotImplementedType" => Type::NotImplementedType,
+        "Ellipsis" => Type::Ellipsis,
+        "Never" => Type::Never,
+        _ => Type::Mono(name),
+    }
+}
+
 #[inline]
 pub fn poly<S: Into<Str>>(name: S, params: Vec<TyParam>) -> Type {
     Type::Poly {

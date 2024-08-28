@@ -896,6 +896,9 @@ impl Context {
         str_.register_py_builtin(OP_GE, fn1_met(Str, Str, Bool), Some(OP_GE), 0);
         str_.register_py_builtin(OP_LT, fn1_met(Str, Str, Bool), Some(OP_LT), 0);
         str_.register_py_builtin(OP_LE, fn1_met(Str, Str, Bool), Some(OP_LE), 0);
+        if PYTHON_MODE {
+            str_.register_py_builtin(OP_MOD, fn1_met(Str, Obj, Str), Some(OP_MOD), 0);
+        }
         str_.register_trait(self, mono(ORD)).unwrap();
         str_.register_trait(self, mono(PATH_LIKE)).unwrap();
         let t_s_replace = fn_met(
