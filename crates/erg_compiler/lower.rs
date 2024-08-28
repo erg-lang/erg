@@ -33,7 +33,7 @@ use crate::artifact::{BuildRunnable, Buildable, CompleteArtifact, IncompleteArti
 use crate::build_package::CheckStatus;
 use crate::module::SharedCompilerResource;
 use crate::ty::constructors::{
-    free_var, func, guard, list_t, mono, poly, proc, refinement, set_t, singleton, ty_tp,
+    free_var, from_str, func, guard, list_t, mono, poly, proc, refinement, set_t, singleton, ty_tp,
     unsized_list_t, v_enum,
 };
 use crate::ty::free::Constraint;
@@ -3074,7 +3074,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                             line!() as usize,
                             method_name.inspect(),
                             method_name.loc(),
-                            &mono(&sup.name), // TODO: get super type
+                            &from_str(&sup.name), // TODO: get super type
                             self.module.context.caused_by(),
                         ));
                     }

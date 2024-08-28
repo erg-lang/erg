@@ -886,6 +886,25 @@ impl SubrType {
         }
         self
     }
+
+    pub fn destructive_coerce(&self) {
+        for nd in self.non_default_params.iter() {
+            nd.typ().destructive_coerce();
+        }
+        if let Some(var) = self.var_params.as_ref() {
+            var.typ().destructive_coerce();
+        }
+        for d in self.default_params.iter() {
+            d.typ().destructive_coerce();
+            if let Some(default) = d.default_typ() {
+                default.destructive_coerce();
+            }
+        }
+        if let Some(kw_var) = self.kw_var_params.as_ref() {
+            kw_var.typ().destructive_coerce();
+        }
+        self.return_t.destructive_coerce();
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -3307,6 +3326,8 @@ impl Type {
                     }
                 }
             }
+            Type::Subr(subr) => subr.destructive_coerce(),
+            // TODO:
             _ => {}
         }
     }
