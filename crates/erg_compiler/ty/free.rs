@@ -35,6 +35,9 @@ pub trait HasLevel {
     }
     fn lower(&self) {
         if let Some(lev) = self.level() {
+            if lev == GENERIC_LEVEL {
+                return;
+            }
             self.set_level(lev.saturating_sub(1));
         }
     }
@@ -808,6 +811,10 @@ impl HasLevel for Free<Type> {
                 if addr_eq!(*lev, level) {
                     return;
                 }
+                // GENERIC_LEVEL variable cannot be lowered
+                if *lev == GENERIC_LEVEL && level == GENERIC_LEVEL - 1 {
+                    return;
+                }
                 *lev = level;
             }
             _ => {}
@@ -1143,7 +1150,7 @@ impl<T: CanbeFree + Send + Clone> Free<T> {
     /// if `in_inst_or_gen` is true, constraint will be updated forcibly
     pub fn update_constraint(&self, new_constraint: Constraint, in_inst_or_gen: bool) {
         if new_constraint.get_type() == Some(&Type::Never) {
-            panic!();
+            panic!("{new_constraint}");
         }
         match &mut *self.borrow_mut() {
             FreeKind::Unbound {
@@ -1168,20 +1175,14 @@ impl<T: CanbeFree + Send + Clone> Free<T> {
     }
 
     /// interior-mut
-    pub fn update_sub<F>(&self, f: F)
-    where
-        F: FnOnce(Type) -> Type,
-    {
+    pub fn update_sub(&self, f: impl FnOnce(Type) -> Type) {
         let (sub, sup) = self.get_subsup().unwrap();
         let new_constraint = Constraint::new_sandwiched(f(sub), sup);
         self.update_constraint(new_constraint, true);
     }
 
     /// interior-mut
-    pub fn update_super<F>(&self, f: F)
-    where
-        F: FnOnce(Type) -> Type,
-    {
+    pub fn update_super(&self, f: impl FnOnce(Type) -> Type) {
         let (sub, sup) = self.get_subsup().unwrap();
         let new_constraint = Constraint::new_sandwiched(sub, f(sup));
         self.update_constraint(new_constraint, true);
@@ -1195,10 +1196,7 @@ impl<T: CanbeFree + Send + Clone> Free<T> {
 }
 
 impl Free<TyParam> {
-    pub fn map<F>(&self, f: F)
-    where
-        F: Fn(TyParam) -> TyParam,
-    {
+    pub fn map(&self, f: impl Fn(TyParam) -> TyParam) {
         if let Some(mut linked) = self.get_linked_refmut() {
             let mapped = f(mem::take(&mut *linked));
             *linked = mapped;

@@ -83,7 +83,7 @@ pub struct Progress {
 #[derive(Debug, Clone, Default)]
 pub struct SharedPromises {
     graph: SharedModuleGraph,
-    pub(crate) path: NormalizedPathBuf,
+    pub(crate) root: NormalizedPathBuf,
     promises: Shared<Dict<NormalizedPathBuf, Promise>>,
 }
 
@@ -98,10 +98,10 @@ impl fmt::Display for SharedPromises {
 }
 
 impl SharedPromises {
-    pub fn new(graph: SharedModuleGraph, path: NormalizedPathBuf) -> Self {
+    pub fn new(graph: SharedModuleGraph, root: NormalizedPathBuf) -> Self {
         Self {
             graph,
-            path,
+            root,
             promises: Shared::new(Dict::new()),
         }
     }
@@ -153,25 +153,28 @@ impl SharedPromises {
     }
 
     pub fn wait_until_finished(&self, path: &NormalizedPathBuf) {
+        if self.promises.borrow().get(path).is_none() {
+            panic!("not registered: {path}");
+        }
         while !self.is_finished(path) {
             safe_yield();
         }
     }
 
     pub fn join(&self, path: &NormalizedPathBuf) -> std::thread::Result<()> {
-        if self.graph.ancestors(path).contains(&self.path) {
+        if self.graph.ancestors(path).contains(&self.root) {
             // cycle detected, `self.path` must not in the dependencies
             // Erg analysis processes never join ancestor threads (although joining ancestors itself is allowed in Rust)
-            self.wait_until_finished(path);
+            // self.wait_until_finished(path);
             return Ok(());
         }
         // Suppose A depends on B and C, and B depends on C.
         // In this case, B must join C before A joins C. Otherwise, a deadlock will occur.
         let children = self.graph.children(path);
         for child in children.iter() {
-            if child == &self.path {
+            if child == &self.root {
                 continue;
-            } else if self.graph.depends_on(&self.path, child) {
+            } else if self.graph.depends_on(&self.root, child) {
                 self.wait_until_finished(path);
                 return Ok(());
             }

@@ -929,11 +929,11 @@ impl Predicate {
     }
 
     pub fn _replace_tp(self, target: &TyParam, to: &TyParam) -> Self {
-        self.map_tp(|tp| tp._replace(target, to))
+        self.map_tp(&mut |tp| tp._replace(target, to))
     }
 
     pub fn replace_tp(self, target: &TyParam, to: &TyParam) -> Self {
-        self.map_tp(|tp| tp.replace(target, to))
+        self.map_tp(&mut |tp| tp.replace(target, to))
     }
 
     pub fn _replace_t(self, target: &Type, to: &Type) -> Self {
@@ -1003,7 +1003,7 @@ impl Predicate {
         }
     }
 
-    pub fn map_tp(self, f: impl Fn(TyParam) -> TyParam + Copy) -> Self {
+    pub fn map_tp(self, f: &mut impl FnMut(TyParam) -> TyParam) -> Self {
         match self {
             Self::Value(val) => Self::Value(val.map_tp(f)),
             Self::Const(_) => self,
@@ -1056,6 +1056,58 @@ impl Predicate {
             Self::Or(lhs, rhs) => Self::Or(Box::new(lhs.map_tp(f)), Box::new(rhs.map_tp(f))),
             Self::Not(pred) => Self::Not(Box::new(pred.map_tp(f))),
             _ => self,
+        }
+    }
+
+    pub fn try_map_tp<E>(
+        self,
+        f: &mut impl FnMut(TyParam) -> Result<TyParam, E>,
+    ) -> Result<Self, E> {
+        match self {
+            Self::Value(val) => Ok(Self::Value(val.try_map_tp(f)?)),
+            Self::Call {
+                receiver,
+                args,
+                name,
+            } => Ok(Self::Call {
+                receiver: f(receiver)?,
+                args: args.into_iter().map(f).collect::<Result<_, E>>()?,
+                name,
+            }),
+            Self::Attr { receiver, name } => Ok(Self::Attr {
+                receiver: f(receiver)?,
+                name,
+            }),
+            Self::Equal { lhs, rhs } => Ok(Self::Equal { lhs, rhs: f(rhs)? }),
+            Self::GreaterEqual { lhs, rhs } => Ok(Self::GreaterEqual { lhs, rhs: f(rhs)? }),
+            Self::LessEqual { lhs, rhs } => Ok(Self::LessEqual { lhs, rhs: f(rhs)? }),
+            Self::NotEqual { lhs, rhs } => Ok(Self::NotEqual { lhs, rhs: f(rhs)? }),
+            Self::GeneralEqual { lhs, rhs } => Ok(Self::GeneralEqual {
+                lhs: Box::new(lhs.try_map_tp(f)?),
+                rhs: Box::new(rhs.try_map_tp(f)?),
+            }),
+            Self::GeneralLessEqual { lhs, rhs } => Ok(Self::GeneralLessEqual {
+                lhs: Box::new(lhs.try_map_tp(f)?),
+                rhs: Box::new(rhs.try_map_tp(f)?),
+            }),
+            Self::GeneralGreaterEqual { lhs, rhs } => Ok(Self::GeneralGreaterEqual {
+                lhs: Box::new(lhs.try_map_tp(f)?),
+                rhs: Box::new(rhs.try_map_tp(f)?),
+            }),
+            Self::GeneralNotEqual { lhs, rhs } => Ok(Self::GeneralNotEqual {
+                lhs: Box::new(lhs.try_map_tp(f)?),
+                rhs: Box::new(rhs.try_map_tp(f)?),
+            }),
+            Self::And(lhs, rhs) => Ok(Self::And(
+                Box::new(lhs.try_map_tp(f)?),
+                Box::new(rhs.try_map_tp(f)?),
+            )),
+            Self::Or(lhs, rhs) => Ok(Self::Or(
+                Box::new(lhs.try_map_tp(f)?),
+                Box::new(rhs.try_map_tp(f)?),
+            )),
+            Self::Not(pred) => Ok(Self::Not(Box::new(pred.try_map_tp(f)?))),
+            _ => Ok(self),
         }
     }
 }

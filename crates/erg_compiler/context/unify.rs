@@ -1293,21 +1293,25 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     }
                 }
             }
-            (FreeVar(sub_fv), Structural(sup)) if sub_fv.is_unbound() => {
-                if sub_fv.get_sub().is_none() {
+            (FreeVar(sub_fv), Structural(struct_sup)) if sub_fv.is_unbound() => {
+                let Some((sub, sup)) = sub_fv.get_subsup() else {
                     log!(err "{sub_fv} is not a type variable");
                     return Ok(());
-                }
+                };
                 let sub_fields = self.ctx.fields(maybe_sub);
-                for (sup_field, sup_ty) in self.ctx.fields(sup) {
+                for (sup_field, sup_ty) in self.ctx.fields(struct_sup) {
                     if let Some((_, sub_ty)) = sub_fields.get_key_value(&sup_field) {
                         self.sub_unify(sub_ty, &sup_ty)?;
-                    } else if !self.ctx.subtype_of(&sub_fv.get_sub().unwrap(), &Never) {
+                    } else if !self.ctx.subtype_of(&sub, &Never) {
                         maybe_sub.coerce(self.undoable);
                         return self.sub_unify(maybe_sub, maybe_sup);
                     } else {
                         // e.g. ?T / Structural({ .method = (self: ?T) -> Int })
-                        sub_fv.update_super(|sup| self.ctx.intersection(&sup, maybe_sup));
+                        let constr = Constraint::new_sandwiched(
+                            sub.clone(),
+                            self.ctx.intersection(&sup, maybe_sup),
+                        );
+                        sub_fv.update_constraint(constr, false);
                     }
                 }
             }

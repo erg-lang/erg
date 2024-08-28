@@ -54,6 +54,36 @@ pub const STR_OMIT_THRESHOLD: usize = if DEBUG_MODE { 100 } else { 16 };
 pub const CONTAINER_OMIT_THRESHOLD: usize = if DEBUG_MODE { 100 } else { 8 };
 pub const DEFAULT_PARAMS_THRESHOLD: usize = if DEBUG_MODE { 100 } else { 5 };
 
+#[macro_export]
+macro_rules! mono_type_pattern {
+    () => {
+        $crate::ty::Type::Int
+            | $crate::ty::Type::Nat
+            | $crate::ty::Type::Float
+            | $crate::ty::Type::Ratio
+            | $crate::ty::Type::Complex
+            | $crate::ty::Type::Inf
+            | $crate::ty::Type::NegInf
+            | $crate::ty::Type::Bool
+            | $crate::ty::Type::Str
+            | $crate::ty::Type::Code
+            | $crate::ty::Type::Frame
+            | $crate::ty::Type::Type
+            | $crate::ty::Type::TraitType
+            | $crate::ty::Type::ClassType
+            | $crate::ty::Type::Patch
+            | $crate::ty::Type::NoneType
+            | $crate::ty::Type::NotImplementedType
+            | $crate::ty::Type::Ellipsis
+            | $crate::ty::Type::Error
+            | $crate::ty::Type::Obj
+            | $crate::ty::Type::Never
+            | $crate::ty::Type::Failure
+            | $crate::ty::Type::Mono(_)
+            | $crate::ty::Type::Uninited
+    };
+}
+
 /// cloneのコストがあるためなるべく.ref_tを使うようにすること
 /// いくつかの構造体は直接Typeを保持していないので、その場合は.tを使う
 #[allow(unused_variables)]
@@ -256,10 +286,7 @@ impl ParamTy {
         }
     }
 
-    pub fn try_map_type<F, E>(self, f: F) -> Result<Self, E>
-    where
-        F: FnOnce(Type) -> Result<Type, E>,
-    {
+    pub fn try_map_type<E>(self, f: &mut impl FnMut(Type) -> Result<Type, E>) -> Result<Self, E> {
         match self {
             Self::Pos(ty) => Ok(Self::Pos(f(ty)?)),
             Self::Kw { name, ty } => Ok(Self::Kw { name, ty: f(ty)? }),
@@ -268,6 +295,20 @@ impl ParamTy {
                 ty: f(ty)?,
                 default,
             }),
+        }
+    }
+
+    pub fn try_map_default_type<E>(
+        self,
+        f: &mut impl FnMut(Type) -> Result<Type, E>,
+    ) -> Result<Self, E> {
+        match self {
+            Self::KwWithDefault { name, ty, default } => Ok(Self::KwWithDefault {
+                name,
+                ty,
+                default: f(default)?,
+            }),
+            _ => Ok(self),
         }
     }
 
@@ -532,22 +573,53 @@ impl SubrType {
         )
     }
 
-    pub fn map_tp(self, f: impl Fn(TyParam) -> TyParam + Copy) -> Self {
-        let f = |t: Type| t.map_tp(f);
+    pub fn map_tp(self, f: &mut impl FnMut(TyParam) -> TyParam) -> Self {
+        let mut f_ = |t: Type| t.map_tp(f);
         Self::new(
             self.kind,
             self.non_default_params
                 .into_iter()
-                .map(|pt| pt.map_type(f))
+                .map(|pt| pt.map_type(&mut f_))
                 .collect(),
-            self.var_params.map(|pt| pt.map_type(f)),
+            self.var_params.map(|pt| pt.map_type(&mut f_)),
             self.default_params
                 .into_iter()
-                .map(|pt| pt.map_type(f).map_default_type(f))
+                .map(|pt| pt.map_type(&mut f_).map_default_type(&mut f_))
                 .collect(),
-            self.kw_var_params.map(|pt| pt.map_type(f)),
-            f(*self.return_t),
+            self.kw_var_params.map(|pt| pt.map_type(&mut f_)),
+            f_(*self.return_t),
         )
+    }
+
+    pub fn try_map_tp<E>(
+        self,
+        f: &mut impl FnMut(TyParam) -> Result<TyParam, E>,
+    ) -> Result<Self, E> {
+        let mut f_ = |t: Type| t.try_map_tp(f);
+        let var_params = if let Some(var_params) = self.var_params {
+            Some(var_params.try_map_type(&mut f_)?)
+        } else {
+            None
+        };
+        let kw_var_params = if let Some(kw_var_params) = self.kw_var_params {
+            Some(kw_var_params.try_map_type(&mut f_)?)
+        } else {
+            None
+        };
+        Ok(Self::new(
+            self.kind,
+            self.non_default_params
+                .into_iter()
+                .map(|pt| pt.try_map_type(&mut f_))
+                .collect::<Result<_, _>>()?,
+            var_params,
+            self.default_params
+                .into_iter()
+                .map(|pt| pt.try_map_type(&mut f_)?.try_map_default_type(&mut f_))
+                .collect::<Result<_, _>>()?,
+            kw_var_params,
+            self.return_t.try_map_tp(f)?,
+        ))
     }
 
     pub fn contains_value(&self, target: &ValueObj) -> bool {
@@ -3334,8 +3406,12 @@ impl Type {
             }
             Type::FreeVar(fv) if fv.is_unbound_and_sandwiched() => {
                 let (sub, _sup) = fv.get_subsup().unwrap();
-                sub.destructive_coerce();
-                self.destructive_link(&sub);
+                if self.addr_eq(&sub) {
+                    self.destructive_link(&Type::Never);
+                } else {
+                    sub.destructive_coerce();
+                    self.destructive_link(&sub);
+                }
             }
             Type::And(l, r) | Type::Or(l, r) => {
                 l.destructive_coerce();
@@ -3348,6 +3424,32 @@ impl Type {
                         t.destructive_coerce();
                     }
                 }
+            }
+            Type::Bounded { sub, sup } => {
+                sub.destructive_coerce();
+                sup.destructive_coerce();
+            }
+            Type::Ref(t) => t.destructive_coerce(),
+            Type::RefMut { before, after } => {
+                before.destructive_coerce();
+                if let Some(after) = after {
+                    after.destructive_coerce();
+                }
+            }
+            Type::Structural(ty) => ty.destructive_coerce(),
+            Type::Record(r) => {
+                for t in r.values() {
+                    t.destructive_coerce();
+                }
+            }
+            Type::NamedTuple(r) => {
+                for (_, t) in r.iter() {
+                    t.destructive_coerce();
+                }
+            }
+            Type::Refinement(refine) => {
+                refine.t.destructive_coerce();
+                // refine.pred.destructive_coerce();
             }
             Type::Subr(subr) => subr.destructive_coerce(),
             // TODO:
@@ -3362,8 +3464,12 @@ impl Type {
             }
             Type::FreeVar(fv) if fv.is_unbound_and_sandwiched() => {
                 let (sub, _sup) = fv.get_subsup().unwrap();
-                sub.undoable_coerce(list);
-                self.undoable_link(&sub, list);
+                if self.addr_eq(&sub) {
+                    self.undoable_link(&Type::Never, list);
+                } else {
+                    sub.undoable_coerce(list);
+                    self.undoable_link(&sub, list);
+                }
             }
             Type::And(l, r) | Type::Or(l, r) => {
                 l.undoable_coerce(list);
@@ -3831,7 +3937,7 @@ impl Type {
             // At least in situations where this function is needed, self cannot be Quantified.
             Self::Quantified(quant) => {
                 if quant.return_t()?.is_generalized() {
-                    log!(err "quantified return type (recursive function type inference)");
+                    log!(err "quantified return type (recursive function type inference?)");
                 }
                 quant.return_t()
             }
@@ -4334,7 +4440,7 @@ impl Type {
         }
     }
 
-    fn map_tp(self, f: impl Fn(TyParam) -> TyParam + Copy) -> Type {
+    fn map_tp(self, f: &mut impl FnMut(TyParam) -> TyParam) -> Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().map_tp(f),
             Self::FreeVar(fv) => {
@@ -4408,6 +4514,96 @@ impl Type {
                 sup: Box::new(sup.map_tp(f)),
             },
             other => other,
+        }
+    }
+
+    pub fn try_map_tp<E>(
+        self,
+        f: &mut impl FnMut(TyParam) -> Result<TyParam, E>,
+    ) -> Result<Type, E> {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().try_map_tp(f),
+            Self::FreeVar(fv) => {
+                let fv_clone = fv.deep_clone();
+                if let Some((sub, sup)) = fv_clone.get_subsup() {
+                    fv.dummy_link();
+                    fv_clone.dummy_link();
+                    let sub = sub.try_map_tp(f)?;
+                    let sup = sup.try_map_tp(f)?;
+                    fv.undo();
+                    fv_clone.undo();
+                    fv_clone.update_constraint(Constraint::new_sandwiched(sub, sup), true);
+                } else if let Some(ty) = fv_clone.get_type() {
+                    fv_clone.update_constraint(Constraint::new_type_of(ty.try_map_tp(f)?), true);
+                }
+                Ok(Self::FreeVar(fv_clone))
+            }
+            Self::Refinement(mut refine) => {
+                refine.t = Box::new(refine.t.try_map_tp(f)?);
+                refine.pred = Box::new(refine.pred.try_map_tp(f)?);
+                Ok(Self::Refinement(refine))
+            }
+            Self::Record(mut rec) => {
+                for v in rec.values_mut() {
+                    *v = std::mem::take(v).try_map_tp(f)?;
+                }
+                Ok(Self::Record(rec))
+            }
+            Self::NamedTuple(mut r) => {
+                for (_, v) in r.iter_mut() {
+                    *v = std::mem::take(v).try_map_tp(f)?;
+                }
+                Ok(Self::NamedTuple(r))
+            }
+            Self::Subr(subr) => Ok(Self::Subr(subr.try_map_tp(f)?)),
+            Self::Callable { param_ts, return_t } => {
+                let param_ts = param_ts
+                    .into_iter()
+                    .map(|t| t.try_map_tp(f))
+                    .collect::<Result<_, _>>()?;
+                let return_t = Box::new(return_t.try_map_tp(f)?);
+                Ok(Self::Callable { param_ts, return_t })
+            }
+            Self::Quantified(quant) => Ok(quant.try_map_tp(f)?.quantify()),
+            Self::Poly { name, params } => {
+                let params = params.into_iter().map(f).collect::<Result<_, _>>()?;
+                Ok(Self::Poly { name, params })
+            }
+            Self::Ref(t) => Ok(Self::Ref(Box::new(t.try_map_tp(f)?))),
+            Self::RefMut { before, after } => {
+                let after = match after {
+                    Some(t) => Some(Box::new(t.try_map_tp(f)?)),
+                    None => None,
+                };
+                Ok(Self::RefMut {
+                    before: Box::new(before.try_map_tp(f)?),
+                    after,
+                })
+            }
+            Self::And(l, r) => Ok(l.try_map_tp(f)? & r.try_map_tp(f)?),
+            Self::Or(l, r) => Ok(l.try_map_tp(f)? | r.try_map_tp(f)?),
+            Self::Not(ty) => Ok(!ty.try_map_tp(f)?),
+            Self::Proj { lhs, rhs } => Ok(lhs.try_map_tp(f)?.proj(rhs)),
+            Self::ProjCall {
+                lhs,
+                attr_name,
+                args,
+            } => {
+                let lhs = f(*lhs)?;
+                let args = args.into_iter().map(f).collect::<Result<_, _>>()?;
+                Ok(proj_call(lhs, attr_name, args))
+            }
+            Self::Structural(ty) => Ok(ty.try_map_tp(f)?.structuralize()),
+            Self::Guard(guard) => Ok(Self::Guard(GuardType::new(
+                guard.namespace,
+                guard.target.clone(),
+                guard.to.try_map_tp(f)?,
+            ))),
+            Self::Bounded { sub, sup } => Ok(Self::Bounded {
+                sub: Box::new(sub.try_map_tp(f)?),
+                sup: Box::new(sup.try_map_tp(f)?),
+            }),
+            mono_type_pattern!() => Ok(self),
         }
     }
 
@@ -4540,9 +4736,9 @@ impl Type {
             return;
         }
         if self.level() == Some(GENERIC_LEVEL) {
-            if DEBUG_MODE {
+            /*if DEBUG_MODE {
                 panic!("{self} is fixed");
-            }
+            }*/
             return;
         }
         let to = to.clone().eliminate_sub(self).eliminate_recursion(self);

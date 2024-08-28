@@ -15,7 +15,7 @@ use erg_common::python_util::PythonVersion;
 use erg_common::serialize::*;
 use erg_common::set::Set;
 use erg_common::traits::LimitedDisplay;
-use erg_common::{dict, fmt_iter, impl_display_from_debug, log, switch_lang};
+use erg_common::{dict, fmt_iter, log, switch_lang};
 use erg_common::{ArcArray, Str};
 use erg_parser::ast::{ConstArgs, ConstExpr};
 
@@ -377,12 +377,20 @@ impl GenTypeObj {
         *self.typ_mut() = f(std::mem::take(self.typ_mut()));
     }
 
-    pub fn map_tp(&mut self, f: impl Fn(TyParam) -> TyParam + Copy) {
+    pub fn map_tp(&mut self, f: &mut impl FnMut(TyParam) -> TyParam) {
         *self.typ_mut() = std::mem::take(self.typ_mut()).map_tp(f);
     }
 
     pub fn try_map_t<E>(&mut self, f: impl FnOnce(Type) -> Result<Type, E>) -> Result<(), E> {
-        *self.typ_mut() = f(self.typ().clone())?;
+        *self.typ_mut() = f(std::mem::take(self.typ_mut()))?;
+        Ok(())
+    }
+
+    pub fn try_map_tp<E>(
+        &mut self,
+        f: &mut impl FnMut(TyParam) -> Result<TyParam, E>,
+    ) -> Result<(), E> {
+        *self.typ_mut() = std::mem::take(self.typ_mut()).try_map_tp(f)?;
         Ok(())
     }
 }
@@ -493,7 +501,7 @@ impl TypeObj {
         }
     }
 
-    pub fn map_tp(&mut self, f: impl Fn(TyParam) -> TyParam + Copy) {
+    pub fn map_tp(&mut self, f: &mut impl FnMut(TyParam) -> TyParam) {
         match self {
             TypeObj::Builtin { t, .. } => *t = std::mem::take(t).map_tp(f),
             TypeObj::Generated(t) => t.map_tp(f),
@@ -505,23 +513,47 @@ impl TypeObj {
         self
     }
 
-    pub fn mapped_tp(mut self, f: impl Fn(TyParam) -> TyParam + Copy) -> Self {
+    pub fn mapped_tp(mut self, f: &mut impl FnMut(TyParam) -> TyParam) -> Self {
         self.map_tp(f);
         self
     }
 
-    pub fn try_map_t<E>(&mut self, f: impl FnOnce(Type) -> Result<Type, E>) -> Result<(), E> {
+    pub fn try_map_t<E>(&mut self, f: &mut impl FnMut(Type) -> Result<Type, E>) -> Result<(), E> {
         match self {
             TypeObj::Builtin { t, .. } => {
-                *t = f(t.clone())?;
+                *t = f(std::mem::take(t))?;
                 Ok(())
             }
             TypeObj::Generated(t) => t.try_map_t(f),
         }
     }
 
-    pub fn try_mapped_t<E>(mut self, f: impl FnOnce(Type) -> Result<Type, E>) -> Result<Self, E> {
+    pub fn try_mapped_t<E>(
+        mut self,
+        f: &mut impl FnMut(Type) -> Result<Type, E>,
+    ) -> Result<Self, E> {
         self.try_map_t(f)?;
+        Ok(self)
+    }
+
+    pub fn try_map_tp<E>(
+        &mut self,
+        f: &mut impl FnMut(TyParam) -> Result<TyParam, E>,
+    ) -> Result<(), E> {
+        match self {
+            TypeObj::Builtin { t, .. } => {
+                *t = std::mem::take(t).try_map_tp(f)?;
+                Ok(())
+            }
+            TypeObj::Generated(t) => t.try_map_tp(f),
+        }
+    }
+
+    pub fn try_mapped_tp<E>(
+        mut self,
+        f: &mut impl FnMut(TyParam) -> Result<TyParam, E>,
+    ) -> Result<Self, E> {
+        self.try_map_tp(f)?;
         Ok(self)
     }
 }
@@ -556,6 +588,24 @@ pub enum ValueObj {
     Inf,
     #[default]
     Failure, // placeholder for illegal values
+}
+
+#[macro_export]
+macro_rules! mono_value_pattern {
+    () => {
+        $crate::ty::ValueObj::Int(_)
+            | $crate::ty::ValueObj::Nat(_)
+            | $crate::ty::ValueObj::Float(_)
+            | $crate::ty::ValueObj::Inf
+            | $crate::ty::ValueObj::NegInf
+            | $crate::ty::ValueObj::Bool(_)
+            | $crate::ty::ValueObj::Str(_)
+            | $crate::ty::ValueObj::Code(_)
+            | $crate::ty::ValueObj::None
+            | $crate::ty::ValueObj::NotImplemented
+            | $crate::ty::ValueObj::Ellipsis
+            | $crate::ty::ValueObj::Failure
+    };
 }
 
 impl fmt::Debug for ValueObj {
@@ -630,8 +680,8 @@ impl fmt::Debug for ValueObj {
                 }
                 write!(f, "}}")
             }
-            Self::Subr(subr) => write!(f, "{subr}"),
-            Self::Type(t) => write!(f, "{t}"),
+            Self::Subr(subr) => subr.fmt(f),
+            Self::Type(t) => t.fmt(f),
             Self::None => write!(f, "None"),
             Self::Ellipsis => write!(f, "Ellipsis"),
             Self::NotImplemented => write!(f, "NotImplemented"),
@@ -642,7 +692,89 @@ impl fmt::Debug for ValueObj {
     }
 }
 
-impl_display_from_debug!(ValueObj);
+impl fmt::Display for ValueObj {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Int(i) => {
+                if cfg!(feature = "debug") {
+                    write!(f, "Int({i})")
+                } else {
+                    write!(f, "{i}")
+                }
+            }
+            Self::Nat(n) => {
+                if cfg!(feature = "debug") {
+                    write!(f, "Nat({n})")
+                } else {
+                    write!(f, "{n}")
+                }
+            }
+            Self::Float(fl) => {
+                // In Rust, .0 is shown omitted.
+                if fl.fract() < 1e-10 {
+                    write!(f, "{fl:.1}")?;
+                } else {
+                    write!(f, "{fl}")?;
+                }
+                if cfg!(feature = "debug") {
+                    write!(f, "f64")?;
+                }
+                Ok(())
+            }
+            Self::Str(s) => write!(f, "\"{}\"", s.escape()),
+            Self::Bool(b) => {
+                if *b {
+                    write!(f, "True")
+                } else {
+                    write!(f, "False")
+                }
+            }
+            Self::List(lis) => write!(f, "[{}]", fmt_iter(lis.iter())),
+            Self::UnsizedList(elem) => write!(f, "[{elem}; _]"),
+            Self::Dict(dict) => {
+                write!(f, "{{")?;
+                for (i, (k, v)) in dict.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{k}: {v}")?;
+                }
+                write!(f, "}}")
+            }
+            Self::Tuple(tup) => write!(f, "({})", fmt_iter(tup.iter())),
+            Self::Set(st) => write!(f, "{{{}}}", fmt_iter(st.iter())),
+            Self::Code(code) => write!(f, "{code}"),
+            Self::Record(rec) => {
+                write!(f, "{{")?;
+                for (i, (k, v)) in rec.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, "; ")?;
+                    }
+                    write!(f, "{k} = {v}")?;
+                }
+                write!(f, "}}")
+            }
+            Self::DataClass { name, fields } => {
+                write!(f, "{name} {{")?;
+                for (i, (k, v)) in fields.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, "; ")?;
+                    }
+                    write!(f, "{k} = {v}")?;
+                }
+                write!(f, "}}")
+            }
+            Self::Subr(subr) => subr.fmt(f),
+            Self::Type(t) => t.fmt(f),
+            Self::None => write!(f, "None"),
+            Self::Ellipsis => write!(f, "Ellipsis"),
+            Self::NotImplemented => write!(f, "NotImplemented"),
+            Self::NegInf => write!(f, "-Inf"),
+            Self::Inf => write!(f, "Inf"),
+            Self::Failure => write!(f, "<failure>"),
+        }
+    }
+}
 
 impl LimitedDisplay for ValueObj {
     fn limited_fmt<W: std::fmt::Write>(&self, f: &mut W, limit: isize) -> std::fmt::Result {
@@ -1652,7 +1784,7 @@ impl ValueObj {
                 name,
                 fields: fields.into_iter().map(|(k, v)| (k, v.map_t(f))).collect(),
             },
-            ValueObj::UnsizedList(elem) => ValueObj::UnsizedList(Box::new(elem.clone().map_t(f))),
+            ValueObj::UnsizedList(elem) => ValueObj::UnsizedList(Box::new(elem.map_t(f))),
             self_ => self_,
         }
     }
@@ -1692,14 +1824,12 @@ impl ValueObj {
                     .map(|(k, v)| Ok((k, v.try_map_t(f)?)))
                     .collect::<Result<Dict<_, _>, _>>()?,
             }),
-            ValueObj::UnsizedList(elem) => {
-                Ok(ValueObj::UnsizedList(Box::new(elem.clone().try_map_t(f)?)))
-            }
+            ValueObj::UnsizedList(elem) => Ok(ValueObj::UnsizedList(Box::new(elem.try_map_t(f)?))),
             self_ => Ok(self_),
         }
     }
 
-    pub fn map_tp(self, f: impl Fn(TyParam) -> TyParam + Copy) -> Self {
+    pub fn map_tp(self, f: &mut impl FnMut(TyParam) -> TyParam) -> Self {
         match self {
             ValueObj::Type(obj) => ValueObj::Type(obj.mapped_tp(f)),
             ValueObj::List(lis) => {
@@ -1721,8 +1851,51 @@ impl ValueObj {
                 name,
                 fields: fields.into_iter().map(|(k, v)| (k, v.map_tp(f))).collect(),
             },
-            ValueObj::UnsizedList(elem) => ValueObj::UnsizedList(Box::new(elem.clone().map_tp(f))),
+            ValueObj::UnsizedList(elem) => ValueObj::UnsizedList(Box::new(elem.map_tp(f))),
             self_ => self_,
+        }
+    }
+
+    pub fn try_map_tp<E>(
+        self,
+        f: &mut impl FnMut(TyParam) -> Result<TyParam, E>,
+    ) -> Result<Self, E> {
+        match self {
+            ValueObj::Type(obj) => Ok(ValueObj::Type(obj.try_mapped_tp(f)?)),
+            ValueObj::List(lis) => Ok(ValueObj::List(
+                lis.iter()
+                    .map(|v| v.clone().try_map_tp(f))
+                    .collect::<Result<Arc<_>, _>>()?,
+            )),
+            ValueObj::Tuple(tup) => Ok(ValueObj::Tuple(
+                tup.iter()
+                    .map(|v| v.clone().try_map_tp(f))
+                    .collect::<Result<Arc<_>, _>>()?,
+            )),
+            ValueObj::Set(st) => Ok(ValueObj::Set(
+                st.into_iter()
+                    .map(|v| v.try_map_tp(f))
+                    .collect::<Result<Set<_>, _>>()?,
+            )),
+            ValueObj::Dict(dict) => Ok(ValueObj::Dict(
+                dict.into_iter()
+                    .map(|(k, v)| Ok((k.try_map_tp(f)?, v.try_map_tp(f)?)))
+                    .collect::<Result<Dict<_, _>, _>>()?,
+            )),
+            ValueObj::Record(rec) => Ok(ValueObj::Record(
+                rec.into_iter()
+                    .map(|(k, v)| Ok((k, v.try_map_tp(f)?)))
+                    .collect::<Result<Dict<_, _>, _>>()?,
+            )),
+            ValueObj::DataClass { name, fields } => Ok(ValueObj::DataClass {
+                name,
+                fields: fields
+                    .into_iter()
+                    .map(|(k, v)| Ok((k, v.try_map_tp(f)?)))
+                    .collect::<Result<Dict<_, _>, _>>()?,
+            }),
+            ValueObj::UnsizedList(elem) => Ok(ValueObj::UnsizedList(Box::new(elem.try_map_tp(f)?))),
+            self_ => Ok(self_),
         }
     }
 

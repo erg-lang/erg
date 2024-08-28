@@ -1531,7 +1531,7 @@ impl TyParam {
         if self.qual_name().is_some_and(|n| n == var) {
             return to.clone();
         }
-        self.map(|tp| tp.substitute(var, to))
+        self.map(&mut |tp| tp.substitute(var, to))
     }
 
     pub fn replace(self, target: &TyParam, to: &TyParam) -> TyParam {
@@ -1546,7 +1546,7 @@ impl TyParam {
         match self {
             TyParam::Type(t) => TyParam::t(t._replace_tp(target, to)),
             TyParam::Value(val) => TyParam::value(val.replace_tp(target, to)),
-            self_ => self_.map(|tp| tp._replace(target, to)),
+            self_ => self_.map(&mut |tp| tp._replace(target, to)),
         }
     }
 
@@ -1561,7 +1561,7 @@ impl TyParam {
             Self::Type(t) => Self::t(t._replace(target, to)),
             Self::Erased(t) => Self::erased(t._replace(target, to)),
             Self::Value(val) => Self::Value(val.replace_t(target, to)),
-            _ => self.map(|tp| tp.replace_t(target, to)),
+            _ => self.map(&mut |tp| tp.replace_t(target, to)),
         }
     }
 
@@ -1592,8 +1592,11 @@ impl TyParam {
         if self.addr_eq(to) {
             return;
         }
-        if DEBUG_MODE && self.level() == Some(GENERIC_LEVEL) {
-            panic!("{self} is fixed");
+        if self.level() == Some(GENERIC_LEVEL) {
+            /*if DEBUG_MODE {
+                panic!("{self} is fixed");
+            }*/
+            return;
         }
         match self {
             Self::FreeVar(fv) => fv.link(to),
@@ -1858,7 +1861,8 @@ impl TyParam {
         }
     }
 
-    pub fn map(self, f: impl Fn(TyParam) -> TyParam + Copy) -> TyParam {
+    /// For recursive function
+    pub fn map(self, f: &mut impl FnMut(TyParam) -> TyParam) -> TyParam {
         match self {
             TyParam::FreeVar(fv) if fv.is_linked() => f(fv.unwrap_linked()),
             TyParam::App { name, args } => {
@@ -1901,15 +1905,12 @@ impl TyParam {
                 obj: Box::new(f(*obj)),
                 attr,
             },
-            TyParam::ProjCall { obj, attr, args } => {
-                let new_args = args.into_iter().map(f).collect::<Vec<_>>();
-                TyParam::ProjCall {
-                    obj: Box::new(f(*obj)),
-                    attr,
-                    args: new_args,
-                }
-            }
-            TyParam::Value(val) => TyParam::Value(val.map_t(&mut |t| t.map_tp(f))),
+            TyParam::ProjCall { obj, attr, args } => TyParam::ProjCall {
+                obj: Box::new(f(*obj)),
+                attr,
+                args: args.into_iter().map(f).collect::<Vec<_>>(),
+            },
+            TyParam::Value(val) => TyParam::Value(val.map_tp(f)),
             self_ => self_,
         }
     }

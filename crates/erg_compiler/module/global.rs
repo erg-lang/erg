@@ -59,7 +59,7 @@ impl SharedCompilerResource {
 
     pub fn inherit<P: Into<NormalizedPathBuf>>(&self, path: P) -> Self {
         let mut _self = self.clone();
-        _self.promises.path = path.into();
+        _self.promises.root = path.into();
         _self
     }
 
