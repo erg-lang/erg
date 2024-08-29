@@ -248,8 +248,8 @@ impl Constraint {
                 } else if sup.addr_eq(target) {
                     Self::new_supertype_of(sub)
                 } else {
-                    let sub = sub.eliminate_sub(target);
-                    let sup = sup.eliminate_sub(target);
+                    let sub = sub.eliminate_subsup(target);
+                    let sup = sup.eliminate_subsup(target);
                     Self::new_sandwiched(sub, sup)
                 }
             }

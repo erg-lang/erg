@@ -406,11 +406,17 @@ impl<'c> Substituter<'c> {
     /// -> Iterable(Int)
     /// ```
     pub(crate) fn substitute_self(qt: &Type, subtype: &Type, ctx: &'c Context) -> Option<Self> {
+        #[allow(clippy::blocks_in_conditions)]
         for t in qt.contained_ts() {
             if t.is_qvar()
                 && &t.qual_name()[..] == "Self"
-                && t.get_super()
-                    .is_some_and(|sup| ctx.supertype_of(&sup, subtype))
+                && t.get_super().is_some_and(|sup| {
+                    let fv = t.as_free().unwrap();
+                    fv.dummy_link();
+                    let res = ctx.supertype_of(&sup, subtype);
+                    fv.undo();
+                    res
+                })
             {
                 let mut _self = Self::new(ctx);
                 t.undoable_link(subtype, &_self.undoable_linked);

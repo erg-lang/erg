@@ -37,7 +37,7 @@ use erg_parser::ast::Expr;
 use erg_parser::token::TokenKind;
 
 pub use const_subr::*;
-use constructors::{dict_t, int_interval, mono};
+use constructors::{callable, dict_t, int_interval, mono};
 use free::{CanbeFree, Constraint, Free, FreeKind, FreeTyVar, HasLevel, Level, GENERIC_LEVEL};
 pub use predicate::Predicate;
 pub use typaram::{IntervalOp, TyParam};
@@ -2007,7 +2007,7 @@ impl HasLevel for Type {
                     Some(min)
                 }
             }
-            _ => None,
+            mono_type_pattern!() => None,
         }
     }
 
@@ -2084,7 +2084,7 @@ impl HasLevel for Type {
                 sub.set_level(level);
                 sup.set_level(level);
             }
-            _ => {}
+            mono_type_pattern!() => {} //_ => {}
         }
     }
 }
@@ -2874,7 +2874,11 @@ impl Type {
                     || after.as_ref().map_or(false, |t| t.contains_tvar(target))
             }
             Self::Bounded { sub, sup } => sub.contains_tvar(target) || sup.contains_tvar(target),
-            _ => false,
+            Self::Callable { param_ts, return_t } => {
+                param_ts.iter().any(|t| t.contains_tvar(target)) || return_t.contains_tvar(target)
+            }
+            Self::Guard(guard) => guard.to.contains_tvar(target),
+            mono_type_pattern!() => false,
         }
     }
 
@@ -2937,7 +2941,11 @@ impl Type {
                     || after.as_ref().map_or(false, |t| t.contains_type(target))
             }
             Self::Bounded { sub, sup } => sub.contains_type(target) || sup.contains_type(target),
-            _ => false,
+            Self::Callable { param_ts, return_t } => {
+                param_ts.iter().any(|t| t.contains_type(target)) || return_t.contains_type(target)
+            }
+            Self::Guard(guard) => guard.to.contains_type(target),
+            mono_type_pattern!() => false,
         }
     }
 
@@ -2971,13 +2979,18 @@ impl Type {
                     || after.as_ref().map_or(false, |t| t.contains_tp(target))
             }
             Self::Bounded { sub, sup } => sub.contains_tp(target) || sup.contains_tp(target),
-            _ => false,
+            Self::Callable { param_ts, return_t } => {
+                param_ts.iter().any(|t| t.contains_tp(target)) || return_t.contains_tp(target)
+            }
+            Self::Guard(guard) => guard.to.contains_tp(target),
+            mono_type_pattern!() => false,
         }
     }
 
     pub fn contains_value(&self, target: &ValueObj) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_value(target),
+            Self::FreeVar(_) => false,
             Self::Record(rec) => rec.iter().any(|(_, t)| t.contains_value(target)),
             Self::NamedTuple(rec) => rec.iter().any(|(_, t)| t.contains_value(target)),
             Self::Poly { params, .. } => params.iter().any(|tp| tp.contains_value(target)),
@@ -3000,7 +3013,11 @@ impl Type {
                     || after.as_ref().map_or(false, |t| t.contains_value(target))
             }
             Self::Bounded { sub, sup } => sub.contains_value(target) || sup.contains_value(target),
-            _ => false,
+            Self::Callable { param_ts, return_t } => {
+                param_ts.iter().any(|t| t.contains_value(target)) || return_t.contains_value(target)
+            }
+            Self::Guard(guard) => guard.to.contains_value(target),
+            mono_type_pattern!() => false,
         }
     }
 
@@ -3039,7 +3056,11 @@ impl Type {
                     || after.as_ref().map_or(false, |t| t.contains_type(self))
             }
             Self::Bounded { sub, sup } => sub.contains_type(self) || sup.contains_type(self),
-            _ => false,
+            Self::Callable { param_ts, return_t } => {
+                param_ts.iter().any(|t| t.contains_type(self)) || return_t.contains_type(self)
+            }
+            Self::Guard(guard) => guard.to.contains_type(self),
+            mono_type_pattern!() => false,
         }
     }
 
@@ -3518,6 +3539,7 @@ impl Type {
                     base
                 }
             }
+            Self::FreeVar(_) => set! {},
             Self::Ref(ty) => ty.qvars_inner(),
             Self::RefMut { before, after } => before.qvars_inner().concat(
                 after
@@ -3541,6 +3563,7 @@ impl Type {
             Self::Refinement(refine) => refine.t.qvars_inner().concat(refine.pred.qvars()),
             // ((|T| T -> T) and U).qvars() == U.qvars()
             // Self::Quantified(quant) => quant.qvars(),
+            Self::Quantified(_) => set! {},
             Self::Poly { params, .. } => params
                 .iter()
                 .fold(set! {}, |acc, tp| acc.concat(tp.qvars())),
@@ -3551,7 +3574,7 @@ impl Type {
             Self::Structural(ty) => ty.qvars_inner(),
             Self::Guard(guard) => guard.to.qvars_inner(),
             Self::Bounded { sub, sup } => sub.qvars_inner().concat(sup.qvars_inner()),
-            _ => set! {},
+            mono_type_pattern!() => set! {},
         }
     }
 
@@ -3598,6 +3621,7 @@ impl Type {
                 param_ts.iter().any(|t| t.has_qvar()) || return_t.has_qvar()
             }
             Self::Subr(subr) => subr.has_qvar(),
+            Self::Quantified(_) => false,
             // Self::Quantified(quant) => quant.has_qvar(),
             Self::Record(r) => r.values().any(|t| t.has_qvar()),
             Self::NamedTuple(r) => r.iter().any(|(_, t)| t.has_qvar()),
@@ -3610,7 +3634,7 @@ impl Type {
             Self::Structural(ty) => ty.has_qvar(),
             Self::Guard(guard) => guard.to.has_qvar(),
             Self::Bounded { sub, sup } => sub.has_qvar() || sup.has_qvar(),
-            _ => false,
+            mono_type_pattern!() => false,
         }
     }
 
@@ -3669,7 +3693,7 @@ impl Type {
             Self::Bounded { sub, sup } => {
                 sub.has_undoable_linked_var() || sup.has_undoable_linked_var()
             }
-            _ => false,
+            mono_type_pattern!() => false,
         }
     }
 
@@ -3719,7 +3743,7 @@ impl Type {
             Self::Structural(ty) => ty.has_unbound_var(),
             Self::Guard(guard) => guard.to.has_unbound_var(),
             Self::Bounded { sub, sup } => sub.has_unbound_var() || sup.has_unbound_var(),
-            _ => false,
+            mono_type_pattern!() => false,
         }
     }
 
@@ -4065,41 +4089,41 @@ impl Type {
             }
             Self::Subr(subr) => Self::Subr(subr.derefine()),
             Self::Quantified(quant) => quant.derefine().quantify(),
-            other => other.clone(),
+            mono_type_pattern!() => self.clone(),
         }
     }
 
     /// ```erg
-    /// (T or U).eliminate_sub(T) == U
-    /// ?X(<: T or U).eliminate_sub(T) == ?X(<: U)
+    /// (T or U).eliminate_subsup(T) == U
+    /// ?X(<: T or U).eliminate_subsup(T) == ?X(<: U)
     /// ```
-    pub fn eliminate_sub(self, target: &Type) -> Self {
+    pub fn eliminate_subsup(self, target: &Type) -> Self {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().eliminate_sub(target),
+            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().eliminate_subsup(target),
             Self::FreeVar(ref fv) if fv.constraint_is_sandwiched() => {
                 let (sub, sup) = fv.get_subsup().unwrap();
                 fv.do_avoiding_recursion(|| {
-                    let sub = sub.eliminate_sub(target);
-                    let sup = sup.eliminate_sub(target);
+                    let sub = sub.eliminate_subsup(target);
+                    let sup = sup.eliminate_subsup(target);
                     self.update_tyvar(sub, sup, None, false);
                 });
                 self
             }
             Self::And(l, r) => {
                 if l.addr_eq(target) {
-                    return r.eliminate_sub(target);
+                    return r.eliminate_subsup(target);
                 } else if r.addr_eq(target) {
-                    return l.eliminate_sub(target);
+                    return l.eliminate_subsup(target);
                 }
-                l.eliminate_sub(target) & r.eliminate_sub(target)
+                l.eliminate_subsup(target) & r.eliminate_subsup(target)
             }
             Self::Or(l, r) => {
                 if l.addr_eq(target) {
-                    return r.eliminate_sub(target);
+                    return r.eliminate_subsup(target);
                 } else if r.addr_eq(target) {
-                    return l.eliminate_sub(target);
+                    return l.eliminate_subsup(target);
                 }
-                l.eliminate_sub(target) | r.eliminate_sub(target)
+                l.eliminate_subsup(target) | r.eliminate_subsup(target)
             }
             other => other,
         }
@@ -4115,6 +4139,7 @@ impl Type {
         }
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().eliminate_recursion(target),
+            Self::FreeVar(_) => self,
             Self::Refinement(mut refine) => {
                 refine.t = Box::new(refine.t.eliminate_recursion(target));
                 refine.pred = Box::new(refine.pred.map_t(&mut |t| t.eliminate_recursion(target)));
@@ -4176,7 +4201,7 @@ impl Type {
                 sub: Box::new(sub.eliminate_recursion(target)),
                 sup: Box::new(sup.eliminate_recursion(target)),
             },
-            other => other,
+            mono_type_pattern!() => self,
         }
     }
 
@@ -4344,7 +4369,7 @@ impl Type {
                 sub: Box::new(sub._replace(target, to)),
                 sup: Box::new(sup._replace(target, to)),
             },
-            other => other,
+            mono_type_pattern!() => self,
         }
     }
 
@@ -4430,7 +4455,7 @@ impl Type {
                 sub: Box::new(sub._replace_tp(target, to)),
                 sup: Box::new(sup._replace_tp(target, to)),
             },
-            other => other,
+            mono_type_pattern!() => self,
         }
     }
 
@@ -4507,7 +4532,7 @@ impl Type {
                 sub: Box::new(sub.map_tp(f)),
                 sup: Box::new(sup.map_tp(f)),
             },
-            other => other,
+            mono_type_pattern!() => self,
         }
     }
 
@@ -4629,6 +4654,7 @@ impl Type {
     pub fn normalize(self) -> Self {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().normalize(),
+            Self::FreeVar(_) => self,
             Self::Poly { name, params } => {
                 let params = params.into_iter().map(|tp| tp.normalize()).collect();
                 Self::Poly { name, params }
@@ -4684,6 +4710,7 @@ impl Type {
             Self::Or(l, r) => l.normalize() | r.normalize(),
             Self::Not(ty) => !ty.normalize(),
             Self::Structural(ty) => ty.normalize().structuralize(),
+            Self::Quantified(quant) => quant.normalize().quantify(),
             Self::Guard(guard) => Self::Guard(GuardType::new(
                 guard.namespace,
                 guard.target,
@@ -4693,7 +4720,12 @@ impl Type {
                 sub: Box::new(sub.normalize()),
                 sup: Box::new(sup.normalize()),
             },
-            other => other,
+            Self::Callable { param_ts, return_t } => {
+                let param_ts = param_ts.into_iter().map(|t| t.normalize()).collect();
+                let return_t = return_t.normalize();
+                callable(param_ts, return_t)
+            }
+            mono_type_pattern!() => self,
         }
     }
 
@@ -4735,10 +4767,12 @@ impl Type {
             }*/
             return;
         }
-        let to = to.clone().eliminate_sub(self).eliminate_recursion(self);
         match self {
-            Self::FreeVar(fv) => fv.link(&to),
-            Self::Refinement(refine) => refine.t.destructive_link(&to),
+            Self::FreeVar(fv) => {
+                let to = to.clone().eliminate_subsup(self).eliminate_recursion(self);
+                fv.link(&to);
+            }
+            Self::Refinement(refine) => refine.t.destructive_link(to),
             _ => {
                 if DEBUG_MODE {
                     panic!("{self} is not a free variable");
@@ -4756,10 +4790,12 @@ impl Type {
             self.inc_undo_count();
             return;
         }
-        let to = to.clone().eliminate_sub(self);
         match self {
-            Self::FreeVar(fv) => fv.undoable_link(&to),
-            Self::Refinement(refine) => refine.t.undoable_link(&to, list),
+            Self::FreeVar(fv) => {
+                let to = to.clone().eliminate_subsup(self);
+                fv.undoable_link(&to);
+            }
+            Self::Refinement(refine) => refine.t.undoable_link(to, list),
             _ => {
                 if DEBUG_MODE {
                     panic!("{self} is not a free variable")
@@ -4903,6 +4939,7 @@ impl Type {
                         .union(&sup.contained_ts())
                 })
             }
+            Self::FreeVar(_) => set! { self.clone() },
             Self::Refinement(refine) => refine.t.contained_ts(),
             Self::Ref(t) => t.contained_ts(),
             Self::RefMut { before, .. } => before.contained_ts(),
@@ -4944,7 +4981,8 @@ impl Type {
                 ts.extend(params.iter().flat_map(|tp| tp.contained_ts()));
                 ts
             }
-            _ => set! { self.clone() },
+            Self::Guard(guard) => guard.to.contained_ts(),
+            mono_type_pattern!() => set! { self.clone() },
         }
     }
 
@@ -4958,6 +4996,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_generalized() => {
                 fv.update_init();
             }
+            Self::FreeVar(_) => {}
             // TODO: T(:> X, <: Y).dereference()
             Self::Refinement(refine) => {
                 refine.t.dereference();
@@ -5034,7 +5073,7 @@ impl Type {
             Self::Guard(guard) => {
                 guard.to.dereference();
             }
-            _ => {}
+            mono_type_pattern!() => {}
         }
     }
 

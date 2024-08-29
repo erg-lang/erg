@@ -1125,11 +1125,16 @@ impl TyParam {
                     base
                 }
             }
+            Self::FreeVar(_) => set! {},
             Self::Type(t) => t.qvars(),
             Self::Proj { obj, .. } => obj.qvars(),
+            Self::ProjCall { obj, args, .. } => args
+                .iter()
+                .fold(obj.qvars(), |acc, arg| acc.concat(arg.qvars())),
             Self::List(ts) | Self::Tuple(ts) => {
                 ts.iter().fold(set! {}, |acc, t| acc.concat(t.qvars()))
             }
+            Self::UnsizedList(elem) => elem.qvars(),
             Self::Set(ts) => ts.iter().fold(set! {}, |acc, t| acc.concat(t.qvars())),
             Self::Dict(ts) => ts.iter().fold(set! {}, |acc, (k, v)| {
                 acc.concat(k.qvars().concat(v.qvars()))
@@ -1146,7 +1151,7 @@ impl TyParam {
             Self::App { args, .. } => args.iter().fold(set! {}, |acc, p| acc.concat(p.qvars())),
             Self::Erased(t) => t.qvars(),
             Self::Value(val) => val.qvars(),
-            _ => set! {},
+            Self::Mono(_) | Self::Failure => set! {},
         }
     }
 
@@ -1154,9 +1159,12 @@ impl TyParam {
         match self {
             Self::FreeVar(fv) if fv.is_unbound() && fv.is_generalized() => true,
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().has_qvar(),
+            Self::FreeVar(_) => false,
             Self::Type(t) => t.has_qvar(),
             Self::Proj { obj, .. } => obj.has_qvar(),
+            Self::ProjCall { obj, args, .. } => obj.has_qvar() || args.iter().any(|t| t.has_qvar()),
             Self::List(tps) | Self::Tuple(tps) => tps.iter().any(|tp| tp.has_qvar()),
+            Self::UnsizedList(elem) => elem.has_qvar(),
             Self::Set(tps) => tps.iter().any(|tp| tp.has_qvar()),
             Self::Dict(tps) => tps.iter().any(|(k, v)| k.has_qvar() || v.has_qvar()),
             Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
@@ -1168,7 +1176,7 @@ impl TyParam {
             Self::App { args, .. } => args.iter().any(|p| p.has_qvar()),
             Self::Erased(t) => t.has_qvar(),
             Self::Value(val) => val.has_qvar(),
-            _ => false,
+            Self::Mono(_) | Self::Failure => false,
         }
     }
 
@@ -1178,7 +1186,11 @@ impl TyParam {
             Self::Type(t) => t.contains_tvar(target),
             Self::Erased(t) => t.contains_tvar(target),
             Self::Proj { obj, .. } => obj.contains_tvar(target),
+            Self::ProjCall { obj, args, .. } => {
+                obj.contains_tvar(target) || args.iter().any(|t| t.contains_tvar(target))
+            }
             Self::List(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.contains_tvar(target)),
+            Self::UnsizedList(elem) => elem.contains_tvar(target),
             Self::Set(ts) => ts.iter().any(|t| t.contains_tvar(target)),
             Self::Dict(ts) => ts
                 .iter()
@@ -1528,8 +1540,12 @@ impl TyParam {
         }
         match self {
             Self::FreeVar(fv) => {
-                let to = to.clone().eliminate_recursion(self);
-                fv.link(&to);
+                if to.contains_tp(self) {
+                    let to = to.clone().eliminate_recursion(self);
+                    fv.link(&to);
+                } else {
+                    fv.link(to);
+                }
             }
             Self::Type(t) => {
                 if let Ok(to) = <&Type>::try_from(to) {
@@ -1558,8 +1574,12 @@ impl TyParam {
         }
         match self {
             Self::FreeVar(fv) => {
-                let to = to.clone().eliminate_recursion(self);
-                fv.undoable_link(&to);
+                if to.contains_tp(self) {
+                    let to = to.clone().eliminate_recursion(self);
+                    fv.undoable_link(&to);
+                } else {
+                    fv.undoable_link(to);
+                }
             }
             Self::Type(t) => {
                 if let Ok(to) = <&Type>::try_from(to) {
@@ -1672,6 +1692,7 @@ impl TyParam {
             Self::FreeVar(fv) if fv.is_generalized() => {
                 fv.update_init();
             }
+            Self::FreeVar(_) => {}
             Self::Type(t) => t.dereference(),
             Self::Value(val) => val.dereference(),
             Self::App { args, .. } => {
@@ -1729,7 +1750,7 @@ impl TyParam {
                 rhs.dereference();
             }
             Self::Erased(t) => t.dereference(),
-            _ => {}
+            Self::Mono(_) | Self::Failure => {}
         }
     }
 
@@ -1756,6 +1777,7 @@ impl TyParam {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().variables(),
             Self::FreeVar(fv) if fv.get_type().is_some() => fv.get_type().unwrap().variables(),
+            Self::FreeVar(_) => set! {},
             Self::Mono(name) => set! { name.clone() },
             Self::App { name, args } => {
                 let mut set = set! { name.clone() };
@@ -1791,7 +1813,7 @@ impl TyParam {
             }
             Self::Type(t) | Self::Erased(t) => t.variables(),
             Self::Value(val) => val.variables(),
-            _ => set! {},
+            Self::Failure => set! {},
         }
     }
 
@@ -1799,6 +1821,12 @@ impl TyParam {
     pub fn map(self, f: &mut impl FnMut(TyParam) -> TyParam) -> TyParam {
         match self {
             TyParam::FreeVar(fv) if fv.is_linked() => f(fv.unwrap_linked()),
+            TyParam::FreeVar(fv) if fv.get_type().is_some() => {
+                let typ = fv.get_type().unwrap();
+                fv.update_type(typ.map_tp(f));
+                TyParam::FreeVar(fv)
+            }
+            TyParam::FreeVar(_) => self,
             TyParam::App { name, args } => {
                 let new_args = args.into_iter().map(f).collect::<Vec<_>>();
                 TyParam::app(name, new_args)
@@ -1845,13 +1873,21 @@ impl TyParam {
                 args: args.into_iter().map(f).collect::<Vec<_>>(),
             },
             TyParam::Value(val) => TyParam::Value(val.map_tp(f)),
-            self_ => self_,
+            TyParam::Type(t) => TyParam::t(t.map_tp(f)),
+            TyParam::Erased(t) => TyParam::erased(t.map_tp(f)),
+            TyParam::Mono(_) | TyParam::Failure => self,
         }
     }
 
     pub fn map_t(self, f: &mut impl FnMut(Type) -> Type) -> TyParam {
         match self {
             TyParam::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().map_t(f),
+            TyParam::FreeVar(fv) if fv.get_type().is_some() => {
+                let typ = fv.get_type().unwrap();
+                fv.update_type(f(typ));
+                TyParam::FreeVar(fv)
+            }
+            TyParam::FreeVar(_) => self,
             TyParam::App { name, args } => {
                 let new_args = args.into_iter().map(|tp| tp.map_t(f)).collect::<Vec<_>>();
                 TyParam::app(name, new_args)
@@ -1900,7 +1936,9 @@ impl TyParam {
                 }
             }
             TyParam::Value(val) => TyParam::Value(val.map_t(f)),
-            self_ => self_,
+            TyParam::Type(t) => TyParam::t(f(*t)),
+            TyParam::Erased(t) => TyParam::erased(f(*t)),
+            TyParam::Mono(_) | TyParam::Failure => self,
         }
     }
 

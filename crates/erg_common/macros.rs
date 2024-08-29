@@ -626,6 +626,7 @@ macro_rules! set_recursion_limit {
 
         let counter = $crate::macros::RecursionCounter::new(&COUNTER);
         if counter.limit_reached() {
+            $crate::log!(err "Recursion limit reached");
             return $returns;
         }
     };
