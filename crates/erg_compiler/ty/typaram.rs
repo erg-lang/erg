@@ -1,13 +1,12 @@
 use std::cmp::Ordering;
 use std::fmt;
 use std::ops::{Add, Div, Mul, Neg, Range, RangeInclusive, Sub};
-use std::sync::Arc;
 
 use erg_common::consts::DEBUG_MODE;
 use erg_common::dict::Dict;
 use erg_common::set::Set;
 use erg_common::traits::{LimitedDisplay, StructuralEq};
-use erg_common::{dict, log, ref_addr_eq, set, Str};
+use erg_common::{dict, ref_addr_eq, set, Str};
 
 use erg_parser::ast::ConstLambda;
 use erg_parser::token::TokenKind;
@@ -19,7 +18,7 @@ use super::free::{
     CanbeFree, Constraint, FreeKind, FreeTyParam, FreeTyVar, HasLevel, Level, GENERIC_LEVEL,
 };
 use super::value::ValueObj;
-use super::{ConstSubr, Field, ParamTy, ReplaceTable, UserConstSubr};
+use super::{Field, ParamTy, ReplaceTable};
 use super::{Type, CONTAINER_OMIT_THRESHOLD};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -679,77 +678,6 @@ impl<'t> TryFrom<&'t TyParam> for &'t FreeTyVar {
             TyParam::Type(ty) => <&FreeTyVar>::try_from(ty.as_ref()),
             TyParam::Value(ValueObj::Type(ty)) => <&FreeTyVar>::try_from(ty.typ()),
             _ => Err(()),
-        }
-    }
-}
-
-impl TryFrom<TyParam> for ValueObj {
-    type Error = ();
-    fn try_from(tp: TyParam) -> Result<Self, ()> {
-        match tp {
-            TyParam::List(tps) => {
-                let mut vals = vec![];
-                for tp in tps {
-                    vals.push(ValueObj::try_from(tp)?);
-                }
-                Ok(ValueObj::List(Arc::from(vals)))
-            }
-            TyParam::UnsizedList(elem) => {
-                let elem = ValueObj::try_from(*elem)?;
-                Ok(ValueObj::UnsizedList(Box::new(elem)))
-            }
-            TyParam::Tuple(tps) => {
-                let mut vals = vec![];
-                for tp in tps {
-                    vals.push(ValueObj::try_from(tp)?);
-                }
-                Ok(ValueObj::Tuple(Arc::from(vals)))
-            }
-            TyParam::Dict(tps) => {
-                let mut vals = dict! {};
-                for (k, v) in tps {
-                    vals.insert(ValueObj::try_from(k)?, ValueObj::try_from(v)?);
-                }
-                Ok(ValueObj::Dict(vals))
-            }
-            TyParam::Record(rec) => {
-                let mut vals = dict! {};
-                for (k, v) in rec {
-                    vals.insert(k, ValueObj::try_from(v)?);
-                }
-                Ok(ValueObj::Record(vals))
-            }
-            TyParam::Set(tps) => {
-                let mut vals = set! {};
-                for tp in tps {
-                    vals.insert(ValueObj::try_from(tp)?);
-                }
-                Ok(ValueObj::Set(vals))
-            }
-            TyParam::DataClass { name, fields } => {
-                let mut vals = dict! {};
-                for (k, v) in fields {
-                    vals.insert(k, ValueObj::try_from(v)?);
-                }
-                Ok(ValueObj::DataClass { name, fields: vals })
-            }
-            TyParam::Lambda(lambda) => {
-                // TODO: sig_t
-                let lambda = UserConstSubr::new(
-                    "<lambda>".into(),
-                    lambda.const_.sig.params,
-                    lambda.const_.body,
-                    Type::Never,
-                );
-                Ok(ValueObj::Subr(ConstSubr::User(lambda)))
-            }
-            TyParam::FreeVar(fv) if fv.is_linked() => ValueObj::try_from(fv.crack().clone()),
-            TyParam::Type(t) => Ok(ValueObj::builtin_type(*t)),
-            TyParam::Value(v) => Ok(v),
-            _ => {
-                log!(err "Expected value, got {tp}");
-                Err(())
-            }
         }
     }
 }

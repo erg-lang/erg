@@ -633,7 +633,7 @@ impl Context {
             Ok(tp) => (tp, EvalErrors::empty()),
             Err((tp, errs)) => (tp, errs),
         };
-        match ValueObj::try_from(tp) {
+        match self.convert_tp_into_value(tp) {
             Ok(val) => {
                 if errs.is_empty() {
                     Ok(val)
@@ -641,7 +641,7 @@ impl Context {
                     Err((val, errs))
                 }
             }
-            Err(()) => {
+            Err(_) => {
                 if errs.is_empty() {
                     Err((
                         ValueObj::Failure,
@@ -2544,6 +2544,7 @@ impl Context {
     /// {x = Int; y = Int} => Type::Record({x = Int, y = Int})
     /// {Str: Int} => Dict({Str: Int})
     /// {1, 2} => {I: Int | I == 1 or I == 2 } (== {1, 2})
+    /// foo.T => Ok(foo.T) if T: Type else Err(foo.T)
     /// ```
     pub(crate) fn convert_tp_into_type(&self, tp: TyParam) -> Result<Type, TyParam> {
         match tp {
@@ -2612,22 +2613,46 @@ impl Context {
             }
             TyParam::Type(t) => Ok(t.as_ref().clone()),
             TyParam::Mono(name) => Ok(Type::Mono(name)),
-            // REVIEW: should be checked?
-            TyParam::App { name, args } => Ok(Type::Poly { name, params: args }),
-            TyParam::Proj { obj, attr } => {
-                let lhs = self.convert_tp_into_type(*obj)?;
-                Ok(lhs.proj(attr))
+            TyParam::App { name, args } => {
+                if self.get_type_ctx(&name).is_none() {
+                    Err(TyParam::App { name, args })
+                } else {
+                    Ok(Type::Poly { name, params: args })
+                }
             }
-            TyParam::ProjCall { obj, attr, args } => Ok(proj_call(*obj, attr, args)),
+            TyParam::Proj { obj, attr } => {
+                let lhs = self.convert_tp_into_type(*obj.clone())?;
+                let Some(ty_ctx) = self.get_nominal_type_ctx(&lhs) else {
+                    return Err(TyParam::Proj { obj, attr });
+                };
+                if ty_ctx.rec_get_const_obj(&attr).is_some() {
+                    Ok(lhs.proj(attr))
+                } else {
+                    Err(TyParam::Proj { obj, attr })
+                }
+            }
+            TyParam::ProjCall { obj, attr, args } => {
+                let Some(ty_ctx) = self
+                    .get_tp_t(&obj)
+                    .ok()
+                    .and_then(|t| self.get_nominal_type_ctx(&t))
+                else {
+                    return Err(TyParam::ProjCall { obj, attr, args });
+                };
+                if ty_ctx.rec_get_const_obj(&attr).is_some() {
+                    Ok(proj_call(*obj, attr, args))
+                } else {
+                    Err(TyParam::ProjCall { obj, attr, args })
+                }
+            }
             // TyParam::Erased(_t) => Ok(Type::Obj),
             TyParam::Value(v) => self.convert_value_into_type(v).map_err(TyParam::Value),
             TyParam::Erased(t) if t.is_type() => Ok(Type::Obj),
-            // TODO: Dict, Set
+            // TODO: DataClass, ...
             other => Err(other),
         }
     }
 
-    #[allow(clippy::only_used_in_recursion)]
     pub(crate) fn convert_tp_into_value(&self, tp: TyParam) -> Result<ValueObj, TyParam> {
         match tp {
             TyParam::FreeVar(fv) if fv.is_linked() => {
@@ -2662,6 +2687,16 @@ impl Context {
                     new.insert(name, elem);
                 }
                 Ok(ValueObj::Record(new))
+            }
+            TyParam::Dict(tps) => {
+                let mut vals = dict! {};
+                for (k, v) in tps {
+                    vals.insert(
+                        self.convert_tp_into_value(k)?,
+                        self.convert_tp_into_value(v)?,
+                    );
+                }
+                Ok(ValueObj::Dict(vals))
             }
             TyParam::Set(set) => {
                 let mut new = set! {};
@@ -3155,7 +3190,7 @@ impl Context {
             let Some(lhs) = lhs else {
                 return feature_error!(self, t_loc.loc(), "??");
             };
-            if let Ok(value) = ValueObj::try_from(lhs.clone()) {
+            if let Ok(value) = self.convert_tp_into_value(lhs.clone()) {
                 pos_args.push(value);
             } else if let Ok(value) = self.eval_tp_into_value(lhs.clone()) {
                 pos_args.push(value);
@@ -3164,7 +3199,7 @@ impl Context {
             }
         }
         for pos_arg in args.into_iter() {
-            if let Ok(value) = ValueObj::try_from(pos_arg.clone()) {
+            if let Ok(value) = self.convert_tp_into_value(pos_arg.clone()) {
                 pos_args.push(value);
             } else if let Ok(value) = self.eval_tp_into_value(pos_arg.clone()) {
                 pos_args.push(value);

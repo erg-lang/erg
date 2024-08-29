@@ -1072,6 +1072,23 @@ impl Context {
             (TyParam::UnsizedList(sup), TyParam::UnsizedList(sub)) => {
                 self.supertype_of_tp(sup, sub, variance)
             }
+            (
+                TyParam::DataClass { name, fields },
+                TyParam::DataClass {
+                    name: sub_name,
+                    fields: sub_fields,
+                },
+            ) => {
+                if name != sub_name || fields.len() != sub_fields.len() {
+                    return false;
+                }
+                for (sup_tp, sub_tp) in fields.values().zip(sub_fields.values()) {
+                    if !self.supertype_of_tp(sup_tp, sub_tp, variance) {
+                        return false;
+                    }
+                }
+                true
+            }
             (TyParam::Type(sup), TyParam::Type(sub)) => match variance {
                 Variance::Contravariant => self.subtype_of(sup, sub),
                 Variance::Covariant => self.supertype_of(sup, sub),
