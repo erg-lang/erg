@@ -7,6 +7,7 @@ use std::hash::{Hash, Hasher};
 use std::ops::Neg;
 use std::sync::Arc;
 
+use erg_common::consts::DEBUG_MODE;
 use erg_common::dict::Dict;
 use erg_common::error::{ErrorCore, ErrorKind, Location};
 use erg_common::fresh::FRESH_GEN;
@@ -221,15 +222,27 @@ pub enum GenTypeObj {
 
 impl fmt::Display for GenTypeObj {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "<{}>", self.typ())
+        if DEBUG_MODE {
+            write!(f, "<")?;
+        }
+        self.typ().fmt(f)?;
+        if DEBUG_MODE {
+            write!(f, ">")?;
+        }
+        Ok(())
     }
 }
 
 impl LimitedDisplay for GenTypeObj {
     fn limited_fmt<W: std::fmt::Write>(&self, f: &mut W, limit: isize) -> std::fmt::Result {
-        write!(f, "<")?;
+        if DEBUG_MODE {
+            write!(f, "<")?;
+        }
         self.typ().limited_fmt(f, limit)?;
-        write!(f, ">")
+        if DEBUG_MODE {
+            write!(f, ">")?;
+        }
+        Ok(())
     }
 }
 
@@ -423,7 +436,7 @@ impl LimitedDisplay for TypeObj {
     fn limited_fmt<W: std::fmt::Write>(&self, f: &mut W, limit: isize) -> std::fmt::Result {
         match self {
             TypeObj::Builtin { t, .. } => {
-                if cfg!(feature = "debug") {
+                if DEBUG_MODE {
                     write!(f, "<type ")?;
                     t.limited_fmt(f, limit - 1)?;
                     write!(f, ">")
@@ -432,7 +445,7 @@ impl LimitedDisplay for TypeObj {
                 }
             }
             TypeObj::Generated(t) => {
-                if cfg!(feature = "debug") {
+                if DEBUG_MODE {
                     write!(f, "<user type ")?;
                     t.limited_fmt(f, limit - 1)?;
                     write!(f, ">")
@@ -612,14 +625,14 @@ impl fmt::Debug for ValueObj {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Int(i) => {
-                if cfg!(feature = "debug") {
+                if DEBUG_MODE {
                     write!(f, "Int({i})")
                 } else {
                     write!(f, "{i}")
                 }
             }
             Self::Nat(n) => {
-                if cfg!(feature = "debug") {
+                if DEBUG_MODE {
                     write!(f, "Nat({n})")
                 } else {
                     write!(f, "{n}")
@@ -632,7 +645,7 @@ impl fmt::Debug for ValueObj {
                 } else {
                     write!(f, "{fl}")?;
                 }
-                if cfg!(feature = "debug") {
+                if DEBUG_MODE {
                     write!(f, "f64")?;
                 }
                 Ok(())
@@ -696,14 +709,14 @@ impl fmt::Display for ValueObj {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Int(i) => {
-                if cfg!(feature = "debug") {
+                if DEBUG_MODE {
                     write!(f, "Int({i})")
                 } else {
                     write!(f, "{i}")
                 }
             }
             Self::Nat(n) => {
-                if cfg!(feature = "debug") {
+                if DEBUG_MODE {
                     write!(f, "Nat({n})")
                 } else {
                     write!(f, "{n}")
@@ -716,7 +729,7 @@ impl fmt::Display for ValueObj {
                 } else {
                     write!(f, "{fl}")?;
                 }
-                if cfg!(feature = "debug") {
+                if DEBUG_MODE {
                     write!(f, "f64")?;
                 }
                 Ok(())

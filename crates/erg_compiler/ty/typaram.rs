@@ -1527,7 +1527,10 @@ impl TyParam {
             return;
         }
         match self {
-            Self::FreeVar(fv) => fv.link(to),
+            Self::FreeVar(fv) => {
+                let to = to.clone().eliminate_recursion(self);
+                fv.link(&to);
+            }
             Self::Type(t) => {
                 if let Ok(to) = <&Type>::try_from(to) {
                     t.destructive_link(to);
@@ -1554,7 +1557,10 @@ impl TyParam {
             return;
         }
         match self {
-            Self::FreeVar(fv) => fv.undoable_link(to),
+            Self::FreeVar(fv) => {
+                let to = to.clone().eliminate_recursion(self);
+                fv.undoable_link(&to);
+            }
             Self::Type(t) => {
                 if let Ok(to) = <&Type>::try_from(to) {
                     t.undoable_link(to, list);
@@ -1896,6 +1902,13 @@ impl TyParam {
             TyParam::Value(val) => TyParam::Value(val.map_t(f)),
             self_ => self_,
         }
+    }
+
+    pub fn eliminate_recursion(self, target: &TyParam) -> Self {
+        if self.addr_eq(target) {
+            return Self::Failure;
+        }
+        self.map(&mut |tp| tp.eliminate_recursion(target))
     }
 }
 

@@ -1483,6 +1483,7 @@ impl Context {
                 t
             }
             (t, Type::Never) | (Type::Never, t) => t.clone(),
+            // REVIEW: variance?
             // List({1, 2}, 2), List({3, 4}, 2) ==> List({1, 2, 3, 4}, 2)
             (
                 Type::Poly {
@@ -1695,6 +1696,29 @@ impl Context {
                 }
                 t
             }
+            // REVIEW: variance?
+            // Array({1, 2, 3}) and Array({2, 3, 4}) == Array({2, 3})
+            (
+                Poly {
+                    name: ln,
+                    params: lps,
+                },
+                Poly {
+                    name: rn,
+                    params: rps,
+                },
+            ) if ln == rn && self.is_class(lhs) => {
+                debug_assert_eq!(lps.len(), rps.len());
+                let mut new_params = vec![];
+                for (lp, rp) in lps.iter().zip(rps.iter()) {
+                    if let Some(intersec) = self.intersection_tp(lp, rp) {
+                        new_params.push(intersec);
+                    } else {
+                        return self.simple_intersection(lhs, rhs);
+                    }
+                }
+                poly(ln.clone(), new_params)
+            }
             (other, Refinement(refine)) | (Refinement(refine), other) => {
                 let other = other.clone().into_refinement();
                 let intersec = self.intersection_refinement(&other, refine);
@@ -1704,6 +1728,50 @@ impl Context {
             // overloading
             (l, r) if l.is_subr() && r.is_subr() => and(lhs.clone(), rhs.clone()),
             _ => self.simple_intersection(lhs, rhs),
+        }
+    }
+
+    pub(crate) fn intersection_tp(&self, lhs: &TyParam, rhs: &TyParam) -> Option<TyParam> {
+        match (lhs, rhs) {
+            (TyParam::Value(ValueObj::Type(l)), TyParam::Value(ValueObj::Type(r))) => {
+                Some(TyParam::t(self.intersection(l.typ(), r.typ())))
+            }
+            (TyParam::Value(ValueObj::Type(l)), TyParam::Type(r)) => {
+                Some(TyParam::t(self.intersection(l.typ(), r)))
+            }
+            (TyParam::Type(l), TyParam::Value(ValueObj::Type(r))) => {
+                Some(TyParam::t(self.intersection(l, r.typ())))
+            }
+            (TyParam::Type(l), TyParam::Type(r)) => Some(TyParam::t(self.intersection(l, r))),
+            (TyParam::List(l), TyParam::List(r)) => {
+                let mut tps = vec![];
+                for (l, r) in l.iter().zip(r.iter()) {
+                    if let Some(tp) = self.intersection_tp(l, r) {
+                        tps.push(tp);
+                    } else {
+                        return None;
+                    }
+                }
+                Some(TyParam::List(tps))
+            }
+            (fv @ TyParam::FreeVar(f), other) | (other, fv @ TyParam::FreeVar(f))
+                if f.is_unbound() =>
+            {
+                let fv_t = self.get_tp_t(fv).ok()?.derefine();
+                let other_t = self.get_tp_t(other).ok()?.derefine();
+                if self.same_type_of(&fv_t, &other_t) {
+                    Some(other.clone())
+                } else {
+                    None
+                }
+            }
+            (_, _) => {
+                if self.eq_tp(lhs, rhs) {
+                    Some(lhs.clone())
+                } else {
+                    None
+                }
+            }
         }
     }
 
