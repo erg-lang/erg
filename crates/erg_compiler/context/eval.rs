@@ -9,7 +9,7 @@ use erg_common::log;
 use erg_common::set::Set;
 use erg_common::shared::Shared;
 use erg_common::traits::{Locational, Stream};
-use erg_common::{dict, fmt_vec, fn_name, option_enum_unwrap, set, Triple};
+use erg_common::{dict, fmt_vec, fn_name, option_enum_unwrap, set, set_recursion_limit, Triple};
 use erg_common::{ArcArray, Str};
 use OpKind::*;
 
@@ -2061,6 +2061,7 @@ impl Context {
         level: usize,
         t_loc: &impl Locational,
     ) -> Failable<Type> {
+        set_recursion_limit!(Ok(Failure), 128);
         let mut errs = EvalErrors::empty();
         match substituted {
             Type::FreeVar(fv) if fv.is_linked() => {

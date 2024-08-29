@@ -31,7 +31,7 @@ use erg_common::fresh::FRESH_GEN;
 use erg_common::log;
 use erg_common::set::Set;
 use erg_common::traits::{LimitedDisplay, Locational, StructuralEq};
-use erg_common::{enum_unwrap, fmt_option, ref_addr_eq, set, Str};
+use erg_common::{enum_unwrap, fmt_option, ref_addr_eq, set, set_recursion_limit, Str};
 
 use erg_parser::ast::Expr;
 use erg_parser::token::TokenKind;
@@ -3405,13 +3405,10 @@ impl Type {
                 fv.crack().destructive_coerce();
             }
             Type::FreeVar(fv) if fv.is_unbound_and_sandwiched() => {
+                set_recursion_limit!({}, 128);
                 let (sub, _sup) = fv.get_subsup().unwrap();
-                if self.addr_eq(&sub) {
-                    self.destructive_link(&Type::Never);
-                } else {
-                    sub.destructive_coerce();
-                    self.destructive_link(&sub);
-                }
+                sub.destructive_coerce();
+                self.destructive_link(&sub);
             }
             Type::And(l, r) | Type::Or(l, r) => {
                 l.destructive_coerce();
@@ -3463,13 +3460,10 @@ impl Type {
                 fv.crack().undoable_coerce(list);
             }
             Type::FreeVar(fv) if fv.is_unbound_and_sandwiched() => {
+                set_recursion_limit!({}, 128);
                 let (sub, _sup) = fv.get_subsup().unwrap();
-                if self.addr_eq(&sub) {
-                    self.undoable_link(&Type::Never, list);
-                } else {
-                    sub.undoable_coerce(list);
-                    self.undoable_link(&sub, list);
-                }
+                sub.undoable_coerce(list);
+                self.undoable_link(&sub, list);
             }
             Type::And(l, r) | Type::Or(l, r) => {
                 l.undoable_coerce(list);

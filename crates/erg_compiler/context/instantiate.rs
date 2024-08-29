@@ -4,12 +4,12 @@ use std::option::Option; // conflicting to Type::Option
 
 use erg_common::consts::DEBUG_MODE;
 use erg_common::dict::Dict;
-use erg_common::enum_unwrap;
 #[allow(unused)]
 use erg_common::log;
 use erg_common::set::Set;
 use erg_common::traits::Locational;
 use erg_common::Str;
+use erg_common::{enum_unwrap, set_recursion_limit};
 use erg_parser::ast::VarName;
 
 use crate::ty::constructors::*;
@@ -790,6 +790,8 @@ impl Context {
         tmp_tv_cache: &mut TyVarCache,
         loc: &impl Locational,
     ) -> TyCheckResult<Type> {
+        // Structural types may have recursive structures
+        set_recursion_limit!(Ok(unbound), 128);
         match unbound {
             FreeVar(fv) if fv.is_linked() => {
                 let t = fv.crack().clone();

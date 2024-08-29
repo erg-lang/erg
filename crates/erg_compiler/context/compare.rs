@@ -7,7 +7,7 @@ use erg_common::dict::Dict;
 use erg_common::set::Set;
 use erg_common::style::colors::DEBUG_ERROR;
 use erg_common::traits::StructuralEq;
-use erg_common::{assume_unreachable, log};
+use erg_common::{assume_unreachable, log, set_recursion_limit};
 use erg_common::{Str, Triple};
 
 use crate::context::eval::UndoableLinkedList;
@@ -126,6 +126,7 @@ impl Context {
 
     /// lhs :> rhs ?
     pub(crate) fn supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
+        set_recursion_limit!(false, 128);
         let res = match Self::cheap_supertype_of(lhs, rhs) {
             (Absolutely, judge) => judge,
             (Maybe, judge) => {
