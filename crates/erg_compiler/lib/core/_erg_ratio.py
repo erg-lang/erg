@@ -43,6 +43,12 @@ class Ratio(Fraction):
     def mutate(self):
         return RatioMut(self)
 
+    def __repr__(self):
+        return f"Ratio({self.numerator}/{self.denominator})"
+
+    def __str__(self):
+        return f"{self.numerator}/{self.denominator}"
+
     def __add__(self, other):
         return then__(super().__add__(other), Ratio)
 

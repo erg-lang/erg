@@ -202,7 +202,7 @@ impl PartialOrd for Ratio {
 
 impl Display for Ratio {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} / {}", self.numer, self.denom)
+        write!(f, "{}/{}", self.numer, self.denom)
     }
 }
 
