@@ -35,9 +35,6 @@ pub trait HasLevel {
     }
     fn lower(&self) {
         if let Some(lev) = self.level() {
-            if lev == GENERIC_LEVEL {
-                return;
-            }
             self.set_level(lev.saturating_sub(1));
         }
     }
@@ -809,10 +806,6 @@ impl HasLevel for Free<Type> {
         match &mut *self.borrow_mut() {
             FreeKind::Unbound { lev, .. } | FreeKind::NamedUnbound { lev, .. } => {
                 if addr_eq!(*lev, level) {
-                    return;
-                }
-                // GENERIC_LEVEL variable cannot be lowered
-                if *lev == GENERIC_LEVEL && level == GENERIC_LEVEL - 1 {
                     return;
                 }
                 *lev = level;
