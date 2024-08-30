@@ -58,6 +58,9 @@ class Ratio(Fraction):
     def __mul__(self, other):
         return then__(super().__mul__(other), Ratio)
 
+    def __mod__(self, other):
+        return then__(super().__mod__(other), Ratio)
+
     def __truediv__(self, other):
         return then__(super().__truediv__(other), Ratio)
 
@@ -150,6 +153,12 @@ class RatioMut(MutType):
             return RatioMut(self.value * other.value)
         else:
             return RatioMut(self.value * other)
+
+    def __mod__(self, other):
+        if isinstance(other, MutType):
+            return RatioMut(self.value % other.value)
+        else:
+            return RatioMut(self.value % other)
 
     def __floordiv__(self, other):
         if isinstance(other, MutType):
