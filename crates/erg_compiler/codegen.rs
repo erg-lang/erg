@@ -2828,18 +2828,6 @@ impl PyCodeGenerator {
         self.stack_dec();
     }
 
-    fn emit_kw_var_args_311(&mut self, pos_len: usize, kw_var: &PosArg) {
-        self.write_instr(BUILD_TUPLE);
-        self.write_arg(pos_len);
-        self.stack_dec_n(pos_len.saturating_sub(1));
-        self.write_instr(BUILD_MAP);
-        self.write_arg(0);
-        self.emit_expr(kw_var.expr.clone());
-        self.write_instr(Opcode311::DICT_MERGE);
-        self.write_arg(1);
-        self.stack_dec();
-    }
-
     fn emit_var_args_308(&mut self, pos_len: usize, var_args: &PosArg) {
         if pos_len > 0 {
             self.write_instr(BUILD_TUPLE);
@@ -2850,6 +2838,18 @@ impl PyCodeGenerator {
             self.write_instr(Opcode309::BUILD_TUPLE_UNPACK_WITH_CALL);
             self.write_arg(2);
         }
+        self.stack_dec();
+    }
+
+    fn emit_kw_var_args_311(&mut self, pos_len: usize, kw_var: &PosArg) {
+        self.write_instr(BUILD_TUPLE);
+        self.write_arg(pos_len);
+        self.stack_dec_n(pos_len.saturating_sub(1));
+        self.write_instr(BUILD_MAP);
+        self.write_arg(0);
+        self.emit_expr(kw_var.expr.clone());
+        self.write_instr(Opcode311::DICT_MERGE);
+        self.write_arg(1);
     }
 
     fn emit_kw_var_args_308(&mut self, pos_len: usize, kw_var: &PosArg) {
@@ -2857,7 +2857,6 @@ impl PyCodeGenerator {
         self.write_arg(pos_len);
         self.emit_expr(kw_var.expr.clone());
         self.stack_dec_n(pos_len.saturating_sub(1));
-        self.stack_dec();
     }
 
     fn emit_args_311(&mut self, mut args: Args, kind: AccessKind) {
@@ -2868,7 +2867,7 @@ impl PyCodeGenerator {
             self.emit_expr(arg.expr);
         }
         if let Some(var_args) = &args.var_args {
-            if self.py_version.minor >= Some(10) {
+            if self.py_version.minor >= Some(9) {
                 self.emit_var_args_311(pos_len, var_args);
             } else {
                 self.emit_var_args_308(pos_len, var_args);
@@ -2878,8 +2877,9 @@ impl PyCodeGenerator {
             kws.push(ValueObj::Str(arg.keyword.content));
             self.emit_expr(arg.expr);
         }
+        // FIXME: tests/should_ok/args_expansion.er
         if let Some(kw_var) = &args.kw_var {
-            if self.py_version.minor >= Some(10) {
+            if self.py_version.minor >= Some(9) {
                 self.emit_kw_var_args_311(pos_len, kw_var);
             } else {
                 self.emit_kw_var_args_308(pos_len, kw_var);
@@ -2893,17 +2893,23 @@ impl PyCodeGenerator {
             } else {
                 1
             }
-        } else {
-            if args.var_args.is_some() || args.kw_var.is_some() {
-                self.write_instr(CALL_FUNCTION_EX);
-                if kws.is_empty() && args.kw_var.is_none() {
-                    self.write_arg(0);
-                } else {
-                    self.write_arg(1);
-                }
+        } else if args.var_args.is_some() || args.kw_var.is_some() {
+            self.write_instr(CALL_FUNCTION_EX);
+            if kws.is_empty() && args.kw_var.is_none() {
+                self.write_arg(0);
             } else {
-                self.emit_call_instr(argc, kind);
+                self.write_arg(1);
             }
+            if self.py_version.minor >= Some(11) {
+                self.stack_dec();
+            }
+            if args.kw_var.is_some() {
+                1
+            } else {
+                0
+            }
+        } else {
+            self.emit_call_instr(argc, kind);
             0
         };
         // (1 (subroutine) + argc + kwsc) input objects -> 1 return object

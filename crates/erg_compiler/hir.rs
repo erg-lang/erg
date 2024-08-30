@@ -286,12 +286,10 @@ impl Args {
         Self::new(vec![], None, vec![], None, None)
     }
 
+    /// pos_args.len() + kw_args.len()
     #[inline]
     pub fn len(&self) -> usize {
-        #[allow(clippy::bool_to_int_with_if)]
-        let var_argc = if self.var_args.is_none() { 0 } else { 1 };
-        let kw_var_argc = if self.kw_var.is_none() { 0 } else { 1 };
-        self.pos_args.len() + var_argc + self.kw_args.len() + kw_var_argc
+        self.pos_args.len() + self.kw_args.len()
     }
 
     #[inline]
