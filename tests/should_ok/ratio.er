@@ -1,13 +1,14 @@
-r: Ratio = 7.5
+r: Ratio = 7.5 # 15/2
 # basic operations
-assert r == 15 / 2
-assert r + 1 == 17 / 2
-assert r - 1 == 13 / 2
+assert r == 15/2
+assert r + 1 == 17/2
+assert r - 1 == 13/2
 assert r * 2 == 15
-assert r / 2 == 15 / 4
-assert r % 2 == 3 / 2
+assert r / 2 == 15/4
+assert r // 2 == 3
+assert r % 2 == 3/2
 
-r_zero: Ratio = 0.0
+r_zero: Ratio = 0.0 # 0/1
 # zero operations
 assert r_zero + 1 == 1
 assert r_zero - 1 == -1

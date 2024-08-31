@@ -50,7 +50,7 @@ fn eval_interpolation_1() {
 #[test]
 #[ignore]
 fn eval_interpolation_2() {
-    assert_eq!(eval("print! \"\\{0.005}\""), successful_output("0.005\n"));
+    assert_eq!(eval("print! \"\\{0.005}\""), successful_output("1/200\n"));
 }
 
 #[test]
