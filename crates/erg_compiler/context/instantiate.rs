@@ -1008,9 +1008,9 @@ impl Context {
                 if let Some(self_t) = ty.self_t() {
                     self.sub_unify(callee.ref_t(), self_t, callee, Some(&Str::ever("self")))?;
                 }
-                /*if DEBUG_MODE && ty.has_qvar() {
+                if DEBUG_MODE && ty.has_qvar() {
                     panic!("{ty} has qvar")
-                }*/
+                }
                 Ok(ty)
             }
             // HACK: {op: |T|(T -> T) | op == F} => ?T -> ?T
@@ -1073,9 +1073,9 @@ impl Context {
             Quantified(quant) => {
                 let mut tmp_tv_cache = TyVarCache::new(self.level, self);
                 let ty = self.instantiate_t_inner(*quant, &mut tmp_tv_cache, &())?;
-                /*if DEBUG_MODE && ty.has_qvar() {
+                if DEBUG_MODE && ty.has_qvar() {
                     panic!("{ty} has qvar")
-                }*/
+                }
                 Ok(ty)
             }
             Refinement(refine) if refine.t.is_quantified_subr() => {

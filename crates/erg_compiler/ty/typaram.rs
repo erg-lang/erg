@@ -1533,9 +1533,9 @@ impl TyParam {
             return;
         }
         if self.level() == Some(GENERIC_LEVEL) {
-            /*if DEBUG_MODE {
+            if DEBUG_MODE {
                 panic!("{self} is fixed");
-            }*/
+            }
             return;
         }
         match self {
