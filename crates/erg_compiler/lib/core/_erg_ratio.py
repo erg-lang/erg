@@ -5,6 +5,7 @@ from _erg_result import Error
 from _erg_type import MutType
 from _erg_float import FloatMut
 
+
 class Ratio(Fraction):
     FRAC_ZERO = Fraction(0)
 
@@ -24,7 +25,7 @@ class Ratio(Fraction):
 
     def try_new(numerator: int, denominator: int):
         if isinstance(numerator, int) and isinstance(denominator, int):
-            return Ratio(numerator, denominator)
+            return Ratio((numerator, denominator))
         else:
             return Error("not an integer")
 
@@ -81,6 +82,7 @@ class Ratio(Fraction):
 
     def __float__(self):
         return super().__float__()
+
 
 class RatioMut(MutType):
     value: Ratio

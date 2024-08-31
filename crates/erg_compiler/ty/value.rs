@@ -909,6 +909,7 @@ impl TryFrom<&ValueObj> for usize {
         match val {
             ValueObj::Int(i) => usize::try_from(*i).map_err(|_| ()),
             ValueObj::Nat(n) => usize::try_from(*n).map_err(|_| ()),
+            ValueObj::Ratio(r) => usize::try_from(r.to_int()).map_err(|_| ()),
             ValueObj::Float(f) => Ok(*f as usize),
             ValueObj::Bool(b) => Ok(if *b { 1 } else { 0 }),
             _ => Err(()),
@@ -1003,14 +1004,27 @@ impl ValueObj {
     pub const fn is_num(&self) -> bool {
         matches!(
             self,
-            Self::Float(_) | Self::Int(_) | Self::Nat(_) | Self::Bool(_) | Self::Inf | Self::NegInf
+            Self::Float(_)
+                | Self::Ratio(_)
+                | Self::Int(_)
+                | Self::Nat(_)
+                | Self::Bool(_)
+                | Self::Inf
+                | Self::NegInf
         )
     }
 
     pub const fn is_float(&self) -> bool {
         matches!(
             self,
-            Self::Float(_) | Self::Int(_) | Self::Nat(_) | Self::Bool(_)
+            Self::Float(_) | Self::Ratio(_) | Self::Int(_) | Self::Nat(_) | Self::Bool(_)
+        )
+    }
+
+    pub const fn is_ratio(&self) -> bool {
+        matches!(
+            self,
+            Self::Ratio(_) | Self::Int(_) | Self::Nat(_) | Self::Bool(_)
         )
     }
 
@@ -1436,32 +1450,22 @@ impl ValueObj {
 
     pub fn try_div(self, other: Self) -> Option<Self> {
         match (self, other) {
-            (Self::Nat(l), Self::Nat(r)) => Some(Self::Ratio(
-                Ratio::new(l as i64, 1) / Ratio::new(r as i64, 1),
-            )),
-            (Self::Nat(l), Self::Int(r)) => Some(Self::Ratio(
-                Ratio::new(l as i64, 1) / Ratio::new(r as i64, 1),
-            )),
+            (Self::Nat(l), Self::Nat(r)) => Some(Self::Ratio(Ratio::new(l as i64, r as i64))),
+            (Self::Nat(l), Self::Int(r)) => Some(Self::Ratio(Ratio::new(l as i64, r as i64))),
             (Self::Nat(l), Self::Ratio(r)) => Some(Self::Ratio(Ratio::new(l as i64, 1) / r)),
-            (Self::Nat(l), Self::Float(r)) => {
-                Some(Self::Ratio(Ratio::new(l as i64, 1) / Ratio::float_new(r)))
-            }
+            (Self::Nat(l), Self::Float(r)) => Some(Self::Float(l as f64 / r)),
             (Self::Int(l), Self::Nat(r)) => Some(Self::Ratio(
                 Ratio::new(l as i64, 1) / Ratio::new(r as i64, 1),
             )),
-            (Self::Int(l), Self::Int(r)) => Some(Self::Ratio(
-                Ratio::new(l as i64, 1) / Ratio::new(r as i64, 1),
-            )),
+            (Self::Int(l), Self::Int(r)) => Some(Self::Ratio(Ratio::new(l as i64, r as i64))),
             (Self::Int(l), Self::Ratio(r)) => Some(Self::Ratio(Ratio::new(l as i64, 1) / r)),
-            (Self::Int(l), Self::Float(r)) => {
-                Some(Self::Ratio(Ratio::new(l as i64, 1) / Ratio::float_new(r)))
-            }
+            (Self::Int(l), Self::Float(r)) => Some(Self::Float(l as f64 / r)),
             (Self::Ratio(l), Self::Nat(r)) => Some(Self::Ratio(l / Ratio::new(r as i64, 1))),
             (Self::Ratio(l), Self::Int(r)) => Some(Self::Ratio(l / Ratio::new(r as i64, 1))),
             (Self::Ratio(l), Self::Ratio(r)) => Some(Self::Ratio(l / r)),
             (Self::Ratio(l), Self::Float(r)) => Some(Self::Float(l.to_float() / r)),
             (Self::Float(l), Self::Nat(r)) => Some(Self::Float(l / r as f64)),
-            (Self::Float(l), Self::Int(r)) => Some(Self::from(l / r as f64)),
+            (Self::Float(l), Self::Int(r)) => Some(Self::Float(l / r as f64)),
             (Self::Float(l), Self::Ratio(r)) => Some(Self::Float(l / r.to_float())),
             (Self::Float(l), Self::Float(r)) => Some(Self::Float(l / r)),
             // TODO: x/±Inf = 0
