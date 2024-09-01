@@ -528,6 +528,14 @@ macro_rules! log {
         }
     }};
 
+    (backtrace) => {{
+        if cfg!(feature = "debug") {
+            use $crate::style::*;
+            $crate::debug_info!();
+            println!("\n{}", std::backtrace::Backtrace::capture());
+        }
+    }};
+
     (caller) => {{
         if cfg!(feature = "debug") {
             use $crate::style::*;
@@ -589,6 +597,46 @@ macro_rules! fmt_dbg {
             print!("{} = ", stringify!($head));
             println!("{}", $head);
             $crate::fmt_dbg!(rec $($arg,)+);
+        }
+    };
+}
+
+use std::sync::atomic::AtomicU32;
+
+pub struct RecursionCounter {
+    count: &'static AtomicU32,
+}
+
+impl Drop for RecursionCounter {
+    fn drop(&mut self) {
+        self.count
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+impl RecursionCounter {
+    pub fn new(count: &'static AtomicU32) -> Self {
+        count.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+        Self { count }
+    }
+
+    pub fn limit_reached(&self) -> bool {
+        self.count.load(std::sync::atomic::Ordering::Relaxed) == 0
+    }
+}
+
+#[macro_export]
+macro_rules! set_recursion_limit {
+    ($returns:expr, $limit:expr) => {
+        use std::sync::atomic::AtomicU32;
+
+        static COUNTER: AtomicU32 = AtomicU32::new($limit);
+
+        let counter = $crate::macros::RecursionCounter::new(&COUNTER);
+        if counter.limit_reached() {
+            $crate::log!(err "Recursion limit reached");
+            $crate::log!(backtrace);
+            return $returns;
         }
     };
 }

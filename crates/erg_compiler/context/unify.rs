@@ -292,6 +292,15 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 Ok(())
             }
             (ValueObj::Dict(sub), ValueObj::Dict(sup)) => {
+                if sub.len() == 1 && sup.len() == 1 {
+                    let sub_key = sub.keys().next().unwrap();
+                    let sup_key = sup.keys().next().unwrap();
+                    self.sub_unify_value(sub_key, sup_key)?;
+                    let sub_value = sub.values().next().unwrap();
+                    let sup_value = sup.values().next().unwrap();
+                    self.sub_unify_value(sub_value, sup_value)?;
+                    return Ok(());
+                }
                 for (sub_k, sub_v) in sub.iter() {
                     if let Some(sup_v) = sup.get(sub_k) {
                         self.sub_unify_value(sub_v, sup_v)?;
@@ -307,6 +316,22 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     }
                 }
                 Ok(())
+            }
+            (ValueObj::Set(sub), ValueObj::Set(sup)) => {
+                if sub.len() == 1 && sup.len() == 1 {
+                    let sub = sub.iter().next().unwrap();
+                    let sup = sup.iter().next().unwrap();
+                    self.sub_unify_value(sub, sup)?;
+                    Ok(())
+                } else {
+                    Err(TyCheckErrors::from(TyCheckError::feature_error(
+                        self.ctx.cfg.input.clone(),
+                        line!() as usize,
+                        self.loc.loc(),
+                        &format!("unifying {sub} and {sup}"),
+                        self.ctx.caused_by(),
+                    )))
+                }
             }
             (ValueObj::Record(sub), ValueObj::Record(sup)) => {
                 for (sub_k, sub_v) in sub.iter() {
@@ -929,8 +954,8 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
     /// ```
     fn sub_unify(&self, maybe_sub: &Type, maybe_sup: &Type) -> TyCheckResult<()> {
         log!(info "trying {}sub_unify:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}", self.undoable.map_or("", |_| "undoable_"));
-        self.recursion_limit.fetch_sub(1, Ordering::SeqCst);
-        if self.recursion_limit.load(Ordering::SeqCst) == 0 {
+        if self.recursion_limit.fetch_sub(1, Ordering::SeqCst) == 0 {
+            self.recursion_limit.store(128, Ordering::SeqCst);
             log!(err "recursion limit exceeded: {maybe_sub} / {maybe_sup}");
             return Err(TyCheckError::recursion_limit(
                 self.ctx.cfg.input.clone(),
@@ -1268,23 +1293,33 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     }
                 }
             }
-            (FreeVar(sub_fv), Structural(sup)) if sub_fv.is_unbound() => {
-                if sub_fv.get_sub().is_none() {
+            (FreeVar(sub_fv), Structural(struct_sup)) if sub_fv.is_unbound() => {
+                let Some((sub, sup)) = sub_fv.get_subsup() else {
                     log!(err "{sub_fv} is not a type variable");
                     return Ok(());
-                }
+                };
+                sub_fv.dummy_link();
                 let sub_fields = self.ctx.fields(maybe_sub);
-                for (sup_field, sup_ty) in self.ctx.fields(sup) {
+                for (sup_field, sup_ty) in self.ctx.fields(struct_sup) {
                     if let Some((_, sub_ty)) = sub_fields.get_key_value(&sup_field) {
-                        self.sub_unify(sub_ty, &sup_ty)?;
-                    } else if !self.ctx.subtype_of(&sub_fv.get_sub().unwrap(), &Never) {
+                        self.sub_unify(sub_ty, &sup_ty).map_err(|errs| {
+                            sub_fv.undo();
+                            errs
+                        })?;
+                    } else if !self.ctx.subtype_of(&sub, &Never) {
                         maybe_sub.coerce(self.undoable);
+                        sub_fv.dummy_link();
                         return self.sub_unify(maybe_sub, maybe_sup);
                     } else {
                         // e.g. ?T / Structural({ .method = (self: ?T) -> Int })
-                        sub_fv.update_super(|sup| self.ctx.intersection(&sup, maybe_sup));
+                        let constr = Constraint::new_sandwiched(
+                            sub.clone(),
+                            self.ctx.intersection(&sup, maybe_sup),
+                        );
+                        sub_fv.update_constraint(constr, false);
                     }
                 }
+                sub_fv.undo();
             }
             (FreeVar(sub_fv), Ref(sup)) if sub_fv.is_unbound() => {
                 self.sub_unify(maybe_sub, sup)?;

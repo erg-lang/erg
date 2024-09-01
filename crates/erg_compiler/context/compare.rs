@@ -7,7 +7,7 @@ use erg_common::dict::Dict;
 use erg_common::set::Set;
 use erg_common::style::colors::DEBUG_ERROR;
 use erg_common::traits::StructuralEq;
-use erg_common::{assume_unreachable, log};
+use erg_common::{assume_unreachable, log, set_recursion_limit};
 use erg_common::{Str, Triple};
 
 use crate::context::eval::UndoableLinkedList;
@@ -126,6 +126,7 @@ impl Context {
 
     /// lhs :> rhs ?
     pub(crate) fn supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
+        set_recursion_limit!(false, 128);
         let res = match Self::cheap_supertype_of(lhs, rhs) {
             (Absolutely, judge) => judge,
             (Maybe, judge) => {
@@ -1072,6 +1073,23 @@ impl Context {
             (TyParam::UnsizedList(sup), TyParam::UnsizedList(sub)) => {
                 self.supertype_of_tp(sup, sub, variance)
             }
+            (
+                TyParam::DataClass { name, fields },
+                TyParam::DataClass {
+                    name: sub_name,
+                    fields: sub_fields,
+                },
+            ) => {
+                if name != sub_name || fields.len() != sub_fields.len() {
+                    return false;
+                }
+                for (sup_tp, sub_tp) in fields.values().zip(sub_fields.values()) {
+                    if !self.supertype_of_tp(sup_tp, sub_tp, variance) {
+                        return false;
+                    }
+                }
+                true
+            }
             (TyParam::Type(sup), TyParam::Type(sub)) => match variance {
                 Variance::Contravariant => self.subtype_of(sup, sub),
                 Variance::Covariant => self.supertype_of(sup, sub),
@@ -1465,6 +1483,7 @@ impl Context {
                 t
             }
             (t, Type::Never) | (Type::Never, t) => t.clone(),
+            // REVIEW: variance?
             // List({1, 2}, 2), List({3, 4}, 2) ==> List({1, 2, 3, 4}, 2)
             (
                 Type::Poly {
@@ -1566,19 +1585,27 @@ impl Context {
     /// ```
     fn simple_union(&self, lhs: &Type, rhs: &Type) -> Type {
         if let Ok(free) = <&FreeTyVar>::try_from(lhs) {
-            if !rhs.is_totally_unbound() && self.supertype_of(&free.get_sub().unwrap_or(Never), rhs)
+            free.dummy_link();
+            let res = if !rhs.is_totally_unbound()
+                && self.supertype_of(&free.get_sub().unwrap_or(Never), rhs)
             {
                 lhs.clone()
             } else {
                 or(lhs.clone(), rhs.clone())
-            }
+            };
+            free.undo();
+            res
         } else if let Ok(free) = <&FreeTyVar>::try_from(rhs) {
-            if !lhs.is_totally_unbound() && self.supertype_of(&free.get_sub().unwrap_or(Never), lhs)
+            free.dummy_link();
+            let res = if !lhs.is_totally_unbound()
+                && self.supertype_of(&free.get_sub().unwrap_or(Never), lhs)
             {
                 rhs.clone()
             } else {
                 or(lhs.clone(), rhs.clone())
-            }
+            };
+            free.undo();
+            res
         } else {
             if lhs.is_totally_unbound() || rhs.is_totally_unbound() {
                 return or(lhs.clone(), rhs.clone());
@@ -1677,6 +1704,29 @@ impl Context {
                 }
                 t
             }
+            // REVIEW: variance?
+            // Array({1, 2, 3}) and Array({2, 3, 4}) == Array({2, 3})
+            (
+                Poly {
+                    name: ln,
+                    params: lps,
+                },
+                Poly {
+                    name: rn,
+                    params: rps,
+                },
+            ) if ln == rn && self.is_class(lhs) => {
+                debug_assert_eq!(lps.len(), rps.len());
+                let mut new_params = vec![];
+                for (lp, rp) in lps.iter().zip(rps.iter()) {
+                    if let Some(intersec) = self.intersection_tp(lp, rp) {
+                        new_params.push(intersec);
+                    } else {
+                        return self.simple_intersection(lhs, rhs);
+                    }
+                }
+                poly(ln.clone(), new_params)
+            }
             (other, Refinement(refine)) | (Refinement(refine), other) => {
                 let other = other.clone().into_refinement();
                 let intersec = self.intersection_refinement(&other, refine);
@@ -1686,6 +1736,50 @@ impl Context {
             // overloading
             (l, r) if l.is_subr() && r.is_subr() => and(lhs.clone(), rhs.clone()),
             _ => self.simple_intersection(lhs, rhs),
+        }
+    }
+
+    pub(crate) fn intersection_tp(&self, lhs: &TyParam, rhs: &TyParam) -> Option<TyParam> {
+        match (lhs, rhs) {
+            (TyParam::Value(ValueObj::Type(l)), TyParam::Value(ValueObj::Type(r))) => {
+                Some(TyParam::t(self.intersection(l.typ(), r.typ())))
+            }
+            (TyParam::Value(ValueObj::Type(l)), TyParam::Type(r)) => {
+                Some(TyParam::t(self.intersection(l.typ(), r)))
+            }
+            (TyParam::Type(l), TyParam::Value(ValueObj::Type(r))) => {
+                Some(TyParam::t(self.intersection(l, r.typ())))
+            }
+            (TyParam::Type(l), TyParam::Type(r)) => Some(TyParam::t(self.intersection(l, r))),
+            (TyParam::List(l), TyParam::List(r)) => {
+                let mut tps = vec![];
+                for (l, r) in l.iter().zip(r.iter()) {
+                    if let Some(tp) = self.intersection_tp(l, r) {
+                        tps.push(tp);
+                    } else {
+                        return None;
+                    }
+                }
+                Some(TyParam::List(tps))
+            }
+            (fv @ TyParam::FreeVar(f), other) | (other, fv @ TyParam::FreeVar(f))
+                if f.is_unbound() =>
+            {
+                let fv_t = self.get_tp_t(fv).ok()?.derefine();
+                let other_t = self.get_tp_t(other).ok()?.derefine();
+                if self.same_type_of(&fv_t, &other_t) {
+                    Some(other.clone())
+                } else {
+                    None
+                }
+            }
+            (_, _) => {
+                if self.eq_tp(lhs, rhs) {
+                    Some(lhs.clone())
+                } else {
+                    None
+                }
+            }
         }
     }
 

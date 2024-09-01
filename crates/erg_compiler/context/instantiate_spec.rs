@@ -1945,7 +1945,7 @@ impl Context {
             TyParam::App { name, args } => Ok(poly(name, args)),
             TyParam::Type(t) => Ok(*t),
             TyParam::Value(value) => self.convert_value_into_type(value).or_else(|value| {
-                type_feature_error!(self, loc.loc(), &format!("instantiate `{value}` as type"))
+                type_feature_error!(self, loc.loc(), &format!("instantiate `{value}` as a type"))
                     .map_err(|e| (Type::Failure, e))
             }),
             TyParam::List(lis) => {
@@ -2038,7 +2038,7 @@ impl Context {
                 _ => type_feature_error!(
                     self,
                     loc.loc(),
-                    &format!("instantiate `{lhs} {op} {rhs}` as type")
+                    &format!("instantiate `{lhs} {op} {rhs}` as a type")
                 )
                 .map_err(|es| {
                     errs.extend(es);
@@ -2049,7 +2049,7 @@ impl Context {
             {
                 #[allow(clippy::bind_instead_of_map)]
                 self.convert_tp_into_type(other).or_else(|tp| {
-                    type_feature_error!(self, loc.loc(), &format!("instantiate `{tp}` as type"))
+                    type_feature_error!(self, loc.loc(), &format!("instantiate `{tp}` as a type"))
                         .map_err(|e| (Type::Failure, e))
                 })
             }
@@ -2927,7 +2927,7 @@ impl Context {
         })?;
         let mut dummy = TyVarCache::new(self.level, self);
         match self.instantiate_const_expr(&const_expr, None, &mut dummy, false) {
-            Ok(tp) => ValueObj::try_from(tp).map_err(|_| {
+            Ok(tp) => self.convert_tp_into_value(tp).map_err(|_| {
                 let err = TyCheckError::not_const_expr(
                     self.cfg.input.clone(),
                     line!() as usize,
@@ -2936,7 +2936,7 @@ impl Context {
                 );
                 (ValueObj::Failure, TyCheckErrors::from(err))
             }),
-            Err((tp, mut errs)) => match ValueObj::try_from(tp) {
+            Err((tp, mut errs)) => match self.convert_tp_into_value(tp) {
                 Ok(value) => Err((value, errs)),
                 Err(_) => {
                     let err = TyCheckError::not_const_expr(

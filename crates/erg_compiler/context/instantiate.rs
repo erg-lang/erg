@@ -4,12 +4,12 @@ use std::option::Option; // conflicting to Type::Option
 
 use erg_common::consts::DEBUG_MODE;
 use erg_common::dict::Dict;
-use erg_common::enum_unwrap;
 #[allow(unused)]
 use erg_common::log;
 use erg_common::set::Set;
 use erg_common::traits::Locational;
 use erg_common::Str;
+use erg_common::{enum_unwrap, set_recursion_limit};
 use erg_parser::ast::VarName;
 
 use crate::ty::constructors::*;
@@ -19,7 +19,7 @@ use crate::ty::ConstSubr;
 use crate::ty::GuardType;
 use crate::ty::ValueObj;
 use crate::ty::{HasType, Predicate, Type};
-use crate::{type_feature_error, unreachable_error};
+use crate::{mono_type_pattern, unreachable_error};
 use Type::*;
 
 use crate::context::{Context, VarInfo};
@@ -40,7 +40,6 @@ pub struct TyVarCache {
     pub(crate) tyvar_instances: Dict<VarName, Type>,
     pub(crate) typaram_instances: Dict<VarName, TyParam>,
     pub(crate) var_infos: Dict<VarName, VarInfo>,
-    pub(crate) structural_inner: bool,
 }
 
 impl fmt::Display for TyVarCache {
@@ -61,7 +60,6 @@ impl TyVarCache {
             tyvar_instances: Dict::new(),
             typaram_instances: Dict::new(),
             var_infos: Dict::new(),
-            structural_inner: false,
         }
     }
 
@@ -419,6 +417,8 @@ impl Context {
                                 tmp_tv_cache.instantiate_constraint(constr, self, loc)?;
                             fv.update_constraint(new_constr, true);
                         }
+                    } else {
+                        todo!("{tp}");
                     }
                     Ok(tp)
                 } else if let Some(t) = tmp_tv_cache.get_tyvar(&name) {
@@ -433,6 +433,8 @@ impl Context {
                                 tmp_tv_cache.instantiate_constraint(constr, self, loc)?;
                             fv.update_constraint(new_constr, true);
                         }
+                    } else {
+                        todo!("{t}");
                     }
                     Ok(TyParam::t(t))
                 } else {
@@ -517,20 +519,28 @@ impl Context {
                 let nd_params = lambda
                     .nd_params
                     .into_iter()
-                    .map(|pt| pt.try_map_type(|t| self.instantiate_t_inner(t, tmp_tv_cache, loc)))
+                    .map(|pt| {
+                        pt.try_map_type(&mut |t| self.instantiate_t_inner(t, tmp_tv_cache, loc))
+                    })
                     .collect::<TyCheckResult<_>>()?;
                 let var_params = lambda
                     .var_params
-                    .map(|pt| pt.try_map_type(|t| self.instantiate_t_inner(t, tmp_tv_cache, loc)))
+                    .map(|pt| {
+                        pt.try_map_type(&mut |t| self.instantiate_t_inner(t, tmp_tv_cache, loc))
+                    })
                     .transpose()?;
                 let d_params = lambda
                     .d_params
                     .into_iter()
-                    .map(|pt| pt.try_map_type(|t| self.instantiate_t_inner(t, tmp_tv_cache, loc)))
+                    .map(|pt| {
+                        pt.try_map_type(&mut |t| self.instantiate_t_inner(t, tmp_tv_cache, loc))
+                    })
                     .collect::<TyCheckResult<_>>()?;
                 let kw_var_params = lambda
                     .kw_var_params
-                    .map(|pt| pt.try_map_type(|t| self.instantiate_t_inner(t, tmp_tv_cache, loc)))
+                    .map(|pt| {
+                        pt.try_map_type(&mut |t| self.instantiate_t_inner(t, tmp_tv_cache, loc))
+                    })
                     .transpose()?;
                 let body = lambda
                     .body
@@ -578,22 +588,18 @@ impl Context {
                 let t = self.instantiate_t_inner(*t, tmp_tv_cache, loc)?;
                 Ok(TyParam::t(t))
             }
-            TyParam::Value(ValueObj::Type(t)) => {
-                let t = self.instantiate_t_inner(t.into_typ(), tmp_tv_cache, loc)?;
-                Ok(TyParam::t(t))
+            TyParam::Value(val) => {
+                // println!("592: {val} / {tmp_tv_cache}");
+                let val = val.try_map_t(&mut |t| self.instantiate_t_inner(t, tmp_tv_cache, loc))?;
+                // .try_map_tp(&mut |tp| self.instantiate_tp(tp, tmp_tv_cache, loc))?;
+                // println!("596: {val} / {tmp_tv_cache}");
+                Ok(TyParam::Value(val))
             }
             TyParam::Erased(t) => {
                 let t = self.instantiate_t_inner(*t, tmp_tv_cache, loc)?;
                 Ok(TyParam::Erased(Box::new(t)))
             }
-            p @ (TyParam::Value(_) | TyParam::Mono(_) | TyParam::FreeVar(_)) => Ok(p),
-            other => {
-                type_feature_error!(
-                    self,
-                    loc.loc(),
-                    &format!("instantiating type-parameter {other}")
-                )
-            }
+            p @ (TyParam::Mono(_) | TyParam::FreeVar(_) | TyParam::Failure) => Ok(p),
         }
     }
 
@@ -670,7 +676,11 @@ impl Context {
                 let rhs = self.instantiate_pred(*rhs, tmp_tv_cache, loc)?;
                 Ok(Predicate::general_ne(lhs, rhs))
             }
-            _ => Ok(pred),
+            Predicate::Attr { receiver, name } => {
+                let receiver = self.instantiate_tp(receiver, tmp_tv_cache, loc)?;
+                Ok(Predicate::attr(receiver, name))
+            }
+            Predicate::Const(_) | Predicate::Failure => Ok(pred),
         }
     }
 
@@ -714,6 +724,10 @@ impl Context {
                 }
                 Ok(ValueObj::List(new.into()))
             }
+            ValueObj::UnsizedList(lis) => {
+                let lis = self.instantiate_value(*lis, tmp_tv_cache, loc)?;
+                Ok(ValueObj::UnsizedList(Box::new(lis)))
+            }
             ValueObj::Tuple(tup) => {
                 let mut new = vec![];
                 for v in tup.iter().cloned() {
@@ -754,7 +768,18 @@ impl Context {
                 }
                 Ok(ValueObj::DataClass { name, fields: new })
             }
-            _ => Ok(value),
+            ValueObj::Int(_)
+            | ValueObj::Nat(_)
+            | ValueObj::Float(_)
+            | ValueObj::Str(_)
+            | ValueObj::Bool(_)
+            | ValueObj::Code(_)
+            | ValueObj::None
+            | ValueObj::Ellipsis
+            | ValueObj::Inf
+            | ValueObj::NegInf
+            | ValueObj::NotImplemented
+            | ValueObj::Failure => Ok(value),
         }
     }
 
@@ -765,6 +790,8 @@ impl Context {
         tmp_tv_cache: &mut TyVarCache,
         loc: &impl Locational,
     ) -> TyCheckResult<Type> {
+        // Structural types may have recursive structures
+        set_recursion_limit!(Ok(unbound), 128);
         match unbound {
             FreeVar(fv) if fv.is_linked() => {
                 let t = fv.crack().clone();
@@ -776,8 +803,7 @@ impl Context {
                     let t = t.clone();
                     Ok(t)
                 } else if let Some(tp) = tmp_tv_cache.get_typaram(&name) {
-                    if let TyParam::Type(t) = tp {
-                        let t = *t.clone();
+                    if let Ok(t) = self.convert_tp_into_type(tp.clone()) {
                         Ok(t)
                     } else {
                         todo!(
@@ -797,8 +823,8 @@ impl Context {
                         if let Some(t) = tv_ctx.get_tyvar(&name) {
                             return Ok(t.clone());
                         } else if let Some(tp) = tv_ctx.get_typaram(&name) {
-                            if let TyParam::Type(t) = tp {
-                                return Ok(*t.clone());
+                            if let Ok(t) = self.convert_tp_into_type(tp.clone()) {
+                                return Ok(t);
                             } else {
                                 todo!(
                                     "typaram_insts: {}\ntyvar_insts:{}\n{tp}",
@@ -902,16 +928,8 @@ impl Context {
                 Ok(poly(name, params))
             }
             Structural(t) => {
-                // avoid infinite recursion
-                if tmp_tv_cache.structural_inner {
-                    Ok(t.structuralize())
-                } else {
-                    if t.is_recursive() {
-                        tmp_tv_cache.structural_inner = true;
-                    }
-                    let t = self.instantiate_t_inner(*t, tmp_tv_cache, loc)?;
-                    Ok(t.structuralize())
-                }
+                let t = self.instantiate_t_inner(*t, tmp_tv_cache, loc)?;
+                Ok(t.structuralize())
             }
             FreeVar(fv) => {
                 if let Some((sub, sup)) = fv.get_subsup() {
@@ -961,8 +979,15 @@ impl Context {
                 let sup = self.instantiate_t_inner(*sup, tmp_tv_cache, loc)?;
                 Ok(bounded(sub, sup))
             }
-            other if other.is_monomorphic() => Ok(other),
-            other => type_feature_error!(self, loc.loc(), &format!("instantiating type {other}")),
+            Callable { param_ts, return_t } => {
+                let param_ts = param_ts
+                    .into_iter()
+                    .map(|t| self.instantiate_t_inner(t, tmp_tv_cache, loc))
+                    .collect::<TyCheckResult<_>>()?;
+                let return_t = self.instantiate_t_inner(*return_t, tmp_tv_cache, loc)?;
+                Ok(callable(param_ts, return_t))
+            }
+            mono_type_pattern!() => Ok(unbound),
         }
     }
 
@@ -983,7 +1008,7 @@ impl Context {
                 if let Some(self_t) = ty.self_t() {
                     self.sub_unify(callee.ref_t(), self_t, callee, Some(&Str::ever("self")))?;
                 }
-                if cfg!(feature = "debug") && ty.has_qvar() {
+                if DEBUG_MODE && ty.has_qvar() {
                     panic!("{ty} has qvar")
                 }
                 Ok(ty)
@@ -1028,6 +1053,7 @@ impl Context {
                 log!(err "{subr} has qvar");
                 self.instantiate(Type::Subr(subr).quantify(), callee)
             }
+            // There are no quantified types inside normal types (rank-0 types) due to the rank-1 restriction
             // rank-1制限により、通常の型(rank-0型)の内側に量化型は存在しない
             other => Ok(other),
         }
@@ -1047,7 +1073,7 @@ impl Context {
             Quantified(quant) => {
                 let mut tmp_tv_cache = TyVarCache::new(self.level, self);
                 let ty = self.instantiate_t_inner(*quant, &mut tmp_tv_cache, &())?;
-                if cfg!(feature = "debug") && ty.has_qvar() {
+                if DEBUG_MODE && ty.has_qvar() {
                     panic!("{ty} has qvar")
                 }
                 Ok(ty)

@@ -18,7 +18,7 @@ use crate::ty::{HasType, Predicate, SubrType, Type};
 
 use crate::context::{Context, Variance};
 use crate::error::{TyCheckError, TyCheckErrors, TyCheckResult};
-use crate::{feature_error, hir, unreachable_error};
+use crate::{feature_error, hir, mono_type_pattern, mono_value_pattern, unreachable_error};
 
 use Type::*;
 use Variance::*;
@@ -45,9 +45,10 @@ impl Generalizer {
     fn generalize_tp(&mut self, free: TyParam, uninit: bool) -> TyParam {
         match free {
             TyParam::Type(t) => TyParam::t(self.generalize_t(*t, uninit)),
-            TyParam::Value(ValueObj::Type(t)) => {
-                TyParam::t(self.generalize_t(t.into_typ(), uninit))
-            }
+            TyParam::Value(val) => TyParam::Value(
+                val.map_t(&mut |t| self.generalize_t(t, uninit))
+                    .map_tp(&mut |tp| self.generalize_tp(tp, uninit)),
+            ),
             TyParam::FreeVar(fv) if fv.is_generalized() => TyParam::FreeVar(fv),
             TyParam::FreeVar(fv) if fv.is_linked() => {
                 let tp = fv.crack().clone();
@@ -65,6 +66,9 @@ impl Generalizer {
                     .map(|tp| self.generalize_tp(tp, uninit))
                     .collect(),
             ),
+            TyParam::UnsizedList(tp) => {
+                TyParam::UnsizedList(Box::new(self.generalize_tp(*tp, uninit)))
+            }
             TyParam::Tuple(tps) => TyParam::Tuple(
                 tps.into_iter()
                     .map(|tp| self.generalize_tp(tp, uninit))
@@ -128,6 +132,14 @@ impl Generalizer {
                 let obj = self.generalize_tp(*obj, uninit);
                 TyParam::proj(obj, attr)
             }
+            TyParam::ProjCall { obj, attr, args } => {
+                let obj = self.generalize_tp(*obj, uninit);
+                let args = args
+                    .into_iter()
+                    .map(|tp| self.generalize_tp(tp, uninit))
+                    .collect();
+                TyParam::proj_call(obj, attr, args)
+            }
             TyParam::Erased(t) => TyParam::erased(self.generalize_t(*t, uninit)),
             TyParam::App { name, args } => {
                 let args = args
@@ -145,13 +157,7 @@ impl Generalizer {
                 let val = self.generalize_tp(*val, uninit);
                 TyParam::unary(op, val)
             }
-            other if other.has_no_unbound_var() => other,
-            other => {
-                if DEBUG_MODE {
-                    todo!("{other:?}");
-                }
-                other
-            }
+            TyParam::Mono(_) | TyParam::Failure => free,
         }
     }
 
@@ -203,6 +209,7 @@ impl Generalizer {
                     Type::FreeVar(fv)
                 }
             }
+            FreeVar(_) => free_type,
             Subr(mut subr) => {
                 self.variance = Contravariant;
                 let qnames = subr.essential_qnames();
@@ -230,6 +237,10 @@ impl Generalizer {
                     subr.kw_var_params.map(|x| *x),
                     return_t,
                 )
+            }
+            Quantified(quant) => {
+                log!(err "{quant}");
+                quant.quantify()
             }
             Record(rec) => {
                 let fields = rec
@@ -307,8 +318,14 @@ impl Generalizer {
                 let to = self.generalize_t(*grd.to, uninit);
                 guard(grd.namespace, grd.target, to)
             }
-            // REVIEW: その他何でもそのまま通していいのか?
-            other => other,
+            Bounded { sub, sup } => {
+                let sub = self.generalize_t(*sub, uninit);
+                let sup = self.generalize_t(*sup, uninit);
+                bounded(sub, sup)
+            }
+            Int | Nat | Float | Ratio | Complex | Bool | Str | Never | Obj | Type | Error
+            | Code | Frame | NoneType | Inf | NegInf | NotImplementedType | Ellipsis
+            | ClassType | TraitType | Patch | Failure | Uninited | Mono(_) => free_type,
         }
     }
 
@@ -328,9 +345,8 @@ impl Generalizer {
     fn generalize_pred(&mut self, pred: Predicate, uninit: bool) -> Predicate {
         match pred {
             Predicate::Const(_) | Predicate::Failure => pred,
-            Predicate::Value(ValueObj::Type(mut typ)) => {
-                *typ.typ_mut() = self.generalize_t(mem::take(typ.typ_mut()), uninit);
-                Predicate::Value(ValueObj::Type(typ))
+            Predicate::Value(val) => {
+                Predicate::Value(val.map_t(&mut |t| self.generalize_t(t, uninit)))
             }
             Predicate::Call {
                 receiver,
@@ -348,7 +364,6 @@ impl Generalizer {
                 let receiver = self.generalize_tp(receiver, uninit);
                 Predicate::attr(receiver, name)
             }
-            Predicate::Value(_) => pred,
             Predicate::GeneralEqual { lhs, rhs } => {
                 let lhs = self.generalize_pred(*lhs, uninit);
                 let rhs = self.generalize_pred(*rhs, uninit);
@@ -454,7 +469,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
     fn deref_value(&mut self, val: ValueObj) -> TyCheckResult<ValueObj> {
         match val {
             ValueObj::Type(mut t) => {
-                t.try_map_t(|t| self.deref_tyvar(t.clone()))?;
+                t.try_map_t(&mut |t| self.deref_tyvar(t.clone()))?;
                 Ok(ValueObj::Type(t))
             }
             ValueObj::List(vs) => {
@@ -505,7 +520,8 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 })
             }
             ValueObj::UnsizedList(v) => Ok(ValueObj::UnsizedList(Box::new(self.deref_value(*v)?))),
-            _ => Ok(val),
+            ValueObj::Subr(subr) => Ok(ValueObj::Subr(subr)),
+            mono_value_pattern!() => Ok(val),
         }
     }
 
@@ -530,6 +546,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 fv.update_type(t);
                 Ok(TyParam::FreeVar(fv))
             }
+            TyParam::FreeVar(_) => Ok(tp),
             TyParam::Type(t) => Ok(TyParam::t(self.deref_tyvar(*t)?)),
             TyParam::Value(val) => self.deref_value(val).map(TyParam::Value),
             TyParam::Erased(t) => Ok(TyParam::erased(self.deref_tyvar(*t)?)),
@@ -562,6 +579,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 }
                 Ok(TyParam::List(new_tps))
             }
+            TyParam::UnsizedList(tp) => Ok(TyParam::UnsizedList(Box::new(self.deref_tp(*tp)?))),
             TyParam::Tuple(tps) => {
                 let mut new_tps = vec![];
                 for tp in tps {
@@ -613,20 +631,20 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 let nd_params = lambda
                     .nd_params
                     .into_iter()
-                    .map(|pt| pt.try_map_type(|t| self.deref_tyvar(t)))
+                    .map(|pt| pt.try_map_type(&mut |t| self.deref_tyvar(t)))
                     .collect::<TyCheckResult<_>>()?;
                 let var_params = lambda
                     .var_params
-                    .map(|pt| pt.try_map_type(|t| self.deref_tyvar(t)))
+                    .map(|pt| pt.try_map_type(&mut |t| self.deref_tyvar(t)))
                     .transpose()?;
                 let d_params = lambda
                     .d_params
                     .into_iter()
-                    .map(|pt| pt.try_map_type(|t| self.deref_tyvar(t)))
+                    .map(|pt| pt.try_map_type(&mut |t| self.deref_tyvar(t)))
                     .collect::<TyCheckResult<_>>()?;
                 let kw_var_params = lambda
                     .kw_var_params
-                    .map(|pt| pt.try_map_type(|t| self.deref_tyvar(t)))
+                    .map(|pt| pt.try_map_type(&mut |t| self.deref_tyvar(t)))
                     .transpose()?;
                 let body = lambda
                     .body
@@ -649,10 +667,22 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                     attr,
                 })
             }
+            TyParam::ProjCall { obj, attr, args } => {
+                let obj = self.deref_tp(*obj)?;
+                let mut new_args = vec![];
+                for arg in args.into_iter() {
+                    new_args.push(self.deref_tp(arg)?);
+                }
+                Ok(TyParam::ProjCall {
+                    obj: Box::new(obj),
+                    attr,
+                    args: new_args,
+                })
+            }
             TyParam::Failure if self.level == 0 => Err(TyCheckErrors::from(
                 TyCheckError::dummy_infer_error(self.ctx.cfg.input.clone(), fn_name!(), line!()),
             )),
-            t => Ok(t),
+            TyParam::Mono(_) | TyParam::Failure => Ok(tp),
         }
     }
 
@@ -769,8 +799,12 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 let pred = self.deref_pred(*pred)?;
                 Ok(!pred)
             }
+            Predicate::Attr { receiver, name } => {
+                let receiver = self.deref_tp(receiver)?;
+                Ok(Predicate::attr(receiver, name))
+            }
             Predicate::Value(v) => self.deref_value(v).map(Predicate::Value),
-            _ => Ok(pred),
+            Predicate::Const(_) | Predicate::Failure => Ok(pred),
         }
     }
 
@@ -895,6 +929,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                     Ok(Type::FreeVar(fv))
                 }
             }
+            FreeVar(_) => Ok(t),
             Poly { name, mut params } => {
                 let typ = poly(&name, params.clone());
                 let ctx = self.ctx.get_nominal_type_ctx(&typ).ok_or_else(|| {
@@ -1059,7 +1094,12 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 let to = self.deref_tyvar(*grd.to)?;
                 Ok(guard(grd.namespace, grd.target, to))
             }
-            t => Ok(t),
+            Bounded { sub, sup } => {
+                let sub = self.deref_tyvar(*sub)?;
+                let sup = self.deref_tyvar(*sup)?;
+                Ok(bounded(sub, sup))
+            }
+            mono_type_pattern!() => Ok(t),
         }
     }
 

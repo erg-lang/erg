@@ -1854,7 +1854,10 @@ impl Context {
             ),
             Type::FreeVar(fv) => {
                 if let Some(sub) = fv.get_sub() {
-                    if !self.subtype_of(&sub, &mono("GenericCallable")) {
+                    fv.dummy_link();
+                    let subtype_of = self.subtype_of(&sub, &mono("GenericCallable"));
+                    fv.undo();
+                    if !subtype_of {
                         return Err(self.not_callable_error(obj, attr_name, instance, None));
                     }
                     if sub != Never {
