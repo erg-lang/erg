@@ -233,6 +233,11 @@ fn exec_int() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_ratio() -> Result<(), ()> {
+    expect_success("tests/should_ok/ratio.er", 0)
+}
+
+#[test]
 fn exec_interpolation() -> Result<(), ()> {
     expect_success("tests/should_ok/interpolation.er", 0)
 }
@@ -650,7 +655,7 @@ fn exec_pyimport_err() -> Result<(), ()> {
 
 #[test]
 fn exec_set() -> Result<(), ()> {
-    expect_failure("examples/set.er", 3, 1)
+    expect_success("examples/set.er", 3)
 }
 
 #[test]

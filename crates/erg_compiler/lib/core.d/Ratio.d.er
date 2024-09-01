@@ -1,0 +1,43 @@
+'''english
+A class representing a ratio.
+'''
+'''japanese
+有理数を表すクラス。
+'''
+.Ratio: ClassType
+.Ratio.
+    Denominator: .Int
+    Numerator: .Int
+    '''
+    Returns a tuple of the numerator and denominator.
+    '''
+    '''japanese
+    分母分子のタプルを返す。
+    '''
+    '''erg
+    r: Ratio = 1.2345
+    assert r.as_integer_ratio() == (2469, 2000)
+    '''
+    as_integer_ratio: (self: .Ratio) -> (.Int, .Int)
+    '''
+    Predecessor of `self` (`self - 1`).
+    '''
+    '''japanese
+    `self`の1つ前の値を返す。
+    '''
+    '''erg
+    r: Ratio = 1.2345
+    assert r.pred() == 0.2344
+    '''
+    pred: (self: .Ratio) -> .Ratio
+    '''
+    Successor of `self` (`self + 1`).
+    '''
+    '''japanese
+    `self`の1つ後の値を返す。
+    '''
+    '''erg
+    r: Ratio = 1.2345
+    assert r.succ() == 2.2346
+    '''
+    succ: (self: .Ratio) -> .Ratio
