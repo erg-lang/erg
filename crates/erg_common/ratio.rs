@@ -27,7 +27,7 @@ impl Ratio {
 
     #[inline]
     pub const fn zero() -> Self {
-        Self { numer: 0, denom: 0 }
+        Self { numer: 0, denom: 1 }
     }
 
     #[inline]
@@ -35,7 +35,7 @@ impl Ratio {
         Self { numer: 1, denom: 1 }
     }
 
-    const EPSILON: f64 = 1e-30;
+    const EPSILON: f64 = 1e-10;
     #[inline]
     pub fn float_new(f: f64) -> Self {
         let mut f = f;
@@ -147,7 +147,10 @@ impl Div for Ratio {
     fn div(self, rhs: Self) -> Self::Output {
         let ac = gcd(self.numer, rhs.numer);
         let bd = gcd(self.denom, rhs.denom);
-        Self::new(self.numer / ac, self.denom / bd * (rhs.numer / ac))
+        Self::new(
+            self.numer / ac * rhs.denom / bd,
+            self.denom / bd * rhs.numer / ac,
+        )
     }
 }
 
@@ -172,11 +175,13 @@ impl Rem for Ratio {
 impl PartialOrd for Ratio {
     #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        match self.numer.partial_cmp(&other.numer) {
-            Some(Equal) => {}
-            ord => return ord,
+        if self.denom == other.denom {
+            return self.numer.partial_cmp(&other.numer);
         }
-        self.denom.partial_cmp(&other.denom)
+        let lcm = lcm(self.denom, other.denom);
+        let l = self.numer * lcm / self.denom;
+        let r = other.numer * lcm / other.denom;
+        l.partial_cmp(&r)
     }
 
     #[inline]
@@ -206,33 +211,6 @@ impl Display for Ratio {
     }
 }
 
-pub const RATIO_E: Ratio = Ratio::new(268876667, 98914198);
-pub const RATIO_TAU: Ratio = Ratio::new(411557987, 65501488);
-pub const RATIO_EGAMMA: Ratio = Ratio::new(240627391, 416876058);
-pub const RATIO_PHI: Ratio = Ratio::new(240627391, 416876058);
-
-pub const RATIO_LN_2: Ratio = Ratio::new(49180508, 70952475);
-pub const RATIO_LN_2_10: Ratio = Ratio::new(146964308, 44240665);
-pub const RATIO_LN_2_E: Ratio = Ratio::new(161546953, 111975815);
-pub const RATIO_LN_10: Ratio = Ratio::new(239263565, 103910846);
-pub const RATIO_LN_10_2: Ratio = Ratio::new(44240665, 146964308);
-pub const RATIO_LN_10_E: Ratio = Ratio::new(118568075, 273013082);
-
-pub const RATIO_PI: Ratio = Ratio::new(245850922, 78256779);
-pub const RATIO_PI_2: Ratio = Ratio::new(122925461, 78256779);
-pub const RATIO_PI_3: Ratio = Ratio::new(112277827, 107217427);
-pub const RATIO_PI_4: Ratio = Ratio::new(101534659, 129277943);
-pub const RATIO_PI_6: Ratio = Ratio::new(69496223, 132728009);
-pub const RATIO_PI_8: Ratio = Ratio::new(101534659, 258555886);
-pub const RATIO_PI_10: Ratio = Ratio::new(122925461, 78256779);
-pub const RATIO_FRAC_1_PI: Ratio = Ratio::new(78256779, 245850922);
-pub const RATIO_FRAC_2_PI: Ratio = Ratio::new(78256779, 122925461);
-
-pub const RATIO_SQRT_2: Ratio = Ratio::new(131836323, 93222358);
-pub const RATIO_FRAC_2_SQRT_PI: Ratio = Ratio::new(37593262, 33316161);
-pub const RATIO_FRAC_1_SQRT_2: Ratio = Ratio::new(131836323, 186444716);
-pub const RATIO_FRAC_1_SQRT_3: Ratio = Ratio::new(109552575, 189750626);
-
 const fn gcd(x: i64, y: i64) -> i64 {
     if y > x {
         return gcd(y, x);
@@ -256,17 +234,8 @@ fn lcm(x: i64, y: i64) -> i64 {
 
 #[cfg(test)]
 mod test {
-    use std::f64::consts::{
-        E, FRAC_1_PI, FRAC_1_SQRT_2, FRAC_2_PI, FRAC_PI_2, FRAC_PI_3, FRAC_PI_4, LN_10, LN_2,
-        LOG10_2, LOG10_E, LOG2_10, LOG2_E, PI, SQRT_2, TAU,
-    };
-
     use super::Ratio;
-    use crate::ratio::{
-        gcd, lcm, RATIO_E, RATIO_FRAC_1_PI, RATIO_FRAC_1_SQRT_2, RATIO_FRAC_2_PI, RATIO_LN_10,
-        RATIO_LN_10_2, RATIO_LN_10_E, RATIO_LN_2, RATIO_LN_2_10, RATIO_LN_2_E, RATIO_PI,
-        RATIO_PI_2, RATIO_PI_3, RATIO_PI_4, RATIO_SQRT_2, RATIO_TAU,
-    };
+    use crate::ratio::{gcd, lcm};
 
     #[test]
     fn test_gcd() {
@@ -366,6 +335,9 @@ mod test {
         let a = Ratio::new(2, 1);
         let b = Ratio::new(2, 1);
         assert_eq!(Ratio::new(1, 1), a / b);
+        let a = Ratio::new(80, 363);
+        let b = Ratio::new(2, 5);
+        assert_eq!(Ratio::new(200, 363), a / b);
         let a = Ratio::new(i64::MAX, i64::MIN + 1);
         let b = Ratio::new(i64::MAX, i64::MIN + 1);
         assert_eq!(Ratio::new(1, 1), a / b);
@@ -398,35 +370,25 @@ mod test {
     }
 
     #[test]
-    fn test_float_new() {
-        assert_eq!(Ratio::new(-1, 1), Ratio::float_new(-1.0));
-        assert_eq!(Ratio::new(3, 10), Ratio::float_new(0.3));
-        assert_eq!(Ratio::new(1, 7), Ratio::float_new(0.14285714285714285));
-        assert_eq!(Ratio::new(1, 997), Ratio::float_new(0.0010030090270812437));
+    fn test_ratio_compare() {
+        let a = Ratio::new(1, 2);
+        let b = Ratio::new(1, 3);
+        assert!(a > b);
+        assert!(a >= b);
+        assert!(a >= a);
+        assert!(b <= a);
+        assert!(b <= b);
+        assert!(b < a);
     }
 
     #[test]
-    fn test_ratio_const_float() {
-        assert_eq!(RATIO_E, Ratio::float_new(E));
-        assert_eq!(RATIO_PI, Ratio::float_new(PI));
-        assert_eq!(RATIO_TAU, Ratio::float_new(TAU));
-
-        assert_eq!(RATIO_SQRT_2, Ratio::float_new(SQRT_2));
-        assert_eq!(RATIO_FRAC_1_SQRT_2, Ratio::float_new(FRAC_1_SQRT_2));
-        assert_eq!(RATIO_FRAC_1_SQRT_2, Ratio::float_new(FRAC_1_SQRT_2));
-
-        assert_eq!(RATIO_LN_2, Ratio::float_new(LN_2));
-        assert_eq!(RATIO_LN_10, Ratio::float_new(LN_10));
-        assert_eq!(RATIO_LN_2_10, Ratio::float_new(LOG2_10));
-        assert_eq!(RATIO_LN_2_E, Ratio::float_new(LOG2_E));
-        assert_eq!(RATIO_LN_10_2, Ratio::float_new(LOG10_2));
-        assert_eq!(RATIO_LN_10_E, Ratio::float_new(LOG10_E));
-
-        assert_eq!(RATIO_PI_2, Ratio::float_new(FRAC_PI_2));
-        assert_eq!(RATIO_PI_3, Ratio::float_new(FRAC_PI_3));
-        assert_eq!(RATIO_PI_4, Ratio::float_new(FRAC_PI_4));
-        assert_eq!(RATIO_FRAC_1_PI, Ratio::float_new(FRAC_1_PI));
-        assert_eq!(RATIO_FRAC_2_PI, Ratio::float_new(FRAC_2_PI));
-        assert_eq!(RATIO_FRAC_1_SQRT_2, Ratio::float_new(FRAC_1_SQRT_2));
+    fn test_float_new() {
+        assert_eq!(Ratio::new(-1, 1), Ratio::float_new(-1.0));
+        assert_eq!(Ratio::new(0, 1), Ratio::float_new(-0.0));
+        assert_eq!(Ratio::new(3, 10), Ratio::float_new(0.3));
+        assert_eq!(Ratio::new(1, 7), Ratio::float_new(0.142857142857143));
+        assert_eq!(Ratio::new(1, 997), Ratio::float_new(0.00100300902708124));
+        assert_eq!(Ratio::new(1, 100000), Ratio::float_new(1e-5));
+        assert_eq!(Ratio::new(1, 5000000000), Ratio::float_new(1e-10));
     }
 }
