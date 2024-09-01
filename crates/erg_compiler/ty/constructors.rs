@@ -309,6 +309,10 @@ pub fn func2(l: Type, r: Type, return_t: Type) -> Type {
     )
 }
 
+pub fn default_func(defaults: Vec<ParamTy>, return_t: Type) -> Type {
+    func(vec![], None, defaults, None, return_t)
+}
+
 pub fn bin_op(l: Type, r: Type, return_t: Type) -> Type {
     nd_func(
         vec![

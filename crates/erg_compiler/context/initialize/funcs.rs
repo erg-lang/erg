@@ -147,6 +147,7 @@ impl Context {
             t_filter.clone(),
             None,
         )));
+        let t_float = default_func(vec![kw(KW_OBJ, Obj)], Float);
         let t_format = no_var_func(vec![kw(KW_VALUE, Obj)], vec![kw(KW_SPEC, Str)], Str);
         let t_frozenset = no_var_func(
             vec![],
@@ -491,6 +492,13 @@ impl Context {
             Some(FUNC_ENUMERATE),
         );
         self.register_builtin_py_impl(FUNC_EXIT, t_exit, Immutable, vis.clone(), Some(FUNC_EXIT));
+        self.register_builtin_py_impl(
+            FUNC_FLOAT,
+            t_float,
+            Immutable,
+            vis.clone(),
+            Some(FUNC_FLOAT),
+        );
         self.register_builtin_py_impl(
             FUNC_FORMAT,
             t_format,
