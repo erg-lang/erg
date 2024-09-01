@@ -528,6 +528,14 @@ macro_rules! log {
         }
     }};
 
+    (backtrace) => {{
+        if cfg!(feature = "debug") {
+            use $crate::style::*;
+            $crate::debug_info!();
+            println!("\n{}", std::backtrace::Backtrace::capture());
+        }
+    }};
+
     (caller) => {{
         if cfg!(feature = "debug") {
             use $crate::style::*;
@@ -627,6 +635,7 @@ macro_rules! set_recursion_limit {
         let counter = $crate::macros::RecursionCounter::new(&COUNTER);
         if counter.limit_reached() {
             $crate::log!(err "Recursion limit reached");
+            $crate::log!(backtrace);
             return $returns;
         }
     };

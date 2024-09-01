@@ -1585,19 +1585,27 @@ impl Context {
     /// ```
     fn simple_union(&self, lhs: &Type, rhs: &Type) -> Type {
         if let Ok(free) = <&FreeTyVar>::try_from(lhs) {
-            if !rhs.is_totally_unbound() && self.supertype_of(&free.get_sub().unwrap_or(Never), rhs)
+            free.dummy_link();
+            let res = if !rhs.is_totally_unbound()
+                && self.supertype_of(&free.get_sub().unwrap_or(Never), rhs)
             {
                 lhs.clone()
             } else {
                 or(lhs.clone(), rhs.clone())
-            }
+            };
+            free.undo();
+            res
         } else if let Ok(free) = <&FreeTyVar>::try_from(rhs) {
-            if !lhs.is_totally_unbound() && self.supertype_of(&free.get_sub().unwrap_or(Never), lhs)
+            free.dummy_link();
+            let res = if !lhs.is_totally_unbound()
+                && self.supertype_of(&free.get_sub().unwrap_or(Never), lhs)
             {
                 rhs.clone()
             } else {
                 or(lhs.clone(), rhs.clone())
-            }
+            };
+            free.undo();
+            res
         } else {
             if lhs.is_totally_unbound() || rhs.is_totally_unbound() {
                 return or(lhs.clone(), rhs.clone());

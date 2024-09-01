@@ -3426,6 +3426,7 @@ impl Type {
                 fv.crack().destructive_coerce();
             }
             Type::FreeVar(fv) if fv.is_unbound_and_sandwiched() => {
+                // TODO: other way to avoid infinite recursion
                 set_recursion_limit!({}, 128);
                 let (sub, _sup) = fv.get_subsup().unwrap();
                 sub.destructive_coerce();

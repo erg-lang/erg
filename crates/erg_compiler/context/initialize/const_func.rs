@@ -348,8 +348,7 @@ pub(crate) fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueR
         Ok(v.into())
     } else {
         let index = if let ValueObj::Type(t) = &index {
-            let derefed = ctx.coerce(t.typ().clone(), &()).unwrap_or(t.typ().clone());
-            ValueObj::builtin_type(derefed)
+            ValueObj::builtin_type(ctx.readable_type(t.typ().clone()))
         } else {
             index
         };

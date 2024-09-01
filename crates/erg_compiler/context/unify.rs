@@ -1298,12 +1298,17 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     log!(err "{sub_fv} is not a type variable");
                     return Ok(());
                 };
+                sub_fv.dummy_link();
                 let sub_fields = self.ctx.fields(maybe_sub);
                 for (sup_field, sup_ty) in self.ctx.fields(struct_sup) {
                     if let Some((_, sub_ty)) = sub_fields.get_key_value(&sup_field) {
-                        self.sub_unify(sub_ty, &sup_ty)?;
+                        self.sub_unify(sub_ty, &sup_ty).map_err(|errs| {
+                            sub_fv.undo();
+                            errs
+                        })?;
                     } else if !self.ctx.subtype_of(&sub, &Never) {
                         maybe_sub.coerce(self.undoable);
+                        sub_fv.dummy_link();
                         return self.sub_unify(maybe_sub, maybe_sup);
                     } else {
                         // e.g. ?T / Structural({ .method = (self: ?T) -> Int })
@@ -1314,6 +1319,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                         sub_fv.update_constraint(constr, false);
                     }
                 }
+                sub_fv.undo();
             }
             (FreeVar(sub_fv), Ref(sup)) if sub_fv.is_unbound() => {
                 self.sub_unify(maybe_sub, sup)?;
