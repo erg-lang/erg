@@ -107,13 +107,15 @@ impl From<&str> for DefaultFeatures {
             "rename" => DefaultFeatures::Rename,
             "inlayhint" | "inlayhints" | "inlayHint" | "inlayHints" | "inlay-hint"
             | "inlay-hints" => DefaultFeatures::InlayHint,
-            "findreferences" | "findReferences" | "find-references" => {
+            "findreferences" | "findReferences" | "find-references" | "references" => {
                 DefaultFeatures::FindReferences
             }
-            "gotodefinition" | "gotoDefinition" | "goto-completion" => {
+            "gotodefinition" | "gotoDefinition" | "goto-definition" => {
                 DefaultFeatures::GotoDefinition
             }
-            "signaturehelp" | "signatureHelp" | "signature-help" => DefaultFeatures::SignatureHelp,
+            "signaturehelp" | "signatureHelp" | "signature-help" | "code-signature" => {
+                DefaultFeatures::SignatureHelp
+            }
             "smartcompletion" | "smartCompletion" | "smart-completion" => {
                 DefaultFeatures::SmartCompletion
             }
