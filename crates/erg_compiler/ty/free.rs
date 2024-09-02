@@ -591,52 +591,102 @@ impl Hash for Free<TyParam> {
 
 impl PartialEq for Free<Type> {
     fn eq(&self, other: &Self) -> bool {
-        if let Some((self_name, other_name)) = self.unbound_name().zip(other.unbound_name()) {
-            if self_name != other_name {
+        let linked = self.linked_free();
+        let this = if let Some(linked) = &linked {
+            linked
+        } else {
+            self
+        };
+        let linked = other.linked_free();
+        let other = if let Some(linked) = &linked {
+            linked
+        } else {
+            other
+        };
+        if let Some(self_name) = this.unbound_name() {
+            if let Some(other_name) = other.unbound_name() {
+                if self_name != other_name {
+                    return false;
+                }
+            } else {
                 return false;
             }
         }
-        if let Some((self_lev, other_lev)) = self.level().zip(other.level()) {
-            if self_lev != other_lev {
+        if let Some(self_lev) = this.level() {
+            if let Some(other_lev) = other.level() {
+                if self_lev != other_lev {
+                    return false;
+                }
+            } else {
                 return false;
             }
         }
-        if let Some((sub, sup)) = self.get_subsup() {
+        if let Some((sub, sup)) = this.get_subsup() {
             if let Some((other_sub, other_sup)) = other.get_subsup() {
-                self.dummy_link();
+                this.dummy_link();
                 other.dummy_link();
                 let res = sub == other_sub && sup == other_sup;
-                self.undo();
+                this.undo();
                 other.undo();
-                return res;
+                res
+            } else {
+                false
             }
-        } else if let Some((self_t, other_t)) = self.get_type().zip(other.get_type()) {
-            return self_t == other_t;
-        } else if self.is_linked() && other.is_linked() {
-            return self.crack().eq(&other.crack());
+        } else if let Some(self_t) = this.get_type() {
+            if let Some(other_t) = other.get_type() {
+                self_t == other_t
+            } else {
+                false
+            }
+        } else {
+            // name, level, constraint are equal
+            true
         }
-        false
     }
 }
 
 impl PartialEq for Free<TyParam> {
     fn eq(&self, other: &Self) -> bool {
-        if let Some((self_name, other_name)) = self.unbound_name().zip(other.unbound_name()) {
-            if self_name != other_name {
+        let linked = self.linked_free();
+        let this = if let Some(linked) = &linked {
+            linked
+        } else {
+            self
+        };
+        let linked = other.linked_free();
+        let other = if let Some(linked) = &linked {
+            linked
+        } else {
+            other
+        };
+        if let Some(self_name) = this.unbound_name() {
+            if let Some(other_name) = other.unbound_name() {
+                if self_name != other_name {
+                    return false;
+                }
+            } else {
                 return false;
             }
         }
-        if let Some((self_lev, other_lev)) = self.level().zip(other.level()) {
-            if self_lev != other_lev {
+        if let Some(self_lev) = this.level() {
+            if let Some(other_lev) = other.level() {
+                if self_lev != other_lev {
+                    return false;
+                }
+            } else {
                 return false;
             }
         }
-        if let Some((self_t, other_t)) = self.get_type().zip(other.get_type()) {
-            return self_t == other_t;
-        } else if self.is_linked() && other.is_linked() {
-            return self.crack().eq(&other.crack());
+        if let Some(self_t) = this.get_type() {
+            if let Some(other_t) = other.get_type() {
+                self_t == other_t
+            } else {
+                false
+            }
+        } else {
+            // name, level, constraint are equal
+            true
         }
-        false
     }
 }
 
@@ -690,6 +740,18 @@ impl Free<Type> {
         )
     }
 
+    /// (T) => T
+    /// ((T)) => T
+    pub fn linked_free(&self) -> Option<Free<Type>> {
+        let linked = self.get_linked()?;
+        let fv = linked.as_free()?;
+        if let Some(fv) = fv.linked_free() {
+            Some(fv)
+        } else {
+            Some(self.clone())
+        }
+    }
+
     pub fn is_recursive(&self) -> bool {
         Type::FreeVar(self.clone()).is_recursive()
     }
@@ -731,6 +793,18 @@ impl Free<TyParam> {
             self.level().unwrap(),
             self.constraint().unwrap(),
         )
+    }
+
+    /// (T) => T
+    /// ((T)) => T
+    pub fn linked_free(&self) -> Option<Free<TyParam>> {
+        let linked = self.get_linked()?;
+        let fv = linked.as_free()?;
+        if let Some(fv) = fv.linked_free() {
+            Some(fv)
+        } else {
+            Some(self.clone())
+        }
     }
 
     pub fn is_recursive(&self) -> bool {

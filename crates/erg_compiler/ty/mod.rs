@@ -1478,32 +1478,8 @@ impl PartialEq for Type {
                     && lps.iter().zip(rps.iter()).all(|(l, r)| l == r)
                     && (lr == rr)
             }
-            (Self::Record(lhs), Self::Record(rhs)) => {
-                if lhs.len() != rhs.len() {
-                    return false;
-                }
-                for (l_field, l_t) in lhs.iter() {
-                    if let Some(r_t) = rhs.get(l_field) {
-                        if !(l_t == r_t) {
-                            return false;
-                        }
-                    } else {
-                        return false;
-                    }
-                }
-                true
-            }
-            (Self::NamedTuple(lhs), Self::NamedTuple(rhs)) => {
-                if lhs.len() != rhs.len() {
-                    return false;
-                }
-                for ((l_field, l_t), (r_field, r_t)) in lhs.iter().zip(rhs) {
-                    if l_field != r_field || l_t != r_t {
-                        return false;
-                    }
-                }
-                true
-            }
+            (Self::Record(lhs), Self::Record(rhs)) => lhs == rhs,
+            (Self::NamedTuple(lhs), Self::NamedTuple(rhs)) => lhs == rhs,
             (Self::Refinement(l), Self::Refinement(r)) => l == r,
             (Self::Quantified(l), Self::Quantified(r)) => l == r,
             // REVIEW: should use the same way as `structural_eq`?
@@ -3055,9 +3031,11 @@ impl Type {
     pub fn is_recursive(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_recursive(),
-            Self::FreeVar(fv) => fv.get_subsup().map_or(false, |(sub, sup)| {
-                sub.contains_type(self) || sup.contains_type(self)
-            }),
+            Self::FreeVar(fv) => fv
+                .get_subsup()
+                .map(|(sub, sup)| sub.contains_type(self) || sup.contains_type(self))
+                .or_else(|| fv.get_type().map(|t| t.contains_type(self)))
+                .unwrap_or(false),
             Self::Record(rec) => rec.iter().any(|(_, t)| t.contains_type(self)),
             Self::NamedTuple(rec) => rec.iter().any(|(_, t)| t.contains_type(self)),
             Self::Poly { params, .. } => params.iter().any(|tp| tp.contains_type(self)),

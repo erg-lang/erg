@@ -1858,7 +1858,8 @@ impl ValueObj {
                 fields: fields.into_iter().map(|(k, v)| (k, v.map_t(f))).collect(),
             },
             ValueObj::UnsizedList(elem) => ValueObj::UnsizedList(Box::new(elem.map_t(f))),
-            self_ => self_,
+            ValueObj::Subr(_) => self,
+            mono_value_pattern!() => self,
         }
     }
 
@@ -1898,7 +1899,9 @@ impl ValueObj {
                     .collect::<Result<Dict<_, _>, _>>()?,
             }),
             ValueObj::UnsizedList(elem) => Ok(ValueObj::UnsizedList(Box::new(elem.try_map_t(f)?))),
-            self_ => Ok(self_),
+            // TODO:
+            ValueObj::Subr(_) => Ok(self),
+            mono_value_pattern!() => Ok(self),
         }
     }
 
@@ -1925,7 +1928,8 @@ impl ValueObj {
                 fields: fields.into_iter().map(|(k, v)| (k, v.map_tp(f))).collect(),
             },
             ValueObj::UnsizedList(elem) => ValueObj::UnsizedList(Box::new(elem.map_tp(f))),
-            self_ => self_,
+            ValueObj::Subr(_) => self,
+            mono_value_pattern!() => self,
         }
     }
 
@@ -1968,7 +1972,8 @@ impl ValueObj {
                     .collect::<Result<Dict<_, _>, _>>()?,
             }),
             ValueObj::UnsizedList(elem) => Ok(ValueObj::UnsizedList(Box::new(elem.try_map_tp(f)?))),
-            self_ => Ok(self_),
+            ValueObj::Subr(_) => Ok(self),
+            mono_value_pattern!() => Ok(self),
         }
     }
 
@@ -1989,7 +1994,9 @@ impl ValueObj {
             ValueObj::Record(rec) => rec.iter().any(|(_, v)| v.contains(val)),
             ValueObj::DataClass { fields, .. } => fields.iter().any(|(_, v)| v.contains(val)),
             ValueObj::UnsizedList(elem) => elem.contains(val),
-            _ => self == val,
+            ValueObj::Type(t) => t.typ().contains_value(val),
+            ValueObj::Subr(_) => self == val,
+            mono_value_pattern!() => self == val,
         }
     }
 
@@ -2005,7 +2012,8 @@ impl ValueObj {
             Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
                 rec.iter().any(|(_, tp)| tp.contains_type(target))
             }
-            _ => false,
+            Self::Subr(_) => false,
+            mono_value_pattern!() => false,
         }
     }
 
@@ -2021,7 +2029,8 @@ impl ValueObj {
             Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
                 rec.iter().any(|(_, tp)| tp.contains_tp(target))
             }
-            _ => false,
+            Self::Subr(_) => false,
+            mono_value_pattern!() => false,
         }
     }
 
@@ -2037,7 +2046,8 @@ impl ValueObj {
             Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
                 rec.iter().any(|(_, tp)| tp.has_unbound_var())
             }
-            _ => false,
+            Self::Subr(_) => false,
+            mono_value_pattern!() => false,
         }
     }
 
@@ -2053,7 +2063,8 @@ impl ValueObj {
             Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
                 rec.iter().any(|(_, tp)| tp.has_undoable_linked_var())
             }
-            _ => false,
+            Self::Subr(_) => false,
+            mono_value_pattern!() => false,
         }
     }
 
@@ -2067,7 +2078,8 @@ impl ValueObj {
             Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
                 rec.iter().any(|(_, tp)| tp.has_qvar())
             }
-            _ => false,
+            Self::Subr(_) => false,
+            mono_value_pattern!() => false,
         }
     }
 
@@ -2083,7 +2095,8 @@ impl ValueObj {
             Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
                 rec.iter().any(|(_, tp)| tp.contains_tvar(target))
             }
-            _ => false,
+            Self::Subr(_) => false,
+            mono_value_pattern!() => false,
         }
     }
 
@@ -2100,7 +2113,8 @@ impl ValueObj {
             Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
                 rec.iter().flat_map(|(_, tp)| tp.qvars()).collect()
             }
-            _ => Set::new(),
+            Self::Subr(_) => Set::new(),
+            mono_value_pattern!() => Set::new(),
         }
     }
 
@@ -2124,7 +2138,8 @@ impl ValueObj {
             Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
                 rec.iter().flat_map(|(_, tp)| tp.contained_ts()).collect()
             }
-            _ => Set::new(),
+            Self::Subr(_) => Set::new(),
+            mono_value_pattern!() => Set::new(),
         }
     }
 
@@ -2148,7 +2163,8 @@ impl ValueObj {
             Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
                 rec.iter().flat_map(|(_, tp)| tp.variables()).collect()
             }
-            _ => Set::new(),
+            Self::Subr(_) => Set::new(),
+            mono_value_pattern!() => Set::new(),
         }
     }
 }

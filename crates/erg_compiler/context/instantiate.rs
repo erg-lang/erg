@@ -589,10 +589,7 @@ impl Context {
                 Ok(TyParam::t(t))
             }
             TyParam::Value(val) => {
-                // println!("592: {val} / {tmp_tv_cache}");
-                let val = val.try_map_t(&mut |t| self.instantiate_t_inner(t, tmp_tv_cache, loc))?;
-                // .try_map_tp(&mut |tp| self.instantiate_tp(tp, tmp_tv_cache, loc))?;
-                // println!("596: {val} / {tmp_tv_cache}");
+                let val = self.instantiate_value(val, tmp_tv_cache, loc)?;
                 Ok(TyParam::Value(val))
             }
             TyParam::Erased(t) => {
@@ -790,8 +787,6 @@ impl Context {
         tmp_tv_cache: &mut TyVarCache,
         loc: &impl Locational,
     ) -> TyCheckResult<Type> {
-        // Structural types may have recursive structures
-        set_recursion_limit!(Ok(unbound), 128);
         match unbound {
             FreeVar(fv) if fv.is_linked() => {
                 let t = fv.crack().clone();
@@ -840,6 +835,31 @@ impl Context {
                     tmp_tv_cache.dummy_push_or_init_tyvar(&varname, &tyvar, self);
                     Ok(tyvar)
                 }
+            }
+            FreeVar(fv) => {
+                if let Some((sub, sup)) = fv.get_subsup() {
+                    let sub = if sub.is_recursive() {
+                        sub
+                    } else {
+                        self.instantiate_t_inner(sub, tmp_tv_cache, loc)?
+                    };
+                    let sup = if sup.is_recursive() {
+                        sup
+                    } else {
+                        self.instantiate_t_inner(sup, tmp_tv_cache, loc)?
+                    };
+                    let new_constraint = Constraint::new_sandwiched(sub, sup);
+                    fv.update_constraint(new_constraint, true);
+                } else if let Some(ty) = fv.get_type() {
+                    let ty = if ty.is_recursive() {
+                        ty
+                    } else {
+                        self.instantiate_t_inner(ty, tmp_tv_cache, loc)?
+                    };
+                    let new_constraint = Constraint::new_type_of(ty);
+                    fv.update_constraint(new_constraint, true);
+                }
+                Ok(FreeVar(fv))
             }
             Refinement(mut refine) => {
                 refine.t = Box::new(self.instantiate_t_inner(*refine.t, tmp_tv_cache, loc)?);
@@ -928,29 +948,10 @@ impl Context {
                 Ok(poly(name, params))
             }
             Structural(t) => {
+                // Structural types may have recursive structures
+                set_recursion_limit!(Ok(Structural(t)), 128);
                 let t = self.instantiate_t_inner(*t, tmp_tv_cache, loc)?;
                 Ok(t.structuralize())
-            }
-            FreeVar(fv) => {
-                if let Some((sub, sup)) = fv.get_subsup() {
-                    let sub = if sub.is_recursive() {
-                        sub
-                    } else {
-                        self.instantiate_t_inner(sub, tmp_tv_cache, loc)?
-                    };
-                    let sup = if sup.is_recursive() {
-                        sup
-                    } else {
-                        self.instantiate_t_inner(sup, tmp_tv_cache, loc)?
-                    };
-                    let new_constraint = Constraint::new_sandwiched(sub, sup);
-                    fv.update_constraint(new_constraint, true);
-                } else if let Some(ty) = fv.get_type() {
-                    let ty = self.instantiate_t_inner(ty, tmp_tv_cache, loc)?;
-                    let new_constraint = Constraint::new_type_of(ty);
-                    fv.update_constraint(new_constraint, true);
-                }
-                Ok(FreeVar(fv))
             }
             And(l, r) => {
                 let l = self.instantiate_t_inner(*l, tmp_tv_cache, loc)?;

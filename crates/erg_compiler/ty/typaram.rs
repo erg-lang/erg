@@ -1996,6 +1996,10 @@ impl TyParam {
         }
         self.map(&mut |tp| tp.eliminate_recursion(target))
     }
+
+    pub fn as_free(&self) -> Option<&FreeTyParam> {
+        <&FreeTyParam>::try_from(self).ok()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
