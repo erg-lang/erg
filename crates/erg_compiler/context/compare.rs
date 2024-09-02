@@ -894,8 +894,7 @@ impl Context {
                 let r_fields = self.fields(r);
                 for (l_field, l_ty) in self.fields(l) {
                     if let Some((r_field, r_ty)) = r_fields.get_key_value(&l_field) {
-                        let compatible = self.supertype_of(&l_ty, r_ty);
-                        if r_field.vis != l_field.vis || !compatible {
+                        if r_field.vis != l_field.vis || !self.supertype_of(&l_ty, r_ty) {
                             return false;
                         }
                     } else {
@@ -2211,9 +2210,9 @@ impl Context {
                     args: args2,
                 },
             ) => {
-                self.supertype_of_tp(receiver, sub_receiver, Variance::Covariant)
-                    && name == name2
+                name == name2
                     && args.len() == args2.len()
+                    && self.supertype_of_tp(receiver, sub_receiver, Variance::Covariant)
                     && args
                         .iter()
                         .zip(args2.iter())

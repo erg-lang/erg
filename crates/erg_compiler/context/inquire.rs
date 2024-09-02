@@ -2626,7 +2626,7 @@ impl Context {
         );
         log!(info "Substituted:\ninstance: {instance}");
         debug_assert!(
-            self.subtype_of(&instance, &Type::Type) || instance.has_no_qvar(),
+            instance.has_no_qvar() || self.subtype_of(&instance, &Type::Type),
             "{instance} has qvar (obj: {obj}, attr: {}",
             fmt_option!(attr_name)
         );
@@ -4072,7 +4072,7 @@ impl Context {
     pub(crate) fn recover_typarams(&self, base: &Type, guard: &GuardType) -> TyCheckResult<Type> {
         let intersec = self.intersection(&guard.to, base);
         let is_never =
-            self.subtype_of(&intersec, &Type::Never) && guard.to.as_ref() != &Type::Never;
+            guard.to.as_ref() != &Type::Never && self.subtype_of(&intersec, &Type::Never);
         if !is_never {
             return Ok(intersec);
         }

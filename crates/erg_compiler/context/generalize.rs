@@ -188,14 +188,14 @@ impl Generalizer {
                         res.generalize();
                         res
                     } else if sup != Obj
-                        && !self.qnames.contains(&fv.unbound_name().unwrap())
                         && self.variance == Contravariant
+                        && !self.qnames.contains(&fv.unbound_name().unwrap())
                     {
                         // |T <: Bool| T -> Int ==> Bool -> Int
                         self.generalize_t(sup, uninit)
                     } else if sub != Never
-                        && !self.qnames.contains(&fv.unbound_name().unwrap())
                         && self.variance == Covariant
+                        && !self.qnames.contains(&fv.unbound_name().unwrap())
                     {
                         // |T :> Int| X -> T ==> X -> Int
                         self.generalize_t(sub, uninit)

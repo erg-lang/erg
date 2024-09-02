@@ -1196,9 +1196,9 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             // NG: (Int <: ?U); (?T <: Int)
             (Or(l1, r1), Or(l2, r2)) | (And(l1, r1), And(l2, r2)) => {
                 if self.ctx.subtype_of(l1, l2) && self.ctx.subtype_of(r1, r2) {
-                    let (l_sup, r_sup) = if self.ctx.subtype_of(l1, r2)
-                        && !l1.is_unbound_var()
+                    let (l_sup, r_sup) = if !l1.is_unbound_var()
                         && !r2.is_unbound_var()
+                        && self.ctx.subtype_of(l1, r2)
                     {
                         (r2, l2)
                     } else {

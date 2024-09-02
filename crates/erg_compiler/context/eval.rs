@@ -172,9 +172,9 @@ impl<'c> Substituter<'c> {
         // Or, And are commutative, choose fitting order
         if qt.qual_name() == st.qual_name() && (st.qual_name() == "Or" || st.qual_name() == "And") {
             // REVIEW: correct condition?
-            if ctx.covariant_supertype_of_tp(&qtps[0], &stps[1])
+            if qt != st
+                && ctx.covariant_supertype_of_tp(&qtps[0], &stps[1])
                 && ctx.covariant_supertype_of_tp(&qtps[1], &stps[0])
-                && qt != st
             {
                 stps.swap(0, 1);
             }
@@ -2608,7 +2608,7 @@ impl Context {
             // FIXME: GenericDict
             TyParam::FreeVar(fv)
                 if fv.get_type().is_some_and(|t| {
-                    self.subtype_of(&t, &Type::Type) || &t.qual_name() == "GenericDict"
+                    &t.qual_name() == "GenericDict" || self.subtype_of(&t, &Type::Type)
                 }) =>
             {
                 // FIXME: This procedure is clearly erroneous because it breaks the type variable linkage.
