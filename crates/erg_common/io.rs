@@ -347,8 +347,11 @@ impl Input {
                 }
                 Err(_) => vec!["<file not found>".into()],
             },
-            InputKind::Pipe(s) | InputKind::Str(s) => s.split('\n').collect::<Vec<_>>()
-                [ln_begin - 1..=ln_end - 1]
+            InputKind::Pipe(s) | InputKind::Str(s) => s
+                .split('\n')
+                .collect::<Vec<_>>()
+                .get(ln_begin - 1..=ln_end - 1)
+                .unwrap_or_default()
                 .iter()
                 .map(|s| s.to_string())
                 .collect(),

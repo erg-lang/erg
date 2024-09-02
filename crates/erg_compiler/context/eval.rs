@@ -19,10 +19,11 @@ use erg_parser::ast::*;
 use erg_parser::desugar::Desugarer;
 use erg_parser::token::{Token, TokenKind};
 
+use crate::mono_type_pattern;
 use crate::ty::constructors::{
-    bounded, closed_range, dict_t, func, guard, list_t, mono, mono_q, named_free_var, poly, proj,
-    proj_call, ref_, ref_mut, refinement, set_t, subr_t, subtypeof, tp_enum, try_v_enum, tuple_t,
-    unknown_len_list_t, v_enum,
+    bounded, callable, closed_range, dict_t, func, guard, list_t, mono, mono_q, named_free_var,
+    poly, proj, proj_call, ref_, ref_mut, refinement, set_t, subr_t, subtypeof, tp_enum,
+    try_v_enum, tuple_t, unknown_len_list_t, v_enum,
 };
 use crate::ty::free::HasLevel;
 use crate::ty::typaram::{OpKind, TyParam};
@@ -2089,6 +2090,7 @@ impl Context {
                 fv.update_tyvar(sub, sup, None, false);
                 Ok(fv)
             }
+            Type::FreeVar(_) => Ok(substituted),
             Type::Subr(mut subr) => {
                 for pt in subr.non_default_params.iter_mut() {
                     *pt.typ_mut() = match self.eval_t_params(mem::take(pt.typ_mut()), level, t_loc)
@@ -2158,6 +2160,32 @@ impl Context {
                     Ok(subr)
                 } else {
                     Err((subr, errs))
+                }
+            }
+            Type::Callable { param_ts, return_t } => {
+                let mut new_param_ts = Vec::with_capacity(param_ts.len());
+                for pt in param_ts {
+                    let pt = match self.eval_t_params(pt, level, t_loc) {
+                        Ok(pt) => pt,
+                        Err((pt, es)) => {
+                            errs.extend(es);
+                            pt
+                        }
+                    };
+                    new_param_ts.push(pt);
+                }
+                let return_t = match self.eval_t_params(*return_t, level, t_loc) {
+                    Ok(return_t) => return_t,
+                    Err((return_t, es)) => {
+                        errs.extend(es);
+                        return_t
+                    }
+                };
+                let callable = callable(new_param_ts, return_t);
+                if errs.is_empty() {
+                    Ok(callable)
+                } else {
+                    Err((callable, errs))
                 }
             }
             Type::Quantified(quant) => match self.eval_t_params(*quant, level, t_loc) {
@@ -2352,14 +2380,12 @@ impl Context {
                 Ok(to) => Ok(guard(grd.namespace, grd.target, to)),
                 Err((to, es)) => Err((guard(grd.namespace, grd.target, to), es)),
             },
-            other if other.is_monomorphic() => Ok(other),
-            other => feature_error!(self, t_loc.loc(), &format!("eval {other}"))
-                .map_err(|errs| (other, errs)),
+            mono_type_pattern!() => Ok(substituted),
         }
     }
 
     /// This may do nothing (be careful with recursive calls).
-    /// lhs: mainly class
+    /// lhs: mainly class, may be unevaluated
     pub(crate) fn eval_proj(
         &self,
         lhs: Type,
@@ -2367,6 +2393,9 @@ impl Context {
         level: usize,
         t_loc: &impl Locational,
     ) -> EvalResult<Type> {
+        let lhs = self
+            .eval_t_params(lhs, level, t_loc)
+            .map_err(|(_, errs)| errs)?;
         if let Never | Failure = lhs {
             return Ok(lhs);
         }
@@ -2499,12 +2528,14 @@ impl Context {
         }
     }
 
+    /// lhs: may be unevaluated
     pub(crate) fn eval_tp_proj(
         &self,
         lhs: TyParam,
         rhs: Str,
         t_loc: &impl Locational,
     ) -> EvalResult<TyParam> {
+        let lhs = self.eval_tp(lhs).map_err(|(_, errs)| errs)?;
         // in Methods
         if let Some(ctx) = lhs
             .qual_name()
@@ -3217,6 +3248,7 @@ impl Context {
         Ok(ValueArgs::new(pos_args, dict! {}))
     }
 
+    /// lhs, args: should be evaluated
     fn do_proj_call(
         &self,
         obj: ValueObj,
@@ -3233,6 +3265,7 @@ impl Context {
         }
     }
 
+    /// lhs, args: should be evaluated
     fn do_proj_call_t(
         &self,
         obj: ValueObj,
@@ -3253,6 +3286,27 @@ impl Context {
         })
     }
 
+    fn eval_type_args(&self, args: Vec<TyParam>) -> Failable<Vec<TyParam>> {
+        let mut errs = EvalErrors::empty();
+        let mut new_args = vec![];
+        for arg in args {
+            let arg = match self.eval_tp(arg) {
+                Ok(tp) => tp,
+                Err((tp, es)) => {
+                    errs.extend(es);
+                    tp
+                }
+            };
+            new_args.push(arg);
+        }
+        if errs.is_empty() {
+            Ok(new_args)
+        } else {
+            Err((new_args, errs))
+        }
+    }
+
+    /// lhs, args: may be unevaluated
     /// This may do nothing (be careful with recursive calls)
     pub(crate) fn eval_proj_call_t(
         &self,
@@ -3262,6 +3316,8 @@ impl Context {
         level: usize,
         t_loc: &impl Locational,
     ) -> EvalResult<Type> {
+        let lhs = self.eval_tp(lhs).map_err(|(_, errs)| errs)?;
+        let args = self.eval_type_args(args).map_err(|(_, errs)| errs)?;
         let t = self.get_tp_t(&lhs)?;
         for ty_ctx in self.get_nominal_super_type_ctxs(&t).ok_or_else(|| {
             EvalError::type_not_found(
@@ -3332,6 +3388,7 @@ impl Context {
         }
     }
 
+    /// lhs, args: may be unevaluated
     pub(crate) fn eval_proj_call(
         &self,
         lhs: TyParam,
@@ -3339,6 +3396,8 @@ impl Context {
         args: Vec<TyParam>,
         t_loc: &impl Locational,
     ) -> EvalResult<TyParam> {
+        let lhs = self.eval_tp(lhs).map_err(|(_, errs)| errs)?;
+        let args = self.eval_type_args(args).map_err(|(_, errs)| errs)?;
         let t = self.get_tp_t(&lhs)?;
         for ty_ctx in self.get_nominal_super_type_ctxs(&t).ok_or_else(|| {
             EvalError::type_not_found(
