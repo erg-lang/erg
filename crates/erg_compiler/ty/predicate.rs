@@ -569,7 +569,11 @@ impl Predicate {
                 lhs.change_subject_name(name.clone()),
                 rhs.change_subject_name(name),
             ),
-            _ => self,
+            Self::Value(_)
+            | Self::Const(_)
+            | Self::Call { .. }
+            | Self::Attr { .. }
+            | Self::Failure => self,
         }
     }
 
@@ -618,7 +622,7 @@ impl Predicate {
                 receiver: receiver.substitute(var, tp),
                 name,
             },
-            _ => self,
+            Self::Value(_) | Self::Const(_) | Self::Failure => self,
         }
     }
 
@@ -903,7 +907,7 @@ impl Predicate {
             | Self::GeneralNotEqual { lhs, rhs } => lhs.contains_tp(tp) || rhs.contains_tp(tp),
             Self::And(lhs, rhs) | Self::Or(lhs, rhs) => lhs.contains_tp(tp) || rhs.contains_tp(tp),
             Self::Not(pred) => pred.contains_tp(tp),
-            _ => false,
+            Self::Failure | Self::Const(_) => false,
         }
     }
 
@@ -924,7 +928,7 @@ impl Predicate {
             | Self::GeneralNotEqual { lhs, rhs } => lhs.contains_t(t) || rhs.contains_t(t),
             Self::And(lhs, rhs) | Self::Or(lhs, rhs) => lhs.contains_t(t) || rhs.contains_t(t),
             Self::Not(pred) => pred.contains_t(t),
-            _ => false,
+            Self::Const(_) | Self::Failure => false,
         }
     }
 
@@ -999,7 +1003,7 @@ impl Predicate {
             Self::And(lhs, rhs) => Self::And(Box::new(lhs.map_t(f)), Box::new(rhs.map_t(f))),
             Self::Or(lhs, rhs) => Self::Or(Box::new(lhs.map_t(f)), Box::new(rhs.map_t(f))),
             Self::Not(pred) => Self::Not(Box::new(pred.map_t(f))),
-            _ => self,
+            Self::Failure => self,
         }
     }
 
@@ -1055,7 +1059,7 @@ impl Predicate {
             Self::And(lhs, rhs) => Self::And(Box::new(lhs.map_tp(f)), Box::new(rhs.map_tp(f))),
             Self::Or(lhs, rhs) => Self::Or(Box::new(lhs.map_tp(f)), Box::new(rhs.map_tp(f))),
             Self::Not(pred) => Self::Not(Box::new(pred.map_tp(f))),
-            _ => self,
+            Self::Failure => self,
         }
     }
 
@@ -1107,7 +1111,7 @@ impl Predicate {
                 Box::new(rhs.try_map_tp(f)?),
             )),
             Self::Not(pred) => Ok(Self::Not(Box::new(pred.try_map_tp(f)?))),
-            _ => Ok(self),
+            Self::Failure | Self::Const(_) => Ok(self),
         }
     }
 }

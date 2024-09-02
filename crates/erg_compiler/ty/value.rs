@@ -27,10 +27,10 @@ use self::value_set::inner_class;
 
 use super::codeobj::{tuple_into_bytes, CodeObj};
 use super::constructors::{dict_t, list_t, refinement, set_t, tuple_t, unsized_list_t};
-use super::free::{Constraint, FreeTyVar};
+use super::free::{Constraint, FreeTyVar, HasLevel};
 use super::typaram::{OpKind, TyParam};
 use super::{ConstSubr, Field, HasType, Predicate, Type};
-use super::{CONTAINER_OMIT_THRESHOLD, STR_OMIT_THRESHOLD};
+use super::{CONTAINER_OMIT_THRESHOLD, GENERIC_LEVEL, STR_OMIT_THRESHOLD};
 
 pub struct EvalValueError {
     pub core: Box<ErrorCore>,
@@ -969,6 +969,66 @@ impl Hash for ValueObj {
                 "literal".hash(state);
                 "illegal".hash(state)
             }
+        }
+    }
+}
+
+impl HasLevel for ValueObj {
+    fn level(&self) -> Option<usize> {
+        match self {
+            Self::Type(t) => t.typ().level(),
+            Self::List(tps) | Self::Tuple(tps) => tps.iter().filter_map(|tp| tp.level()).min(),
+            Self::UnsizedList(tp) => tp.level(),
+            Self::Dict(tps) => tps
+                .iter()
+                .map(|(k, v)| {
+                    k.level()
+                        .unwrap_or(GENERIC_LEVEL)
+                        .min(v.level().unwrap_or(GENERIC_LEVEL))
+                })
+                .min(),
+            Self::Record(rec) | Self::DataClass { fields: rec, .. } => rec
+                .iter()
+                .map(|(_, v)| v.level().unwrap_or(GENERIC_LEVEL))
+                .min(),
+            Self::Subr(subr) => subr.sig_t().level(),
+            Self::Set(tps) => tps.iter().filter_map(|tp| tp.level()).min(),
+            mono_value_pattern!() => None,
+        }
+    }
+
+    fn set_level(&self, level: usize) {
+        match self {
+            Self::Type(t) => t.typ().set_level(level),
+            Self::Dict(tps) => {
+                for (k, v) in tps.iter() {
+                    k.set_level(level);
+                    v.set_level(level);
+                }
+            }
+            Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
+                for (_, v) in rec.iter() {
+                    v.set_level(level);
+                }
+            }
+            Self::List(tps) => {
+                for tp in tps.iter() {
+                    tp.set_level(level);
+                }
+            }
+            Self::UnsizedList(tp) => tp.set_level(level),
+            Self::Tuple(tps) => {
+                for tp in tps.iter() {
+                    tp.set_level(level);
+                }
+            }
+            Self::Set(tps) => {
+                for tp in tps.iter() {
+                    tp.set_level(level);
+                }
+            }
+            Self::Subr(subr) => subr.sig_t().set_level(level),
+            mono_value_pattern!() => {}
         }
     }
 }

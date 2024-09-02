@@ -736,6 +736,7 @@ impl HasLevel for TyParam {
             Self::Type(t) => t.level(),
             Self::FreeVar(fv) => fv.level(),
             Self::List(tps) | Self::Tuple(tps) => tps.iter().filter_map(|tp| tp.level()).min(),
+            Self::UnsizedList(tp) => tp.level(),
             Self::Dict(tps) => tps
                 .iter()
                 .map(|(k, v)| {
@@ -751,11 +752,18 @@ impl HasLevel for TyParam {
             Self::Lambda(lambda) => lambda.level(),
             Self::Set(tps) => tps.iter().filter_map(|tp| tp.level()).min(),
             Self::Proj { obj, .. } => obj.level(),
+            Self::ProjCall { obj, args, .. } => obj.level().and_then(|l| {
+                args.iter()
+                    .filter_map(|tp| tp.level())
+                    .min()
+                    .map(|r| l.min(r))
+            }),
             Self::App { args, .. } => args.iter().filter_map(|tp| tp.level()).min(),
             Self::UnaryOp { val, .. } => val.level(),
             Self::BinOp { lhs, rhs, .. } => lhs.level().and_then(|l| rhs.level().map(|r| l.min(r))),
-            Self::Value(ValueObj::Type(ty)) => ty.typ().level(),
-            _ => None,
+            Self::Value(val) => val.level(),
+            Self::Erased(ty) => ty.level(),
+            Self::Mono(_) | Self::Failure => None,
         }
     }
 
@@ -779,6 +787,7 @@ impl HasLevel for TyParam {
                     tp.set_level(level);
                 }
             }
+            Self::UnsizedList(tp) => tp.set_level(level),
             Self::Tuple(tps) => {
                 for tp in tps {
                     tp.set_level(level);
@@ -803,8 +812,15 @@ impl HasLevel for TyParam {
             Self::Proj { obj, .. } => {
                 obj.set_level(level);
             }
-            Self::Value(ValueObj::Type(ty)) => ty.typ().set_level(level),
-            _ => {}
+            Self::ProjCall { obj, args, .. } => {
+                obj.set_level(level);
+                for arg in args.iter() {
+                    arg.set_level(level);
+                }
+            }
+            Self::Value(val) => val.set_level(level),
+            Self::Erased(ty) => ty.set_level(level),
+            Self::Mono(_) | Self::Failure => {}
         }
     }
 }
@@ -814,6 +830,7 @@ impl StructuralEq for TyParam {
         match (self, other) {
             (Self::Type(l), Self::Type(r)) => l.structural_eq(r),
             (Self::List(l), Self::List(r)) => l.iter().zip(r).all(|(l, r)| l.structural_eq(r)),
+            (Self::UnsizedList(l), Self::UnsizedList(r)) => l.structural_eq(r),
             (Self::Tuple(l), Self::Tuple(r)) => l.iter().zip(r).all(|(l, r)| l.structural_eq(r)),
             (Self::Dict(l), Self::Dict(r)) => {
                 if l.len() != r.len() {
@@ -885,6 +902,18 @@ impl StructuralEq for TyParam {
                     attr: r_attr,
                 },
             ) => obj.structural_eq(r_obj) && attr == r_attr,
+            (
+                Self::ProjCall { obj, attr, args },
+                Self::ProjCall {
+                    obj: r_obj,
+                    attr: r_attr,
+                    args: r_args,
+                },
+            ) => {
+                obj.structural_eq(r_obj)
+                    && attr == r_attr
+                    && args.iter().zip(r_args).all(|(l, r)| l.structural_eq(r))
+            }
             (
                 Self::App {
                     name: ln,
@@ -1183,6 +1212,7 @@ impl TyParam {
     pub fn contains_tvar(&self, target: &FreeTyVar) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_tvar(target),
+            Self::FreeVar(fv) => fv.get_type().map_or(false, |t| t.contains_tvar(target)),
             Self::Type(t) => t.contains_tvar(target),
             Self::Erased(t) => t.contains_tvar(target),
             Self::Proj { obj, .. } => obj.contains_tvar(target),
@@ -1203,13 +1233,14 @@ impl TyParam {
             Self::BinOp { lhs, rhs, .. } => lhs.contains_tvar(target) || rhs.contains_tvar(target),
             Self::App { args, .. } => args.iter().any(|p| p.contains_tvar(target)),
             Self::Value(val) => val.contains_tvar(target),
-            _ => false,
+            Self::Mono(_) | Self::Failure => false,
         }
     }
 
     pub fn contains_type(&self, target: &Type) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_type(target),
+            Self::FreeVar(fv) => fv.get_type().map_or(false, |t| t.contains_type(target)),
             Self::Type(t) => t.contains_type(target),
             Self::Erased(t) => t.contains_type(target),
             Self::Proj { obj, .. } => obj.contains_type(target),
@@ -1230,7 +1261,7 @@ impl TyParam {
             Self::BinOp { lhs, rhs, .. } => lhs.contains_type(target) || rhs.contains_type(target),
             Self::App { args, .. } => args.iter().any(|p| p.contains_type(target)),
             Self::Value(val) => val.contains_type(target),
-            _ => false,
+            Self::Mono(_) | Self::Failure => false,
         }
     }
 
@@ -1240,6 +1271,7 @@ impl TyParam {
         }
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_tp(target),
+            Self::FreeVar(fv) => fv.get_type().map_or(false, |t| t.contains_tp(target)),
             Self::Type(t) => t.contains_tp(target),
             Self::Erased(t) => t.contains_tp(target),
             Self::Proj { obj, .. } => obj.contains_tp(target),
@@ -1260,13 +1292,14 @@ impl TyParam {
             Self::BinOp { lhs, rhs, .. } => lhs.contains_tp(target) || rhs.contains_tp(target),
             Self::App { args, .. } => args.iter().any(|p| p.contains_tp(target)),
             Self::Value(val) => val.contains_tp(target),
-            _ => false,
+            Self::Mono(_) | Self::Failure => false,
         }
     }
 
     pub fn contains_value(&self, target: &ValueObj) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_value(target),
+            Self::FreeVar(fv) => fv.get_type().map_or(false, |t| t.contains_value(target)),
             Self::Type(t) => t.contains_value(target),
             Self::Erased(t) => t.contains_value(target),
             Self::Proj { obj, .. } => obj.contains_value(target),
@@ -1289,7 +1322,7 @@ impl TyParam {
             }
             Self::App { args, .. } => args.iter().any(|p| p.contains_value(target)),
             Self::Value(val) => val.contains(target),
-            _ => false,
+            Self::Mono(_) | Self::Failure => false,
         }
     }
 
@@ -1323,7 +1356,7 @@ impl TyParam {
             Self::Type(t) => t.contains_tp(self),
             Self::Value(val) => val.contains_tp(self),
             Self::Erased(t) => t.contains_tp(self),
-            _ => false,
+            Self::Mono(_) | Self::Failure => false,
         }
     }
 
@@ -1359,7 +1392,7 @@ impl TyParam {
             Self::App { args, .. } => args.iter().any(|p| p.has_unbound_var()),
             Self::Erased(t) => t.has_unbound_var(),
             Self::Value(val) => val.has_unbound_var(),
-            _ => false,
+            Self::Mono(_) | Self::Failure => false,
         }
     }
 
@@ -1392,7 +1425,7 @@ impl TyParam {
             Self::App { args, .. } => args.iter().any(|p| p.has_undoable_linked_var()),
             Self::Erased(t) => t.has_undoable_linked_var(),
             Self::Value(val) => val.has_undoable_linked_var(),
-            _ => false,
+            Self::Mono(_) | Self::Failure => false,
         }
     }
 
@@ -1523,6 +1556,12 @@ impl TyParam {
             (Self::FreeVar(slf), _) if slf.is_linked() => slf.crack().addr_eq(other),
             (_, Self::FreeVar(otr)) if otr.is_linked() => otr.crack().addr_eq(self),
             (Self::FreeVar(slf), Self::FreeVar(otr)) => slf.addr_eq(otr),
+            (Self::Type(slf), Self::Type(otr)) => slf.addr_eq(otr),
+            (Self::Value(ValueObj::Type(slf)), Self::Value(ValueObj::Type(otr))) => {
+                slf.typ().addr_eq(otr.typ())
+            }
+            (Self::Type(slf), Self::Value(ValueObj::Type(otr))) => slf.addr_eq(otr.typ()),
+            (Self::Value(ValueObj::Type(slf)), Self::Type(otr)) => slf.typ().addr_eq(otr),
             _ => ref_addr_eq!(self, other),
         }
     }
@@ -1942,8 +1981,17 @@ impl TyParam {
         }
     }
 
+    pub fn is_free_var(&self) -> bool {
+        match self {
+            Self::FreeVar(_) => true,
+            Self::Type(t) => t.is_free_var(),
+            Self::Value(ValueObj::Type(t)) => t.typ().is_free_var(),
+            _ => false,
+        }
+    }
+
     pub fn eliminate_recursion(self, target: &TyParam) -> Self {
-        if self.addr_eq(target) {
+        if self.is_free_var() && self.addr_eq(target) {
             return Self::Failure;
         }
         self.map(&mut |tp| tp.eliminate_recursion(target))

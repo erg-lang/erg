@@ -82,6 +82,31 @@ macro_rules! mono_type_pattern {
             | $crate::ty::Type::Mono(_)
             | $crate::ty::Type::Uninited
     };
+    (-Mono) => {
+        $crate::ty::Type::Int
+            | $crate::ty::Type::Nat
+            | $crate::ty::Type::Float
+            | $crate::ty::Type::Ratio
+            | $crate::ty::Type::Complex
+            | $crate::ty::Type::Inf
+            | $crate::ty::Type::NegInf
+            | $crate::ty::Type::Bool
+            | $crate::ty::Type::Str
+            | $crate::ty::Type::Code
+            | $crate::ty::Type::Frame
+            | $crate::ty::Type::Type
+            | $crate::ty::Type::TraitType
+            | $crate::ty::Type::ClassType
+            | $crate::ty::Type::Patch
+            | $crate::ty::Type::NoneType
+            | $crate::ty::Type::NotImplementedType
+            | $crate::ty::Type::Ellipsis
+            | $crate::ty::Type::Error
+            | $crate::ty::Type::Obj
+            | $crate::ty::Type::Never
+            | $crate::ty::Type::Failure
+            | $crate::ty::Type::Uninited
+    };
 }
 
 /// cloneのコストがあるためなるべく.ref_tを使うようにすること
@@ -4135,7 +4160,7 @@ impl Type {
     /// Tuple(X).eliminate_recursion(X) == Tuple(Never)
     /// ```
     pub fn eliminate_recursion(self, target: &Type) -> Self {
-        if self.addr_eq(target) {
+        if self.is_free_var() && self.addr_eq(target) {
             return Self::Never;
         }
         match self {
@@ -5100,6 +5125,7 @@ impl Type {
                 let (sub, sup) = fv.get_subsup().unwrap();
                 fv.do_avoiding_recursion(|| sub.variables().union(&sup.variables()))
             }
+            Self::FreeVar(_) => set! {},
             Self::Refinement(refine) => refine.t.variables().concat(refine.pred.variables()),
             Self::Mono(name) => set! { name.clone() },
             Self::Poly { name, params } => {
@@ -5157,7 +5183,7 @@ impl Type {
                 set
             }
             Self::Guard(guard) => guard.to.variables(),
-            _ => set! {},
+            mono_type_pattern!(-Mono) => set! {},
         }
     }
 }
@@ -5296,6 +5322,37 @@ impl<'t> ReplaceTable<'t> {
                 self.iterate(sub, sub2);
                 self.iterate(sup, sup2);
             }
+            (
+                Type::Callable { param_ts, return_t },
+                Type::Callable {
+                    param_ts: param_ts2,
+                    return_t: return_t2,
+                },
+            ) => {
+                for (l, r) in param_ts.iter().zip(param_ts2.iter()) {
+                    self.iterate(l, r);
+                }
+                self.iterate(return_t, return_t2);
+            }
+            (
+                Type::ProjCall { lhs, args, .. },
+                Type::ProjCall {
+                    lhs: lhs2,
+                    args: args2,
+                    ..
+                },
+            ) => {
+                self.iterate_tp(lhs, lhs2);
+                for (l, r) in args.iter().zip(args2.iter()) {
+                    self.iterate_tp(l, r);
+                }
+            }
+            (Type::Refinement(refine), Type::Refinement(refine2)) => {
+                self.iterate(&refine.t, &refine2.t);
+                // self.iterate(&refine.pred, &refine2.pred);
+            }
+            (Type::FreeVar(_), Type::FreeVar(_)) => {}
+            (mono_type_pattern!(), mono_type_pattern!()) => {}
             _ => {}
         }
         self.type_rules.push((target, to));

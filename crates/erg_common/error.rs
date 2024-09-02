@@ -581,7 +581,9 @@ fn format_context<E: ErrorDisplay + ?Sized>(
     let offset = format!("{} {} ", &" ".repeat(max_digit), vbreak);
     for (i, lineno) in (ln_begin..=ln_end).enumerate() {
         context.push_str_with_color(&format!("{lineno:<max_digit$} {vbar} "), gutter_color);
-        context.push_str(codes.get(i).unwrap_or(&String::new()));
+        let not_found = "???".to_string();
+        let code = codes.get(i).unwrap_or(&not_found);
+        context.push_str(code);
         context.push_str("\n");
         context.push_str_with_color(&offset, gutter_color);
         if i == 0 && i == final_step {
@@ -593,13 +595,13 @@ fn format_context<E: ErrorDisplay + ?Sized>(
         } else if i == 0 {
             context.push_str(&" ".repeat(col_begin));
             context.push_str_with_color(
-                mark.repeat(cmp::max(1, codes[i].len().saturating_sub(col_begin))),
+                mark.repeat(cmp::max(1, code.len().saturating_sub(col_begin))),
                 err_color,
             );
         } else if i == final_step {
             context.push_str_with_color(mark.repeat(col_end), err_color);
         } else {
-            context.push_str_with_color(mark.repeat(cmp::max(1, codes[i].len())), err_color);
+            context.push_str_with_color(mark.repeat(cmp::max(1, code.len())), err_color);
         }
         context.push_str("\n");
     }

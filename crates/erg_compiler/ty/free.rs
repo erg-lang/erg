@@ -250,6 +250,7 @@ impl Constraint {
                     Self::new_sandwiched(sub, sup)
                 }
             }
+            Self::TypeOf(t) => Self::new_type_of(t.eliminate_subsup(target)),
             other => other,
         }
     }
