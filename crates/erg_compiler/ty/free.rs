@@ -638,6 +638,12 @@ impl PartialEq for Free<Type> {
             } else {
                 false
             }
+        } else if this.is_linked() {
+            if other.is_linked() {
+                this.crack().eq(&other.crack())
+            } else {
+                false
+            }
         } else {
             // name, level, constraint are equal
             true
@@ -680,6 +686,12 @@ impl PartialEq for Free<TyParam> {
         if let Some(self_t) = this.get_type() {
             if let Some(other_t) = other.get_type() {
                 self_t == other_t
+            } else {
+                false
+            }
+        } else if this.is_linked() {
+            if other.is_linked() {
+                this.crack().eq(&other.crack())
             } else {
                 false
             }
