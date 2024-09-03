@@ -770,12 +770,12 @@ impl SubMessage {
             Location::Line(lineno) => {
                 let input = e.input();
                 let (_, vbar) = chars.gutters();
-                let code = input
-                    .reread_lines(lineno as usize, lineno as usize)
-                    .remove(0);
+                let codes = input.reread_lines(lineno as usize, lineno as usize);
+                let default = "???".to_string();
+                let code = codes.first().unwrap_or(&default);
                 let mut cxt = StyledStrings::default();
                 cxt.push_str_with_color(&format!(" {lineno} {vbar} "), gutter_color);
-                cxt.push_str(&code);
+                cxt.push_str(code);
                 cxt.push_str("\n");
                 for msg in self.msg.iter() {
                     cxt.push_str(msg);
