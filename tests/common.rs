@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use erg_common::config::ErgConfig;
 use erg_common::consts::DEBUG_MODE;
-use erg_common::error::{Location, MultiErrorDisplay};
+use erg_common::error::Location;
 use erg_common::io::{DummyStdin, Input, Output};
 use erg_common::python_util::PythonVersion;
 use erg_common::spawn::exec_new_thread;
@@ -24,10 +24,8 @@ pub(crate) fn expect_repl_success(name: &'static str, lines: Vec<String>) -> Res
             Err(())
         }
         Err(errs) => {
-            if DEBUG_MODE {
-                errs.write_all_stderr();
-            }
             println!("err[{name}]: should succeed, but got compile errors");
+            println!("{errs}");
             Err(())
         }
     }
@@ -54,10 +52,8 @@ pub(crate) fn expect_success(file_path: &'static str, num_warns: usize) -> Resul
             Err(())
         }
         Err(errs) => {
-            if DEBUG_MODE {
-                errs.write_all_stderr();
-            }
             println!("err[{file_path}]: should succeed, but got compile errors");
+            println!("{errs}");
             Err(())
         }
     }
@@ -84,10 +80,8 @@ pub(crate) fn expect_compile_success(file_path: &'static str, num_warns: usize) 
             Err(())
         }
         Err(errs) => {
-            if DEBUG_MODE {
-                errs.write_all_stderr();
-            }
             println!("err[{file_path}]: should succeed, but got compile errors");
+            println!("{errs}");
             Err(())
         }
     }
@@ -112,10 +106,8 @@ pub(crate) fn expect_repl_failure(
             }
         }
         Err(errs) => {
-            if DEBUG_MODE {
-                errs.write_all_stderr();
-            }
             println!("err[{name}]: should succeed, but got compile errors");
+            println!("{errs}");
             Err(())
         }
     }
@@ -146,10 +138,8 @@ pub(crate) fn expect_end_with(
             Ok(())
         }
         Err(errs) => {
-            if DEBUG_MODE {
-                errs.write_all_stderr();
-            }
             println!("err[{file_path}]: should end with {code}, but got compile errors");
+            println!("{errs}");
             Err(())
         }
     }
@@ -177,9 +167,6 @@ pub(crate) fn expect_failure(
             }
         }
         Err(errs) => {
-            if DEBUG_MODE {
-                errs.write_all_stderr();
-            }
             if errs.len() == num_errs {
                 Ok(())
             } else {
@@ -187,6 +174,7 @@ pub(crate) fn expect_failure(
                     "err[{file_path}]: number of errors should be {num_errs}, but got {}",
                     errs.len()
                 );
+                println!("{errs}");
                 Err(())
             }
         }
