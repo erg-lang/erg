@@ -5,7 +5,7 @@ use std::hash::{Hash, Hasher};
 use std::iter::FromIterator;
 
 use crate::fxhash::FxHashSet;
-use crate::{debug_fmt_iter, fmt_iter};
+use crate::{debug_fmt_iter, fmt_iter, get_hash};
 
 #[cfg(feature = "pylib")]
 use pyo3::prelude::PyAnyMethods;
@@ -46,14 +46,9 @@ where
     }
 }
 
-// Use `fast_eq` for faster comparisons
 impl<T: Hash + Eq> PartialEq for Set<T> {
     fn eq(&self, other: &Set<T>) -> bool {
-        if self.len() != other.len() {
-            return false;
-        }
-        self.iter()
-            .all(|l_key| other.iter().any(|r_key| l_key == r_key))
+        self.elems.eq(&other.elems)
     }
 }
 
@@ -67,7 +62,9 @@ impl<T> Default for Set<T> {
 
 impl<T: Hash> Hash for Set<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.elems.iter().collect::<Vec<_>>().hash(state);
+        let mut v = self.iter().map(get_hash).collect::<Vec<_>>();
+        v.sort();
+        v.hash(state);
     }
 }
 
@@ -182,11 +179,6 @@ impl<T: Hash + Eq> Set<T> {
         Q: ?Sized + Hash + Eq,
     {
         self.elems.iter().find(|&v| cmp(v.borrow(), value))
-    }
-
-    #[inline]
-    pub fn fast_eq(&self, other: &Set<T>) -> bool {
-        self.elems == other.elems
     }
 
     #[inline]

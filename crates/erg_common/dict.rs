@@ -8,6 +8,7 @@ use std::iter::FromIterator;
 use std::ops::{Index, IndexMut};
 
 use crate::fxhash::FxHashMap;
+use crate::get_hash;
 
 #[macro_export]
 macro_rules! dict {
@@ -34,10 +35,15 @@ impl<K: Hash + Eq, V: Hash + Eq> Eq for Dict<K, V> {}
 
 impl<K: Hash, V: Hash> Hash for Dict<K, V> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        let keys = self.dict.keys().collect::<Vec<_>>();
-        keys.hash(state);
-        let vals = self.dict.values().collect::<Vec<_>>();
-        vals.hash(state);
+        let mut v = self
+            .iter()
+            .map(|(key, val)| (get_hash(key), key, val))
+            .collect::<Vec<_>>();
+        v.sort_by_key(|(h, _, _)| *h);
+        for (_, key, val) in v.iter() {
+            key.hash(state);
+            val.hash(state);
+        }
     }
 }
 
