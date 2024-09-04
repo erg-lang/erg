@@ -9,7 +9,7 @@ use erg_common::log;
 use erg_common::set::Set;
 use erg_common::shared::Shared;
 use erg_common::traits::{Locational, Stream};
-use erg_common::{dict, fmt_vec, fn_name, option_enum_unwrap, set, set_recursion_limit, Triple};
+use erg_common::{dict, fmt_vec, fn_name, option_enum_unwrap, set, Triple};
 use erg_common::{ArcArray, Str};
 use OpKind::*;
 
@@ -2068,7 +2068,6 @@ impl Context {
         level: usize,
         t_loc: &impl Locational,
     ) -> Failable<Type> {
-        set_recursion_limit!(Ok(Failure), 128);
         let mut errs = EvalErrors::empty();
         match substituted {
             Type::FreeVar(fv) if fv.is_linked() => {
@@ -3943,8 +3942,8 @@ impl Context {
             (TyParam::Erased(l), TyParam::Erased(r)) => l == r,
             (TyParam::List(l), TyParam::List(r)) => l == r,
             (TyParam::Tuple(l), TyParam::Tuple(r)) => l == r,
-            (TyParam::Set(l), TyParam::Set(r)) => l == r, // FIXME:
-            (TyParam::Dict(l), TyParam::Dict(r)) => l == r,
+            (TyParam::Set(l), TyParam::Set(r)) => l.linear_eq(r),
+            (TyParam::Dict(l), TyParam::Dict(r)) => l.linear_eq(r),
             (TyParam::Lambda(l), TyParam::Lambda(r)) => l == r,
             (TyParam::FreeVar { .. }, TyParam::FreeVar { .. }) => true,
             (TyParam::Mono(l), TyParam::Mono(r)) => {

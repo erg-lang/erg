@@ -781,12 +781,12 @@ impl Free<Type> {
     }
 
     /// interior-mut
-    pub fn do_avoiding_recursion<O, F: FnOnce() -> O>(&self, f: F) -> O {
+    pub fn do_avoiding_recursion<O>(&self, f: impl FnOnce() -> O) -> O {
         self._do_avoiding_recursion(None, f)
     }
 
     /// interior-mut
-    pub fn do_avoiding_recursion_with<O, F: FnOnce() -> O>(&self, placeholder: &Type, f: F) -> O {
+    pub fn do_avoiding_recursion_with<O>(&self, placeholder: &Type, f: impl FnOnce() -> O) -> O {
         self._do_avoiding_recursion(Some(placeholder), f)
     }
 
@@ -868,8 +868,10 @@ impl<T: StructuralEq + CanbeFree + Clone + Default + fmt::Debug + Send + Sync + 
     fn structural_eq(&self, other: &Self) -> bool {
         if let (Some((l, r)), Some((l2, r2))) = (self.get_subsup(), other.get_subsup()) {
             self.dummy_link();
+            other.dummy_link();
             let res = l.structural_eq(&l2) && r.structural_eq(&r2);
             self.undo();
+            other.undo();
             res
         } else if let (Some(l), Some(r)) = (self.get_type(), other.get_type()) {
             l.structural_eq(&r)

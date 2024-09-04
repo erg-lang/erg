@@ -6,6 +6,7 @@ use std::path::{Component, Path, PathBuf};
 
 use crate::consts::PYTHON_MODE;
 use crate::env::erg_pkgs_path;
+use crate::traits::Immutable;
 use crate::{normalize_path, Str};
 
 /// Guaranteed equivalence path.
@@ -15,6 +16,8 @@ use crate::{normalize_path, Str};
 /// See also: `els::util::NormalizedUrl`
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, PartialOrd, Ord)]
 pub struct NormalizedPathBuf(PathBuf);
+
+impl Immutable for NormalizedPathBuf {}
 
 impl fmt::Display for NormalizedPathBuf {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

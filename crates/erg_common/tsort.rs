@@ -1,6 +1,7 @@
 //! Topological sort
 use crate::dict::Dict;
 use crate::set::Set;
+use crate::traits::Immutable;
 
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -48,13 +49,13 @@ impl TopoSortError {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Node<T: Eq + Hash, U> {
+pub struct Node<T: Eq + Hash + Immutable, U> {
     pub id: T,
     pub data: U,
     pub depends_on: Set<T>,
 }
 
-impl<T: Eq + Hash, U> Node<T, U> {
+impl<T: Eq + Hash + Immutable, U> Node<T, U> {
     pub const fn new(id: T, data: U, depends_on: Set<T>) -> Self {
         Node {
             id,
@@ -93,12 +94,12 @@ fn _reorder_by_idx<T>(mut v: Vec<T>, idx: Vec<usize>) -> Vec<T> {
     v
 }
 
-fn reorder_by_key<T: Eq + Hash, U>(mut g: Graph<T, U>, idx: Vec<T>) -> Graph<T, U> {
+fn reorder_by_key<T: Eq + Hash + Immutable, U>(mut g: Graph<T, U>, idx: Vec<T>) -> Graph<T, U> {
     g.sort_by_key(|node| idx.iter().position(|k| k == &node.id).unwrap());
     g
 }
 
-fn dfs<T: Eq + Hash + Clone + Debug, U: Debug>(
+fn dfs<T: Eq + Hash + Clone + Debug + Immutable, U: Debug>(
     g: &Graph<T, U>,
     v: T,
     used: &mut Set<T>,
@@ -125,7 +126,7 @@ fn dfs<T: Eq + Hash + Clone + Debug, U: Debug>(
 
 /// perform topological sort on a graph
 #[allow(clippy::result_unit_err)]
-pub fn tsort<T: Eq + Hash + Clone + Debug, U: Debug>(
+pub fn tsort<T: Eq + Hash + Clone + Debug + Immutable, U: Debug>(
     g: Graph<T, U>,
 ) -> Result<Graph<T, U>, TopoSortError> {
     let n = g.len();

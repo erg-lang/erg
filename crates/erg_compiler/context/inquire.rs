@@ -1235,11 +1235,11 @@ impl Context {
             let non_default_params = subr_t
                 .non_default_params
                 .iter()
-                .map(|pt| pt.clone().map_type(|t| self.readable_type(t)));
+                .map(|pt| pt.clone().map_type(&mut |t| self.readable_type(t)));
             let default_params = subr_t
                 .default_params
                 .iter()
-                .map(|pt| pt.clone().map_type(|t| self.readable_type(t)));
+                .map(|pt| pt.clone().map_type(&mut |t| self.readable_type(t)));
             Err(TyCheckError::overload_error(
                 self.cfg.input.clone(),
                 line!() as usize,

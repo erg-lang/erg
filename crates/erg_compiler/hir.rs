@@ -2098,7 +2098,8 @@ impl Params {
 
 pub type Decorator = Expr;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[allow(clippy::derived_hash_with_manual_eq)]
+#[derive(Debug, Clone, Hash)]
 pub struct SubrSignature {
     pub decorators: HashSet<Decorator>,
     pub ident: Identifier,
@@ -2107,6 +2108,19 @@ pub struct SubrSignature {
     pub return_t_spec: Option<TypeSpecWithOp>,
     pub captured_names: Vec<Identifier>,
 }
+
+impl PartialEq for SubrSignature {
+    fn eq(&self, other: &Self) -> bool {
+        self.ident == other.ident
+            && self.bounds == other.bounds
+            && self.params == other.params
+            && self.return_t_spec == other.return_t_spec
+            && self.captured_names == other.captured_names
+            && self.decorators.linear_eq(&other.decorators)
+    }
+}
+
+impl Eq for SubrSignature {}
 
 impl NestedDisplay for SubrSignature {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {

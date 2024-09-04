@@ -302,7 +302,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     return Ok(());
                 }
                 for (sub_k, sub_v) in sub.iter() {
-                    if let Some(sup_v) = sup.get(sub_k) {
+                    if let Some(sup_v) = sup.linear_get(sub_k) {
                         self.sub_unify_value(sub_v, sup_v)?;
                     } else {
                         log!(err "{sup} does not have key {sub_k}");
@@ -628,7 +628,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             (TyParam::Dict(sub), TyParam::Dict(sup)) => {
                 for (sub_k, sub_v) in sub.iter() {
                     if let Some(sup_v) = sup
-                        .get(sub_k)
+                        .linear_get(sub_k)
                         .or_else(|| sub_tpdict_get(sup, sub_k, self.ctx))
                     {
                         // self.sub_unify_tp(sub_k, sup_k, _variance, loc, allow_divergence)?;

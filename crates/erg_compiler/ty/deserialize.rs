@@ -140,7 +140,7 @@ impl Deserializer {
     }
 
     fn get_cached_arr(&mut self, arr: &[ValueObj]) -> ValueObj {
-        ValueObj::List(self.arr_cache.get(arr))
+        ValueObj::List(self.arr_cache.linear_get(arr))
     }
 
     pub fn vec_to_bytes<const LEN: usize>(vector: Vec<u8>) -> [u8; LEN] {

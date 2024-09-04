@@ -5,6 +5,7 @@ use std::sync::Arc;
 use crate::dict::Dict;
 use crate::set::Set;
 use crate::shared::Shared;
+use crate::traits::Immutable;
 use crate::{ArcArray, Str};
 
 #[derive(Debug)]
@@ -45,7 +46,7 @@ impl CacheSet<str> {
     }
 }
 
-impl<T: Hash + Eq + Clone> CacheSet<[T]> {
+impl<T: Hash + Eq + Clone + Immutable> CacheSet<[T]> {
     pub fn get(&self, q: &[T]) -> Arc<[T]> {
         if let Some(cached) = self.0.borrow().get(q) {
             return cached.clone();
@@ -56,13 +57,39 @@ impl<T: Hash + Eq + Clone> CacheSet<[T]> {
     }
 }
 
-impl<T: Hash + Eq> CacheSet<T> {
+impl<T: Hash + Eq + Clone> CacheSet<[T]> {
+    pub fn linear_get(&self, q: &[T]) -> Arc<[T]> {
+        if let Some(cached) = self.0.borrow().linear_get(q) {
+            return cached.clone();
+        } // &self.0 is dropped
+        let s = ArcArray::from(q);
+        self.0.borrow_mut().insert(s.clone());
+        s
+    }
+}
+
+impl<T: Hash + Eq + Immutable> CacheSet<T> {
     pub fn get<Q>(&self, q: &Q) -> Arc<T>
     where
         Arc<T>: Borrow<Q>,
         Q: ?Sized + Hash + Eq + ToOwned<Owned = T>,
     {
         if let Some(cached) = self.0.borrow().get(q) {
+            return cached.clone();
+        } // &self.0 is dropped
+        let s = Arc::from(q.to_owned());
+        self.0.borrow_mut().insert(s.clone());
+        s
+    }
+}
+
+impl<T: Hash + Eq> CacheSet<T> {
+    pub fn linear_get<Q>(&self, q: &Q) -> Arc<T>
+    where
+        Arc<T>: Borrow<Q>,
+        Q: ?Sized + Eq + ToOwned<Owned = T>,
+    {
+        if let Some(cached) = self.0.borrow().linear_get(q) {
             return cached.clone();
         } // &self.0 is dropped
         let s = Arc::from(q.to_owned());
@@ -86,15 +113,26 @@ impl<K: Hash + Eq, V: ?Sized> CacheDict<K, V> {
     }
 }
 
-impl<K: Hash + Eq, V> CacheDict<K, V> {
+impl<K: Hash + Eq + Immutable, V> CacheDict<K, V> {
     pub fn get<Q: ?Sized + Hash + Eq>(&self, k: &Q) -> Option<Arc<V>>
     where
         K: Borrow<Q>,
     {
         self.0.borrow().get(k).cloned()
     }
+}
 
+impl<K: Hash + Eq, V> CacheDict<K, V> {
     pub fn insert(&self, k: K, v: V) {
         self.0.borrow_mut().insert(k, Arc::new(v));
+    }
+}
+
+impl<K: Eq, V> CacheDict<K, V> {
+    pub fn linear_get<Q: ?Sized + Eq>(&self, k: &Q) -> Option<Arc<V>>
+    where
+        K: Borrow<Q>,
+    {
+        self.0.borrow().linear_get(k).cloned()
     }
 }

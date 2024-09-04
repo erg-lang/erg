@@ -9,6 +9,7 @@ use std::ops::{Index, IndexMut};
 
 use crate::fxhash::FxHashMap;
 use crate::get_hash;
+use crate::traits::Immutable;
 
 #[macro_export]
 macro_rules! dict {
@@ -25,13 +26,13 @@ pub struct Dict<K, V> {
     dict: FxHashMap<K, V>,
 }
 
-impl<K: Hash + Eq, V: Hash + Eq> PartialEq for Dict<K, V> {
+impl<K: Hash + Eq + Immutable, V: Hash + Eq> PartialEq for Dict<K, V> {
     fn eq(&self, other: &Dict<K, V>) -> bool {
         self.dict == other.dict
     }
 }
 
-impl<K: Hash + Eq, V: Hash + Eq> Eq for Dict<K, V> {}
+impl<K: Hash + Eq + Immutable, V: Hash + Eq> Eq for Dict<K, V> {}
 
 impl<K: Hash, V: Hash> Hash for Dict<K, V> {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -82,7 +83,7 @@ impl<K: Hash + Eq, V> From<Vec<(K, V)>> for Dict<K, V> {
     }
 }
 
-impl<K: Hash + Eq, V, Q: ?Sized> Index<&Q> for Dict<K, V>
+impl<K: Hash + Eq + Immutable, V, Q: ?Sized> Index<&Q> for Dict<K, V>
 where
     K: Borrow<Q>,
     Q: Hash + Eq,
@@ -94,7 +95,7 @@ where
     }
 }
 
-impl<K: Hash + Eq, V, Q: ?Sized> IndexMut<&Q> for Dict<K, V>
+impl<K: Hash + Eq + Immutable, V, Q: ?Sized> IndexMut<&Q> for Dict<K, V>
 where
     K: Borrow<Q>,
     Q: Hash + Eq,
@@ -195,6 +196,15 @@ impl<K, V> Dict<K, V> {
     {
         self.dict.retain(f);
     }
+
+    pub fn get_by(&self, k: &K, cmp: impl Fn(&K, &K) -> bool) -> Option<&V> {
+        for (k_, v) in self.dict.iter() {
+            if cmp(k, k_) {
+                return Some(v);
+            }
+        }
+        None
+    }
 }
 
 impl<K, V> IntoIterator for Dict<K, V> {
@@ -215,7 +225,47 @@ impl<'a, K, V> IntoIterator for &'a Dict<K, V> {
     }
 }
 
-impl<K: Hash + Eq, V> Dict<K, V> {
+impl<K: Eq, V> Dict<K, V> {
+    /// K: interior-mutable
+    pub fn linear_get<Q>(&self, key: &Q) -> Option<&V>
+    where
+        K: Borrow<Q>,
+        Q: Eq + ?Sized,
+    {
+        self.dict
+            .iter()
+            .find(|(k, _)| (*k).borrow() == key)
+            .map(|(_, v)| v)
+    }
+
+    pub fn linear_get_mut<Q>(&mut self, key: &Q) -> Option<&mut V>
+    where
+        K: Borrow<Q>,
+        Q: Eq + ?Sized,
+    {
+        self.dict
+            .iter_mut()
+            .find(|(k, _)| (*k).borrow() == key)
+            .map(|(_, v)| v)
+    }
+}
+
+impl<K: Eq, V: Eq> Dict<K, V> {
+    /// K: interior-mutable
+    pub fn linear_eq(&self, other: &Self) -> bool {
+        if self.len() != other.len() {
+            return false;
+        }
+        for (k, v) in self.iter() {
+            if other.linear_get(k) != Some(v) {
+                return false;
+            }
+        }
+        true
+    }
+}
+
+impl<K: Hash + Eq + Immutable, V> Dict<K, V> {
     #[inline]
     pub fn get<Q>(&self, k: &Q) -> Option<&V>
     where
@@ -223,15 +273,6 @@ impl<K: Hash + Eq, V> Dict<K, V> {
         Q: Hash + Eq + ?Sized,
     {
         self.dict.get(k)
-    }
-
-    pub fn get_by(&self, k: &K, cmp: impl Fn(&K, &K) -> bool) -> Option<&V> {
-        for (k_, v) in self.dict.iter() {
-            if cmp(k, k_) {
-                return Some(v);
-            }
-        }
-        None
     }
 
     #[inline]
@@ -261,11 +302,6 @@ impl<K: Hash + Eq, V> Dict<K, V> {
     }
 
     #[inline]
-    pub fn insert(&mut self, k: K, v: V) -> Option<V> {
-        self.dict.insert(k, v)
-    }
-
-    #[inline]
     pub fn remove<Q>(&mut self, k: &Q) -> Option<V>
     where
         K: Borrow<Q>,
@@ -280,6 +316,13 @@ impl<K: Hash + Eq, V> Dict<K, V> {
         Q: Hash + Eq + ?Sized,
     {
         self.dict.remove_entry(k)
+    }
+}
+
+impl<K: Hash + Eq, V> Dict<K, V> {
+    #[inline]
+    pub fn insert(&mut self, k: K, v: V) -> Option<V> {
+        self.dict.insert(k, v)
     }
 
     /// NOTE: This method does not consider pairing with values and keys. That is, a value may be paired with a different key (can be considered equal).

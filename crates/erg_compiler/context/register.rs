@@ -596,7 +596,7 @@ impl Context {
             }
             if let Some(var_params) = &mut params.var_params {
                 if let Some(pt) = &subr_t.var_params {
-                    let pt = pt.clone().map_type(unknown_len_list_t);
+                    let pt = pt.clone().map_type(&mut unknown_len_list_t);
                     if let Err(es) =
                         self.assign_param(var_params, Some(&pt), tmp_tv_cache, ParamKind::VarParams)
                     {
@@ -620,7 +620,7 @@ impl Context {
             }
             if let Some(kw_var_params) = &mut params.kw_var_params {
                 if let Some(pt) = &subr_t.var_params {
-                    let pt = pt.clone().map_type(str_dict_t);
+                    let pt = pt.clone().map_type(&mut str_dict_t);
                     if let Err(es) = self.assign_param(
                         kw_var_params,
                         Some(&pt),

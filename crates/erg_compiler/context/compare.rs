@@ -7,7 +7,7 @@ use erg_common::dict::Dict;
 use erg_common::set::Set;
 use erg_common::style::colors::DEBUG_ERROR;
 use erg_common::traits::StructuralEq;
-use erg_common::{assume_unreachable, log, set_recursion_limit};
+use erg_common::{assume_unreachable, log};
 use erg_common::{Str, Triple};
 
 use crate::context::eval::UndoableLinkedList;
@@ -126,7 +126,6 @@ impl Context {
 
     /// lhs :> rhs ?
     pub(crate) fn supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
-        set_recursion_limit!(false, 128);
         let res = match Self::cheap_supertype_of(lhs, rhs) {
             (Absolutely, judge) => judge,
             (Maybe, judge) => {
@@ -1040,7 +1039,7 @@ impl Context {
                 }
                 for (sub_k, sub_v) in sub_d.iter() {
                     if let Some(sup_v) = sup_d
-                        .get(sub_k)
+                        .linear_get(sub_k)
                         .or_else(|| sub_tpdict_get(sup_d, sub_k, self))
                     {
                         if !self.supertype_of_tp(sup_v, sub_v, variance) {
@@ -1794,7 +1793,7 @@ impl Context {
             if self.subtype_of(&t, elem) {
                 return intersection.clone();
             } else if self.supertype_of(&t, elem) {
-                return constructors::ands(ands.exclude(&t).include(elem.clone()));
+                return constructors::ands(ands.linear_exclude(&t).include(elem.clone()));
             }
         }
         and(intersection.clone(), elem.clone())
@@ -2024,7 +2023,7 @@ impl Context {
                 "or" => self.is_sub_pred_of(existing, pred),
                 _ => unreachable!(),
             }) {
-                reduced.remove(old);
+                reduced.linear_remove(old);
             }
             // insert if necessary
             if reduced.iter().all(|existing| match mode {

@@ -4,6 +4,7 @@ use std::fmt;
 #[allow(unused_imports)]
 use erg_common::log;
 use erg_common::set::Set;
+use erg_common::traits::Immutable;
 use erg_common::{switch_lang, Str};
 
 use erg_parser::ast::AccessModifier;
@@ -169,6 +170,8 @@ pub struct Field {
     pub vis: VisibilityModifier,
     pub symbol: Str,
 }
+
+impl Immutable for Field {}
 
 impl PartialEq for Field {
     fn eq(&self, other: &Self) -> bool {

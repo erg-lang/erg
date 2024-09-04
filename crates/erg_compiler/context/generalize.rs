@@ -100,19 +100,19 @@ impl Generalizer {
                 let nd_params = lambda
                     .nd_params
                     .into_iter()
-                    .map(|pt| pt.map_type(|t| self.generalize_t(t, uninit)))
+                    .map(|pt| pt.map_type(&mut |t| self.generalize_t(t, uninit)))
                     .collect::<Vec<_>>();
                 let var_params = lambda
                     .var_params
-                    .map(|pt| pt.map_type(|t| self.generalize_t(t, uninit)));
+                    .map(|pt| pt.map_type(&mut |t| self.generalize_t(t, uninit)));
                 let d_params = lambda
                     .d_params
                     .into_iter()
-                    .map(|pt| pt.map_type(|t| self.generalize_t(t, uninit)))
+                    .map(|pt| pt.map_type(&mut |t| self.generalize_t(t, uninit)))
                     .collect::<Vec<_>>();
                 let kw_var_params = lambda
                     .kw_var_params
-                    .map(|pt| pt.map_type(|t| self.generalize_t(t, uninit)));
+                    .map(|pt| pt.map_type(&mut |t| self.generalize_t(t, uninit)));
                 let body = lambda
                     .body
                     .into_iter()

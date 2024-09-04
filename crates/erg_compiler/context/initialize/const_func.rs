@@ -342,7 +342,10 @@ pub(crate) fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueR
     let index = args
         .remove_left_or_key("Index")
         .ok_or_else(|| not_passed("Index"))?;
-    if let Some(v) = slf.get(&index).or_else(|| sub_vdict_get(&slf, &index, ctx)) {
+    if let Some(v) = slf
+        .linear_get(&index)
+        .or_else(|| sub_vdict_get(&slf, &index, ctx))
+    {
         Ok(v.clone().into())
     } else if let Some(v) = sub_vdict_get(&homogenize_dict(&slf, ctx), &index, ctx).cloned() {
         Ok(v.into())

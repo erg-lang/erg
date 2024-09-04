@@ -874,7 +874,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             };
             if let Some(popped_val_t) = union.insert(key.t(), value.t()) {
                 if PYTHON_MODE {
-                    if let Some(val_t) = union.get_mut(key.ref_t()) {
+                    if let Some(val_t) = union.linear_get_mut(key.ref_t()) {
                         *val_t = self.module.context.union(&mem::take(val_t), &popped_val_t);
                     }
                 } else {

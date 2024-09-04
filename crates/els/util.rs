@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 use erg_common::consts::CASE_SENSITIVE;
 use erg_common::normalize_path;
-use erg_common::traits::{DequeStream, Locational};
+use erg_common::traits::{DequeStream, Immutable, Locational};
 
 use erg_compiler::erg_parser::token::{Token, TokenStream};
 
@@ -17,6 +17,8 @@ use crate::server::ELSResult;
 /// See also: `erg_common::pathutil::NormalizedPathBuf`
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NormalizedUrl(Url);
+
+impl Immutable for NormalizedUrl {}
 
 impl fmt::Display for NormalizedUrl {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

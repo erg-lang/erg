@@ -443,6 +443,6 @@ impl SharedGeneralizationCache {
     }
 
     pub fn get(&self, key: &FreeTyVar) -> Option<GeneralizationResult> {
-        self.0.borrow().get(key).cloned()
+        self.0.borrow().linear_get(key).cloned()
     }
 }

@@ -4,6 +4,7 @@ use std::path::Path;
 use erg_common::error::Location;
 use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::set::Set;
+use erg_common::traits::Immutable;
 use erg_common::{switch_lang, Str};
 
 use erg_parser::ast::DefId;
@@ -140,6 +141,8 @@ pub struct AbsLocation {
     pub module: Option<NormalizedPathBuf>,
     pub loc: Location,
 }
+
+impl Immutable for AbsLocation {}
 
 impl fmt::Display for AbsLocation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

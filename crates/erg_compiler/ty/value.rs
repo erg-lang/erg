@@ -641,7 +641,7 @@ impl Rem for Float {
 
 /// 値オブジェクト
 /// コンパイル時評価ができ、シリアライズも可能(Typeなどはシリアライズ不可)
-#[derive(Clone, PartialEq, Default, Hash)]
+#[derive(Clone, Default, Hash)]
 pub enum ValueObj {
     Int(i32),
     Nat(u64),
@@ -966,6 +966,44 @@ impl LimitedDisplay for ValueObj {
             }
             Self::Type(typ) => typ.limited_fmt(f, limit),
             _ => write!(f, "{self}"),
+        }
+    }
+}
+
+impl PartialEq for ValueObj {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Int(i1), Self::Int(i2)) => i1 == i2,
+            (Self::Nat(n1), Self::Nat(n2)) => n1 == n2,
+            (Self::Float(f1), Self::Float(f2)) => f1 == f2,
+            (Self::Str(s1), Self::Str(s2)) => s1 == s2,
+            (Self::Bool(b1), Self::Bool(b2)) => b1 == b2,
+            (Self::List(l1), Self::List(l2)) => l1 == l2,
+            (Self::UnsizedList(l1), Self::UnsizedList(l2)) => l1 == l2,
+            (Self::Set(s1), Self::Set(s2)) => s1.linear_eq(s2),
+            (Self::Dict(d1), Self::Dict(d2)) => d1.linear_eq(d2),
+            (Self::Tuple(t1), Self::Tuple(t2)) => t1 == t2,
+            (Self::Record(r1), Self::Record(r2)) => r1 == r2,
+            (
+                Self::DataClass {
+                    name: n1,
+                    fields: f1,
+                },
+                Self::DataClass {
+                    name: n2,
+                    fields: f2,
+                },
+            ) => n1 == n2 && f1 == f2,
+            (Self::Code(c1), Self::Code(c2)) => c1 == c2,
+            (Self::Subr(s1), Self::Subr(s2)) => s1 == s2,
+            (Self::Type(t1), Self::Type(t2)) => t1 == t2,
+            (Self::None, Self::None)
+            | (Self::Ellipsis, Self::Ellipsis)
+            | (Self::NotImplemented, Self::NotImplemented)
+            | (Self::NegInf, Self::NegInf)
+            | (Self::Inf, Self::Inf)
+            | (Self::Failure, Self::Failure) => true,
+            _ => false,
         }
     }
 }

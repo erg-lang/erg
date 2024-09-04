@@ -5,6 +5,7 @@ use std::hash::{Hash, Hasher};
 use std::iter::FromIterator;
 
 use crate::fxhash::FxHashSet;
+use crate::traits::Immutable;
 use crate::{debug_fmt_iter, fmt_iter, get_hash};
 
 #[cfg(feature = "pylib")]
@@ -46,13 +47,13 @@ where
     }
 }
 
-impl<T: Hash + Eq> PartialEq for Set<T> {
+impl<T: Hash + Eq + Immutable> PartialEq for Set<T> {
     fn eq(&self, other: &Set<T>) -> bool {
         self.elems.eq(&other.elems)
     }
 }
 
-impl<T: Hash + Eq> Eq for Set<T> {}
+impl<T: Hash + Eq + Immutable> Eq for Set<T> {}
 
 impl<T> Default for Set<T> {
     fn default() -> Self {
@@ -108,9 +109,15 @@ impl<T> Set<T> {
             elems: FxHashSet::default(),
         }
     }
-}
 
-impl<T: Hash> Set<T> {
+    pub fn get_by<Q>(&self, value: &Q, cmp: impl Fn(&Q, &Q) -> bool) -> Option<&T>
+    where
+        T: Borrow<Q>,
+        Q: ?Sized,
+    {
+        self.elems.iter().find(|&v| cmp(v.borrow(), value))
+    }
+
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             elems: FxHashSet::with_capacity_and_hasher(capacity, Default::default()),
@@ -163,7 +170,50 @@ impl<'a, T> IntoIterator for &'a Set<T> {
     }
 }
 
-impl<T: Hash + Eq> Set<T> {
+impl<T: Eq> Set<T> {
+    pub fn linear_get<Q>(&self, value: &Q) -> Option<&T>
+    where
+        T: Borrow<Q>,
+        Q: ?Sized + Eq,
+    {
+        self.elems.iter().find(|x| (*x).borrow() == value)
+    }
+
+    pub fn linear_contains<Q>(&self, value: &Q) -> bool
+    where
+        T: Borrow<Q>,
+        Q: ?Sized + Eq,
+    {
+        self.elems.iter().any(|x| (*x).borrow() == value)
+    }
+
+    pub fn linear_eq(&self, other: &Set<T>) -> bool {
+        self.len() == other.len() && self.iter().all(|x| other.linear_contains(x))
+    }
+
+    pub fn linear_remove<Q>(&mut self, value: &Q) -> bool
+    where
+        T: Borrow<Q>,
+        Q: ?Sized + Eq,
+    {
+        let mut found = false;
+        self.elems.retain(|x| {
+            let eq = (*x).borrow() == value;
+            if eq {
+                found = true;
+            }
+            !eq
+        });
+        found
+    }
+
+    pub fn linear_exclude(mut self, other: &T) -> Set<T> {
+        self.linear_remove(other);
+        self
+    }
+}
+
+impl<T: Hash + Eq + Immutable> Set<T> {
     #[inline]
     pub fn get<Q>(&self, value: &Q) -> Option<&T>
     where
@@ -171,14 +221,6 @@ impl<T: Hash + Eq> Set<T> {
         Q: ?Sized + Hash + Eq,
     {
         self.elems.get(value)
-    }
-
-    pub fn get_by<Q>(&self, value: &Q, cmp: impl Fn(&Q, &Q) -> bool) -> Option<&T>
-    where
-        T: Borrow<Q>,
-        Q: ?Sized + Hash + Eq,
-    {
-        self.elems.iter().find(|&v| cmp(v.borrow(), value))
     }
 
     #[inline]
@@ -190,12 +232,6 @@ impl<T: Hash + Eq> Set<T> {
         self.elems.contains(value)
     }
 
-    /// newly inserted: true, already present: false
-    #[inline]
-    pub fn insert(&mut self, value: T) -> bool {
-        self.elems.insert(value)
-    }
-
     #[inline]
     pub fn remove<Q>(&mut self, value: &Q) -> bool
     where
@@ -203,6 +239,42 @@ impl<T: Hash + Eq> Set<T> {
         Q: ?Sized + Hash + Eq,
     {
         self.elems.remove(value)
+    }
+
+    pub fn exclude(mut self, other: &T) -> Set<T> {
+        self.remove(other);
+        self
+    }
+}
+
+impl<T: Hash + Eq + Clone + Immutable> Set<T> {
+    /// ```
+    /// # use erg_common::set;
+    /// # use erg_common::set::Set;
+    /// assert_eq!(Set::multi_intersection([set!{1, 3}, set!{1, 2}].into_iter()), set!{1});
+    /// assert_eq!(Set::multi_intersection([set!{1, 3}, set!{1, 2}, set!{2}].into_iter()), set!{1, 2});
+    /// assert_eq!(Set::multi_intersection([set!{1, 3}, set!{1, 2}, set!{2, 3}].into_iter()), set!{1, 2, 3});
+    /// ```
+    pub fn multi_intersection<I>(mut i: I) -> Set<T>
+    where
+        I: Iterator<Item = Set<T>> + Clone,
+    {
+        let mut res = set! {};
+        while let Some(s) = i.next() {
+            res = res.union_from_iter(
+                s.into_iter()
+                    .filter(|x| i.clone().any(|set| set.contains(x))),
+            );
+        }
+        res
+    }
+}
+
+impl<T: Hash + Eq> Set<T> {
+    /// newly inserted: true, already present: false
+    #[inline]
+    pub fn insert(&mut self, value: T) -> bool {
+        self.elems.insert(value)
     }
 
     #[inline]
@@ -295,27 +367,6 @@ impl<T: Hash + Eq + Clone> Set<T> {
         self.intersection(&iter.collect())
     }
 
-    /// ```
-    /// # use erg_common::set;
-    /// # use erg_common::set::Set;
-    /// assert_eq!(Set::multi_intersection([set!{1, 3}, set!{1, 2}].into_iter()), set!{1});
-    /// assert_eq!(Set::multi_intersection([set!{1, 3}, set!{1, 2}, set!{2}].into_iter()), set!{1, 2});
-    /// assert_eq!(Set::multi_intersection([set!{1, 3}, set!{1, 2}, set!{2, 3}].into_iter()), set!{1, 2, 3});
-    /// ```
-    pub fn multi_intersection<I>(mut i: I) -> Set<T>
-    where
-        I: Iterator<Item = Set<T>> + Clone,
-    {
-        let mut res = set! {};
-        while let Some(s) = i.next() {
-            res = res.union_from_iter(
-                s.into_iter()
-                    .filter(|x| i.clone().any(|set| set.contains(x))),
-            );
-        }
-        res
-    }
-
     pub fn difference(&self, other: &Set<T>) -> Set<T> {
         let u = self.elems.difference(&other.elems);
         Self {
@@ -329,11 +380,6 @@ impl<T: Hash + Eq + Clone> Set<T> {
 
     pub fn include(mut self, other: T) -> Set<T> {
         self.insert(other);
-        self
-    }
-
-    pub fn exclude(mut self, other: &T) -> Set<T> {
-        self.remove(other);
         self
     }
 }

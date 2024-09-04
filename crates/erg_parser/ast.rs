@@ -8,7 +8,7 @@ use erg_common::error::Location;
 use erg_common::io::Input;
 use erg_common::set::Set as HashSet;
 // use erg_common::dict::Dict as HashMap;
-use erg_common::traits::{Locational, NestedDisplay, Stream};
+use erg_common::traits::{Immutable, Locational, NestedDisplay, Stream};
 use erg_common::{
     fmt_option, fmt_vec, impl_display_for_enum, impl_display_from_nested,
     impl_displayable_stream_for_wrapper, impl_from_trait_for_enum, impl_locational,
@@ -3806,6 +3806,8 @@ impl Locational for TypeBoundSpecs {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Decorator(pub Expr);
 
+impl Immutable for Decorator {}
+
 impl Decorator {
     pub const fn new(expr: Expr) -> Self {
         Self(expr)
@@ -3824,6 +3826,8 @@ impl Decorator {
 #[pyclass]
 #[derive(Debug, Clone, Eq)]
 pub struct VarName(Token);
+
+impl Immutable for VarName {}
 
 impl PartialEq for VarName {
     fn eq(&self, other: &Self) -> bool {

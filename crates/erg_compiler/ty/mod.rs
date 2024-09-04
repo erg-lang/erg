@@ -288,7 +288,7 @@ impl ParamTy {
         }
     }
 
-    pub fn map_type(self, f: impl FnOnce(Type) -> Type) -> Self {
+    pub fn map_type(self, f: &mut impl FnMut(Type) -> Type) -> Self {
         match self {
             Self::Pos(ty) => Self::Pos(f(ty)),
             Self::Kw { name, ty } => Self::Kw { name, ty: f(ty) },
@@ -300,7 +300,7 @@ impl ParamTy {
         }
     }
 
-    pub fn map_default_type(self, f: impl FnOnce(Type) -> Type) -> Self {
+    pub fn map_default_type(self, f: &mut impl FnMut(Type) -> Type) -> Self {
         match self {
             Self::KwWithDefault { name, ty, default } => Self::KwWithDefault {
                 name,
@@ -581,7 +581,7 @@ impl SubrType {
             || self.return_t.contains_tp(target)
     }
 
-    pub fn map(self, f: impl Fn(Type) -> Type + Copy) -> Self {
+    pub fn map(self, f: &mut impl FnMut(Type) -> Type) -> Self {
         Self::new(
             self.kind,
             self.non_default_params
@@ -859,25 +859,25 @@ impl SubrType {
         let non_default_params = self
             .non_default_params
             .iter()
-            .map(|pt| pt.clone().map_type(|t| t.derefine()))
+            .map(|pt| pt.clone().map_type(&mut |t| t.derefine()))
             .collect();
         let var_params = self
             .var_params
             .as_ref()
-            .map(|pt| pt.clone().map_type(|t| t.derefine()));
+            .map(|pt| pt.clone().map_type(&mut |t| t.derefine()));
         let default_params = self
             .default_params
             .iter()
             .map(|pt| {
                 pt.clone()
-                    .map_type(|t| t.derefine())
-                    .map_default_type(|t| t.derefine())
+                    .map_type(&mut |t| t.derefine())
+                    .map_default_type(&mut |t| t.derefine())
             })
             .collect();
         let kw_var_params = self
             .kw_var_params
             .as_ref()
-            .map(|pt| pt.clone().map_type(|t| t.derefine()));
+            .map(|pt| pt.clone().map_type(&mut |t| t.derefine()));
         Self::new(
             self.kind,
             non_default_params,
@@ -1016,12 +1016,33 @@ impl SubrType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Hash)]
 pub enum RefineKind {
     Interval { min: TyParam, max: TyParam }, // e.g. {I: Int | I >= 2; I <= 10} 2..10
     Enum(Set<TyParam>),                      // e.g. {I: Int | I == 1 or I == 2} {1, 2}
     Complex,
 }
+
+impl PartialEq for RefineKind {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                Self::Interval {
+                    min: lmin,
+                    max: lmax,
+                },
+                Self::Interval {
+                    min: rmin,
+                    max: rmax,
+                },
+            ) => lmin == rmin && lmax == rmax,
+            (Self::Enum(lset), Self::Enum(rset)) => lset.linear_eq(rset),
+            (Self::Complex, Self::Complex) => true,
+            _ => false,
+        }
+    }
+}
+impl Eq for RefineKind {}
 
 /// e.g.
 /// ```erg
@@ -1483,8 +1504,8 @@ impl PartialEq for Type {
             (Self::NamedTuple(lhs), Self::NamedTuple(rhs)) => lhs == rhs,
             (Self::Refinement(l), Self::Refinement(r)) => l == r,
             (Self::Quantified(l), Self::Quantified(r)) => l == r,
-            (Self::And(_, _), Self::And(_, _)) => self.ands() == other.ands(),
-            (Self::Or(_, _), Self::Or(_, _)) => self.ors() == other.ors(),
+            (Self::And(_, _), Self::And(_, _)) => self.ands().linear_eq(&other.ands()),
+            (Self::Or(_, _), Self::Or(_, _)) => self.ors().linear_eq(&other.ors()),
             (Self::Not(l), Self::Not(r)) => l == r,
             (
                 Self::Poly {
@@ -4160,7 +4181,7 @@ impl Type {
                 }
                 Self::NamedTuple(r)
             }
-            Self::Subr(subr) => Self::Subr(subr.map(|t| t.eliminate_recursion(target))),
+            Self::Subr(subr) => Self::Subr(subr.map(&mut |t| t.eliminate_recursion(target))),
             Self::Callable { param_ts, return_t } => {
                 let param_ts = param_ts
                     .into_iter()
@@ -4228,20 +4249,20 @@ impl Type {
                     .iter()
                     .map(|pt| {
                         pt.clone()
-                            .map_type(|t| t.replace(&Self::Failure, &Self::Obj))
+                            .map_type(&mut |t| t.replace(&Self::Failure, &Self::Obj))
                     })
                     .collect();
                 let var_params = subr.var_params.as_ref().map(|pt| {
                     pt.clone()
-                        .map_type(|t| t.replace(&Self::Failure, &Self::Obj))
+                        .map_type(&mut |t| t.replace(&Self::Failure, &Self::Obj))
                 });
                 let default_params = subr
                     .default_params
                     .iter()
                     .map(|pt| {
                         pt.clone()
-                            .map_type(|t| t.replace(&Self::Failure, &Self::Obj))
-                            .map_default_type(|t| {
+                            .map_type(&mut |t| t.replace(&Self::Failure, &Self::Obj))
+                            .map_default_type(&mut |t| {
                                 let typ = pt.typ().clone().replace(&Self::Failure, &Self::Obj);
                                 t.replace(&Self::Failure, &typ) & typ
                             })
@@ -4249,8 +4270,8 @@ impl Type {
                     .collect();
                 let kw_var_params = subr.kw_var_params.as_ref().map(|pt| {
                     pt.clone()
-                        .map_type(|t| t.replace(&Self::Failure, &Self::Obj))
-                        .map_default_type(|t| {
+                        .map_type(&mut |t| t.replace(&Self::Failure, &Self::Obj))
+                        .map_default_type(&mut |t| {
                             let typ = pt.typ().clone().replace(&Self::Failure, &Self::Obj);
                             t.replace(&Self::Failure, &typ) & typ
                         })
@@ -4285,95 +4306,89 @@ impl Type {
         }
     }
 
-    /// Unlike `replace`, this does not make a look-up table.
-    fn _replace(mut self, target: &Type, to: &Type) -> Type {
-        if self.structural_eq(target) {
-            self = to.clone();
-        }
+    fn map(self, f: &mut impl FnMut(Type) -> Type) -> Type {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked()._replace(target, to),
+            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().map(f),
             Self::FreeVar(fv) => {
                 let fv_clone = fv.deep_clone();
                 if let Some((sub, sup)) = fv_clone.get_subsup() {
                     fv.dummy_link();
                     fv_clone.dummy_link();
-                    let sub = sub._replace(target, to);
-                    let sup = sup._replace(target, to);
+                    let sub = sub.map(f);
+                    let sup = sup.map(f);
                     fv.undo();
                     fv_clone.undo();
                     fv_clone.update_constraint(Constraint::new_sandwiched(sub, sup), true);
                 } else if let Some(ty) = fv_clone.get_type() {
-                    fv_clone
-                        .update_constraint(Constraint::new_type_of(ty._replace(target, to)), true);
+                    fv_clone.update_constraint(Constraint::new_type_of(ty.map(f)), true);
                 }
                 Self::FreeVar(fv_clone)
             }
             Self::Refinement(mut refine) => {
-                refine.t = Box::new(refine.t._replace(target, to));
-                refine.pred = Box::new(refine.pred._replace_t(target, to));
+                refine.t = Box::new(refine.t.map(f));
+                refine.pred = Box::new(refine.pred.map_t(f));
                 Self::Refinement(refine)
             }
             Self::Record(mut rec) => {
                 for v in rec.values_mut() {
-                    *v = std::mem::take(v)._replace(target, to);
+                    *v = std::mem::take(v).map(f);
                 }
                 Self::Record(rec)
             }
             Self::NamedTuple(mut r) => {
                 for (_, v) in r.iter_mut() {
-                    *v = std::mem::take(v)._replace(target, to);
+                    *v = std::mem::take(v).map(f);
                 }
                 Self::NamedTuple(r)
             }
-            Self::Subr(subr) => Self::Subr(subr._replace(target, to)),
+            Self::Subr(subr) => Self::Subr(subr.map(f)),
             Self::Callable { param_ts, return_t } => {
-                let param_ts = param_ts
-                    .into_iter()
-                    .map(|t| t._replace(target, to))
-                    .collect();
-                let return_t = Box::new(return_t._replace(target, to));
+                let param_ts = param_ts.into_iter().map(|t| t.map(f)).collect();
+                let return_t = Box::new(return_t.map(f));
                 Self::Callable { param_ts, return_t }
             }
-            Self::Quantified(quant) => quant._replace(target, to).quantify(),
+            Self::Quantified(quant) => quant.map(f).quantify(),
             Self::Poly { name, params } => {
-                let params = params
-                    .into_iter()
-                    .map(|tp| tp.replace_t(target, to))
-                    .collect();
+                let params = params.into_iter().map(|tp| tp.map_t(f)).collect();
                 Self::Poly { name, params }
             }
-            Self::Ref(t) => Self::Ref(Box::new(t._replace(target, to))),
+            Self::Ref(t) => Self::Ref(Box::new(t.map(f))),
             Self::RefMut { before, after } => Self::RefMut {
-                before: Box::new(before._replace(target, to)),
-                after: after.map(|t| Box::new(t._replace(target, to))),
+                before: Box::new(before.map(f)),
+                after: after.map(|t| Box::new(t.map(f))),
             },
-            Self::And(l, r) => l._replace(target, to) & r._replace(target, to),
-            Self::Or(l, r) => l._replace(target, to) | r._replace(target, to),
-            Self::Not(ty) => !ty._replace(target, to),
-            Self::Proj { lhs, rhs } => lhs._replace(target, to).proj(rhs),
+            Self::And(l, r) => l.map(f) & r.map(f),
+            Self::Or(l, r) => l.map(f) | r.map(f),
+            Self::Not(ty) => !ty.map(f),
+            Self::Proj { lhs, rhs } => lhs.map(f).proj(rhs),
             Self::ProjCall {
                 lhs,
                 attr_name,
                 args,
             } => {
-                let args = args
-                    .into_iter()
-                    .map(|tp| tp.replace_t(target, to))
-                    .collect();
-                proj_call(lhs.replace_t(target, to), attr_name, args)
+                let args = args.into_iter().map(|tp| tp.map_t(f)).collect();
+                proj_call(lhs.map_t(f), attr_name, args)
             }
-            Self::Structural(ty) => ty._replace(target, to).structuralize(),
+            Self::Structural(ty) => ty.map(f).structuralize(),
             Self::Guard(guard) => Self::Guard(GuardType::new(
                 guard.namespace,
                 guard.target.clone(),
-                guard.to._replace(target, to),
+                guard.to.map(f),
             )),
             Self::Bounded { sub, sup } => Self::Bounded {
-                sub: Box::new(sub._replace(target, to)),
-                sup: Box::new(sup._replace(target, to)),
+                sub: Box::new(sub.map(f)),
+                sup: Box::new(sup.map(f)),
             },
             mono_type_pattern!() => self,
         }
+    }
+
+    /// Unlike `replace`, this does not make a look-up table.
+    fn _replace(mut self, target: &Type, to: &Type) -> Type {
+        if self.structural_eq(target) {
+            self = to.clone();
+        }
+        self.map(&mut |t| t._replace(target, to))
     }
 
     fn _replace_tp(self, target: &TyParam, to: &TyParam) -> Type {

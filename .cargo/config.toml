@@ -83,5 +83,5 @@ dinst = "install --path . --features debug --features els"
 ntest = "nextest run"
 
 # +nightly
-# you must specify the --target option
+# you must specify the --target option (e.g. x86_64-unknown-linux-gnu, aarch64-apple-darwin, x86_64-pc-windows-msvc)
 drc_r = "r -Zbuild-std -Zbuild-std-features=core/debug_refcell"

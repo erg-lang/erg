@@ -298,7 +298,7 @@ impl PartialEq for TyParam {
             (Self::List(l), Self::List(r)) => l == r,
             (Self::UnsizedList(l), Self::UnsizedList(r)) => l == r,
             (Self::Tuple(l), Self::Tuple(r)) => l == r,
-            (Self::Dict(l), Self::Dict(r)) => l == r,
+            (Self::Dict(l), Self::Dict(r)) => l.linear_eq(r),
             (Self::Record(l), Self::Record(r)) => l == r,
             (
                 Self::DataClass {
@@ -310,7 +310,7 @@ impl PartialEq for TyParam {
                     fields: rfs,
                 },
             ) => ln == rn && lfs == rfs,
-            (Self::Set(l), Self::Set(r)) => l == r,
+            (Self::Set(l), Self::Set(r)) => l.linear_eq(r),
             (Self::Lambda(l), Self::Lambda(r)) => l == r,
             (Self::Mono(l), Self::Mono(r)) => l == r,
             (

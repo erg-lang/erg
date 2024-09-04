@@ -1371,3 +1371,42 @@ impl<T: Clone> OptionalTranspose for Option<Vec<T>> {
 pub trait New {
     fn new(cfg: ErgConfig) -> Self;
 }
+
+/// Indicates that the type has no interior mutability
+// TODO: auto trait
+pub trait Immutable {}
+
+impl Immutable for () {}
+impl Immutable for bool {}
+impl Immutable for char {}
+impl Immutable for u8 {}
+impl Immutable for u16 {}
+impl Immutable for u32 {}
+impl Immutable for u64 {}
+impl Immutable for u128 {}
+impl Immutable for usize {}
+impl Immutable for i8 {}
+impl Immutable for i16 {}
+impl Immutable for i32 {}
+impl Immutable for i64 {}
+impl Immutable for i128 {}
+impl Immutable for isize {}
+impl Immutable for f32 {}
+impl Immutable for f64 {}
+impl Immutable for str {}
+impl Immutable for String {}
+impl Immutable for crate::Str {}
+impl Immutable for std::path::PathBuf {}
+impl Immutable for std::path::Path {}
+impl Immutable for std::ffi::OsString {}
+impl Immutable for std::ffi::OsStr {}
+impl Immutable for std::time::Duration {}
+impl Immutable for std::time::SystemTime {}
+impl Immutable for std::time::Instant {}
+impl<T: Immutable + ?Sized> Immutable for &T {}
+impl<T: Immutable> Immutable for Option<T> {}
+impl<T: Immutable> Immutable for Vec<T> {}
+impl<T: Immutable> Immutable for [T] {}
+impl<T: Immutable + ?Sized> Immutable for Box<T> {}
+impl<T: Immutable + ?Sized> Immutable for std::rc::Rc<T> {}
+impl<T: Immutable + ?Sized> Immutable for std::sync::Arc<T> {}
