@@ -171,7 +171,7 @@ impl Deserializer {
             }
             DataTypePrefix::BinFloat => {
                 let bytes = Self::consume::<8>(v);
-                Ok(ValueObj::Float(f64::from_le_bytes(bytes)))
+                Ok(ValueObj::from(f64::from_le_bytes(bytes)))
             }
             DataTypePrefix::ShortAscii | DataTypePrefix::ShortAsciiInterned => {
                 let len = v.remove(0);

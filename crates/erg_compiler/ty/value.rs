@@ -4,7 +4,7 @@
 use std::cmp::Ordering;
 use std::fmt;
 use std::hash::{Hash, Hasher};
-use std::ops::Neg;
+use std::ops::{Add, Deref, Div, Mul, Neg, Rem, Sub};
 use std::sync::Arc;
 
 use erg_common::consts::DEBUG_MODE;
@@ -571,13 +571,81 @@ impl TypeObj {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+pub struct Float(f64);
+
+impl fmt::Display for Float {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl Eq for Float {}
+#[allow(clippy::derive_ord_xor_partial_ord)]
+impl Ord for Float {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.partial_cmp(&other.0).unwrap()
+    }
+}
+
+// HACK:
+impl Hash for Float {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.to_bits().hash(state);
+    }
+}
+
+impl Deref for Float {
+    type Target = f64;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Neg for Float {
+    type Output = Self;
+    fn neg(self) -> Self {
+        Self(-self.0)
+    }
+}
+impl Add for Float {
+    type Output = Self;
+    fn add(self, other: Self) -> Self {
+        Self(self.0 + other.0)
+    }
+}
+impl Sub for Float {
+    type Output = Self;
+    fn sub(self, other: Self) -> Self {
+        Self(self.0 - other.0)
+    }
+}
+impl Mul for Float {
+    type Output = Self;
+    fn mul(self, other: Self) -> Self {
+        Self(self.0 * other.0)
+    }
+}
+impl Div for Float {
+    type Output = Self;
+    fn div(self, other: Self) -> Self {
+        Self(self.0 / other.0)
+    }
+}
+impl Rem for Float {
+    type Output = Self;
+    fn rem(self, other: Self) -> Self {
+        Self(self.0 % other.0)
+    }
+}
+
 /// 値オブジェクト
 /// コンパイル時評価ができ、シリアライズも可能(Typeなどはシリアライズ不可)
-#[derive(Clone, PartialEq, Default)]
+#[derive(Clone, PartialEq, Default, Hash)]
 pub enum ValueObj {
     Int(i32),
     Nat(u64),
-    Float(f64),
+    Float(Float),
     Str(Str),
     Bool(bool),
     List(ArcArray<ValueObj>),
@@ -919,60 +987,6 @@ impl Neg for ValueObj {
     }
 }
 
-// FIXME:
-impl Hash for ValueObj {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        match self {
-            Self::Int(i) => i.hash(state),
-            Self::Nat(n) => n.hash(state),
-            // TODO:
-            Self::Float(f) => f.to_bits().hash(state),
-            Self::Str(s) => s.hash(state),
-            Self::Bool(b) => b.hash(state),
-            Self::List(lis) => lis.hash(state),
-            Self::UnsizedList(elem) => {
-                "UnsizedArray".hash(state);
-                elem.hash(state)
-            }
-            Self::Dict(dict) => dict.hash(state),
-            Self::Tuple(tup) => tup.hash(state),
-            Self::Set(st) => st.hash(state),
-            Self::Code(code) => code.hash(state),
-            Self::Record(rec) => rec.hash(state),
-            Self::DataClass { name, fields } => {
-                name.hash(state);
-                fields.hash(state);
-            }
-            Self::Subr(subr) => subr.hash(state),
-            Self::Type(t) => t.hash(state),
-            Self::None => {
-                "literal".hash(state);
-                "None".hash(state)
-            }
-            Self::Ellipsis => {
-                "literal".hash(state);
-                "Ellipsis".hash(state)
-            }
-            Self::NotImplemented => {
-                "literal".hash(state);
-                "NotImplemented".hash(state)
-            }
-            Self::NegInf => {
-                "literal".hash(state);
-                "NegInf".hash(state)
-            }
-            Self::Inf => {
-                "literal".hash(state);
-                "Inf".hash(state)
-            }
-            Self::Failure => {
-                "literal".hash(state);
-                "illegal".hash(state)
-            }
-        }
-    }
-}
-
 impl HasLevel for ValueObj {
     fn level(&self) -> Option<usize> {
         match self {
@@ -1057,7 +1071,7 @@ impl From<usize> for ValueObj {
 
 impl From<f64> for ValueObj {
     fn from(item: f64) -> Self {
-        ValueObj::Float(item)
+        ValueObj::Float(Float(item))
     }
 }
 
@@ -1111,7 +1125,7 @@ impl TryFrom<&ValueObj> for f64 {
         match val {
             ValueObj::Int(i) => Ok(*i as f64),
             ValueObj::Nat(n) => Ok(*n as f64),
-            ValueObj::Float(f) => Ok(*f),
+            ValueObj::Float(f) => Ok(**f),
             ValueObj::Inf => Ok(f64::INFINITY),
             ValueObj::NegInf => Ok(f64::NEG_INFINITY),
             ValueObj::Bool(b) => Ok(if *b { 1.0 } else { 0.0 }),
@@ -1126,7 +1140,7 @@ impl TryFrom<&ValueObj> for usize {
         match val {
             ValueObj::Int(i) => usize::try_from(*i).map_err(|_| ()),
             ValueObj::Nat(n) => usize::try_from(*n).map_err(|_| ()),
-            ValueObj::Float(f) => Ok(*f as usize),
+            ValueObj::Float(f) => Ok(**f as usize),
             ValueObj::Bool(b) => Ok(if *b { 1 } else { 0 }),
             _ => Err(()),
         }
@@ -1319,17 +1333,9 @@ impl ValueObj {
                     _ => content.parse::<u64>().ok().map(Self::Nat),
                 }
             }
-            Type::Float => content
-                .replace('_', "")
-                .parse::<f64>()
-                .ok()
-                .map(Self::Float),
+            Type::Float => content.replace('_', "").parse::<f64>().ok().map(Self::from),
             // TODO:
-            Type::Ratio => content
-                .replace('_', "")
-                .parse::<f64>()
-                .ok()
-                .map(Self::Float),
+            Type::Ratio => content.replace('_', "").parse::<f64>().ok().map(Self::from),
             Type::Str => {
                 if &content[..] == "\"\"" {
                     Some(Self::Str(Str::from("")))
@@ -1463,7 +1469,7 @@ impl ValueObj {
             Self::Int(i) => Some(*i),
             Self::Nat(n) => i32::try_from(*n).ok(),
             Self::Bool(b) => Some(if *b { 1 } else { 0 }),
-            Self::Float(f) if f.round() == *f => Some(*f as i32),
+            Self::Float(f) if f.round() == **f => Some(**f as i32),
             _ => None,
         }
     }
@@ -1473,7 +1479,7 @@ impl ValueObj {
             Self::Int(i) => Some(*i as f64),
             Self::Nat(n) => Some(*n as f64),
             Self::Bool(b) => Some(if *b { 1.0 } else { 0.0 }),
-            Self::Float(f) => Some(*f),
+            Self::Float(f) => Some(**f),
             _ => None,
         }
     }
@@ -1543,10 +1549,10 @@ impl ValueObj {
             (Self::Float(l), Self::Float(r)) => Some(Self::Float(l + r)),
             (Self::Int(l), Self::Nat(r)) => Some(Self::from(l + r as i32)),
             (Self::Nat(l), Self::Int(r)) => Some(Self::Int(l as i32 + r)),
-            (Self::Float(l), Self::Nat(r)) => Some(Self::Float(l - r as f64)),
-            (Self::Int(l), Self::Float(r)) => Some(Self::Float(l as f64 - r)),
-            (Self::Nat(l), Self::Float(r)) => Some(Self::Float(l as f64 - r)),
-            (Self::Float(l), Self::Int(r)) => Some(Self::Float(l - r as f64)),
+            (Self::Float(l), Self::Nat(r)) => Some(Self::from(*l - r as f64)),
+            (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 - *r)),
+            (Self::Nat(l), Self::Float(r)) => Some(Self::from(l as f64 - *r)),
+            (Self::Float(l), Self::Int(r)) => Some(Self::from(*l - r as f64)),
             (Self::Str(l), Self::Str(r)) => Some(Self::Str(Str::from(format!("{l}{r}")))),
             (Self::List(l), Self::List(r)) => {
                 let lis = Arc::from([l, r].concat());
@@ -1567,10 +1573,10 @@ impl ValueObj {
             (Self::Float(l), Self::Float(r)) => Some(Self::Float(l - r)),
             (Self::Int(l), Self::Nat(r)) => Some(Self::from(l - r as i32)),
             (Self::Nat(l), Self::Int(r)) => Some(Self::from(l as i32 - r)),
-            (Self::Float(l), Self::Nat(r)) => Some(Self::from(l - r as f64)),
-            (Self::Nat(l), Self::Float(r)) => Some(Self::from(l as f64 - r)),
-            (Self::Float(l), Self::Int(r)) => Some(Self::from(l - r as f64)),
-            (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 - r)),
+            (Self::Float(l), Self::Nat(r)) => Some(Self::from(*l - r as f64)),
+            (Self::Nat(l), Self::Float(r)) => Some(Self::from(l as f64 - *r)),
+            (Self::Float(l), Self::Int(r)) => Some(Self::from(*l - r as f64)),
+            (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 - *r)),
             (inf @ (Self::Inf | Self::NegInf), other)
             | (other, inf @ (Self::Inf | Self::NegInf))
                 if other != Self::Inf && other != Self::NegInf =>
@@ -1588,10 +1594,10 @@ impl ValueObj {
             (Self::Float(l), Self::Float(r)) => Some(Self::Float(l * r)),
             (Self::Int(l), Self::Nat(r)) => Some(Self::Int(l * r as i32)),
             (Self::Nat(l), Self::Int(r)) => Some(Self::Int(l as i32 * r)),
-            (Self::Float(l), Self::Nat(r)) => Some(Self::from(l * r as f64)),
-            (Self::Nat(l), Self::Float(r)) => Some(Self::from(l as f64 * r)),
-            (Self::Float(l), Self::Int(r)) => Some(Self::from(l * r as f64)),
-            (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 * r)),
+            (Self::Float(l), Self::Nat(r)) => Some(Self::from(*l * r as f64)),
+            (Self::Nat(l), Self::Float(r)) => Some(Self::from(l as f64 * *r)),
+            (Self::Float(l), Self::Int(r)) => Some(Self::from(*l * r as f64)),
+            (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 * *r)),
             (Self::Str(l), Self::Nat(r)) => Some(Self::Str(Str::from(l.repeat(r as usize)))),
             (inf @ (Self::Inf | Self::NegInf), _) | (_, inf @ (Self::Inf | Self::NegInf)) => {
                 Some(inf)
@@ -1602,15 +1608,15 @@ impl ValueObj {
 
     pub fn try_div(self, other: Self) -> Option<Self> {
         match (self, other) {
-            (Self::Int(l), Self::Int(r)) => Some(Self::Float(l as f64 / r as f64)),
-            (Self::Nat(l), Self::Nat(r)) => Some(Self::Float(l as f64 / r as f64)),
+            (Self::Int(l), Self::Int(r)) => Some(Self::from(l as f64 / r as f64)),
+            (Self::Nat(l), Self::Nat(r)) => Some(Self::from(l as f64 / r as f64)),
             (Self::Float(l), Self::Float(r)) => Some(Self::Float(l / r)),
-            (Self::Int(l), Self::Nat(r)) => Some(Self::Float(l as f64 / r as f64)),
-            (Self::Nat(l), Self::Int(r)) => Some(Self::Float(l as f64 / r as f64)),
-            (Self::Float(l), Self::Nat(r)) => Some(Self::Float(l / r as f64)),
-            (Self::Nat(l), Self::Float(r)) => Some(Self::from(l as f64 / r)),
-            (Self::Float(l), Self::Int(r)) => Some(Self::from(l / r as f64)),
-            (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 / r)),
+            (Self::Int(l), Self::Nat(r)) => Some(Self::from(l as f64 / r as f64)),
+            (Self::Nat(l), Self::Int(r)) => Some(Self::from(l as f64 / r as f64)),
+            (Self::Float(l), Self::Nat(r)) => Some(Self::from(*l / r as f64)),
+            (Self::Nat(l), Self::Float(r)) => Some(Self::from(l as f64 / *r)),
+            (Self::Float(l), Self::Int(r)) => Some(Self::from(*l / r as f64)),
+            (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 / *r)),
             // TODO: x/±Inf = 0
             _ => None,
         }
@@ -1620,13 +1626,13 @@ impl ValueObj {
         match (self, other) {
             (Self::Int(l), Self::Int(r)) => Some(Self::Int(l / r)),
             (Self::Nat(l), Self::Nat(r)) => Some(Self::Nat(l / r)),
-            (Self::Float(l), Self::Float(r)) => Some(Self::Float((l / r).floor())),
+            (Self::Float(l), Self::Float(r)) => Some(Self::from((l / r).floor())),
             (Self::Int(l), Self::Nat(r)) => Some(Self::Int(l / r as i32)),
             (Self::Nat(l), Self::Int(r)) => Some(Self::Int(l as i32 / r)),
-            (Self::Float(l), Self::Nat(r)) => Some(Self::Float((l / r as f64).floor())),
-            (Self::Nat(l), Self::Float(r)) => Some(Self::Float((l as f64 / r).floor())),
-            (Self::Float(l), Self::Int(r)) => Some(Self::Float((l / r as f64).floor())),
-            (Self::Int(l), Self::Float(r)) => Some(Self::Float((l as f64 / r).floor())),
+            (Self::Float(l), Self::Nat(r)) => Some(Self::from((*l / r as f64).floor())),
+            (Self::Nat(l), Self::Float(r)) => Some(Self::from((l as f64 / *r).floor())),
+            (Self::Float(l), Self::Int(r)) => Some(Self::from((*l / r as f64).floor())),
+            (Self::Int(l), Self::Float(r)) => Some(Self::from((l as f64 / *r).floor())),
             // TODO: x//±Inf = 0
             _ => None,
         }
@@ -1636,13 +1642,13 @@ impl ValueObj {
         match (self, other) {
             (Self::Int(l), Self::Int(r)) => Some(Self::Int(l.pow(r.try_into().ok()?))),
             (Self::Nat(l), Self::Nat(r)) => Some(Self::Nat(l.pow(r.try_into().ok()?))),
-            (Self::Float(l), Self::Float(r)) => Some(Self::Float(l.powf(r))),
+            (Self::Float(l), Self::Float(r)) => Some(Self::from(l.powf(*r))),
             (Self::Int(l), Self::Nat(r)) => Some(Self::Int(l.pow(r.try_into().ok()?))),
             (Self::Nat(l), Self::Int(r)) => Some(Self::Nat(l.pow(r.try_into().ok()?))),
-            (Self::Float(l), Self::Nat(r)) => Some(Self::Float(l.powf(r as f64))),
-            (Self::Nat(l), Self::Float(r)) => Some(Self::Float((l as f64).powf(r))),
-            (Self::Float(l), Self::Int(r)) => Some(Self::Float(l.powi(r))),
-            (Self::Int(l), Self::Float(r)) => Some(Self::Float((l as f64).powf(r))),
+            (Self::Float(l), Self::Nat(r)) => Some(Self::from(l.powf(r as f64))),
+            (Self::Nat(l), Self::Float(r)) => Some(Self::from((l as f64).powf(*r))),
+            (Self::Float(l), Self::Int(r)) => Some(Self::from(l.powi(r))),
+            (Self::Int(l), Self::Float(r)) => Some(Self::from((l as f64).powf(*r))),
             _ => None,
         }
     }
@@ -1654,10 +1660,10 @@ impl ValueObj {
             (Self::Float(l), Self::Float(r)) => Some(Self::Float(l % r)),
             (Self::Int(l), Self::Nat(r)) => Some(Self::Int(l % r as i32)),
             (Self::Nat(l), Self::Int(r)) => Some(Self::Int(l as i32 % r)),
-            (Self::Float(l), Self::Nat(r)) => Some(Self::Float(l % r as f64)),
-            (Self::Nat(l), Self::Float(r)) => Some(Self::Float(l as f64 % r)),
-            (Self::Float(l), Self::Int(r)) => Some(Self::Float(l % r as f64)),
-            (Self::Int(l), Self::Float(r)) => Some(Self::Float(l as f64 % r)),
+            (Self::Float(l), Self::Nat(r)) => Some(Self::from(*l % r as f64)),
+            (Self::Nat(l), Self::Float(r)) => Some(Self::from(l as f64 % *r)),
+            (Self::Float(l), Self::Int(r)) => Some(Self::from(*l % r as f64)),
+            (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 % *r)),
             _ => None,
         }
     }
@@ -1669,10 +1675,10 @@ impl ValueObj {
             (Self::Float(l), Self::Float(r)) => Some(Self::from(l > r)),
             (Self::Int(l), Self::Nat(r)) => Some(Self::from(l > r as i32)),
             (Self::Nat(l), Self::Int(r)) => Some(Self::from(l as i32 > r)),
-            (Self::Float(l), Self::Nat(r)) => Some(Self::from(l > r as f64)),
-            (Self::Nat(l), Self::Float(r)) => Some(Self::from(l as f64 > r)),
-            (Self::Float(l), Self::Int(r)) => Some(Self::from(l > r as f64)),
-            (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 > r)),
+            (Self::Float(l), Self::Nat(r)) => Some(Self::from(*l > r as f64)),
+            (Self::Nat(l), Self::Float(r)) => Some(Self::from(l as f64 > *r)),
+            (Self::Float(l), Self::Int(r)) => Some(Self::from(*l > r as f64)),
+            (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 > *r)),
             (Self::Inf, Self::Inf) | (Self::NegInf, Self::NegInf) => Some(Self::Bool(false)),
             (Self::Inf, Self::Nat(_) | Self::Int(_) | Self::Float(_) | Self::Bool(_))
             | (Self::Nat(_) | Self::Int(_) | Self::Float(_) | Self::Bool(_), Self::NegInf) => {
@@ -1693,10 +1699,10 @@ impl ValueObj {
             (Self::Float(l), Self::Float(r)) => Some(Self::from(l >= r)),
             (Self::Int(l), Self::Nat(r)) => Some(Self::from(l >= r as i32)),
             (Self::Nat(l), Self::Int(r)) => Some(Self::from(l as i32 >= r)),
-            (Self::Float(l), Self::Nat(r)) => Some(Self::from(l >= r as f64)),
-            (Self::Nat(l), Self::Float(r)) => Some(Self::from(l as f64 >= r)),
-            (Self::Float(l), Self::Int(r)) => Some(Self::from(l >= r as f64)),
-            (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 >= r)),
+            (Self::Float(l), Self::Nat(r)) => Some(Self::from(*l >= r as f64)),
+            (Self::Nat(l), Self::Float(r)) => Some(Self::from(l as f64 >= *r)),
+            (Self::Float(l), Self::Int(r)) => Some(Self::from(*l >= r as f64)),
+            (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 >= *r)),
             (Self::Inf, Self::Inf) | (Self::NegInf, Self::NegInf) => Some(Self::Bool(true)),
             (Self::Inf, Self::Nat(_) | Self::Int(_) | Self::Float(_) | Self::Bool(_))
             | (Self::Nat(_) | Self::Int(_) | Self::Float(_) | Self::Bool(_), Self::NegInf) => {
@@ -1717,10 +1723,10 @@ impl ValueObj {
             (Self::Float(l), Self::Float(r)) => Some(Self::from(l < r)),
             (Self::Int(l), Self::Nat(r)) => Some(Self::from(l < r as i32)),
             (Self::Nat(l), Self::Int(r)) => Some(Self::from((l as i32) < r)),
-            (Self::Float(l), Self::Nat(r)) => Some(Self::from(l < r as f64)),
-            (Self::Nat(l), Self::Float(r)) => Some(Self::from((l as f64) < r)),
-            (Self::Float(l), Self::Int(r)) => Some(Self::from(l < r as f64)),
-            (Self::Int(l), Self::Float(r)) => Some(Self::from((l as f64) < r)),
+            (Self::Float(l), Self::Nat(r)) => Some(Self::from(*l < r as f64)),
+            (Self::Nat(l), Self::Float(r)) => Some(Self::from((l as f64) < *r)),
+            (Self::Float(l), Self::Int(r)) => Some(Self::from(*l < r as f64)),
+            (Self::Int(l), Self::Float(r)) => Some(Self::from((l as f64) < *r)),
             (Self::Inf, Self::Inf) | (Self::NegInf, Self::NegInf) => Some(Self::Bool(false)),
             (Self::Inf, Self::Nat(_) | Self::Int(_) | Self::Float(_) | Self::Bool(_))
             | (Self::Nat(_) | Self::Int(_) | Self::Float(_) | Self::Bool(_), Self::NegInf) => {
@@ -1741,10 +1747,10 @@ impl ValueObj {
             (Self::Float(l), Self::Float(r)) => Some(Self::from(l <= r)),
             (Self::Int(l), Self::Nat(r)) => Some(Self::from(l <= r as i32)),
             (Self::Nat(l), Self::Int(r)) => Some(Self::from((l as i32) <= r)),
-            (Self::Float(l), Self::Nat(r)) => Some(Self::from(l <= r as f64)),
-            (Self::Nat(l), Self::Float(r)) => Some(Self::from((l as f64) <= r)),
-            (Self::Float(l), Self::Int(r)) => Some(Self::from(l <= r as f64)),
-            (Self::Int(l), Self::Float(r)) => Some(Self::from((l as f64) <= r)),
+            (Self::Float(l), Self::Nat(r)) => Some(Self::from(*l <= r as f64)),
+            (Self::Nat(l), Self::Float(r)) => Some(Self::from((l as f64) <= *r)),
+            (Self::Float(l), Self::Int(r)) => Some(Self::from(*l <= r as f64)),
+            (Self::Int(l), Self::Float(r)) => Some(Self::from((l as f64) <= *r)),
             (Self::Inf, Self::Inf) | (Self::NegInf, Self::NegInf) => Some(Self::Bool(true)),
             (Self::Inf, Self::Nat(_) | Self::Int(_) | Self::Float(_) | Self::Bool(_))
             | (Self::Nat(_) | Self::Int(_) | Self::Float(_) | Self::Bool(_), Self::NegInf) => {
@@ -1765,10 +1771,10 @@ impl ValueObj {
             (Self::Float(l), Self::Float(r)) => Some(Self::from(l == r)),
             (Self::Int(l), Self::Nat(r)) => Some(Self::from(l == r as i32)),
             (Self::Nat(l), Self::Int(r)) => Some(Self::from(l as i32 == r)),
-            (Self::Float(l), Self::Nat(r)) => Some(Self::from(l == r as f64)),
-            (Self::Nat(l), Self::Float(r)) => Some(Self::from(l as f64 == r)),
-            (Self::Float(l), Self::Int(r)) => Some(Self::from(l == r as f64)),
-            (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 == r)),
+            (Self::Float(l), Self::Nat(r)) => Some(Self::from(*l == r as f64)),
+            (Self::Nat(l), Self::Float(r)) => Some(Self::from(l as f64 == *r)),
+            (Self::Float(l), Self::Int(r)) => Some(Self::from(*l == r as f64)),
+            (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 == *r)),
             (Self::Str(l), Self::Str(r)) => Some(Self::from(l == r)),
             (Self::Bool(l), Self::Bool(r)) => Some(Self::from(l == r)),
             (Self::Type(l), Self::Type(r)) => Some(Self::from(l == r)),
@@ -1785,10 +1791,10 @@ impl ValueObj {
             (Self::Float(l), Self::Float(r)) => Some(Self::from(l != r)),
             (Self::Int(l), Self::Nat(r)) => Some(Self::from(l != r as i32)),
             (Self::Nat(l), Self::Int(r)) => Some(Self::from(l as i32 != r)),
-            (Self::Float(l), Self::Nat(r)) => Some(Self::from(l != r as f64)),
-            (Self::Nat(l), Self::Float(r)) => Some(Self::from(l as f64 != r)),
-            (Self::Float(l), Self::Int(r)) => Some(Self::from(l != r as f64)),
-            (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 != r)),
+            (Self::Float(l), Self::Nat(r)) => Some(Self::from(*l != r as f64)),
+            (Self::Nat(l), Self::Float(r)) => Some(Self::from(l as f64 != *r)),
+            (Self::Float(l), Self::Int(r)) => Some(Self::from(*l != r as f64)),
+            (Self::Int(l), Self::Float(r)) => Some(Self::from(l as f64 != *r)),
             (Self::Str(l), Self::Str(r)) => Some(Self::from(l != r)),
             (Self::Bool(l), Self::Bool(r)) => Some(Self::from(l != r)),
             (Self::Type(l), Self::Type(r)) => Some(Self::from(l != r)),

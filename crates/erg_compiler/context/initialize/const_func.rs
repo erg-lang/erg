@@ -639,7 +639,7 @@ fn _list_sum(arr: ValueObj, _ctx: &Context) -> Result<ValueObj, String> {
                         sum += *n as f64;
                     }
                     ValueObj::Float(n) => {
-                        sum += *n;
+                        sum += **n;
                     }
                     ValueObj::Inf => {
                         return Ok(ValueObj::Inf);
@@ -657,7 +657,7 @@ fn _list_sum(arr: ValueObj, _ctx: &Context) -> Result<ValueObj, String> {
             } else if sum.round() == sum {
                 Ok(ValueObj::Int(sum as i32))
             } else {
-                Ok(ValueObj::Float(sum))
+                Ok(ValueObj::from(sum))
             }
         }
         _ => Err(format!("Cannot sum {arr}")),
@@ -689,7 +689,7 @@ fn _list_prod(lis: ValueObj, _ctx: &Context) -> Result<ValueObj, String> {
                         prod *= *n as f64;
                     }
                     ValueObj::Float(n) => {
-                        prod *= *n;
+                        prod *= **n;
                     }
                     ValueObj::Inf => {
                         return Ok(ValueObj::Inf);
@@ -707,7 +707,7 @@ fn _list_prod(lis: ValueObj, _ctx: &Context) -> Result<ValueObj, String> {
             } else if prod.round() == prod {
                 Ok(ValueObj::Int(prod as i32))
             } else {
-                Ok(ValueObj::Float(prod))
+                Ok(ValueObj::from(prod))
             }
         }
         _ => Err(format!("Cannot prod {lis}")),
@@ -1144,7 +1144,7 @@ pub(crate) fn abs_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<T
         ValueObj::Nat(n) => Ok(ValueObj::Nat(n).into()),
         ValueObj::Int(n) => Ok(ValueObj::Nat(n.unsigned_abs() as u64).into()),
         ValueObj::Bool(b) => Ok(ValueObj::Nat(b as u64).into()),
-        ValueObj::Float(n) => Ok(ValueObj::Float(n.abs()).into()),
+        ValueObj::Float(n) => Ok(ValueObj::from(n.abs()).into()),
         ValueObj::Inf => Ok(ValueObj::Inf.into()),
         ValueObj::NegInf => Ok(ValueObj::Inf.into()),
         _ => Err(type_mismatch("Num", num, "num")),
@@ -1490,7 +1490,7 @@ pub(crate) fn succ_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<
         ValueObj::Bool(b) => ValueObj::Nat(*b as u64 + 1),
         ValueObj::Nat(n) => ValueObj::Nat(n + 1),
         ValueObj::Int(n) => ValueObj::Int(n + 1),
-        ValueObj::Float(n) => ValueObj::Float(n + f64::EPSILON),
+        ValueObj::Float(n) => ValueObj::from(**n + f64::EPSILON),
         v @ (ValueObj::Inf | ValueObj::NegInf) => v.clone(),
         _ => {
             return Err(type_mismatch("Number", val, "Value"));
@@ -1507,7 +1507,7 @@ pub(crate) fn pred_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<
         ValueObj::Bool(b) => ValueObj::Nat((*b as u64).saturating_sub(1)),
         ValueObj::Nat(n) => ValueObj::Nat(n.saturating_sub(1)),
         ValueObj::Int(n) => ValueObj::Int(n - 1),
-        ValueObj::Float(n) => ValueObj::Float(n - f64::EPSILON),
+        ValueObj::Float(n) => ValueObj::from(**n - f64::EPSILON),
         v @ (ValueObj::Inf | ValueObj::NegInf) => v.clone(),
         _ => {
             return Err(type_mismatch("Number", val, "Value"));

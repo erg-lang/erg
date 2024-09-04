@@ -91,7 +91,7 @@ impl Context {
             EPSILON,
             Visibility::BUILTIN_PUBLIC,
             None,
-            ValueObj::Float(2.220446049250313e-16),
+            ValueObj::from(2.220446049250313e-16),
         );
         complex.register_builtin_py_impl(
             REAL,

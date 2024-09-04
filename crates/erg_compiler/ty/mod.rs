@@ -1451,6 +1451,7 @@ impl PartialEq for Type {
             | (Self::NotImplementedType, Self::NotImplementedType)
             | (Self::Ellipsis, Self::Ellipsis)
             | (Self::Never, Self::Never) => true,
+            (Self::Failure, Self::Failure) | (Self::Uninited, Self::Uninited) => true,
             (Self::Mono(l), Self::Mono(r)) => l == r,
             (Self::Ref(l), Self::Ref(r)) => l == r,
             (
@@ -1474,7 +1475,7 @@ impl PartialEq for Type {
                     return_t: rr,
                 },
             ) => {
-                lps.len() != rps.len()
+                lps.len() == rps.len()
                     && lps.iter().zip(rps.iter()).all(|(l, r)| l == r)
                     && (lr == rr)
             }
@@ -1482,10 +1483,8 @@ impl PartialEq for Type {
             (Self::NamedTuple(lhs), Self::NamedTuple(rhs)) => lhs == rhs,
             (Self::Refinement(l), Self::Refinement(r)) => l == r,
             (Self::Quantified(l), Self::Quantified(r)) => l == r,
-            // REVIEW: should use the same way as `structural_eq`?
-            (Self::And(ll, lr), Self::And(rl, rr)) | (Self::Or(ll, lr), Self::Or(rl, rr)) => {
-                (ll == rl && lr == rr) || (ll == rr && lr == rl)
-            }
+            (Self::And(_, _), Self::And(_, _)) => self.ands() == other.ands(),
+            (Self::Or(_, _), Self::Or(_, _)) => self.ors() == other.ors(),
             (Self::Not(l), Self::Not(r)) => l == r,
             (
                 Self::Poly {
@@ -1521,7 +1520,6 @@ impl PartialEq for Type {
             (Self::FreeVar(fv), other) if fv.is_linked() => &*fv.crack() == other,
             (_self, Self::FreeVar(fv)) if fv.is_linked() => _self == &*fv.crack(),
             (Self::FreeVar(l), Self::FreeVar(r)) => l == r,
-            (Self::Failure, Self::Failure) | (Self::Uninited, Self::Uninited) => true,
             // NoneType == {None}
             (Self::NoneType, Self::Refinement(refine))
             | (Self::Refinement(refine), Self::NoneType) => {
@@ -2134,10 +2132,11 @@ impl StructuralEq for Type {
                     return_t: return_t2,
                 },
             ) => {
-                param_ts
-                    .iter()
-                    .zip(param_ts2.iter())
-                    .all(|(t, t2)| t.structural_eq(t2))
+                param_ts.len() == param_ts2.len()
+                    && param_ts
+                        .iter()
+                        .zip(param_ts2.iter())
+                        .all(|(t, t2)| t.structural_eq(t2))
                     && return_t.structural_eq(return_t2)
             }
             (Self::Quantified(quant), Self::Quantified(quant2)) => quant.structural_eq(quant2),
