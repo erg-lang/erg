@@ -1,6 +1,8 @@
 #[cfg(all(unix, feature = "backtrace"))]
 pub use backtrace_on_stack_overflow;
 use std::thread::{self, JoinHandle};
+#[cfg(all(windows, feature = "backtrace"))]
+pub use w_boson;
 
 const STACK_SIZE: usize = if cfg!(feature = "large_thread") {
     16 * 1024 * 1024
@@ -14,6 +16,10 @@ macro_rules! enable_overflow_stacktrace {
         #[cfg(all(unix, feature = "backtrace"))]
         unsafe {
             $crate::spawn::backtrace_on_stack_overflow::enable()
+        };
+        #[cfg(all(windows, feature = "backtrace"))]
+        unsafe {
+            $crate::spawn::w_boson::enable()
         };
     };
 }
