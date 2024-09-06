@@ -1244,46 +1244,36 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
         );
         for param in subr.non_default_params.iter_mut() {
             _self.push_variance(Contravariant);
-            *param.typ_mut() = _self.deref_tyvar(mem::take(param.typ_mut())).map_err(|e| {
-                _self.pop_variance();
-                e
-            })?;
+            *param.typ_mut() = _self
+                .deref_tyvar(mem::take(param.typ_mut()))
+                .inspect_err(|_e| _self.pop_variance())?;
             _self.pop_variance();
         }
         if let Some(var_args) = &mut subr.var_params {
             _self.push_variance(Contravariant);
-            *var_args.typ_mut() =
-                _self
-                    .deref_tyvar(mem::take(var_args.typ_mut()))
-                    .map_err(|e| {
-                        _self.pop_variance();
-                        e
-                    })?;
+            *var_args.typ_mut() = _self
+                .deref_tyvar(mem::take(var_args.typ_mut()))
+                .inspect_err(|_e| _self.pop_variance())?;
             _self.pop_variance();
         }
         for d_param in subr.default_params.iter_mut() {
             _self.push_variance(Contravariant);
             *d_param.typ_mut() = _self
                 .deref_tyvar(mem::take(d_param.typ_mut()))
-                .map_err(|e| {
+                .inspect_err(|_e| {
                     _self.pop_variance();
-                    e
                 })?;
             if let Some(default) = d_param.default_typ_mut() {
-                *default = _self.deref_tyvar(mem::take(default)).map_err(|e| {
-                    _self.pop_variance();
-                    e
-                })?;
+                *default = _self
+                    .deref_tyvar(mem::take(default))
+                    .inspect_err(|_e| _self.pop_variance())?;
             }
             _self.pop_variance();
         }
         _self.push_variance(Covariant);
         *subr.return_t = _self
             .deref_tyvar(mem::take(&mut subr.return_t))
-            .map_err(|e| {
-                _self.pop_variance();
-                e
-            })?;
+            .inspect_err(|_e| _self.pop_variance())?;
         _self.pop_variance();
         let subr = Type::Subr(subr);
         if subr.has_qvar() {

@@ -236,7 +236,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             Some("quickfix") => self.send_quick_fix(&params)?,
             None => self.send_normal_action(&params)?,
             Some(other) => {
-                self.send_log(&format!("Unknown code action requested: {other}"))?;
+                self.send_log(format!("Unknown code action requested: {other}"))?;
                 vec![]
             }
         };

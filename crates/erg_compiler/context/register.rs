@@ -1319,11 +1319,9 @@ impl Context {
                                 ty
                             }
                         };
-                        self.sub_unify(&const_t, &spec_t, &def.body, None)
-                            .map_err(|errs| {
-                                self.pop();
-                                errs
-                            })?;
+                        if let Err(es) = self.sub_unify(&const_t, &spec_t, &def.body, None) {
+                            errs.extend(es);
+                        }
                     }
                     self.pop();
                     if let Err(es) = self.register_gen_const(
@@ -1384,11 +1382,9 @@ impl Context {
                                 ty
                             }
                         };
-                        self.sub_unify(&const_t, &spec_t, &def.body, None)
-                            .map_err(|errs| {
-                                self.pop();
-                                errs
-                            })?;
+                        if let Err(es) = self.sub_unify(&const_t, &spec_t, &def.body, None) {
+                            errs.extend(es);
+                        }
                     }
                     self.pop();
                     if let Some(ident) = sig.ident() {

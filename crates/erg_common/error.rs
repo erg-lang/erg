@@ -580,7 +580,7 @@ fn format_context<E: ErrorDisplay + ?Sized>(
     let (vbreak, vbar) = chars.gutters();
     let offset = format!("{} {} ", &" ".repeat(max_digit), vbreak);
     for (i, lineno) in (ln_begin..=ln_end).enumerate() {
-        context.push_str_with_color(&format!("{lineno:<max_digit$} {vbar} "), gutter_color);
+        context.push_str_with_color(format!("{lineno:<max_digit$} {vbar} "), gutter_color);
         let not_found = "???".to_string();
         let code = codes.get(i).unwrap_or(&not_found);
         context.push_str(code);
@@ -745,11 +745,11 @@ impl SubMessage {
                 let codes = e.input().reread_lines(ln_begin as usize, ln_end as usize);
                 let mark = mark.to_string();
                 for (i, lineno) in (ln_begin..=ln_end).enumerate() {
-                    cxt.push_str_with_color(&format!("{lineno} {vbar} "), gutter_color);
+                    cxt.push_str_with_color(format!("{lineno} {vbar} "), gutter_color);
                     cxt.push_str(codes.get(i).unwrap_or(&String::new()));
                     cxt.push_str("\n");
                     cxt.push_str_with_color(
-                        &format!("{} {}", &" ".repeat(lineno.to_string().len()), vbreak),
+                        format!("{} {}", &" ".repeat(lineno.to_string().len()), vbreak),
                         gutter_color,
                     );
                     cxt.push_str(&" ".repeat(lineno.to_string().len()));
@@ -774,7 +774,7 @@ impl SubMessage {
                 let default = "???".to_string();
                 let code = codes.first().unwrap_or(&default);
                 let mut cxt = StyledStrings::default();
-                cxt.push_str_with_color(&format!(" {lineno} {vbar} "), gutter_color);
+                cxt.push_str_with_color(format!(" {lineno} {vbar} "), gutter_color);
                 cxt.push_str(code);
                 cxt.push_str("\n");
                 for msg in self.msg.iter() {
@@ -793,7 +793,7 @@ impl SubMessage {
                 _other => {
                     let (_, vbar) = chars.gutters();
                     let mut cxt = StyledStrings::default();
-                    cxt.push_str_with_color(&format!(" ? {vbar} "), gutter_color);
+                    cxt.push_str_with_color(format!(" ? {vbar} "), gutter_color);
                     cxt.push_str(&e.input().reread());
                     cxt.push_str("\n");
                     for msg in self.msg.iter() {

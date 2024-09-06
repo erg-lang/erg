@@ -883,9 +883,8 @@ impl Context {
             // TODO: set params
             let kind = ContextKind::from(def);
             self.grow(__name__, kind, vis, tv_cache);
-            let obj = self.eval_const_block(&def.body.block).map_err(|errs| {
+            let obj = self.eval_const_block(&def.body.block).inspect_err(|_| {
                 self.pop();
-                errs
             })?;
             let call = if let Some(Expr::Call(call)) = &def.body.block.first() {
                 Some(call)
@@ -3369,10 +3368,7 @@ impl Context {
         if lhs != coerced {
             let proj = proj_call(coerced, attr_name, args);
             self.eval_t_params(proj, level, t_loc)
-                .map(|t| {
-                    lhs.destructive_coerce();
-                    t
-                })
+                .inspect(|_t| lhs.destructive_coerce())
                 .map_err(|(_, errs)| errs)
         } else {
             let proj = proj_call(lhs, attr_name, args);

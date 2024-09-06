@@ -977,10 +977,8 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             log!(info "no-op:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
             return Ok(());
         }
-        self.occur(maybe_sub, maybe_sup).map_err(|err| {
-            log!(err "occur error: {maybe_sub} / {maybe_sup}");
-            err
-        })?;
+        self.occur(maybe_sub, maybe_sup)
+            .inspect_err(|_e| log!(err "occur error: {maybe_sub} / {maybe_sup}"))?;
         let maybe_sub_is_sub = self.ctx.subtype_of(maybe_sub, maybe_sup);
         if !maybe_sub_is_sub {
             log!(err "{maybe_sub} !<: {maybe_sup}");
@@ -1030,10 +1028,9 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 sub_fv.dummy_link();
                 if lsub.qual_name() == rsub.qual_name() {
                     for (lps, rps) in lsub.typarams().iter().zip(rsub.typarams().iter()) {
-                        self.sub_unify_tp(lps, rps, None, false).map_err(|errs| {
+                        self.sub_unify_tp(lps, rps, None, false).inspect_err(|_e| {
                             sup_fv.undo();
                             sub_fv.undo();
-                            errs
                         })?;
                     }
                 }
@@ -1041,10 +1038,9 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 //   => lsup: Add(?X(:> Int)), rsup: Add((?X(:> Int)))
                 if lsup.qual_name() == rsup.qual_name() {
                     for (lps, rps) in lsup.typarams().iter().zip(rsup.typarams().iter()) {
-                        self.sub_unify_tp(lps, rps, None, false).map_err(|errs| {
+                        self.sub_unify_tp(lps, rps, None, false).inspect_err(|_e| {
                             sup_fv.undo();
                             sub_fv.undo();
-                            errs
                         })?;
                     }
                 }
@@ -1138,20 +1134,16 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 sup_fv.dummy_link();
                 if lsub.qual_name() == rsub.qual_name() {
                     for (lps, rps) in lsub.typarams().iter().zip(rsub.typarams().iter()) {
-                        self.sub_unify_tp(lps, rps, None, false).map_err(|errs| {
-                            sup_fv.undo();
-                            errs
-                        })?;
+                        self.sub_unify_tp(lps, rps, None, false)
+                            .inspect_err(|_e| sup_fv.undo())?;
                     }
                 }
                 // lsup: Add(?X(:> Int)), rsup: Add(?Y(:> Nat))
                 //   => lsup: Add(?X(:> Int)), rsup: Add((?X(:> Int)))
                 if lsup.qual_name() == rsup.qual_name() {
                     for (lps, rps) in lsup.typarams().iter().zip(rsup.typarams().iter()) {
-                        self.sub_unify_tp(lps, rps, None, false).map_err(|errs| {
-                            sup_fv.undo();
-                            errs
-                        })?;
+                        self.sub_unify_tp(lps, rps, None, false)
+                            .inspect_err(|_e| sup_fv.undo())?;
                     }
                 }
                 sup_fv.undo();
@@ -1302,10 +1294,8 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 for (sup_field, sup_ty) in self.ctx.fields(struct_sup) {
                     sub_fv.dummy_link();
                     if let Some((_, sub_ty)) = sub_fields.get_key_value(&sup_field) {
-                        self.sub_unify(sub_ty, &sup_ty).map_err(|errs| {
-                            sub_fv.undo();
-                            errs
-                        })?;
+                        self.sub_unify(sub_ty, &sup_ty)
+                            .inspect_err(|_e| sub_fv.undo())?;
                     } else if !self.ctx.subtype_of(&sub, &Never) {
                         sub_fv.undo();
                         maybe_sub.coerce(self.undoable);

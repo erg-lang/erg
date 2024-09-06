@@ -1041,10 +1041,9 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 let imp = self.module.context.register_trait_impl(&class, sup, ident);
                 imp.and(tmp.register_trait(&self.module.context, sup.clone()))
             };
-            res.map_err(|err| {
+            res.inspect_err(|_err| {
                 let ctx = self.module.context.rec_get_mut_type(&name).unwrap();
                 mem::swap(ctx, &mut tmp);
-                err
             })?;
             let ctx = self.module.context.rec_get_mut_type(&name).unwrap();
             mem::swap(ctx, &mut tmp);
