@@ -119,13 +119,7 @@ impl SharedTraitImpls {
     where
         Str: Borrow<Q>,
     {
-        if self.0.borrow().get(path).is_some() {
-            Some(RwLockReadGuard::map(self.0.borrow(), |tis| {
-                tis.get(path).unwrap()
-            }))
-        } else {
-            None
-        }
+        RwLockReadGuard::try_map(self.0.borrow(), |tis| tis.get(path)).ok()
     }
 
     pub fn get_mut<Q: Eq + Hash + ?Sized>(
@@ -135,13 +129,7 @@ impl SharedTraitImpls {
     where
         Str: Borrow<Q>,
     {
-        if self.0.borrow().get(path).is_some() {
-            Some(RwLockWriteGuard::map(self.0.borrow_mut(), |tis| {
-                tis.get_mut(path).unwrap()
-            }))
-        } else {
-            None
-        }
+        RwLockWriteGuard::try_map(self.0.borrow_mut(), |tis| tis.get_mut(path)).ok()
     }
 
     pub fn register(&self, name: Str, impls: Set<TraitImpl>) {

@@ -1151,10 +1151,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub fn get_hir(&self, uri: &NormalizedUrl) -> Option<MappedRwLockReadGuard<HIR>> {
         let path = uri.to_file_path().ok()?;
         let ent = self.shared.get_module(&path)?;
-        ent.hir.as_ref()?;
-        Some(MappedRwLockReadGuard::map(ent, |ent| {
-            ent.hir.as_ref().unwrap()
-        }))
+        MappedRwLockReadGuard::try_map(ent, |ent| ent.hir.as_ref()).ok()
     }
 
     pub fn steal_entry(&self, uri: &NormalizedUrl) -> Option<ModuleEntry> {
@@ -1170,10 +1167,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub fn get_ast(&self, uri: &NormalizedUrl) -> Option<MappedRwLockReadGuard<Module>> {
         let path = uri.to_file_path().ok()?;
         let ent = self.shared.get_module(&path)?;
-        ent.ast.as_ref()?;
-        Some(MappedRwLockReadGuard::map(ent, |ent| {
-            ent.ast.as_ref().unwrap()
-        }))
+        MappedRwLockReadGuard::try_map(ent, |ent| ent.ast.as_ref()).ok()
     }
 
     pub fn get_warns(&self, uri: &NormalizedUrl) -> Option<Vec<&CompileWarning>> {

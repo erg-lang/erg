@@ -260,13 +260,7 @@ impl SharedModuleCache {
     where
         NormalizedPathBuf: Borrow<Q>,
     {
-        if self.0.borrow().get(path).is_some() {
-            Some(RwLockReadGuard::map(self.0.borrow(), |cache| {
-                cache.get(path).unwrap()
-            }))
-        } else {
-            None
-        }
+        RwLockReadGuard::try_map(self.0.borrow(), |cache| cache.get(path)).ok()
     }
 
     pub fn get_mut<Q: Eq + Hash + ?Sized>(
@@ -276,13 +270,7 @@ impl SharedModuleCache {
     where
         NormalizedPathBuf: Borrow<Q>,
     {
-        if self.0.borrow().get(path).is_some() {
-            Some(RwLockWriteGuard::map(self.0.borrow_mut(), |cache| {
-                cache.get_mut(path).unwrap()
-            }))
-        } else {
-            None
-        }
+        RwLockWriteGuard::try_map(self.0.borrow_mut(), |cache| cache.get_mut(path)).ok()
     }
 
     pub fn ref_ctx<Q: Eq + Hash + ?Sized>(
@@ -292,13 +280,10 @@ impl SharedModuleCache {
     where
         NormalizedPathBuf: Borrow<Q>,
     {
-        if self.0.borrow().get(path).is_some() {
-            Some(RwLockReadGuard::map(self.0.borrow(), |cache| {
-                &cache.get(path).unwrap().module
-            }))
-        } else {
-            None
-        }
+        RwLockReadGuard::try_map(self.0.borrow(), |cache| {
+            cache.get(path).map(|ent| &ent.module)
+        })
+        .ok()
     }
 
     /// FIXME: see the comment in this function

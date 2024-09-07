@@ -1124,41 +1124,29 @@ impl<T: Clone + Send + Sync + 'static> Free<T> {
 
     #[track_caller]
     pub fn get_linked_ref(&self) -> Option<Ref<T>> {
-        if !self.is_linked() {
-            None
-        } else {
-            let mapped = Ref::map(self.borrow(), |f| match f {
-                FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t,
-                FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => unreachable!(),
-            });
-            Some(mapped)
-        }
+        Ref::filter_map(self.borrow(), |f| match f {
+            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => Some(t),
+            FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => None,
+        })
+        .ok()
     }
 
     #[track_caller]
     pub fn get_linked_refmut(&self) -> Option<RefMut<T>> {
-        if !self.is_linked() {
-            None
-        } else {
-            let mapped = RefMut::map(self.borrow_mut(), |f| match f {
-                FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t,
-                FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => unreachable!(),
-            });
-            Some(mapped)
-        }
+        RefMut::filter_map(self.borrow_mut(), |f| match f {
+            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => Some(t),
+            FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => None,
+        })
+        .ok()
     }
 
     #[track_caller]
     pub fn get_previous(&self) -> Option<Ref<Box<FreeKind<T>>>> {
-        if !self.is_undoable_linked() {
-            None
-        } else {
-            let mapped = Ref::map(self.borrow(), |f| match f {
-                FreeKind::UndoableLinked { previous, .. } => previous,
-                _ => unreachable!(),
-            });
-            Some(mapped)
-        }
+        Ref::filter_map(self.borrow(), |f| match f {
+            FreeKind::UndoableLinked { previous, .. } => Some(previous),
+            _ => None,
+        })
+        .ok()
     }
 
     pub fn detach(&self) -> Self {

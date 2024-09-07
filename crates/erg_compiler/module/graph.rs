@@ -225,13 +225,7 @@ impl SharedModuleGraph {
         &self,
         path: &NormalizedPathBuf,
     ) -> Option<MappedRwLockReadGuard<Node<NormalizedPathBuf, ()>>> {
-        if self.0.borrow().get_node(path).is_some() {
-            Some(RwLockReadGuard::map(self.0.borrow(), |graph| {
-                graph.get_node(path).unwrap()
-            }))
-        } else {
-            None
-        }
+        RwLockReadGuard::try_map(self.0.borrow(), |graph| graph.get_node(path)).ok()
     }
 
     pub fn depends_on(&self, path: &NormalizedPathBuf, target: &NormalizedPathBuf) -> bool {

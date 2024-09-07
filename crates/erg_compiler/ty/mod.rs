@@ -3990,10 +3990,8 @@ impl Type {
 
     pub fn tyvar_mut_return_t(&mut self) -> Option<RefMut<Type>> {
         match self {
-            Self::FreeVar(fv) if fv.get_linked()?.return_t().is_some() => {
-                Some(RefMut::map(fv.borrow_mut(), |fk| {
-                    fk.linked_mut().unwrap().mut_return_t().unwrap()
-                }))
+            Self::FreeVar(fv) => {
+                RefMut::filter_map(fv.borrow_mut(), |fv| fv.linked_mut()?.mut_return_t()).ok()
             }
             _ => None,
         }

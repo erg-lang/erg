@@ -171,13 +171,7 @@ impl SharedModuleIndex {
         &self,
         referee: &AbsLocation,
     ) -> Option<MappedRwLockReadGuard<ModuleIndexValue>> {
-        if self.0.borrow().get_refs(referee).is_some() {
-            Some(RwLockReadGuard::map(self.0.borrow(), |index| {
-                index.get_refs(referee).unwrap()
-            }))
-        } else {
-            None
-        }
+        RwLockReadGuard::try_map(self.0.borrow(), |index| index.get_refs(referee)).ok()
     }
 
     pub fn members(&self) -> Members {
