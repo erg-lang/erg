@@ -4899,7 +4899,11 @@ impl Type {
         match self {
             Self::FreeVar(fv) => fv.inc_undo_count(),
             Self::Refinement(refine) => refine.t.inc_undo_count(),
-            _ => panic!("{self} is not a free variable"),
+            _ => {
+                if DEBUG_MODE {
+                    panic!("{self} is not a free variable")
+                }
+            }
         }
     }
 

@@ -1589,18 +1589,22 @@ impl TyParam {
             Self::Type(t) => {
                 if let Ok(to) = <&Type>::try_from(to) {
                     t.destructive_link(to);
-                } else {
+                } else if DEBUG_MODE {
                     panic!("{to} is not a type");
                 }
             }
             Self::Value(ValueObj::Type(t)) => {
                 if let Ok(to) = <&Type>::try_from(to) {
                     t.typ().destructive_link(to);
-                } else {
+                } else if DEBUG_MODE {
                     panic!("{to} is not a type");
                 }
             }
-            _ => panic!("{self} is not a free variable"),
+            _ => {
+                if DEBUG_MODE {
+                    panic!("{self} is not a free variable")
+                }
+            }
         }
     }
 
@@ -1623,18 +1627,22 @@ impl TyParam {
             Self::Type(t) => {
                 if let Ok(to) = <&Type>::try_from(to) {
                     t.undoable_link(to, list);
-                } else {
+                } else if DEBUG_MODE {
                     panic!("{to} is not a type");
                 }
             }
             Self::Value(ValueObj::Type(t)) => {
                 if let Ok(to) = <&Type>::try_from(to) {
                     t.typ().undoable_link(to, list);
-                } else {
+                } else if DEBUG_MODE {
                     panic!("{to} is not a type");
                 }
             }
-            _ => panic!("{self} is not a free variable"),
+            _ => {
+                if DEBUG_MODE {
+                    panic!("{self} is not a free variable")
+                }
+            }
         }
     }
 

@@ -9,7 +9,7 @@ use erg_common::log;
 use erg_common::set::Set;
 use erg_common::shared::Shared;
 use erg_common::traits::{Locational, Stream};
-use erg_common::{dict, fmt_vec, fn_name, option_enum_unwrap, set, Triple};
+use erg_common::{dict, fmt_vec, fn_name, option_enum_unwrap, set, set_recursion_limit, Triple};
 use erg_common::{ArcArray, Str};
 use OpKind::*;
 
@@ -2321,10 +2321,14 @@ impl Context {
                 Ok(ty) => Ok(self.complement(&ty)),
                 Err((ty, errs)) => Err((self.complement(&ty), errs)),
             },
-            Type::Structural(typ) => match self.eval_t_params(*typ, level, t_loc) {
-                Ok(typ) => Ok(typ.structuralize()),
-                Err((t, errs)) => Err((t.structuralize(), errs)),
-            },
+            Type::Structural(typ) => {
+                // TODO: avoid infinite recursion
+                set_recursion_limit!(Ok(typ.structuralize()), 128);
+                match self.eval_t_params(*typ, level, t_loc) {
+                    Ok(typ) => Ok(typ.structuralize()),
+                    Err((t, errs)) => Err((t.structuralize(), errs)),
+                }
+            }
             Type::Record(rec) => {
                 let mut fields = dict! {};
                 for (name, ty) in rec.into_iter() {
