@@ -1,5 +1,50 @@
 .HTTPServer: ClassType
+
 .ThreadingServer: ClassType
-.BaseHTTPReqeustHandler: ClassType
-.SimpleHTTPRequestHandler: ClassType
+
+.BaseHTTPRequestHandler!: ClassType
+.BaseHTTPRequestHandler!.
+    client_address: (Str, Nat)
+    server: .HTTPServer
+    close_connection: Bool
+    requestline: Str
+    command: Str
+    path: Str
+    request_version: Str
+    server_version: Str
+    sys_version: Str
+    error_message_format: Str
+    error_content_type: Str
+    protocol_version: Str
+
+    handle!: (self: RefMut(.BaseHTTPRequestHandler!)) => NoneType
+    handle_one_request!: (self: RefMut(.BaseHTTPRequestHandler!)) => NoneType
+    handle_expect_100!: (self: RefMut(.BaseHTTPRequestHandler!)) => NoneType
+    send_error!: (
+        self: RefMut(.BaseHTTPRequestHandler!),
+        code: Nat,
+        message: Str,
+        explain: Str
+    ) => NoneType
+    send_response!: (self: RefMut(.BaseHTTPRequestHandler!), code: Nat, message := Str) => NoneType
+    send_header!: (self: RefMut(.BaseHTTPRequestHandler!), keyword: Str, value: Str) => NoneType
+    send_response_only!: (self: RefMut(.BaseHTTPRequestHandler!), code: Nat, message := Str) => NoneType
+    end_headers!: (self: RefMut(.BaseHTTPRequestHandler!)) => NoneType
+    flush_headers!: (self: RefMut(.BaseHTTPRequestHandler!)) => NoneType
+    log_request!: (
+        self: RefMut(.BaseHTTPRequestHandler!),
+        code := Str,
+        size := Str,
+    ) => NoneType
+    log_error!: (self: RefMut(.BaseHTTPRequestHandler!), *args: Obj, **kwargs: Obj) => NoneType
+    log_message!: (self: RefMut(.BaseHTTPRequestHandler!), format: Str, *args: Obj) => NoneType
+    version_string: (self: Ref(.BaseHTTPRequestHandler!)) -> Str
+
+.SimpleHTTPRequestHandler!: ClassType
+.SimpleHTTPRequestHandler!.
+    server_version: Str
+    extensions_map: {Str: Str}
+    do_HEAD!: (self: RefMut(.SimpleHTTPRequestHandler!)) => NoneType
+    do_GET!: (self: RefMut(.SimpleHTTPRequestHandler!)) => NoneType
+
 .CGIHTTPRequestHandler: ClassType

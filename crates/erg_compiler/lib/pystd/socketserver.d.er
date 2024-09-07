@@ -1,17 +1,37 @@
-.TCPServer: ClassType
-.UDPServer: ClassType
-.UnixStreamServer: ClassType
-.UnixDatagramServer: ClassType
+.BaseServer!: ClassType
+.BaseServer!.
+    fileno: (self: Ref(BaseServer!)) -> Int
+    handle_request!: (self: RefMut(BaseServer!)) => NoneType
+    serve_forever!: (self: RefMut(BaseServer!), poll_interval := Float) => NoneType
+    serve_actions!: (self: RefMut(BaseServer!)) => NoneType
+    shutdown!: (self: RefMut(BaseServer!)) => NoneType
+    server_close!: (self: RefMut(BaseServer!)) => NoneType
+
+.BaseRequestHandler!: ClassType
+.BaseRequestHandler!.
+    setup!: (self: RefMut(BaseRequestHandler!)) => NoneType
+    handle!: (self: RefMut(BaseRequestHandler!)) => NoneType
+    finish!: (self: RefMut(BaseRequestHandler!)) => NoneType
+    server: BaseServer!
+
+.StreamRequestHandler!: ClassType
+.StreamRequestHandler! <: BaseRequestHandler!
+.DatagramRequestHandler!: ClassType
+.DatagramRequestHandler! <: BaseRequestHandler!
+
+.TCPServer!: ClassType
+.TCPServer! <: BaseServer!
+.UDPServer!: ClassType
+.UDPServer! <: TCPServer!
+.UnixStreamServer!: ClassType
+.UnixStreamServer! <: TCPServer!
+.UnixDatagramServer!: ClassType
+.UnixDatagramServer! <: UDPServer!
 
 .ForkingMixIn: ClassType
 .ThreadingMixIn: ClassType
 
-.ForkingTCPServer: ClassType
-.ForkingUDPServer: ClassType
-.ThreadingTCPServer: ClassType
-.ThreadingUDPServer: ClassType
-
-.BaseServer: ClassType
-.BaseRequestHandler: ClassType
-.StreamRequestHandler: ClassType
-.DatagramRequestHandler: ClassType
+.ForkingTCPServer!: ClassType
+.ForkingUDPServer!: ClassType
+.ThreadingTCPServer!: ClassType
+.ThreadingUDPServer!: ClassType

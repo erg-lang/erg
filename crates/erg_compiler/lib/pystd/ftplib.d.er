@@ -1,0 +1,92 @@
+.FTP!: ClassType
+.FTP!.
+    __call__: (
+        host: Str,
+        user := Str,
+        passwd := Str,
+        acct := Str,
+        timeout := Float,
+        source_address := (Str, Nat),
+        encoding := Str,
+    ) -> .FTP!
+    .set_debuglevel!: (self: RefMut(.FTP!), level: Nat) => NoneType
+    .connect!: (
+        self: RefMut(.FTP!),
+        host := Str,
+        port := Nat,
+        timeout := Float,
+        source_address := (Str, Nat)
+    ) => NoneType
+    .getwelcome!: (self: RefMut(.FTP!)) => Str
+    .login!: (
+        self: RefMut(.FTP!),
+        user := Str,
+        passwd := Str,
+        acct := Str
+    ) => Str
+    .abort!: (self: RefMut(.FTP!)) => NoneType
+    .sendcmd!: (self: RefMut(.FTP!), cmd: Str) => Str
+    .retrbinary!: (
+        self: RefMut(.FTP!),
+        cmd: Str,
+        callback: GenericCallable,
+        blocksize := Nat,
+        rest := Nat,
+    ) => Str
+    .retrlines!: (
+        self: RefMut(.FTP!),
+        cmd: Str,
+        callback: GenericCallable,
+        rest := Nat,
+    ) => Str
+    .set_pasv!: (self: RefMut(.FTP!), flag: Bool) => NoneType
+    .storbinary!: (
+        self: RefMut(.FTP!),
+        cmd: Str,
+        fp: FileLike,
+        blocksize := Nat,
+        callback := GenericCallable,
+    ) => Str
+    .storlines!: (
+        self: RefMut(.FTP!),
+        cmd: Str,
+        fp: FileLike,
+        callback := GenericCallable,
+    ) => Str
+    .transfercmd!: (
+        self: RefMut(.FTP!),
+        cmd: Str,
+        rest := Nat,
+    ) => Obj
+    .mlsd!: (self: RefMut(.FTP!), path: Str, facts := [Str; _]) => NoneType
+    .nlst!: (self: RefMut(.FTP!), argument := Obj) => NoneType
+    .dir!: (self: RefMut(.FTP!), argument := Obj) => NoneType
+    .rename!: (self: RefMut(.FTP!), fromname: Str, toname: Str) => NoneType
+    .delete!: (self: RefMut(.FTP!), filename: Str) => NoneType
+    .cwd!: (self: RefMut(.FTP!), pathname: Str) => NoneType
+    .mkd!: (self: RefMut(.FTP!), pathname: Str) => NoneType
+    .pwd!: (self: RefMut(.FTP!)) => Str
+    .rmd!: (self: RefMut(.FTP!), pathname: Str) => NoneType
+    .size!: (self: RefMut(.FTP!), filename: Str) => Nat
+    .quit!: (self: RefMut(.FTP!)) => Str
+    .close!: (self: RefMut(.FTP!)) => NoneType
+
+.FTP_TLS!: ClassType
+.FTP_TLS! <: .FTP!
+.FTP_TLS!.
+    ssl_version: Str
+    auth!: (self: RefMut(.FTP_TLS!)) => NoneType
+    ccc!: (self: RefMut(.FTP_TLS!)) => NoneType
+    prot_p!: (self: RefMut(.FTP_TLS!)) => NoneType
+    prot_c!: (self: RefMut(.FTP_TLS!)) => NoneType
+
+.ErrorReply = 'error_reply': ClassType
+.ErrorReply <: Exception
+.ErrorTemp = 'error_temp': ClassType
+.ErrorTemp <: Exception
+.ErrorPerm = 'error_perm': ClassType
+.ErrorPerm <: Exception
+.ErrorProto = 'error_proto': ClassType
+.ErrorProto <: Exception
+
+.all_errors: [Exception; _]
