@@ -2836,7 +2836,7 @@ impl Parser {
                     let call = Call::new(receiver, attr_name, args);
                     obj = Expr::Call(call);
                 }
-                Some(t) if t.is(VBar) && !in_type_args => {
+                Some(t) if t.is(VBar) && !in_type_args && !self.nth_is(2, Inclusion) => {
                     let type_args = self
                         .try_reduce_type_app_args()
                         .map_err(|_| self.stack_dec(fn_name!()))?;
