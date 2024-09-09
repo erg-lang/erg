@@ -1,7 +1,7 @@
 use std::ffi::OsStr;
 use std::fmt;
 use std::fs::{metadata, remove_file, File};
-use std::io::{BufRead, BufReader};
+use std::io::{stdout, BufRead, BufReader, Write};
 use std::marker::PhantomData;
 use std::option::Option;
 use std::path::Path;
@@ -829,10 +829,33 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
 
     fn build_deps_and_module(&mut self, path: &NormalizedPathBuf, graph: &mut ModuleGraph) {
         let mut ancestors = graph.ancestors(path).into_vec();
+        let nmods = ancestors.len();
+        let pad = nmods.to_string().len();
+        let print_progress =
+            nmods > 0 && !self.cfg.mode.is_language_server() && self.cfg.verbose >= 2;
+        if print_progress && !self.inlines.contains_key(path) {
+            let mut out = stdout().lock();
+            write!(out, "Checking 0/{nmods}").unwrap();
+            out.flush().unwrap();
+        }
         while let Some(ancestor) = ancestors.pop() {
             if graph.ancestors(&ancestor).is_empty() {
                 graph.remove(&ancestor);
                 if let Some(entry) = self.asts.remove(&ancestor) {
+                    if print_progress {
+                        let name = ancestor.file_name().unwrap_or_default().to_string_lossy();
+                        let checked = nmods - ancestors.len();
+                        let percentage = (checked as f64 / nmods as f64) * 100.0;
+                        let spaces = " ".repeat(((100.0 - percentage) / 5.0) as usize);
+                        let eqs = "=".repeat((percentage / 5.0) as usize);
+                        let mut out = stdout().lock();
+                        write!(
+                            out,
+                            "\rChecking [{eqs}{spaces}] {checked:>pad$}/{nmods}: {name:<30}"
+                        )
+                        .unwrap();
+                        out.flush().unwrap();
+                    }
                     self.start_analysis_process(entry.ast, entry.name, ancestor);
                 } else {
                     self.build_inlined_module(&ancestor, graph);
@@ -840,6 +863,9 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
             } else {
                 ancestors.insert(0, ancestor);
             }
+        }
+        if print_progress {
+            println!();
         }
     }
 

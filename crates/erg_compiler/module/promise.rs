@@ -138,6 +138,7 @@ impl SharedPromises {
         self.promises.borrow().get(path).is_some()
     }
 
+    /// If the path is not registered, return `false`.
     pub fn is_joined(&self, path: &NormalizedPathBuf) -> bool {
         self.promises
             .borrow()
@@ -145,6 +146,7 @@ impl SharedPromises {
             .is_some_and(|promise| promise.is_joined())
     }
 
+    /// If the path is not registered, return `false`.
     pub fn is_finished(&self, path: &NormalizedPathBuf) -> bool {
         self.promises
             .borrow()

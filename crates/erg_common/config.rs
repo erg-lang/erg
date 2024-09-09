@@ -170,6 +170,7 @@ pub struct ErgConfig {
     /// verbosity level for system messages.
     /// * 0: display errors, warns
     /// * 1 (default): display errors, warnings and hints
+    /// * 2: display errors, warnings, hints and progress
     pub verbose: u8,
     /// needed for `jupyter-erg`
     pub ps1: &'static str,
