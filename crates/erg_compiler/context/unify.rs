@@ -84,8 +84,8 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             }
         }
         match (maybe_sub, maybe_sup) {
-            (FreeVar(fv), _) if fv.is_linked() => self.occur(fv.unsafe_crack(), maybe_sup),
-            (_, FreeVar(fv)) if fv.is_linked() => self.occur(maybe_sub, fv.unsafe_crack()),
+            (FreeVar(fv), _) if fv.is_linked() => self.occur(&fv.crack(), maybe_sup),
+            (_, FreeVar(fv)) if fv.is_linked() => self.occur(maybe_sub, &fv.crack()),
             (Subr(subr), FreeVar(fv)) if fv.is_unbound() => {
                 for default_t in subr.default_params.iter().map(|pt| pt.typ()) {
                     self.occur_inner(default_t, maybe_sup)?;
@@ -173,8 +173,8 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
 
     fn occur_inner(&self, maybe_sub: &Type, maybe_sup: &Type) -> TyCheckResult<()> {
         match (maybe_sub, maybe_sup) {
-            (FreeVar(fv), _) if fv.is_linked() => self.occur_inner(fv.unsafe_crack(), maybe_sup),
-            (_, FreeVar(fv)) if fv.is_linked() => self.occur_inner(maybe_sub, fv.unsafe_crack()),
+            (FreeVar(fv), _) if fv.is_linked() => self.occur_inner(&fv.crack(), maybe_sup),
+            (_, FreeVar(fv)) if fv.is_linked() => self.occur_inner(maybe_sub, &fv.crack()),
             (FreeVar(sub), FreeVar(sup)) => {
                 if sub.addr_eq(sup) {
                     Err(TyCheckErrors::from(TyCheckError::subtyping_error(
@@ -1000,10 +1000,10 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
         }
         match (maybe_sub, maybe_sup) {
             (FreeVar(sub_fv), _) if sub_fv.is_linked() => {
-                self.sub_unify(sub_fv.unsafe_crack(), maybe_sup)?;
+                self.sub_unify(&sub_fv.unwrap_linked(), maybe_sup)?;
             }
             (_, FreeVar(sup_fv)) if sup_fv.is_linked() => {
-                self.sub_unify(maybe_sub, sup_fv.unsafe_crack())?;
+                self.sub_unify(maybe_sub, &sup_fv.unwrap_linked())?;
             }
             // lfv's sup can be shrunk (take min), rfv's sub can be expanded (take union)
             // lfvのsupは縮小可能(minを取る)、rfvのsubは拡大可能(unionを取る)
@@ -1851,8 +1851,8 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 }
                 return None;
             }
-            (Type::FreeVar(fv), _) if fv.is_linked() => return self.unify(fv.unsafe_crack(), rhs),
-            (_, Type::FreeVar(fv)) if fv.is_linked() => return self.unify(lhs, fv.unsafe_crack()),
+            (Type::FreeVar(fv), _) if fv.is_linked() => return self.unify(&fv.crack(), rhs),
+            (_, Type::FreeVar(fv)) if fv.is_linked() => return self.unify(lhs, &fv.crack()),
             // TODO: unify(?T, ?U) ?
             (Type::FreeVar(_), Type::FreeVar(_)) => {}
             (Type::FreeVar(fv), _) if fv.constraint_is_sandwiched() => {

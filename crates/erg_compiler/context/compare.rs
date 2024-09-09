@@ -456,9 +456,9 @@ impl Context {
                         }
                     }
                     if lfv.is_linked() {
-                        self.supertype_of(lfv.unsafe_crack(), rhs)
+                        self.supertype_of(&lfv.crack(), rhs)
                     } else if rfv.is_linked() {
-                        self.supertype_of(lhs, rfv.unsafe_crack())
+                        self.supertype_of(lhs, &rfv.crack())
                     } else {
                         false
                     }
@@ -908,7 +908,7 @@ impl Context {
 
     pub fn fields(&self, t: &Type) -> Dict<Field, Type> {
         match t {
-            Type::FreeVar(fv) if fv.is_linked() => self.fields(fv.unsafe_crack()),
+            Type::FreeVar(fv) if fv.is_linked() => self.fields(&fv.crack()),
             Type::Record(fields) => fields.clone(),
             Type::NamedTuple(fields) => fields.iter().cloned().collect(),
             Type::Refinement(refine) => self.fields(&refine.t),
@@ -996,10 +996,10 @@ impl Context {
         }
         match (sup_p, sub_p) {
             (TyParam::FreeVar(fv), _) if fv.is_linked() => {
-                self.supertype_of_tp(fv.unsafe_crack(), sub_p, variance)
+                self.supertype_of_tp(&fv.crack(), sub_p, variance)
             }
             (_, TyParam::FreeVar(fv)) if fv.is_linked() => {
-                self.supertype_of_tp(sup_p, fv.unsafe_crack(), variance)
+                self.supertype_of_tp(sup_p, &fv.crack(), variance)
             }
             (TyParam::Erased(t), _) => match variance {
                 Variance::Contravariant => {
@@ -1300,10 +1300,10 @@ impl Context {
                 } else { Some(Any) }
             },
             (TyParam::FreeVar(fv), p) if fv.is_linked() => {
-                self.try_cmp(fv.unsafe_crack(), p)
+                self.try_cmp(&fv.crack(), p)
             }
             (p, TyParam::FreeVar(fv)) if fv.is_linked() => {
-                self.try_cmp(p, fv.unsafe_crack())
+                self.try_cmp(p, &fv.crack())
             }
             (
                 l @ (TyParam::FreeVar(_) | TyParam::Erased(_)),
@@ -1414,7 +1414,7 @@ impl Context {
         }
         match (lhs, rhs) {
             (FreeVar(fv), other) | (other, FreeVar(fv)) if fv.is_linked() => {
-                self.union(fv.unsafe_crack(), other)
+                self.union(&fv.crack(), other)
             }
             (Refinement(l), Refinement(r)) => Type::Refinement(self.union_refinement(l, r)),
             (Refinement(refine), other) | (other, Refinement(refine))
@@ -1662,7 +1662,7 @@ impl Context {
         }
         match (lhs, rhs) {
             (FreeVar(fv), other) | (other, FreeVar(fv)) if fv.is_linked() => {
-                self.intersection(fv.unsafe_crack(), other)
+                self.intersection(&fv.crack(), other)
             }
             (Refinement(l), Refinement(r)) => Type::Refinement(self.intersection_refinement(l, r)),
             (Structural(l), Structural(r)) => self.intersection(l, r).structuralize(),
@@ -1679,7 +1679,7 @@ impl Context {
             // {i = Int; j = Int} and not {i = Int} == {j = Int}
             // not {i = Int} and {i = Int; j = Int} == {j = Int}
             (other @ Record(rec), Not(t)) | (Not(t), other @ Record(rec)) => match t.as_ref() {
-                Type::FreeVar(fv) => self.intersection(fv.unsafe_crack(), other),
+                Type::FreeVar(fv) => self.intersection(&fv.crack(), other),
                 Type::Record(rec2) => Type::Record(rec.clone().diff(rec2)),
                 _ => Type::Never,
             },
@@ -1974,7 +1974,7 @@ impl Context {
     #[allow(clippy::only_used_in_recursion)]
     pub(crate) fn complement(&self, ty: &Type) -> Type {
         match ty {
-            FreeVar(fv) if fv.is_linked() => self.complement(fv.unsafe_crack()),
+            FreeVar(fv) if fv.is_linked() => self.complement(&fv.crack()),
             Not(t) => *t.clone(),
             Refinement(r) => Type::Refinement(r.clone().invert()),
             Guard(guard) => Type::Guard(GuardType::new(
@@ -1999,7 +1999,7 @@ impl Context {
             _ => {}
         }
         match lhs {
-            Type::FreeVar(fv) if fv.is_linked() => self.diff(fv.unsafe_crack(), rhs),
+            Type::FreeVar(fv) if fv.is_linked() => self.diff(&fv.crack(), rhs),
             // Type::And(l, r) => self.intersection(&self.diff(l, rhs), &self.diff(r, rhs)),
             Type::Or(l, r) => self.union(&self.diff(l, rhs), &self.diff(r, rhs)),
             _ => lhs.clone(),

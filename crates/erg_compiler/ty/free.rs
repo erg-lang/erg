@@ -1105,7 +1105,7 @@ impl<T: Clone + Send + Sync + 'static> Free<T> {
         }
     }
 
-    pub fn unwrap_linked(self) -> T {
+    pub fn unwrap_linked(&self) -> T {
         match self.clone_inner() {
             FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t,
             FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => {

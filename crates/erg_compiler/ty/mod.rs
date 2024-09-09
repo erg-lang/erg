@@ -3550,7 +3550,7 @@ impl Type {
     /// ```
     fn qvars_inner(&self) -> Set<(Str, Constraint)> {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.unsafe_crack().qvars_inner(),
+            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().qvars_inner(),
             Self::FreeVar(fv) if !fv.constraint_is_uninited() => {
                 let base = set! {(fv.unbound_name().unwrap(), fv.constraint().unwrap())};
                 if let Some((sub, sup)) = fv.get_subsup() {
