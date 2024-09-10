@@ -144,6 +144,8 @@ impl<T: ?Sized> Shared<T> {
     #[track_caller]
     pub fn borrow(&self) -> RwLockReadGuard<'_, T> {
         self.wait_until_unlocked();
+        #[cfg(any(feature = "backtrace", feature = "debug"))]
+        let first_catcher = self.data.try_write_for(GET_TIMEOUT).is_some();
         let res = self.data.try_read_for(GET_TIMEOUT).unwrap_or_else(|| {
             #[cfg(any(feature = "backtrace", feature = "debug"))]
             {
@@ -159,7 +161,7 @@ impl<T: ?Sized> Shared<T> {
             }
         });
         #[cfg(any(feature = "backtrace", feature = "debug"))]
-        {
+        if first_catcher {
             *self.last_borrowed_at.try_write_for(GET_TIMEOUT).unwrap() =
                 BorrowInfo::new(Some(std::panic::Location::caller()));
         }
@@ -187,8 +189,6 @@ impl<T: ?Sized> Shared<T> {
         #[cfg(any(feature = "backtrace", feature = "debug"))]
         {
             let caller = std::panic::Location::caller();
-            *self.last_borrowed_at.try_write_for(SET_TIMEOUT).unwrap() =
-                BorrowInfo::new(Some(caller));
             *self
                 .last_mut_borrowed_at
                 .try_write_for(SET_TIMEOUT)

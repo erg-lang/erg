@@ -3886,6 +3886,18 @@ impl Type {
         }
     }
 
+    pub fn mut_self_t(&mut self) -> Option<&mut Type> {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => {
+                fv.forced_as_mut().linked_mut().and_then(|t| t.mut_self_t())
+            }
+            Self::Refinement(refine) => refine.t.mut_self_t(),
+            Self::Subr(subr) => subr.mut_self_t(),
+            Self::Quantified(quant) => quant.mut_self_t(),
+            _ => None,
+        }
+    }
+
     pub fn non_default_params(&self) -> Option<&Vec<ParamTy>> {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv
@@ -3999,6 +4011,10 @@ impl Type {
 
     pub fn mut_return_t(&mut self) -> Option<&mut Type> {
         match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv
+                .forced_as_mut()
+                .linked_mut()
+                .and_then(|t| t.mut_return_t()),
             Self::Refinement(refine) => refine.t.mut_return_t(),
             Self::Subr(SubrType { return_t, .. }) | Self::Callable { return_t, .. } => {
                 Some(return_t)

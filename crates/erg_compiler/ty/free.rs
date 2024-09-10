@@ -739,6 +739,9 @@ impl<T: Send + Clone> Free<T> {
     pub fn forced_as_ref(&self) -> &FreeKind<T> {
         unsafe { self.as_ptr().as_ref() }.unwrap()
     }
+    pub fn forced_as_mut(&mut self) -> &mut FreeKind<T> {
+        unsafe { self.as_ptr().as_mut() }.unwrap()
+    }
 }
 
 impl Free<Type> {

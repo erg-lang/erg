@@ -1294,9 +1294,11 @@ impl Context {
                 })
                 .collect::<Vec<_>>();
             let return_t = free_var(self.level, Constraint::new_type_of(Type));
-            let subr_t = fn_met(obj.t(), nd_params, None, d_params, None, return_t);
+            let mut subr_t = fn_met(obj.t(), nd_params, None, d_params, None, return_t);
             if let Some(fv) = obj.ref_t().as_free() {
                 if let Some((_sub, sup)) = fv.get_subsup() {
+                    // avoid recursion
+                    *subr_t.mut_self_t().unwrap() = Never;
                     let vis = self
                         .instantiate_vis_modifier(&attr_name.vis)
                         .unwrap_or(VisibilityModifier::Public);
