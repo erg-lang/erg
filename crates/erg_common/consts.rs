@@ -11,3 +11,4 @@ pub const LOG_LEVEL_ERROR: bool = cfg!(feature = "log-level-error");
 pub const EXPERIMENTAL_MODE: bool = cfg!(feature = "experimental");
 pub const BACKTRACE_MODE: bool = cfg!(feature = "backtrace");
 pub const GAL: bool = cfg!(feature = "gal");
+pub const SINGLE_THREAD: bool = cfg!(feature = "single-thread");

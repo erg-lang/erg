@@ -13,7 +13,7 @@ use std::time::{Duration, SystemTime};
 use erg_common::config::ErgMode;
 
 use erg_common::config::ErgConfig;
-use erg_common::consts::{ELS, ERG_MODE};
+use erg_common::consts::{ELS, ERG_MODE, SINGLE_THREAD};
 use erg_common::debug_power_assert;
 use erg_common::dict::Dict;
 use erg_common::env::is_std_decl_path;
@@ -943,8 +943,13 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
                 }
             }
         };
-        let handle = spawn_new_thread(run, &__name__);
-        self.shared.promises.insert(path, handle);
+        if SINGLE_THREAD {
+            run();
+            self.shared.promises.mark_as_joined(path);
+        } else {
+            let handle = spawn_new_thread(run, &__name__);
+            self.shared.promises.insert(path, handle);
+        }
     }
 
     /// FIXME: bug with inter-process sharing of type variables (pyimport "math")

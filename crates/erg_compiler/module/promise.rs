@@ -119,6 +119,11 @@ impl SharedPromises {
             .insert(path, Promise::running(handle));
     }
 
+    pub fn mark_as_joined(&self, path: impl Into<NormalizedPathBuf>) {
+        let path = path.into();
+        self.promises.borrow_mut().insert(path, Promise::Joined);
+    }
+
     pub fn remove(&self, path: &NormalizedPathBuf) -> Option<Promise> {
         self.promises.borrow_mut().remove(path)
     }

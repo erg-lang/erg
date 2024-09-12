@@ -26,6 +26,7 @@ full-repl = ["dep:crossterm"]
 experimental = []
 pylib = ["dep:pyo3"]
 log-level-error = []
+single-thread = []
 
 [target.'cfg(unix)'.dependencies]
 backtrace-on-stack-overflow = { version = "0.3.0", optional = true }

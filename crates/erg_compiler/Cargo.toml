@@ -43,6 +43,7 @@ experimental = ["erg_common/experimental", "erg_parser/experimental"]
 pylib = ["dep:pyo3", "erg_common/pylib", "erg_parser/pylib"]
 pylib_compiler = ["pylib"]
 log-level-error = ["erg_common/log-level-error", "erg_parser/log-level-error"]
+single-thread = ["erg_common/single-thread", "erg_parser/single-thread"]
 
 [dependencies]
 erg_common = { workspace = true }
