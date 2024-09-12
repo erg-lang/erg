@@ -72,6 +72,14 @@ fn _erg_pkgs_path() -> PathBuf {
             fallback_erg_path().join("lib/pkgs")
         })
 }
+fn _sys_path() -> impl Iterator<Item = PathBuf> {
+    get_sys_path(None).unwrap_or_default().into_iter().map(|p| {
+        p.canonicalize().unwrap_or_else(|_| {
+            // eprintln!("{RED}[ERR] {} not found {RESET}", p.display());
+            fallback_erg_path().join("lib/pkgs")
+        })
+    })
+}
 fn _python_site_packages() -> impl Iterator<Item = PathBuf> {
     get_sys_path(None)
         .unwrap_or_default()
@@ -91,6 +99,7 @@ pub static ERG_CORE_DECL_PATH: OnceLock<PathBuf> = OnceLock::new();
 pub static ERG_STD_PATH: OnceLock<PathBuf> = OnceLock::new();
 pub static ERG_PYSTD_PATH: OnceLock<PathBuf> = OnceLock::new();
 pub static ERG_PKGS_PATH: OnceLock<PathBuf> = OnceLock::new();
+pub static PYTHON_SYS_PATH: OnceLock<Vec<PathBuf>> = OnceLock::new();
 pub static PYTHON_SITE_PACKAGES: OnceLock<Vec<PathBuf>> = OnceLock::new();
 
 /// == `Path::new("~/.erg")` if ERG_PATH is not set
@@ -121,6 +130,10 @@ pub fn erg_pystd_path() -> &'static PathBuf {
 /// == `Path::new("~/.erg/lib/pkgs")` if ERG_PATH is not set
 pub fn erg_pkgs_path() -> &'static PathBuf {
     ERG_PKGS_PATH.get_or_init(|| normalize_path(_erg_pkgs_path()))
+}
+
+pub fn python_sys_path() -> &'static Vec<PathBuf> {
+    PYTHON_SYS_PATH.get_or_init(|| _sys_path().collect())
 }
 
 pub fn python_site_packages() -> &'static Vec<PathBuf> {

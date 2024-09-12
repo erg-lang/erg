@@ -7,9 +7,10 @@ use std::process::Stdio;
 
 use crate::config::ErgConfig;
 use crate::consts::{EXPERIMENTAL_MODE, PYTHON_MODE};
-use crate::env::{erg_path, erg_pkgs_path, erg_pystd_path, erg_std_path, python_site_packages};
+use crate::env::{
+    erg_path, erg_pkgs_path, erg_pystd_path, erg_std_path, python_site_packages, python_sys_path,
+};
 use crate::pathutil::{add_postfix_foreach, remove_postfix};
-use crate::python_util::get_sys_path;
 use crate::random::random;
 use crate::stdin::GLOBAL_STDIN;
 use crate::vfs::VFS;
@@ -374,10 +375,6 @@ impl Input {
         }
     }
 
-    pub fn sys_path(&self) -> Result<Vec<PathBuf>, std::io::Error> {
-        get_sys_path(self.path().parent())
-    }
-
     /// resolution order:
     /// 1. `{path/to}.er`
     /// 2. `{path/to}/__init__.er`
@@ -471,8 +468,8 @@ impl Input {
         if let Ok(path) = self.resolve_local_py(path) {
             return Ok(path);
         }
-        for sys_path in self.sys_path()? {
-            let mut dir = sys_path;
+        for sys_path in python_sys_path() {
+            let mut dir = sys_path.clone();
             dir.push(path);
             dir.set_extension("py");
             if dir.exists() {
