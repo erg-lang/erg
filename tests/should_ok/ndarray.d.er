@@ -1,0 +1,3 @@
+.NDArray: (T: Type, Shape: [Nat; _]) -> ClassType
+.NDArray(T, _) <: Output T
+.NDArray(_, _) <: Num

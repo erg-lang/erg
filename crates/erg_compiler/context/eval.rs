@@ -1687,8 +1687,8 @@ impl Context {
         lhs: TyParam,
         rhs: TyParam,
     ) -> EvalResult<TyParam> {
-        let lhs = self.eval_tp(lhs).map_err(|(_, es)| es)?;
-        let rhs = self.eval_tp(rhs).map_err(|(_, es)| es)?;
+        // let lhs = self.eval_tp(lhs).map_err(|(_, es)| es)?;
+        // let rhs = self.eval_tp(rhs).map_err(|(_, es)| es)?;
         match (lhs, rhs) {
             (TyParam::Value(lhs), TyParam::Value(rhs)) => {
                 self.eval_bin(op, lhs, rhs).map(TyParam::value)
@@ -1807,7 +1807,7 @@ impl Context {
 
     /// val: may be unevaluated
     pub(crate) fn eval_unary_tp(&self, op: OpKind, val: TyParam) -> EvalResult<TyParam> {
-        let val = self.eval_tp(val).map_err(|(_, es)| es)?;
+        // let val = self.eval_tp(val).map_err(|(_, es)| es)?;
         match val {
             TyParam::Value(c) => self.eval_unary_val(op, c).map(TyParam::Value),
             TyParam::FreeVar(fv) if fv.is_linked() => {
@@ -1824,9 +1824,9 @@ impl Context {
 
     /// args: may be unevaluated
     pub(crate) fn eval_app(&self, name: Str, args: Vec<TyParam>) -> Failable<TyParam> {
-        let args = self
-            .eval_type_args(args)
-            .map_err(|(args, es)| (TyParam::app(name.clone(), args), es))?;
+        /*let args = self
+        .eval_type_args(args)
+        .map_err(|(args, es)| (TyParam::app(name.clone(), args), es))?;*/
         if let Ok(value_args) = args
             .iter()
             .map(|tp| self.convert_tp_into_value(tp.clone()))

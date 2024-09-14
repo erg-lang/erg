@@ -1,0 +1,13 @@
+ndarray = pyimport "ndarray"
+
+a as ndarray.NDArray(Int, [2, 3]) = todo()
+
+check|T, Shape: {A: [Nat; _] | all(map((X -> X > 1), A))}|(
+    _: ndarray.NDArray(T, Shape)
+) = None
+check a
+
+check2|T, Shape: [Nat; _]|(
+    _: {_: ndarray.NDArray(T, Shape) | all(map((X -> X > 1), Shape))}
+) = None
+check2 a

@@ -127,6 +127,11 @@ fn exec_dependent() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_dependent_refinement() -> Result<(), ()> {
+    expect_compile_success("tests/should_ok/dependent_refinement.er", 0)
+}
+
+#[test]
 fn exec_dict() -> Result<(), ()> {
     expect_success("examples/dict.er", 0)
 }
