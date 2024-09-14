@@ -2,7 +2,7 @@ name: Notify
 
 on:
   push:
-    branches: [main]
+    branches: [main, notify-*]
     paths-ignore:
       - "doc/**"
       - ".github/**"
@@ -28,7 +28,7 @@ jobs:
             -H "Authorization: token ${{ secrets.TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
             https://api.github.com/repos/mtshiba/ergscripts/dispatches \
-            -d '{"event_type":"notification-push-main","client_payload":{"msg": "a change has been pushed to main"}}'
+            -d '{"event_type":"notification-push-main","client_payload":{"msg": "A change has been pushed", "branch": "${{ github.ref_name }}"}}'
       - name: notify to pytypes
         run: |
           curl \
@@ -36,4 +36,4 @@ jobs:
             -H "Authorization: token ${{ secrets.TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
             https://api.github.com/repos/erg-lang/pytypes/dispatches \
-            -d '{"event_type":"notification-push-main","client_payload":{"msg": "a change has been pushed to main"}}'
+            -d '{"event_type":"notification-push-main","client_payload":{"msg": "A change has been pushed", "branch": "${{ github.ref_name }}"}}'
