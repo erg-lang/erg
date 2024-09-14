@@ -754,9 +754,7 @@ impl Context {
                 self.structural_supertype_of(&l, rhs)
             }
             // {1, 2, 3} :> {1} or {2, 3} == true
-            (Refinement(_refine), Or(l, r)) => {
-                self.supertype_of(lhs, l) && self.supertype_of(lhs, r)
-            }
+            (Refinement(_refine), Or(tys)) => tys.iter().all(|ty| self.supertype_of(lhs, ty)),
             // ({I: Int | True} :> Int) == true
             // {N: Nat | ...} :> Int) == false
             // ({I: Int | I >= 0} :> Int) == false
@@ -808,41 +806,20 @@ impl Context {
                 self.sub_unify(&inst, l, &(), None).is_ok()
             }
             // Int or Str :> Str or Int == (Int :> Str && Str :> Int) || (Int :> Int && Str :> Str) == true
-            (Or(l_1, l_2), Or(r_1, r_2)) => {
-                if l_1.is_union_type() && self.supertype_of(l_1, rhs) {
-                    return true;
-                }
-                if l_2.is_union_type() && self.supertype_of(l_2, rhs) {
-                    return true;
-                }
-                (self.supertype_of(l_1, r_1) && self.supertype_of(l_2, r_2))
-                    || (self.supertype_of(l_1, r_2) && self.supertype_of(l_2, r_1))
-            }
+            // Int or Str or NoneType :> Str or Int
+            (Or(l), Or(r)) => r.iter().all(|r| l.iter().any(|l| self.supertype_of(l, r))),
             // not Nat :> not Int == true
             (Not(l), Not(r)) => self.subtype_of(l, r),
             // (Int or Str) :> Nat == Int :> Nat || Str :> Nat == true
             // (Num or Show) :> Show == Num :> Show || Show :> Num == true
-            (Or(l_or, r_or), rhs) => self.supertype_of(l_or, rhs) || self.supertype_of(r_or, rhs),
+            (Or(ors), rhs) => ors.iter().any(|or| self.supertype_of(or, rhs)),
             // Int :> (Nat or Str) == Int :> Nat && Int :> Str == false
-            (lhs, Or(l_or, r_or)) => self.supertype_of(lhs, l_or) && self.supertype_of(lhs, r_or),
-            (And(l_1, l_2), And(r_1, r_2)) => {
-                if l_1.is_intersection_type() && self.supertype_of(l_1, rhs) {
-                    return true;
-                }
-                if l_2.is_intersection_type() && self.supertype_of(l_2, rhs) {
-                    return true;
-                }
-                (self.supertype_of(l_1, r_1) && self.supertype_of(l_2, r_2))
-                    || (self.supertype_of(l_1, r_2) && self.supertype_of(l_2, r_1))
-            }
+            (lhs, Or(ors)) => ors.iter().all(|or| self.supertype_of(lhs, or)),
+            (And(l), And(r)) => r.iter().any(|r| l.iter().all(|l| self.supertype_of(l, r))),
             // (Num and Show) :> Show == false
-            (And(l_and, r_and), rhs) => {
-                self.supertype_of(l_and, rhs) && self.supertype_of(r_and, rhs)
-            }
+            (And(ands), rhs) => ands.iter().all(|and| self.supertype_of(and, rhs)),
             // Show :> (Num and Show) == true
-            (lhs, And(l_and, r_and)) => {
-                self.supertype_of(lhs, l_and) || self.supertype_of(lhs, r_and)
-            }
+            (lhs, And(ands)) => ands.iter().any(|and| self.supertype_of(lhs, and)),
             // Not(Eq) :> Float == !(Eq :> Float) == true
             (Not(_), Obj) => false,
             (Not(l), rhs) => !self.supertype_of(l, rhs),
@@ -914,18 +891,18 @@ impl Context {
             Type::NamedTuple(fields) => fields.iter().cloned().collect(),
             Type::Refinement(refine) => self.fields(&refine.t),
             Type::Structural(t) => self.fields(t),
-            Type::Or(l, r) => {
-                let l_fields = self.fields(l);
-                let r_fields = self.fields(r);
-                let l_field_names = l_fields.keys().collect::<Set<_>>();
-                let r_field_names = r_fields.keys().collect::<Set<_>>();
-                let field_names = l_field_names.intersection(&r_field_names);
-                let mut fields = Dict::new();
-                for (name, l_t, r_t) in field_names
+            Type::Or(tys) => {
+                let or_fields = tys.iter().map(|t| self.fields(t)).collect::<Set<_>>();
+                let field_names = or_fields
                     .iter()
-                    .map(|&name| (name, &l_fields[name], &r_fields[name]))
+                    .flat_map(|fs| fs.keys())
+                    .collect::<Set<_>>();
+                let mut fields = Dict::new();
+                for (name, tys) in field_names
+                    .iter()
+                    .map(|&name| (name, or_fields.iter().filter_map(|fields| fields.get(name))))
                 {
-                    let union = self.union(l_t, r_t);
+                    let union = tys.fold(Never, |acc, ty| self.union(&acc, ty));
                     fields.insert(name.clone(), union);
                 }
                 fields
@@ -1408,6 +1385,8 @@ impl Context {
     /// union({ .a = Int }, { .a = Str }) == { .a = Int or Str }
     /// union({ .a = Int }, { .a = Int; .b = Int }) == { .a = Int } or { .a = Int; .b = Int } # not to lost `b` information
     /// union((A and B) or C) == (A or C) and (B or C)
+    /// union(Never, Int) == Int
+    /// union(Obj, Int) == Obj
     /// ```
     pub(crate) fn union(&self, lhs: &Type, rhs: &Type) -> Type {
         if lhs == rhs {
@@ -1470,10 +1449,9 @@ impl Context {
                 (Some(sub), Some(sup)) => bounded(sub.clone(), sup.clone()),
                 _ => self.simple_union(lhs, rhs),
             },
-            (other, or @ Or(_, _)) | (or @ Or(_, _), other) => self.union_add(or, other),
+            (other, or @ Or(_)) | (or @ Or(_), other) => self.union_add(or, other),
             // (A and B) or C ==> (A or C) and (B or C)
-            (and_t @ And(_, _), other) | (other, and_t @ And(_, _)) => {
-                let ands = and_t.ands();
+            (And(ands), other) | (other, And(ands)) => {
                 let mut t = Type::Obj;
                 for branch in ands.iter() {
                     let union = self.union(branch, other);
@@ -1657,6 +1635,12 @@ impl Context {
 
     /// Returns intersection of two types (`A and B`).
     /// If `A` and `B` have a subtype relationship, it is equal to `min(A, B)`.
+    /// ```erg
+    /// intersection(Nat, Int) == Nat
+    /// intersection(Int, Str) == Never
+    /// intersection(Obj, Int) == Int
+    /// intersection(Never, Int) == Never
+    /// ```
     pub(crate) fn intersection(&self, lhs: &Type, rhs: &Type) -> Type {
         if lhs == rhs {
             return lhs.clone();
@@ -1687,12 +1671,9 @@ impl Context {
             (_, Not(r)) => self.diff(lhs, r),
             (Not(l), _) => self.diff(rhs, l),
             // A and B and A == A and B
-            (other, and @ And(_, _)) | (and @ And(_, _), other) => {
-                self.intersection_add(and, other)
-            }
+            (other, and @ And(_)) | (and @ And(_), other) => self.intersection_add(and, other),
             // (A or B) and C == (A and C) or (B and C)
-            (or_t @ Or(_, _), other) | (other, or_t @ Or(_, _)) => {
-                let ors = or_t.ors();
+            (Or(ors), other) | (other, Or(ors)) => {
                 if ors.iter().any(|t| t.has_unbound_var()) {
                     return self.simple_intersection(lhs, rhs);
                 }
@@ -1827,21 +1808,21 @@ impl Context {
     fn narrow_type_by_pred(&self, t: Type, pred: &Predicate) -> Type {
         match (t, pred) {
             (
-                Type::Or(l, r),
+                Type::Or(tys),
                 Predicate::NotEqual {
                     rhs: TyParam::Value(v),
                     ..
                 },
             ) if v.is_none() => {
-                let l = self.narrow_type_by_pred(*l, pred);
-                let r = self.narrow_type_by_pred(*r, pred);
-                if l.is_nonetype() {
-                    r
-                } else if r.is_nonetype() {
-                    l
-                } else {
-                    or(l, r)
+                let mut new_tys = Set::new();
+                for ty in tys {
+                    let ty = self.narrow_type_by_pred(ty, pred);
+                    if ty.is_nonelike() {
+                        continue;
+                    }
+                    new_tys.insert(ty);
                 }
+                Type::checked_or(new_tys)
             }
             (Type::Refinement(refine), _) => {
                 let t = self.narrow_type_by_pred(*refine.t, pred);
@@ -1983,8 +1964,12 @@ impl Context {
                 guard.target.clone(),
                 self.complement(&guard.to),
             )),
-            Or(l, r) => self.intersection(&self.complement(l), &self.complement(r)),
-            And(l, r) => self.union(&self.complement(l), &self.complement(r)),
+            Or(ors) => ors
+                .iter()
+                .fold(Obj, |l, r| self.intersection(&l, &self.complement(r))),
+            And(ands) => ands
+                .iter()
+                .fold(Never, |l, r| self.union(&l, &self.complement(r))),
             other => not(other.clone()),
         }
     }
@@ -2002,7 +1987,14 @@ impl Context {
         match lhs {
             Type::FreeVar(fv) if fv.is_linked() => self.diff(&fv.crack(), rhs),
             // Type::And(l, r) => self.intersection(&self.diff(l, rhs), &self.diff(r, rhs)),
-            Type::Or(l, r) => self.union(&self.diff(l, rhs), &self.diff(r, rhs)),
+            Type::Or(tys) => {
+                let mut new_tys = vec![];
+                for ty in tys {
+                    let diff = self.diff(ty, rhs);
+                    new_tys.push(diff);
+                }
+                new_tys.into_iter().fold(Never, |l, r| self.union(&l, &r))
+            }
             _ => lhs.clone(),
         }
     }

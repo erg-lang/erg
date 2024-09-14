@@ -953,15 +953,21 @@ impl Context {
                 let t = self.instantiate_t_inner(*t, tmp_tv_cache, loc)?;
                 Ok(t.structuralize())
             }
-            And(l, r) => {
-                let l = self.instantiate_t_inner(*l, tmp_tv_cache, loc)?;
-                let r = self.instantiate_t_inner(*r, tmp_tv_cache, loc)?;
-                Ok(self.intersection(&l, &r))
+            And(tys) => {
+                let mut new_tys = vec![];
+                for ty in tys.iter().cloned() {
+                    new_tys.push(self.instantiate_t_inner(ty, tmp_tv_cache, loc)?);
+                }
+                Ok(new_tys
+                    .into_iter()
+                    .fold(Obj, |l, r| self.intersection(&l, &r)))
             }
-            Or(l, r) => {
-                let l = self.instantiate_t_inner(*l, tmp_tv_cache, loc)?;
-                let r = self.instantiate_t_inner(*r, tmp_tv_cache, loc)?;
-                Ok(self.union(&l, &r))
+            Or(tys) => {
+                let mut new_tys = vec![];
+                for ty in tys.iter().cloned() {
+                    new_tys.push(self.instantiate_t_inner(ty, tmp_tv_cache, loc)?);
+                }
+                Ok(new_tys.into_iter().fold(Never, |l, r| self.union(&l, &r)))
             }
             Not(ty) => {
                 let ty = self.instantiate_t_inner(*ty, tmp_tv_cache, loc)?;
@@ -998,10 +1004,12 @@ impl Context {
                 let t = fv.crack().clone();
                 self.instantiate(t, callee)
             }
-            And(lhs, rhs) => {
-                let lhs = self.instantiate(*lhs, callee)?;
-                let rhs = self.instantiate(*rhs, callee)?;
-                Ok(lhs & rhs)
+            And(tys) => {
+                let tys = tys
+                    .into_iter()
+                    .map(|t| self.instantiate(t, callee))
+                    .collect::<TyCheckResult<Vec<_>>>()?;
+                Ok(tys.into_iter().fold(Obj, |l, r| l & r))
             }
             Quantified(quant) => {
                 let mut tmp_tv_cache = TyVarCache::new(self.level, self);
@@ -1028,22 +1036,16 @@ impl Context {
                             )?;
                         }
                     }
-                    Type::And(l, r) => {
-                        if let Some(self_t) = l.self_t() {
-                            self.sub_unify(
-                                callee.ref_t(),
-                                self_t,
-                                callee,
-                                Some(&Str::ever("self")),
-                            )?;
-                        }
-                        if let Some(self_t) = r.self_t() {
-                            self.sub_unify(
-                                callee.ref_t(),
-                                self_t,
-                                callee,
-                                Some(&Str::ever("self")),
-                            )?;
+                    Type::And(tys) => {
+                        for ty in tys {
+                            if let Some(self_t) = ty.self_t() {
+                                self.sub_unify(
+                                    callee.ref_t(),
+                                    self_t,
+                                    callee,
+                                    Some(&Str::ever("self")),
+                                )?;
+                            }
                         }
                     }
                     other => unreachable!("{other}"),
@@ -1066,10 +1068,12 @@ impl Context {
                 let t = fv.crack().clone();
                 self.instantiate_dummy(t)
             }
-            And(lhs, rhs) => {
-                let lhs = self.instantiate_dummy(*lhs)?;
-                let rhs = self.instantiate_dummy(*rhs)?;
-                Ok(lhs & rhs)
+            And(tys) => {
+                let tys = tys
+                    .into_iter()
+                    .map(|t| self.instantiate_dummy(t))
+                    .collect::<TyCheckResult<Vec<_>>>()?;
+                Ok(tys.into_iter().fold(Obj, |l, r| l & r))
             }
             Quantified(quant) => {
                 let mut tmp_tv_cache = TyVarCache::new(self.level, self);

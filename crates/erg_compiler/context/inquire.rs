@@ -1046,35 +1046,35 @@ impl Context {
             }
             Type::Structural(t) => self.get_attr_info_from_attributive(t, ident, namespace),
             // TODO: And
-            Type::Or(l, r) => {
-                let l_info = self.get_attr_info_from_attributive(l, ident, namespace);
-                let r_info = self.get_attr_info_from_attributive(r, ident, namespace);
-                match (l_info, r_info) {
-                    (Triple::Ok(l), Triple::Ok(r)) => {
-                        let res = self.union(&l.t, &r.t);
-                        let vis = if l.vis.is_public() && r.vis.is_public() {
-                            Visibility::DUMMY_PUBLIC
-                        } else {
-                            Visibility::DUMMY_PRIVATE
-                        };
-                        let vi = VarInfo::new(
-                            res,
-                            l.muty,
-                            vis,
-                            l.kind,
-                            l.comptime_decos,
-                            l.ctx,
-                            l.py_name,
-                            l.def_loc,
-                        );
-                        Triple::Ok(vi)
+            Type::Or(tys) => {
+                let mut info = Triple::<VarInfo, _>::None;
+                for ty in tys {
+                    match (
+                        self.get_attr_info_from_attributive(ty, ident, namespace),
+                        &info,
+                    ) {
+                        (Triple::Ok(vi), Triple::Ok(vi_)) => {
+                            let res = self.union(&vi.t, &vi_.t);
+                            let vis = if vi.vis.is_public() && vi_.vis.is_public() {
+                                Visibility::DUMMY_PUBLIC
+                            } else {
+                                Visibility::DUMMY_PRIVATE
+                            };
+                            let vi = VarInfo { t: res, vis, ..vi };
+                            info = Triple::Ok(vi);
+                        }
+                        (Triple::Ok(vi), Triple::None) => {
+                            info = Triple::Ok(vi);
+                        }
+                        (Triple::Err(err), _) => {
+                            info = Triple::Err(err);
+                            break;
+                        }
+                        (Triple::None, _) => {}
+                        (_, Triple::Err(_)) => unreachable!(),
                     }
-                    (Triple::Ok(_), Triple::Err(e)) | (Triple::Err(e), Triple::Ok(_)) => {
-                        Triple::Err(e)
-                    }
-                    (Triple::Err(e1), Triple::Err(_e2)) => Triple::Err(e1),
-                    _ => Triple::None,
                 }
+                info
             }
             _other => Triple::None,
         }
@@ -1952,7 +1952,7 @@ impl Context {
                     res
                 }
             }
-            Type::And(_, _) => {
+            Type::And(_) => {
                 let instance = self.resolve_overload(
                     obj,
                     instance.clone(),
@@ -3012,32 +3012,30 @@ impl Context {
                     self.get_nominal_super_type_ctxs(&Type)
                 }
             }
-            Type::And(l, r) => {
-                match (
-                    self.get_nominal_super_type_ctxs(l),
-                    self.get_nominal_super_type_ctxs(r),
-                ) {
-                    // TODO: sort
-                    (Some(l), Some(r)) => Some([l, r].concat()),
-                    (Some(l), None) => Some(l),
-                    (None, Some(r)) => Some(r),
-                    (None, None) => None,
+            Type::And(tys) => {
+                let mut acc = vec![];
+                for ctxs in tys
+                    .iter()
+                    .filter_map(|t| self.get_nominal_super_type_ctxs(t))
+                {
+                    acc.extend(ctxs);
+                }
+                if acc.is_empty() {
+                    None
+                } else {
+                    Some(acc)
                 }
             }
-            // TODO
-            Type::Or(l, r) => match (l.as_ref(), r.as_ref()) {
-                (Type::FreeVar(l), Type::FreeVar(r))
-                    if l.is_unbound_and_sandwiched() && r.is_unbound_and_sandwiched() =>
-                {
-                    let (_lsub, lsup) = l.get_subsup().unwrap();
-                    let (_rsub, rsup) = r.get_subsup().unwrap();
-                    self.get_nominal_super_type_ctxs(&self.union(&lsup, &rsup))
+            Type::Or(tys) => {
+                let union = tys
+                    .iter()
+                    .fold(Never, |l, r| self.union(&l, &r.upper_bounded()));
+                if union.is_union_type() {
+                    self.get_nominal_super_type_ctxs(&Obj)
+                } else {
+                    self.get_nominal_super_type_ctxs(&union)
                 }
-                (Type::Refinement(l), Type::Refinement(r)) if l.t == r.t => {
-                    self.get_nominal_super_type_ctxs(&l.t)
-                }
-                _ => self.get_nominal_type_ctx(&Obj).map(|ctx| vec![ctx]),
-            },
+            }
             _ => self
                 .get_simple_nominal_super_type_ctxs(t)
                 .map(|ctxs| ctxs.collect()),
@@ -3231,7 +3229,7 @@ impl Context {
                     .unwrap_or(self)
                     .rec_local_get_mono_type("GenericNamedTuple");
             }
-            Type::Or(_l, _r) => {
+            Type::Or(_) => {
                 if let Some(ctx) = self.get_nominal_type_ctx(&poly("Or", vec![])) {
                     return Some(ctx);
                 }
@@ -3366,26 +3364,27 @@ impl Context {
         match trait_ {
             // And(Add, Sub) == intersection({Int <: Add(Int), Bool <: Add(Bool) ...}, {Int <: Sub(Int), ...})
             // == {Int <: Add(Int) and Sub(Int), ...}
-            Type::And(l, r) => {
-                let l_impls = self.get_trait_impls(l);
-                let l_base = Set::from_iter(l_impls.iter().map(|ti| &ti.sub_type));
-                let r_impls = self.get_trait_impls(r);
-                let r_base = Set::from_iter(r_impls.iter().map(|ti| &ti.sub_type));
-                let bases = l_base.intersection(&r_base);
+            Type::And(tys) => {
+                let impls = tys
+                    .iter()
+                    .flat_map(|ty| self.get_trait_impls(ty))
+                    .collect::<Set<_>>();
+                let bases = impls.iter().map(|ti| &ti.sub_type);
                 let mut isec = set! {};
-                for base in bases.into_iter() {
-                    let lti = l_impls.iter().find(|ti| &ti.sub_type == base).unwrap();
-                    let rti = r_impls.iter().find(|ti| &ti.sub_type == base).unwrap();
-                    let sup_trait = self.intersection(&lti.sup_trait, &rti.sup_trait);
-                    isec.insert(TraitImpl::new(lti.sub_type.clone(), sup_trait, None));
+                for base in bases {
+                    let base_impls = impls.iter().filter(|ti| ti.sub_type == *base);
+                    let sup_trait =
+                        base_impls.fold(Obj, |l, r| self.intersection(&l, &r.sup_trait));
+                    if sup_trait != Obj {
+                        isec.insert(TraitImpl::new(base.clone(), sup_trait, None));
+                    }
                 }
                 isec
             }
-            Type::Or(l, r) => {
-                let l_impls = self.get_trait_impls(l);
-                let r_impls = self.get_trait_impls(r);
+            Type::Or(tys) => {
                 // FIXME:
-                l_impls.union(&r_impls)
+                tys.iter()
+                    .fold(set! {}, |acc, ty| acc.union(&self.get_trait_impls(ty)))
             }
             _ => self.get_simple_trait_impls(trait_),
         }
@@ -3955,11 +3954,11 @@ impl Context {
 
     pub fn is_class(&self, typ: &Type) -> bool {
         match typ {
-            Type::And(_l, _r) => false,
+            Type::And(_) => false,
             Type::Never => true,
             Type::FreeVar(fv) if fv.is_linked() => self.is_class(&fv.crack()),
             Type::FreeVar(_) => false,
-            Type::Or(l, r) => self.is_class(l) && self.is_class(r),
+            Type::Or(tys) => tys.iter().all(|t| self.is_class(t)),
             Type::Proj { lhs, rhs } => self
                 .get_proj_candidates(lhs, rhs)
                 .iter()
@@ -3982,7 +3981,8 @@ impl Context {
             Type::Never => false,
             Type::FreeVar(fv) if fv.is_linked() => self.is_class(&fv.crack()),
             Type::FreeVar(_) => false,
-            Type::And(l, r) | Type::Or(l, r) => self.is_trait(l) && self.is_trait(r),
+            Type::And(tys) => tys.iter().any(|t| self.is_trait(t)),
+            Type::Or(tys) => tys.iter().all(|t| self.is_trait(t)),
             Type::Proj { lhs, rhs } => self
                 .get_proj_candidates(lhs, rhs)
                 .iter()

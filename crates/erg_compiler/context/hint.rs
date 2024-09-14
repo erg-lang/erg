@@ -116,9 +116,12 @@ impl Context {
                     return Some(hint);
                 }
             }
-            (Type::And(l, r), found) => {
-                let left = self.readable_type(l.as_ref().clone());
-                let right = self.readable_type(r.as_ref().clone());
+            (Type::And(tys), found) if tys.len() == 2 => {
+                let mut iter = tys.iter();
+                let l = iter.next().unwrap();
+                let r = iter.next().unwrap();
+                let left = self.readable_type(l.clone());
+                let right = self.readable_type(r.clone());
                 if self.supertype_of(l, found) {
                     let msg = switch_lang!(
                         "japanese" => format!("型{found}は{left}のサブタイプですが、{right}のサブタイプではありません"),
