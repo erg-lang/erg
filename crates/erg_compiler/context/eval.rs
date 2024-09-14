@@ -766,6 +766,9 @@ impl Context {
         }
     }
 
+    /// Assume that `args` has already been evaluated.
+    /// Projection types may remain, but how they are handled varies by each const function.
+    /// For example, `list_union` returns `Type::Obj` if it contains a projection type.
     pub(crate) fn call(
         &self,
         subr: ConstSubr,
@@ -1677,12 +1680,15 @@ impl Context {
         }
     }
 
+    /// lhs, rhs: may be unevaluated
     pub(crate) fn eval_bin_tp(
         &self,
         op: OpKind,
         lhs: TyParam,
         rhs: TyParam,
     ) -> EvalResult<TyParam> {
+        let lhs = self.eval_tp(lhs).map_err(|(_, es)| es)?;
+        let rhs = self.eval_tp(rhs).map_err(|(_, es)| es)?;
         match (lhs, rhs) {
             (TyParam::Value(lhs), TyParam::Value(rhs)) => {
                 self.eval_bin(op, lhs, rhs).map(TyParam::value)
@@ -1799,7 +1805,9 @@ impl Context {
         }
     }
 
+    /// val: may be unevaluated
     pub(crate) fn eval_unary_tp(&self, op: OpKind, val: TyParam) -> EvalResult<TyParam> {
+        let val = self.eval_tp(val).map_err(|(_, es)| es)?;
         match val {
             TyParam::Value(c) => self.eval_unary_val(op, c).map(TyParam::Value),
             TyParam::FreeVar(fv) if fv.is_linked() => {
@@ -1814,7 +1822,11 @@ impl Context {
         }
     }
 
+    /// args: may be unevaluated
     pub(crate) fn eval_app(&self, name: Str, args: Vec<TyParam>) -> Failable<TyParam> {
+        let args = self
+            .eval_type_args(args)
+            .map_err(|(args, es)| (TyParam::app(name.clone(), args), es))?;
         if let Ok(value_args) = args
             .iter()
             .map(|tp| self.convert_tp_into_value(tp.clone()))
@@ -1833,6 +1845,8 @@ impl Context {
         }
     }
 
+    /// Evaluate type parameters.
+    /// Some type parameters may be withheld from evaluation because they can be evaluated but only result in a `Failure` as is.
     /// Quantified variables, etc. are returned as is.
     /// 量化変数などはそのまま返す
     pub(crate) fn eval_tp(&self, p: TyParam) -> Failable<TyParam> {
@@ -2060,6 +2074,7 @@ impl Context {
     }
 
     /// Evaluate `substituted`.
+    /// Some types may be withheld from evaluation because they can be evaluated but are only `Failure/Never` as is (e.g. `?T(:> Never).Proj`).
     /// If the evaluation fails, return a harmless type (filled with `Failure`) and errors
     pub(crate) fn eval_t_params(
         &self,
@@ -2204,9 +2219,6 @@ impl Context {
                     Ok(Type::Refinement(refine))
                 }
             }
-            // [?T; 0].MutType! == [?T; !0]
-            // ?T(<: Add(?R(:> Int))).Output == ?T(<: Add(?R)).Output
-            // ?T(:> Int, <: Add(?R(:> Int))).Output == Int
             Type::Proj { lhs, rhs } => self
                 .eval_proj(*lhs, rhs, level, t_loc)
                 .map_err(|errs| (Failure, errs)),
@@ -2388,6 +2400,11 @@ impl Context {
 
     /// This may do nothing (be careful with recursive calls).
     /// lhs: mainly class, may be unevaluated
+    /// ```erg
+    /// [?T; 0].MutType! == ![?T; 0]
+    /// ?T(<: Add(?R(:> Int))).Output == ?T(<: Add(?R)).Output
+    /// ?T(:> Int, <: Add(?R(:> Int))).Output == Int
+    /// ```
     pub(crate) fn eval_proj(
         &self,
         lhs: Type,
@@ -2577,6 +2594,34 @@ impl Context {
         Ok(lhs.proj(rhs))
     }
 
+    /// lhs: may be unevaluated
+    pub(crate) fn eval_value_proj(
+        &self,
+        lhs: TyParam,
+        rhs: Str,
+        t_loc: &impl Locational,
+    ) -> EvalResult<Result<ValueObj, TyParam>> {
+        match self.eval_tp_proj(lhs, rhs, t_loc) {
+            Ok(TyParam::Value(val)) => Ok(Ok(val)),
+            Ok(tp) => Ok(Err(tp)),
+            Err(errs) => Err(errs),
+        }
+    }
+
+    pub fn eval_value_proj_call(
+        &self,
+        lhs: TyParam,
+        attr_name: Str,
+        args: Vec<TyParam>,
+        t_loc: &impl Locational,
+    ) -> EvalResult<Result<ValueObj, TyParam>> {
+        match self.eval_proj_call(lhs, attr_name, args, t_loc) {
+            Ok(TyParam::Value(val)) => Ok(Ok(val)),
+            Ok(tp) => Ok(Err(tp)),
+            Err(errs) => Err(errs),
+        }
+    }
+
     /// ```erg
     /// TyParam::Type(Int) => Int
     /// [{1}, {2}, {3}] => [{1, 2, 3}; 3]
@@ -2660,6 +2705,26 @@ impl Context {
                     Ok(Type::Poly { name, params: args })
                 }
             }
+            TyParam::BinOp { op, lhs, rhs } => match op {
+                OpKind::And => {
+                    let lhs = self.convert_tp_into_type(*lhs)?;
+                    let rhs = self.convert_tp_into_type(*rhs)?;
+                    Ok(self.intersection(&lhs, &rhs))
+                }
+                OpKind::Or => {
+                    let lhs = self.convert_tp_into_type(*lhs)?;
+                    let rhs = self.convert_tp_into_type(*rhs)?;
+                    Ok(self.union(&lhs, &rhs))
+                }
+                _ => Err(TyParam::BinOp { op, lhs, rhs }),
+            },
+            TyParam::UnaryOp { op, val } => match op {
+                OpKind::Not => {
+                    let val = self.convert_tp_into_type(*val)?;
+                    Ok(self.complement(&val))
+                }
+                _ => Err(TyParam::UnaryOp { op, val }),
+            },
             TyParam::Proj { obj, attr } => {
                 let lhs = self.convert_tp_into_type(*obj.clone())?;
                 let Some(ty_ctx) = self.get_nominal_type_ctx(&lhs) else {
@@ -2688,7 +2753,7 @@ impl Context {
             // TyParam::Erased(_t) => Ok(Type::Obj),
             TyParam::Value(v) => self.convert_value_into_type(v).map_err(TyParam::Value),
             TyParam::Erased(t) if t.is_type() => Ok(Type::Obj),
-            // TODO: DataClass, ...
+            TyParam::Failure => Ok(Type::Failure),
             other => Err(other),
         }
     }
@@ -2777,6 +2842,29 @@ impl Context {
                     name, params, block, sig_t,
                 ))))
             }
+            TyParam::DataClass { name, fields } => {
+                let mut new = dict! {};
+                for (name, elem) in fields {
+                    let elem = self.convert_tp_into_value(elem)?;
+                    new.insert(name, elem);
+                }
+                Ok(ValueObj::DataClass { name, fields: new })
+            }
+            TyParam::Proj { obj, attr } => {
+                match self.eval_value_proj(*obj.clone(), attr.clone(), &()) {
+                    Ok(Ok(value)) => Ok(value),
+                    Ok(Err(tp)) => self.convert_tp_into_type(tp).map(ValueObj::builtin_type),
+                    Err(_) => Err(obj.proj(attr)),
+                }
+            }
+            TyParam::ProjCall { obj, attr, args } => {
+                match self.eval_value_proj_call(*obj.clone(), attr.clone(), args.clone(), &()) {
+                    Ok(Ok(value)) => Ok(value),
+                    Ok(Err(tp)) => self.convert_tp_into_type(tp).map(ValueObj::builtin_type),
+                    Err(_) => Err(obj.proj(attr)),
+                }
+            }
+            TyParam::Type(t) => Ok(ValueObj::builtin_type(*t)),
             other => self.convert_tp_into_type(other).map(ValueObj::builtin_type),
         }
     }
@@ -2806,6 +2894,8 @@ impl Context {
             ValueObj::Failure => Ok(Type::Failure),
             ValueObj::Ellipsis => Ok(Type::Ellipsis),
             ValueObj::NotImplemented => Ok(Type::NotImplementedType),
+            ValueObj::Inf => Ok(Type::Inf),
+            ValueObj::NegInf => Ok(Type::NegInf),
             ValueObj::Type(t) => Ok(t.into_typ()),
             ValueObj::Record(rec) => {
                 let mut fields = dict! {};

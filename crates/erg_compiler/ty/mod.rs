@@ -2522,12 +2522,28 @@ impl Type {
         }
     }
 
-    pub fn is_projection(&self) -> bool {
+    pub fn is_proj(&self) -> bool {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_projection(),
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_proj(),
             Self::Proj { .. } | Self::ProjCall { .. } => true,
             _ => false,
         }
+    }
+
+    pub fn has_proj(&self) -> bool {
+        self.is_proj() || self.has_type_satisfies(|t| t.is_proj())
+    }
+
+    pub fn is_proj_call(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_proj_call(),
+            Self::ProjCall { .. } => true,
+            _ => false,
+        }
+    }
+
+    pub fn has_proj_call(&self) -> bool {
+        self.is_proj_call() || self.has_type_satisfies(|t| t.is_proj_call())
     }
 
     pub fn is_intersection_type(&self) -> bool {
@@ -2899,6 +2915,67 @@ impl Type {
                 param_ts.iter().any(|t| t.contains_tvar(target)) || return_t.contains_tvar(target)
             }
             Self::Guard(guard) => guard.to.contains_tvar(target),
+            mono_type_pattern!() => false,
+        }
+    }
+
+    pub fn has_type_satisfies(&self, f: impl Fn(&Type) -> bool + Copy) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().has_type_satisfies(f),
+            Self::FreeVar(fv) if fv.constraint_is_typeof() => {
+                fv.get_type().unwrap().has_type_satisfies(f)
+            }
+            Self::FreeVar(fv) => fv
+                .get_subsup()
+                .map(|(sub, sup)| {
+                    fv.do_avoiding_recursion(|| {
+                        sub.has_type_satisfies(f) || sup.has_type_satisfies(f)
+                    })
+                })
+                .unwrap_or(false),
+            Self::Record(rec) => rec.iter().any(|(_, t)| t.has_type_satisfies(f)),
+            Self::NamedTuple(rec) => rec.iter().any(|(_, t)| t.has_type_satisfies(f)),
+            Self::Poly { params, .. } => params.iter().any(|tp| tp.has_type_satisfies(f)),
+            Self::Quantified(t) => t.has_type_satisfies(f),
+            Self::Subr(subr) => {
+                subr.non_default_params
+                    .iter()
+                    .any(|pt| pt.typ().has_type_satisfies(f))
+                    || subr
+                        .var_params
+                        .as_ref()
+                        .map_or(false, |pt| pt.typ().has_type_satisfies(f))
+                    || subr
+                        .default_params
+                        .iter()
+                        .any(|pt| pt.typ().has_type_satisfies(f))
+                    || subr
+                        .default_params
+                        .iter()
+                        .any(|pt| pt.default_typ().map_or(false, |t| t.has_type_satisfies(f)))
+                    || subr.return_t.has_type_satisfies(f)
+            }
+            // TODO: preds
+            Self::Refinement(refine) => refine.t.has_type_satisfies(f),
+            Self::Structural(ty) => ty.has_type_satisfies(f),
+            Self::Proj { lhs, .. } => lhs.has_type_satisfies(f),
+            Self::ProjCall { lhs, args, .. } => {
+                lhs.has_type_satisfies(f) || args.iter().any(|t| t.has_type_satisfies(f))
+            }
+            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
+                lhs.has_type_satisfies(f) || rhs.has_type_satisfies(f)
+            }
+            Self::Not(t) => t.has_type_satisfies(f),
+            Self::Ref(t) => t.has_type_satisfies(f),
+            Self::RefMut { before, after } => {
+                before.has_type_satisfies(f)
+                    || after.as_ref().map_or(false, |t| t.has_type_satisfies(f))
+            }
+            Self::Bounded { sub, sup } => sub.has_type_satisfies(f) || sup.has_type_satisfies(f),
+            Self::Callable { param_ts, return_t } => {
+                param_ts.iter().any(|t| t.has_type_satisfies(f)) || return_t.has_type_satisfies(f)
+            }
+            Self::Guard(guard) => guard.to.has_type_satisfies(f),
             mono_type_pattern!() => false,
         }
     }

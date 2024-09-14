@@ -492,6 +492,10 @@ pub(crate) fn list_union(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
         .iter()
         .flat_map(|t| ctx.convert_value_into_type(t.clone()))
         .collect::<Vec<_>>();
+    // args must already be evaluated
+    if slf.iter().any(|t| t.has_proj() || t.has_proj_call()) {
+        return Ok(TyParam::t(Type::Obj));
+    }
     let union = slf
         .iter()
         .fold(Type::Never, |union, t| ctx.union(&union, t));

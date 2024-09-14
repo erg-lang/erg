@@ -2078,6 +2078,23 @@ impl ValueObj {
         }
     }
 
+    pub fn has_type_satisfies(&self, f: impl Fn(&Type) -> bool + Copy) -> bool {
+        match self {
+            Self::Type(t) => t.typ().has_type_satisfies(f),
+            Self::List(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.has_type_satisfies(f)),
+            Self::UnsizedList(elem) => elem.has_type_satisfies(f),
+            Self::Set(ts) => ts.iter().any(|t| t.has_type_satisfies(f)),
+            Self::Dict(ts) => ts
+                .iter()
+                .any(|(k, v)| k.has_type_satisfies(f) || v.has_type_satisfies(f)),
+            Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
+                rec.iter().any(|(_, tp)| tp.has_type_satisfies(f))
+            }
+            Self::Subr(_) => false,
+            mono_value_pattern!() => false,
+        }
+    }
+
     pub fn has_unbound_var(&self) -> bool {
         match self {
             Self::Type(t) => t.typ().has_unbound_var(),
