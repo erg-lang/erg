@@ -1951,13 +1951,21 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
     /// ```
     fn unify(&self, lhs: &Type, rhs: &Type) -> Option<Type> {
         match (lhs, rhs) {
+            (Never, other) | (other, Never) => {
+                return Some(other.clone());
+            }
             (Or(tys), other) | (other, Or(tys)) => {
+                let mut unified = Never;
                 for ty in tys {
                     if let Some(t) = self.unify(ty, other) {
-                        return self.unify(&t, ty);
+                        unified = self.ctx.union(&unified, &t);
                     }
                 }
-                return None;
+                if unified != Never {
+                    return Some(unified);
+                } else {
+                    return None;
+                }
             }
             (FreeVar(fv), _) if fv.is_linked() => return self.unify(&fv.crack(), rhs),
             (_, FreeVar(fv)) if fv.is_linked() => return self.unify(lhs, &fv.crack()),
@@ -1981,11 +1989,11 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
         let l_sups = self.ctx.get_super_classes(lhs)?;
         let r_sups = self.ctx.get_super_classes(rhs)?;
         for l_sup in l_sups {
-            if self.ctx.supertype_of(&l_sup, &Obj) {
+            if l_sup == Obj || self.ctx.is_trait(&l_sup) {
                 continue;
             }
             for r_sup in r_sups.clone() {
-                if self.ctx.supertype_of(&r_sup, &Obj) {
+                if r_sup == Obj || self.ctx.is_trait(&r_sup) {
                     continue;
                 }
                 if let Some(t) = self.ctx.max(&l_sup, &r_sup).either() {

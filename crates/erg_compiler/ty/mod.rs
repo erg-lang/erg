@@ -1504,7 +1504,9 @@ impl PartialEq for Type {
             (Self::NamedTuple(lhs), Self::NamedTuple(rhs)) => lhs == rhs,
             (Self::Refinement(l), Self::Refinement(r)) => l == r,
             (Self::Quantified(l), Self::Quantified(r)) => l == r,
-            (Self::And(l), Self::And(r)) => l.iter().collect::<Set<_>>().linear_eq(&r.iter().collect()),
+            (Self::And(l), Self::And(r)) => {
+                l.iter().collect::<Set<_>>().linear_eq(&r.iter().collect())
+            }
             (Self::Or(l), Self::Or(r)) => l.linear_eq(r),
             (Self::Not(l), Self::Not(r)) => l == r,
             (
@@ -1872,7 +1874,7 @@ impl BitAnd for Type {
                 r.push(l);
                 Self::And(r)
             }
-            (l, r) => Self::checked_and(vec! {l, r}),
+            (l, r) => Self::checked_and(vec![l, r]),
         }
     }
 }
@@ -3023,12 +3025,8 @@ impl Type {
             Self::ProjCall { lhs, args, .. } => {
                 lhs.has_type_satisfies(f) || args.iter().any(|t| t.has_type_satisfies(f))
             }
-            Self::And(tys) => {
-                tys.iter().any(|t| t.has_type_satisfies(f))
-            }
-            Self::Or(tys) => {
-                tys.iter().any(|t| t.has_type_satisfies(f))
-            }
+            Self::And(tys) => tys.iter().any(|t| t.has_type_satisfies(f)),
+            Self::Or(tys) => tys.iter().any(|t| t.has_type_satisfies(f)),
             Self::Not(t) => t.has_type_satisfies(f),
             Self::Ref(t) => t.has_type_satisfies(f),
             Self::RefMut { before, after } => {
@@ -3392,6 +3390,15 @@ impl Type {
                 let t2 = iter.cloned().collect();
                 Some((t1, Type::Or(t2)))
             }
+            _ => None,
+        }
+    }
+
+    pub fn union_types(&self) -> Option<Set<Type>> {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().union_types(),
+            Self::Refinement(refine) => refine.t.union_types(),
+            Self::Or(tys) => Some(tys.clone()),
             _ => None,
         }
     }

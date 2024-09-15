@@ -824,7 +824,23 @@ impl Context {
             (Or(ors), rhs) => ors.iter().any(|or| self.supertype_of(or, rhs)),
             // Int :> (Nat or Str) == Int :> Nat && Int :> Str == false
             (lhs, Or(ors)) => ors.iter().all(|or| self.supertype_of(lhs, or)),
-            (And(l), And(r)) => r.iter().any(|r| l.iter().all(|l| self.supertype_of(l, r))),
+            // Hash and Eq :> HashEq and ... == true
+            // Add(T) and Eq :> Add(Int) and Eq == true
+            (And(l), And(r)) => {
+                if r.iter().any(|r| l.iter().all(|l| self.supertype_of(l, r))) {
+                    return true;
+                }
+                if l.len() == r.len() {
+                    let mut r = r.clone();
+                    for _ in 1..l.len() {
+                        if l.iter().zip(&r).all(|(l, r)| self.supertype_of(l, r)) {
+                            return true;
+                        }
+                        r.rotate_left(1);
+                    }
+                }
+                false
+            }
             // (Num and Show) :> Show == false
             (And(ands), rhs) => ands.iter().all(|and| self.supertype_of(and, rhs)),
             // Show :> (Num and Show) == true
