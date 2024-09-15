@@ -18,3 +18,11 @@ _: (Int, Int, Nat) -> Int = f
 _: (Int, Int, _: {1}) -> Int = f
 _: Int -> Int = id_or_int
 _: Str -> Str = id_or_int
+
+check f: (Int, n := Int) -> Int = f(1)
+check2 f: (m := Int, n := Int) -> Int = f(m:=1, n:=2)
+f2(m: Int := 1, n := 1, l := 1) = m + n + l
+f3(*x: Int, **y: Int) = len(x) + y.get("n", 0)
+_ = check2 f2
+_ = check f3
+_ = check2 f3
