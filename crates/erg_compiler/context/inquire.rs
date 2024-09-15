@@ -1971,7 +1971,7 @@ impl Context {
                     namespace,
                 )
             }
-            Type::Failure => Ok(SubstituteResult::Ok),
+            Type::Failure | Type::Never => Ok(SubstituteResult::Ok),
             _ => self.substitute_dunder_call(
                 obj,
                 attr_name,
