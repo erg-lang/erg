@@ -1778,13 +1778,15 @@ impl Context {
     /// intersection_add(Int and ?T(:> NoneType), Str) == Never
     /// ```
     fn intersection_add(&self, intersection: &Type, elem: &Type) -> Type {
-        let ands = intersection.ands();
+        let mut ands = intersection.ands();
         let bounded = ands.iter().map(|t| t.lower_bounded());
         for t in bounded {
             if self.subtype_of(&t, elem) {
                 return intersection.clone();
             } else if self.supertype_of(&t, elem) {
-                return constructors::ands(ands.linear_exclude(&t).include(elem.clone()));
+                ands.retain(|ty| ty != &t);
+                ands.push(elem.clone());
+                return constructors::ands(ands);
             }
         }
         and(intersection.clone(), elem.clone())
