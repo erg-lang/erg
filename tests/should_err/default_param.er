@@ -7,3 +7,14 @@ _: Int -> Str = id_or_int # ERR
 
 g x: Int := 1, y: Int := "a" = x + y # ERR
 _: (Int, Int) -> Int = g
+
+check f: (Int, n := Int) -> Int = f(1)
+check2 f: (m := Int, n := Int) -> Int = f(m:=1, n:=2)
+f1(x: Int, y, n := 1) = x + y + n
+f2(x: Int, y: Int) = x + y
+f3(*x: Int) = x[0]
+f4(**x: Int) = x["a"]
+_ = check f1 # ERR
+_ = check2 f2 # ERR
+_ = check2 f3 # ERR
+_ = check f4 # ERR

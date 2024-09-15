@@ -509,7 +509,7 @@ fn exec_advanced_type_spec_err() -> Result<(), ()> {
 
 #[test]
 fn exec_args() -> Result<(), ()> {
-    expect_failure("tests/should_err/args.er", 0, 19)
+    expect_failure("tests/should_err/args.er", 0, 20)
 }
 
 #[test]
@@ -559,7 +559,7 @@ fn exec_collection_err() -> Result<(), ()> {
 
 #[test]
 fn exec_default_param_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/default_param.er", 0, 4)
+    expect_failure("tests/should_err/default_param.er", 0, 8)
 }
 
 #[test]

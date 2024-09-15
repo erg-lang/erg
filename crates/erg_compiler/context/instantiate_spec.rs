@@ -484,17 +484,14 @@ impl Context {
             }
         };
         if let Some(decl_pt) = opt_decl_t {
-            if kind.is_var_params() {
-                let spec_t = unknown_len_list_t(spec_t.clone());
-                if let Err(es) = self.sub_unify(
-                    decl_pt.typ(),
-                    &spec_t,
-                    &sig.t_spec.as_ref().ok_or(sig),
-                    None,
-                ) {
-                    return Err((spec_t, errs.concat(es)));
-                }
-            } else if let Err(es) = self.sub_unify(
+            let spec_t = if kind.is_var_params() {
+                unknown_len_list_t(spec_t.clone())
+            } else if kind.is_kw_var_params() {
+                str_dict_t(spec_t.clone())
+            } else {
+                spec_t.clone()
+            };
+            if let Err(es) = self.sub_unify(
                 decl_pt.typ(),
                 &spec_t,
                 &sig.t_spec.as_ref().ok_or(sig),

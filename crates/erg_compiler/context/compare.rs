@@ -383,15 +383,24 @@ impl Context {
                 };
                 // () -> Never <: () -> Int <: () -> Object
                 // (Object) -> Int <: (Int) -> Int <: (Never) -> Int
+                // (Int, Int) -> Int <!: (Int) -> Int
                 // (Int, n := Int) -> Int <: (Int, Int) -> Int
+                // (Int, Int, n := Int) -> Int <!: (Int, n := Int) -> Int
                 // (Int, n := Int, m := Int) -> Int <: (Int, Int) -> Int
                 // (Int, n := Int) -> Int <!: (Int, Int, Int) -> Int
                 // (*Int) -> Int <: (Int, Int) -> Int
+                // (*Int) -> Int !<: (n := Int, m := Int) -> Int
                 // (self: Self, T) -> U <: T -> U
-                let len_judge = ls.non_default_params.len()
-                    <= rs.non_default_params.len() + rs.default_params.len()
-                    || rs.var_params.is_some();
-                // && ls.default_params.len() <= rs.default_params.len();
+                let len_judge = (if rs.default_params.is_empty() {
+                    ls.non_default_params.len() == rs.non_default_params.len()
+                } else {
+                    ls.non_default_params.len() >= rs.non_default_params.len()
+                        && ls.non_default_params.len()
+                            <= rs.non_default_params.len() + rs.default_params.len()
+                } && ls.default_params.len() <= rs.default_params.len())
+                    || (ls.default_params.is_empty() && rs.var_params.is_some())
+                    || (ls.non_default_params.is_empty() && rs.kw_var_params.is_some())
+                    || (rs.var_params.is_some() && rs.kw_var_params.is_some());
                 let rhs_ret = rs
                     .return_t
                     .clone()

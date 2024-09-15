@@ -619,7 +619,7 @@ impl Context {
                 }
             }
             if let Some(kw_var_params) = &mut params.kw_var_params {
-                if let Some(pt) = &subr_t.var_params {
+                if let Some(pt) = &subr_t.kw_var_params {
                     let pt = pt.clone().map_type(&mut str_dict_t);
                     if let Err(es) = self.assign_param(
                         kw_var_params,
