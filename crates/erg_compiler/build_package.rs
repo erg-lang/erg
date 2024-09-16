@@ -418,7 +418,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         let res = self.resolve(&mut ast, &cfg);
         debug_assert!(res.is_ok(), "{:?}", res.unwrap_err());
         log!(info "Dependency resolution process completed");
-        println!("graph:\n{}", self.shared.graph.display());
+        log!("graph:\n{}", self.shared.graph.display());
         if self.parse_errors.errors.is_empty() {
             self.shared.warns.extend(self.parse_errors.warns.flush());
         // continue analysis if ELS mode
@@ -838,12 +838,9 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
             write!(out, "Checking 0/{nmods}").unwrap();
             out.flush().unwrap();
         }
-        println!("here?: {path}");
-        let mut limit = 100000;
         while let Some(ancestor) = ancestors.pop() {
             if graph.ancestors(&ancestor).is_empty() {
                 graph.remove(&ancestor);
-                limit = 100000;
                 if let Some(entry) = self.asts.remove(&ancestor) {
                     if print_progress {
                         let name = ancestor.file_name().unwrap_or_default().to_string_lossy();
@@ -864,10 +861,6 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
                     self.build_inlined_module(&ancestor, graph);
                 }
             } else {
-                limit -= 1;
-                if limit == 0 {
-                    panic!("{ancestor} is in a circular dependency");
-                }
                 ancestors.insert(0, ancestor);
             }
         }
@@ -950,7 +943,6 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
                 }
             }
         };
-        println!("Start to analyze {path}");
         if SINGLE_THREAD {
             run();
             self.shared.promises.mark_as_joined(path);
