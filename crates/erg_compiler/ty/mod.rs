@@ -1956,7 +1956,6 @@ impl HasType for Type {
 
 impl HasLevel for Type {
     fn level(&self) -> Option<usize> {
-        println!("lev: {self}");
         match self {
             Self::FreeVar(v) => v.level(),
             Self::Ref(t) => t.level(),
@@ -2035,10 +2034,7 @@ impl HasLevel for Type {
                     Some(min)
                 }
             }
-            Self::Structural(ty) => {
-                set_recursion_limit!(None, 128);
-                ty.level()
-            }
+            Self::Structural(ty) => ty.level(),
             Self::Guard(guard) => guard.to.level(),
             Self::Quantified(quant) => quant.level(),
             Self::Bounded { sub, sup } => {
