@@ -1773,13 +1773,6 @@ impl CanbeFree for Type {
         let Some(fv) = self.as_free() else {
             return;
         };
-        // self: T
-        // new_constraint: (:> T, <: U) => <: U
-        if new_constraint.get_sub_sup().is_some_and(|(sub, sup)| {
-            sub.contains_tvar_in_constraint(fv) || sup.contains_tvar_in_constraint(fv)
-        }) {
-            return;
-        }
         fv.update_constraint(new_constraint, in_instantiation);
     }
 }
@@ -2884,6 +2877,13 @@ impl Type {
                     || fv
                         .get_subsup()
                         .map(|(sub, sup)| {
+                            if sub.as_free().is_some_and(|sub_fv| {
+                                ref_addr_eq!(sub_fv.forced_as_ref(), target.forced_as_ref())
+                            }) || sup.as_free().is_some_and(|sup_fv| {
+                                ref_addr_eq!(sup_fv.forced_as_ref(), target.forced_as_ref())
+                            }) {
+                                return true;
+                            }
                             fv.do_avoiding_recursion(|| {
                                 sub.contains_tvar(target) || sup.contains_tvar(target)
                             })
@@ -2991,6 +2991,13 @@ impl Type {
                     || fv
                         .get_subsup()
                         .map(|(sub, sup)| {
+                            if sub.as_free().is_some_and(|sub_fv| {
+                                ref_addr_eq!(sub_fv.forced_as_ref(), target.forced_as_ref())
+                            }) || sup.as_free().is_some_and(|sup_fv| {
+                                ref_addr_eq!(sup_fv.forced_as_ref(), target.forced_as_ref())
+                            }) {
+                                return true;
+                            }
                             fv.do_avoiding_recursion(|| {
                                 sub.contains_tvar_in_constraint(target)
                                     || sup.contains_tvar_in_constraint(target)
@@ -4217,6 +4224,12 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().eliminate_subsup(target),
             Self::FreeVar(ref fv) if fv.constraint_is_sandwiched() => {
                 let (sub, sup) = fv.get_subsup().unwrap();
+                let sub = if sub.addr_eq(target) {
+                    Type::Never
+                } else {
+                    sub
+                };
+                let sup = if sup.addr_eq(target) { Type::Obj } else { sup };
                 fv.do_avoiding_recursion(|| {
                     let sub = sub.eliminate_subsup(target);
                     let sup = sup.eliminate_subsup(target);
@@ -4901,7 +4914,7 @@ impl Type {
         }
         match self {
             Self::FreeVar(fv) => {
-                let to = to.clone().eliminate_subsup(self);
+                let to = to.clone().eliminate_subsup(self); // FIXME: .eliminate_recursion(self)
                 fv.undoable_link(&to);
             }
             Self::Refinement(refine) => refine.t.undoable_link(to, list),

@@ -800,6 +800,55 @@ impl Free<Type> {
             self.crack().has_unbound_var()
         }
     }
+
+    /// interior-mut
+    /// if `in_inst_or_gen` is true, constraint will be updated forcibly
+    pub fn update_constraint(&self, new_constraint: Constraint, in_inst_or_gen: bool) {
+        if new_constraint.get_type() == Some(&Type::Never) {
+            panic!("{new_constraint}");
+        }
+        // self: T
+        // new_constraint: (:> T, <: U) => <: U
+        if new_constraint.get_sub_sup().is_some_and(|(sub, sup)| {
+            sub.contains_tvar_in_constraint(self) || sup.contains_tvar_in_constraint(self)
+        }) {
+            return;
+        }
+        match &mut *self.borrow_mut() {
+            FreeKind::Unbound {
+                lev, constraint, ..
+            }
+            | FreeKind::NamedUnbound {
+                lev, constraint, ..
+            } => {
+                if !in_inst_or_gen && *lev == GENERIC_LEVEL {
+                    log!(err "cannot update the constraint of a generalized type variable");
+                    return;
+                }
+                if addr_eq!(*constraint, new_constraint) {
+                    return;
+                }
+                *constraint = new_constraint;
+            }
+            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
+                t.destructive_update_constraint(new_constraint, in_inst_or_gen);
+            }
+        }
+    }
+
+    /// interior-mut
+    pub fn update_sub(&self, f: impl FnOnce(Type) -> Type) {
+        let (sub, sup) = self.get_subsup().unwrap();
+        let new_constraint = Constraint::new_sandwiched(f(sub), sup);
+        self.update_constraint(new_constraint, true);
+    }
+
+    /// interior-mut
+    pub fn update_super(&self, f: impl FnOnce(Type) -> Type) {
+        let (sub, sup) = self.get_subsup().unwrap();
+        let new_constraint = Constraint::new_sandwiched(sub, f(sup));
+        self.update_constraint(new_constraint, true);
+    }
 }
 
 impl Free<TyParam> {
@@ -1219,6 +1268,15 @@ impl<T: CanbeFree + Send + Clone> Free<T> {
     pub fn constraint_is_uninited(&self) -> bool {
         self.constraint().map(|c| c.is_uninited()).unwrap_or(false)
     }
+}
+
+impl Free<TyParam> {
+    pub fn map(&self, f: impl Fn(TyParam) -> TyParam) {
+        if let Some(mut linked) = self.get_linked_refmut() {
+            let mapped = f(mem::take(&mut *linked));
+            *linked = mapped;
+        }
+    }
 
     /// interior-mut
     /// if `in_inst_or_gen` is true, constraint will be updated forcibly
@@ -1249,32 +1307,9 @@ impl<T: CanbeFree + Send + Clone> Free<T> {
     }
 
     /// interior-mut
-    pub fn update_sub(&self, f: impl FnOnce(Type) -> Type) {
-        let (sub, sup) = self.get_subsup().unwrap();
-        let new_constraint = Constraint::new_sandwiched(f(sub), sup);
-        self.update_constraint(new_constraint, true);
-    }
-
-    /// interior-mut
-    pub fn update_super(&self, f: impl FnOnce(Type) -> Type) {
-        let (sub, sup) = self.get_subsup().unwrap();
-        let new_constraint = Constraint::new_sandwiched(sub, f(sup));
-        self.update_constraint(new_constraint, true);
-    }
-
-    /// interior-mut
     pub fn update_type(&self, new_type: Type) {
         let new_constraint = Constraint::new_type_of(new_type);
         self.update_constraint(new_constraint, true);
-    }
-}
-
-impl Free<TyParam> {
-    pub fn map(&self, f: impl Fn(TyParam) -> TyParam) {
-        if let Some(mut linked) = self.get_linked_refmut() {
-            let mapped = f(mem::take(&mut *linked));
-            *linked = mapped;
-        }
     }
 }
 
