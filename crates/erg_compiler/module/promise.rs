@@ -1,7 +1,7 @@
 use std::fmt;
 use std::thread::{current, JoinHandle, ThreadId};
 
-use erg_common::consts::DEBUG_MODE;
+use erg_common::consts::{DEBUG_MODE, SINGLE_THREAD};
 use erg_common::dict::Dict;
 use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::shared::Shared;
@@ -169,10 +169,17 @@ impl SharedPromises {
     }
 
     pub fn join(&self, path: &NormalizedPathBuf) -> std::thread::Result<()> {
+        if !self.graph.entries().contains(path) {
+            return Err(Box::new(format!("not registered: {path}")));
+        }
         if self.graph.ancestors(path).contains(&self.root) {
             // cycle detected, `self.path` must not in the dependencies
             // Erg analysis processes never join ancestor threads (although joining ancestors itself is allowed in Rust)
             // self.wait_until_finished(path);
+            return Ok(());
+        }
+        if SINGLE_THREAD {
+            assert!(self.is_joined(path));
             return Ok(());
         }
         // Suppose A depends on B and C, and B depends on C.
