@@ -1091,6 +1091,16 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 }
                 let (lsub, lsup) = sub_fv.get_subsup().unwrap();
                 let (rsub, rsup) = sup_fv.get_subsup().unwrap();
+                // sub: ?T(:> ?U)
+                // sup: ?U
+                // => ?T == ?U
+                if &lsub == maybe_sup {
+                    maybe_sub.link(maybe_sup, self.undoable);
+                    return Ok(());
+                } else if &rsup == maybe_sub {
+                    maybe_sup.link(maybe_sub, self.undoable);
+                    return Ok(());
+                }
                 // ?T(<: Add(?T))
                 // ?U(:> {1, 2}, <: Add(?U)) ==> {1, 2}
                 sup_fv.dummy_link();
@@ -1185,6 +1195,40 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                         }
                     }
                 }
+            }
+            (FreeVar(sub_fv), FreeVar(sup_fv))
+                if sub_fv.constraint_is_sandwiched() && sup_fv.constraint_is_typeof() =>
+            {
+                if !self.change_generalized && (sub_fv.is_generalized() || sup_fv.is_generalized())
+                {
+                    log!(info "generalized:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
+                    return Ok(());
+                }
+                let (lsub, _lsup) = sub_fv.get_subsup().unwrap();
+                // sub: ?T(:> ?U(: {Str, Int}))
+                // sup: ?U(: {Str, Int})
+                // => ?T == ?U
+                if &lsub == maybe_sup {
+                    maybe_sub.link(maybe_sup, self.undoable);
+                    return Ok(());
+                }
+                let rty = sup_fv.get_type().unwrap();
+                let Some(rtys) = rty.refinement_values() else {
+                    todo!("{rty}");
+                };
+                // sub: ?T(:> Nat)
+                // sup: ?U(: {Str, Int})
+                // => ?T(:> Nat, <: Int)
+                for tp in rtys {
+                    let Ok(ty) = self.ctx.convert_tp_into_type(tp.clone()) else {
+                        todo!("{tp}");
+                    };
+                    if self.ctx.subtype_of(&lsub, &ty) {
+                        sub_fv.update_super(|sup| self.ctx.intersection(&sup, &ty));
+                        return Ok(());
+                    }
+                }
+                // REVIEW: unreachable?
             }
             (
                 Bounded {
