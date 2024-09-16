@@ -16,6 +16,9 @@ use crate::varinfo::Mutability;
 use Mutability::*;
 
 impl Context {
+    // NOTE: Registering traits that a class implements requires type checking,
+    // which means that registering a class requires that the preceding types have already been registered,
+    // so `register_builtin_type` should be called as early as possible.
     pub(super) fn init_builtin_classes(&mut self) {
         let vis = if PYTHON_MODE {
             Visibility::BUILTIN_PUBLIC
@@ -29,6 +32,7 @@ impl Context {
         let N = mono_q_tp(TY_N, instanceof(Nat));
         let M = mono_q_tp(TY_M, instanceof(Nat));
         let never = Self::builtin_mono_class(NEVER, 1);
+        self.register_builtin_type(Never, never, vis.clone(), Const, Some(NEVER));
         /* Obj */
         let mut obj = Self::builtin_mono_class(OBJ, 2);
         obj.register_py_builtin(
@@ -2965,6 +2969,21 @@ impl Context {
             None,
             union,
         );
+        self.register_builtin_type(
+            mono(GENERIC_TUPLE),
+            generic_tuple,
+            vis.clone(),
+            Const,
+            Some(FUNC_TUPLE),
+        );
+        self.register_builtin_type(
+            homo_tuple_t,
+            homo_tuple,
+            vis.clone(),
+            Const,
+            Some(FUNC_TUPLE),
+        );
+        self.register_builtin_type(_tuple_t, tuple_, vis.clone(), Const, Some(FUNC_TUPLE));
         /* Or (true or type) */
         let or_t = poly(OR, vec![ty_tp(L), ty_tp(R)]);
         let mut or = Self::builtin_poly_class(OR, vec![PS::t_nd(TY_L), PS::t_nd(TY_R)], 2);
@@ -3673,6 +3692,8 @@ impl Context {
             Some(FUNC_UPDATE),
         );
         list_mut_.register_trait_methods(list_mut_t.clone(), list_mut_mutable);
+        self.register_builtin_type(lis_t, list_, vis.clone(), Const, Some(LIST));
+        self.register_builtin_type(list_mut_t, list_mut_, vis.clone(), Const, Some(LIST));
         /* ByteArray! */
         let bytearray_mut_t = mono(MUT_BYTEARRAY);
         let mut bytearray_mut = Self::builtin_mono_class(MUT_BYTEARRAY, 2);
@@ -4213,7 +4234,6 @@ impl Context {
         let mut qfunc_meta_type = Self::builtin_mono_class(QUANTIFIED_FUNC_META_TYPE, 2);
         qfunc_meta_type.register_superclass(mono(QUANTIFIED_PROC_META_TYPE), &qproc_meta_type);
         qfunc_meta_type.register_superclass(mono(QUANTIFIED_FUNC), &qfunc);
-        self.register_builtin_type(Never, never, vis.clone(), Const, Some(NEVER));
         self.register_builtin_type(Obj, obj, vis.clone(), Const, Some(FUNC_OBJECT));
         // self.register_type(mono(RECORD), vec![], record, Visibility::BUILTIN_PRIVATE, Const);
         let name = if PYTHON_MODE { FUNC_INT } else { INT };
@@ -4261,7 +4281,6 @@ impl Context {
             Const,
             Some(UNSIZED_LIST),
         );
-        self.register_builtin_type(lis_t, list_, vis.clone(), Const, Some(LIST));
         self.register_builtin_type(mono(SLICE), slice, vis.clone(), Const, Some(FUNC_SLICE));
         self.register_builtin_type(
             mono(GENERIC_SET),
@@ -4274,21 +4293,6 @@ impl Context {
         self.register_builtin_type(g_dict_t, generic_dict, vis.clone(), Const, Some(DICT));
         self.register_builtin_type(dict_t, dict_, vis.clone(), Const, Some(DICT));
         self.register_builtin_type(mono(BYTES), bytes, vis.clone(), Const, Some(BYTES));
-        self.register_builtin_type(
-            mono(GENERIC_TUPLE),
-            generic_tuple,
-            vis.clone(),
-            Const,
-            Some(FUNC_TUPLE),
-        );
-        self.register_builtin_type(
-            homo_tuple_t,
-            homo_tuple,
-            vis.clone(),
-            Const,
-            Some(FUNC_TUPLE),
-        );
-        self.register_builtin_type(_tuple_t, tuple_, vis.clone(), Const, Some(FUNC_TUPLE));
         self.register_builtin_type(mono(RECORD), record, vis.clone(), Const, Some(RECORD));
         self.register_builtin_type(
             mono(RECORD_META_TYPE),
@@ -4411,7 +4415,6 @@ impl Context {
             Some(MEMORYVIEW),
         );
         self.register_builtin_type(mono(MUT_FILE), file_mut, vis.clone(), Const, Some(FILE));
-        self.register_builtin_type(list_mut_t, list_mut_, vis.clone(), Const, Some(LIST));
         self.register_builtin_type(
             bytearray_mut_t,
             bytearray_mut,

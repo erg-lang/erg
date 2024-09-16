@@ -4313,7 +4313,7 @@ impl Type {
     /// (T or U).eliminate_subsup(T) == U
     /// ?X(<: T or U).eliminate_subsup(T) == ?X(<: U)
     /// ```
-    pub fn eliminate_subsup(self, target: &Type) -> Self {
+    pub(crate) fn eliminate_subsup(self, target: &Type) -> Self {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().eliminate_subsup(target),
             Self::FreeVar(ref fv) if fv.constraint_is_sandwiched() => {
@@ -4361,7 +4361,7 @@ impl Type {
     /// ?T(<: K(X)).eliminate_recursion(X) == ?T(<: K(X))
     /// Tuple(X).eliminate_recursion(X) == Tuple(Never)
     /// ```
-    pub fn eliminate_recursion(self, target: &Type) -> Self {
+    pub(crate) fn eliminate_recursion(self, target: &Type) -> Self {
         if self.is_free_var() && self.addr_eq(target) {
             return Self::Never;
         }
@@ -4409,11 +4409,13 @@ impl Type {
             },
             Self::And(tys) => Self::checked_and(
                 tys.into_iter()
+                    .filter(|t| !t.addr_eq(target))
                     .map(|t| t.eliminate_recursion(target))
                     .collect(),
             ),
             Self::Or(tys) => Self::checked_or(
                 tys.into_iter()
+                    .filter(|t| !t.addr_eq(target))
                     .map(|t| t.eliminate_recursion(target))
                     .collect(),
             ),
@@ -4438,6 +4440,18 @@ impl Type {
                 sup: Box::new(sup.eliminate_recursion(target)),
             },
             mono_type_pattern!() => self,
+        }
+    }
+
+    pub(crate) fn eliminate_and_or_recursion(self, target: &Type) -> Self {
+        match self {
+            Self::And(tys) => {
+                Self::checked_and(tys.into_iter().filter(|t| !t.addr_eq(target)).collect())
+            }
+            Self::Or(tys) => {
+                Self::checked_or(tys.into_iter().filter(|t| !t.addr_eq(target)).collect())
+            }
+            _ => self,
         }
     }
 
@@ -4597,7 +4611,7 @@ impl Type {
 
     /// Unlike `replace`, this does not make a look-up table.
     fn _replace(mut self, target: &Type, to: &Type) -> Type {
-        if self.structural_eq(target) {
+        if &self == target {
             self = to.clone();
         }
         self.map(&mut |t| t._replace(target, to))
@@ -5049,8 +5063,8 @@ impl Type {
         }
         match self {
             Self::FreeVar(fv) => {
-                let to = to.clone().eliminate_subsup(self).eliminate_recursion(self);
-                fv.link(&to);
+                let to_ = to.clone().eliminate_subsup(self).eliminate_recursion(self);
+                fv.link(&to_);
             }
             Self::Refinement(refine) => refine.t.destructive_link(to),
             _ => {
@@ -5072,8 +5086,12 @@ impl Type {
         }
         match self {
             Self::FreeVar(fv) => {
-                let to = to.clone().eliminate_subsup(self); // FIXME: .eliminate_recursion(self)
-                fv.undoable_link(&to);
+                // NOTE: we can't use `eliminate_recursion`
+                let to_ = to
+                    .clone()
+                    .eliminate_subsup(self)
+                    .eliminate_and_or_recursion(self);
+                fv.undoable_link(&to_);
             }
             Self::Refinement(refine) => refine.t.undoable_link(to, list),
             _ => {

@@ -129,6 +129,18 @@ impl<K, V> Dict<K, V> {
         }
     }
 
+    /// ```
+    /// # use erg_common::dict;
+    /// # use erg_common::dict::Dict;
+    /// let mut dict = Dict::with_capacity(3);
+    /// assert_eq!(dict.capacity(), 3);
+    /// dict.insert("a", 1);
+    /// assert_eq!(dict.capacity(), 3);
+    /// dict.insert("b", 2);
+    /// dict.insert("c", 3);
+    /// dict.insert("d", 4);
+    /// assert_ne!(dict.capacity(), 3);
+    /// ```
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             dict: FxHashMap::with_capacity_and_hasher(capacity, Default::default()),
