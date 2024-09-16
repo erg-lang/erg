@@ -70,6 +70,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
     /// occur(?T(<: Str) or ?U(<: Int), ?T(<: Str)) ==> Error
     /// occur(?T(<: ?U or Y), ?U) ==> OK
     /// occur(?T, ?T.Output) ==> OK
+    /// occur(?T, ?T or Int) ==> Error
     /// ```
     fn occur(&self, maybe_sub: &Type, maybe_sup: &Type) -> TyCheckResult<()> {
         if maybe_sub == maybe_sup {
@@ -160,7 +161,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 for _ in 0..r.len() {
                     if l.iter()
                         .zip(r.iter())
-                        .all(|(l, r)| self.occur(l, r).is_ok())
+                        .all(|(l, r)| self.occur_inner(l, r).is_ok())
                     {
                         return Ok(());
                     }
@@ -181,7 +182,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 for _ in 0..r.len() {
                     if l.iter()
                         .zip(r.iter())
-                        .all(|(l, r)| self.occur(l, r).is_ok())
+                        .all(|(l, r)| self.occur_inner(l, r).is_ok())
                     {
                         return Ok(());
                     }
@@ -198,25 +199,25 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             }
             (lhs, And(tys)) => {
                 for ty in tys.iter() {
-                    self.occur(lhs, ty)?;
+                    self.occur_inner(lhs, ty)?;
                 }
                 Ok(())
             }
             (lhs, Or(tys)) => {
                 for ty in tys.iter() {
-                    self.occur(lhs, ty)?;
+                    self.occur_inner(lhs, ty)?;
                 }
                 Ok(())
             }
             (And(tys), rhs) => {
                 for ty in tys.iter() {
-                    self.occur(ty, rhs)?;
+                    self.occur_inner(ty, rhs)?;
                 }
                 Ok(())
             }
             (Or(tys), rhs) => {
                 for ty in tys.iter() {
-                    self.occur(ty, rhs)?;
+                    self.occur_inner(ty, rhs)?;
                 }
                 Ok(())
             }
