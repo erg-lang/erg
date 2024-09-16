@@ -340,6 +340,7 @@ impl SharedModuleCache {
     where
         NormalizedPathBuf: Borrow<Q>,
     {
+        println!("343");
         let mut cache = loop {
             if let Some(cache) = self.0.try_borrow_mut() {
                 break cache;

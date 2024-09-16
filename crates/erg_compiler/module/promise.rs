@@ -160,6 +160,7 @@ impl SharedPromises {
     }
 
     pub fn wait_until_finished(&self, path: &NormalizedPathBuf) {
+        println!("163");
         if self.promises.borrow().get(path).is_none() {
             panic!("not registered: {path}");
         }
@@ -179,9 +180,11 @@ impl SharedPromises {
             return Ok(());
         }
         if SINGLE_THREAD {
+            println!("182: {path}");
             assert!(self.is_joined(path));
             return Ok(());
         }
+        println!("!?: {path}");
         // Suppose A depends on B and C, and B depends on C.
         // In this case, B must join C before A joins C. Otherwise, a deadlock will occur.
         let children = self.graph.children(path);
@@ -223,14 +226,14 @@ impl SharedPromises {
             paths.push(path.clone());
         }
         for path in paths {
-            let _result = self.join(&path);
+            self.join(&path).unwrap();
         }
     }
 
     pub fn join_all(&self) {
         let paths = self.promises.borrow().keys().cloned().collect::<Vec<_>>();
         for path in paths {
-            let _result = self.join(&path);
+            self.join(&path).unwrap();
         }
     }
 
