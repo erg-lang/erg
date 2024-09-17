@@ -537,48 +537,15 @@ impl SubrType {
     }
 
     pub fn contains_tvar(&self, target: &FreeTyVar) -> bool {
-        self.non_default_params
-            .iter()
-            .any(|pt| pt.typ().contains_tvar(target))
-            || self
-                .var_params
-                .as_ref()
-                .map_or(false, |pt| pt.typ().contains_tvar(target))
-            || self.default_params.iter().any(|pt| {
-                pt.typ().contains_tvar(target)
-                    || pt.default_typ().is_some_and(|t| t.contains_tvar(target))
-            })
-            || self.return_t.contains_tvar(target)
+        self.has_type_satisfies(|t| t.contains_tvar(target))
     }
 
     pub fn contains_type(&self, target: &Type) -> bool {
-        self.non_default_params
-            .iter()
-            .any(|pt| pt.typ().contains_type(target))
-            || self
-                .var_params
-                .as_ref()
-                .map_or(false, |pt| pt.typ().contains_type(target))
-            || self.default_params.iter().any(|pt| {
-                pt.typ().contains_type(target)
-                    || pt.default_typ().is_some_and(|t| t.contains_type(target))
-            })
-            || self.return_t.contains_type(target)
+        self.has_type_satisfies(|t| t.contains_type(target))
     }
 
     pub fn contains_tp(&self, target: &TyParam) -> bool {
-        self.non_default_params
-            .iter()
-            .any(|pt| pt.typ().contains_tp(target))
-            || self
-                .var_params
-                .as_ref()
-                .map_or(false, |pt| pt.typ().contains_tp(target))
-            || self.default_params.iter().any(|pt| {
-                pt.typ().contains_tp(target)
-                    || pt.default_typ().is_some_and(|t| t.contains_tp(target))
-            })
-            || self.return_t.contains_tp(target)
+        self.has_type_satisfies(|t| t.contains_tp(target))
     }
 
     pub fn map(self, f: &mut impl FnMut(Type) -> Type) -> Self {
@@ -708,48 +675,27 @@ impl SubrType {
         Set::multi_intersection(qnames_sets).extended(structural_qname)
     }
 
-    pub fn has_qvar(&self) -> bool {
-        self.non_default_params.iter().any(|pt| pt.typ().has_qvar())
-            || self
-                .var_params
-                .as_ref()
-                .map_or(false, |pt| pt.typ().has_qvar())
+    pub fn has_type_satisfies(&self, f: impl Fn(&Type) -> bool + Copy) -> bool {
+        self.non_default_params.iter().any(|pt| f(pt.typ()))
+            || self.var_params.as_ref().map_or(false, |pt| f(pt.typ()))
             || self
                 .default_params
                 .iter()
-                .any(|pt| pt.typ().has_qvar() || pt.default_typ().is_some_and(|t| t.has_qvar()))
-            || self.return_t.has_qvar()
+                .any(|pt| f(pt.typ()) || pt.default_typ().is_some_and(f))
+            || self.kw_var_params.as_ref().map_or(false, |pt| f(pt.typ()))
+            || f(&self.return_t)
+    }
+
+    pub fn has_qvar(&self) -> bool {
+        self.has_type_satisfies(|t| t.has_qvar())
     }
 
     pub fn has_unbound_var(&self) -> bool {
-        self.non_default_params
-            .iter()
-            .any(|pt| pt.typ().has_unbound_var())
-            || self
-                .var_params
-                .as_ref()
-                .map_or(false, |pt| pt.typ().has_unbound_var())
-            || self.default_params.iter().any(|pt| {
-                pt.typ().has_unbound_var() || pt.default_typ().is_some_and(|t| t.has_unbound_var())
-            })
-            || self.return_t.has_unbound_var()
+        self.has_type_satisfies(|t| t.has_unbound_var())
     }
 
     pub fn has_undoable_linked_var(&self) -> bool {
-        self.non_default_params
-            .iter()
-            .any(|pt| pt.typ().has_undoable_linked_var())
-            || self
-                .var_params
-                .as_ref()
-                .map_or(false, |pt| pt.typ().has_undoable_linked_var())
-            || self.default_params.iter().any(|pt| {
-                pt.typ().has_undoable_linked_var()
-                    || pt
-                        .default_typ()
-                        .is_some_and(|t| t.has_undoable_linked_var())
-            })
-            || self.return_t.has_undoable_linked_var()
+        self.has_type_satisfies(|t| t.has_undoable_linked_var())
     }
 
     pub fn typarams(&self) -> Vec<TyParam> {
@@ -2953,91 +2899,37 @@ impl Type {
                         })
                         .unwrap_or(false)
             }
-            Self::Record(rec) => rec.iter().any(|(_, t)| t.contains_tvar(target)),
-            Self::NamedTuple(rec) => rec.iter().any(|(_, t)| t.contains_tvar(target)),
-            Self::Poly { params, .. } => params.iter().any(|tp| tp.contains_tvar(target)),
-            Self::Quantified(t) => t.contains_tvar(target),
-            Self::Subr(subr) => subr.contains_tvar(target),
-            // TODO: preds
-            Self::Refinement(refine) => refine.t.contains_tvar(target),
-            Self::Structural(ty) => ty.contains_tvar(target),
-            Self::Proj { lhs, .. } => lhs.contains_tvar(target),
-            Self::ProjCall { lhs, args, .. } => {
-                lhs.contains_tvar(target) || args.iter().any(|t| t.contains_tvar(target))
-            }
-            Self::And(tys) => tys.iter().any(|t| t.contains_tvar(target)),
-            Self::Or(tys) => tys.iter().any(|t| t.contains_tvar(target)),
-            Self::Not(t) => t.contains_tvar(target),
-            Self::Ref(t) => t.contains_tvar(target),
-            Self::RefMut { before, after } => {
-                before.contains_tvar(target)
-                    || after.as_ref().map_or(false, |t| t.contains_tvar(target))
-            }
-            Self::Bounded { sub, sup } => sub.contains_tvar(target) || sup.contains_tvar(target),
-            Self::Callable { param_ts, return_t } => {
-                param_ts.iter().any(|t| t.contains_tvar(target)) || return_t.contains_tvar(target)
-            }
-            Self::Guard(guard) => guard.to.contains_tvar(target),
-            mono_type_pattern!() => false,
+            _ => self.has_type_satisfies(|t| t.contains_tvar(target)),
         }
     }
 
     pub fn has_type_satisfies(&self, f: impl Fn(&Type) -> bool + Copy) -> bool {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().has_type_satisfies(f),
-            Self::FreeVar(fv) if fv.constraint_is_typeof() => {
-                fv.get_type().unwrap().has_type_satisfies(f)
-            }
+            Self::FreeVar(fv) if fv.is_linked() => f(&fv.crack()),
+            Self::FreeVar(fv) if fv.constraint_is_typeof() => f(&fv.get_type().unwrap()),
             Self::FreeVar(fv) => fv
                 .get_subsup()
-                .map(|(sub, sup)| {
-                    fv.do_avoiding_recursion(|| {
-                        sub.has_type_satisfies(f) || sup.has_type_satisfies(f)
-                    })
-                })
+                .map(|(sub, sup)| fv.do_avoiding_recursion(|| f(&sub) || f(&sup)))
                 .unwrap_or(false),
-            Self::Record(rec) => rec.iter().any(|(_, t)| t.has_type_satisfies(f)),
-            Self::NamedTuple(rec) => rec.iter().any(|(_, t)| t.has_type_satisfies(f)),
+            Self::Record(rec) => rec.values().any(f),
+            Self::NamedTuple(rec) => rec.iter().any(|(_, t)| f(t)),
             Self::Poly { params, .. } => params.iter().any(|tp| tp.has_type_satisfies(f)),
-            Self::Quantified(t) => t.has_type_satisfies(f),
-            Self::Subr(subr) => {
-                subr.non_default_params
-                    .iter()
-                    .any(|pt| pt.typ().has_type_satisfies(f))
-                    || subr
-                        .var_params
-                        .as_ref()
-                        .map_or(false, |pt| pt.typ().has_type_satisfies(f))
-                    || subr
-                        .default_params
-                        .iter()
-                        .any(|pt| pt.typ().has_type_satisfies(f))
-                    || subr
-                        .default_params
-                        .iter()
-                        .any(|pt| pt.default_typ().map_or(false, |t| t.has_type_satisfies(f)))
-                    || subr.return_t.has_type_satisfies(f)
-            }
-            // TODO: preds
-            Self::Refinement(refine) => refine.t.has_type_satisfies(f),
-            Self::Structural(ty) => ty.has_type_satisfies(f),
-            Self::Proj { lhs, .. } => lhs.has_type_satisfies(f),
+            Self::Quantified(t) => f(t),
+            Self::Subr(subr) => subr.has_type_satisfies(f),
+            Self::Refinement(refine) => f(&refine.t) || refine.pred.has_type_satisfies(f),
+            Self::Structural(ty) => f(ty),
+            Self::Proj { lhs, .. } => f(lhs),
             Self::ProjCall { lhs, args, .. } => {
-                lhs.has_type_satisfies(f) || args.iter().any(|t| t.has_type_satisfies(f))
+                lhs.has_type_satisfies(f) || args.iter().any(|tp| tp.has_type_satisfies(f))
             }
-            Self::And(tys) => tys.iter().any(|t| t.has_type_satisfies(f)),
-            Self::Or(tys) => tys.iter().any(|t| t.has_type_satisfies(f)),
-            Self::Not(t) => t.has_type_satisfies(f),
-            Self::Ref(t) => t.has_type_satisfies(f),
-            Self::RefMut { before, after } => {
-                before.has_type_satisfies(f)
-                    || after.as_ref().map_or(false, |t| t.has_type_satisfies(f))
-            }
-            Self::Bounded { sub, sup } => sub.has_type_satisfies(f) || sup.has_type_satisfies(f),
-            Self::Callable { param_ts, return_t } => {
-                param_ts.iter().any(|t| t.has_type_satisfies(f)) || return_t.has_type_satisfies(f)
-            }
-            Self::Guard(guard) => guard.to.has_type_satisfies(f),
+            Self::And(tys) => tys.iter().any(f),
+            Self::Or(tys) => tys.iter().any(f),
+            Self::Not(t) => f(t),
+            Self::Ref(t) => f(t),
+            Self::RefMut { before, after } => f(before) || after.as_ref().map_or(false, |t| f(t)),
+            Self::Bounded { sub, sup } => f(sub) || f(sup),
+            Self::Callable { param_ts, return_t } => param_ts.iter().any(f) || f(return_t),
+            Self::Guard(guard) => f(&guard.to),
             mono_type_pattern!() => false,
         }
     }
@@ -3810,31 +3702,15 @@ impl Type {
                     opt_t.map_or(false, |t| t.has_qvar())
                 }
             }
-            Self::Ref(ty) => ty.has_qvar(),
-            Self::RefMut { before, after } => {
-                before.has_qvar() || after.as_ref().map(|t| t.has_qvar()).unwrap_or(false)
-            }
-            Self::And(tys) => tys.iter().any(|t| t.has_qvar()),
-            Self::Or(tys) => tys.iter().any(|t| t.has_qvar()),
-            Self::Not(ty) => ty.has_qvar(),
-            Self::Callable { param_ts, return_t } => {
-                param_ts.iter().any(|t| t.has_qvar()) || return_t.has_qvar()
-            }
             Self::Subr(subr) => subr.has_qvar(),
             Self::Quantified(_) => false,
             // Self::Quantified(quant) => quant.has_qvar(),
-            Self::Record(r) => r.values().any(|t| t.has_qvar()),
-            Self::NamedTuple(r) => r.iter().any(|(_, t)| t.has_qvar()),
             Self::Refinement(refine) => refine.t.has_qvar() || refine.pred.has_qvar(),
             Self::Poly { params, .. } => params.iter().any(|tp| tp.has_qvar()),
-            Self::Proj { lhs, .. } => lhs.has_qvar(),
             Self::ProjCall { lhs, args, .. } => {
                 lhs.has_qvar() || args.iter().any(|tp| tp.has_qvar())
             }
-            Self::Structural(ty) => ty.has_qvar(),
-            Self::Guard(guard) => guard.to.has_qvar(),
-            Self::Bounded { sub, sup } => sub.has_qvar() || sup.has_qvar(),
-            mono_type_pattern!() => false,
+            _ => self.has_type_satisfies(|t| t.has_qvar()),
         }
     }
 
@@ -3860,39 +3736,12 @@ impl Type {
                     opt_t.map_or(false, |t| t.has_undoable_linked_var())
                 }
             }
-            Self::Ref(ty) => ty.has_undoable_linked_var(),
-            Self::RefMut { before, after } => {
-                before.has_undoable_linked_var()
-                    || after
-                        .as_ref()
-                        .map(|t| t.has_undoable_linked_var())
-                        .unwrap_or(false)
-            }
-            Self::And(tys) => tys.iter().any(|t| t.has_undoable_linked_var()),
-            Self::Or(tys) => tys.iter().any(|t| t.has_undoable_linked_var()),
-            Self::Not(ty) => ty.has_undoable_linked_var(),
-            Self::Callable { param_ts, return_t } => {
-                param_ts.iter().any(|t| t.has_undoable_linked_var())
-                    || return_t.has_undoable_linked_var()
-            }
             Self::Subr(subr) => subr.has_undoable_linked_var(),
-            Self::Quantified(quant) => quant.has_undoable_linked_var(),
-            Self::Record(r) => r.values().any(|t| t.has_undoable_linked_var()),
-            Self::NamedTuple(r) => r.iter().any(|(_, t)| t.has_undoable_linked_var()),
-            Self::Refinement(refine) => {
-                refine.t.has_undoable_linked_var() || refine.pred.has_undoable_linked_var()
-            }
             Self::Poly { params, .. } => params.iter().any(|tp| tp.has_undoable_linked_var()),
-            Self::Proj { lhs, .. } => lhs.has_undoable_linked_var(),
             Self::ProjCall { lhs, args, .. } => {
                 lhs.has_undoable_linked_var() || args.iter().any(|tp| tp.has_undoable_linked_var())
             }
-            Self::Structural(ty) => ty.has_undoable_linked_var(),
-            Self::Guard(guard) => guard.to.has_undoable_linked_var(),
-            Self::Bounded { sub, sup } => {
-                sub.has_undoable_linked_var() || sup.has_undoable_linked_var()
-            }
-            mono_type_pattern!() => false,
+            _ => self.has_type_satisfies(|t| t.has_undoable_linked_var()),
         }
     }
 
@@ -3903,45 +3752,13 @@ impl Type {
     pub fn has_unbound_var(&self) -> bool {
         match self {
             Self::FreeVar(fv) => fv.has_unbound_var(),
-            Self::Ref(t) => t.has_unbound_var(),
-            Self::RefMut { before, after } => {
-                before.has_unbound_var()
-                    || after.as_ref().map(|t| t.has_unbound_var()).unwrap_or(false)
-            }
-            Self::And(tys) => tys.iter().any(|t| t.has_unbound_var()),
-            Self::Or(tys) => tys.iter().any(|t| t.has_unbound_var()),
-            Self::Not(ty) => ty.has_unbound_var(),
-            Self::Callable { param_ts, return_t } => {
-                param_ts.iter().any(|t| t.has_unbound_var()) || return_t.has_unbound_var()
-            }
-            Self::Subr(subr) => {
-                subr.non_default_params
-                    .iter()
-                    .any(|pt| pt.typ().has_unbound_var())
-                    || subr
-                        .var_params
-                        .as_ref()
-                        .map(|pt| pt.typ().has_unbound_var())
-                        .unwrap_or(false)
-                    || subr.default_params.iter().any(|pt| {
-                        pt.typ().has_unbound_var()
-                            || pt.default_typ().is_some_and(|t| t.has_unbound_var())
-                    })
-                    || subr.return_t.has_unbound_var()
-            }
-            Self::Record(r) => r.values().any(|t| t.has_unbound_var()),
-            Self::NamedTuple(r) => r.iter().any(|(_, t)| t.has_unbound_var()),
+            Self::Subr(subr) => subr.has_unbound_var(),
             Self::Refinement(refine) => refine.t.has_unbound_var() || refine.pred.has_unbound_var(),
-            Self::Quantified(quant) => quant.has_unbound_var(),
             Self::Poly { params, .. } => params.iter().any(|p| p.has_unbound_var()),
-            Self::Proj { lhs, .. } => lhs.has_unbound_var(),
             Self::ProjCall { lhs, args, .. } => {
                 lhs.has_unbound_var() || args.iter().any(|t| t.has_unbound_var())
             }
-            Self::Structural(ty) => ty.has_unbound_var(),
-            Self::Guard(guard) => guard.to.has_unbound_var(),
-            Self::Bounded { sub, sup } => sub.has_unbound_var() || sup.has_unbound_var(),
-            mono_type_pattern!() => false,
+            _ => self.has_type_satisfies(|t| t.has_unbound_var()),
         }
     }
 

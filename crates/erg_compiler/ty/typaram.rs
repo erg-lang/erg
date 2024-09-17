@@ -1268,21 +1268,21 @@ impl TyParam {
     pub fn has_type_satisfies(&self, f: impl Fn(&Type) -> bool + Copy) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().has_type_satisfies(f),
-            Self::FreeVar(fv) => fv.get_type().map_or(false, |t| t.has_type_satisfies(f)),
-            Self::Type(t) => t.has_type_satisfies(f),
-            Self::Erased(t) => t.has_type_satisfies(f),
+            Self::FreeVar(fv) => fv.get_type().map_or(false, |t| f(&t)),
+            Self::Type(t) => f(t),
+            Self::Erased(t) => f(t),
             Self::Proj { obj, .. } => obj.has_type_satisfies(f),
             Self::ProjCall { obj, args, .. } => {
-                obj.has_type_satisfies(f) || args.iter().any(|t| t.has_type_satisfies(f))
+                obj.has_type_satisfies(f) || args.iter().any(|tp| tp.has_type_satisfies(f))
             }
-            Self::List(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.has_type_satisfies(f)),
+            Self::List(ts) | Self::Tuple(ts) => ts.iter().any(|tp| tp.has_type_satisfies(f)),
             Self::UnsizedList(elem) => elem.has_type_satisfies(f),
-            Self::Set(ts) => ts.iter().any(|t| t.has_type_satisfies(f)),
+            Self::Set(ts) => ts.iter().any(|tp| tp.has_type_satisfies(f)),
             Self::Dict(ts) => ts
                 .iter()
                 .any(|(k, v)| k.has_type_satisfies(f) || v.has_type_satisfies(f)),
             Self::Record(rec) | Self::DataClass { fields: rec, .. } => {
-                rec.iter().any(|(_, tp)| tp.has_type_satisfies(f))
+                rec.values().any(|tp| tp.has_type_satisfies(f))
             }
             Self::Lambda(lambda) => lambda.body.iter().any(|tp| tp.has_type_satisfies(f)),
             Self::UnaryOp { val, .. } => val.has_type_satisfies(f),
