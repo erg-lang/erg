@@ -1,0 +1,7 @@
+a as Nat or Str or NoneType = 1
+f _: Int or NoneType or Str = None
+f a
+
+b as Nat or Str or NoneType or Bool = 1
+g _: Int or NoneType or Bool or Str = None
+g b

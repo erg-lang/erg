@@ -1,0 +1,7 @@
+a as Eq and Hash and Show = 1
+f _: Eq and Show and Hash = None
+f a
+
+b as Eq and Hash and Ord and Show = 1
+g _: Ord and Eq and Show and Hash = None
+g b

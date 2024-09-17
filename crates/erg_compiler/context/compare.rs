@@ -816,6 +816,7 @@ impl Context {
             }
             // Int or Str :> Str or Int == (Int :> Str && Str :> Int) || (Int :> Int && Str :> Str) == true
             // Int or Str or NoneType :> Str or Int
+            // Int or Str or NoneType :> Str or NoneType or Nat
             (Or(l), Or(r)) => r.iter().all(|r| l.iter().any(|l| self.supertype_of(l, r))),
             // not Nat :> not Int == true
             (Not(l), Not(r)) => self.subtype_of(l, r),

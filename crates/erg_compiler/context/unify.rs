@@ -156,6 +156,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 }
                 Ok(())
             }
+            // FIXME: This is not correct, we must visit all permutations of the types
             (And(l), And(r)) if l.len() == r.len() => {
                 let mut r = r.clone();
                 for _ in 0..r.len() {
@@ -1297,65 +1298,58 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 // self.sub_unify(&lsub, &union, loc, param_name)?;
                 maybe_sup.update_tyvar(union, intersec, self.undoable, false);
             }
+            // TODO: Preferentially compare same-structure types (e.g. K(?T) <: K(?U))
             (And(ltys), And(rtys)) => {
-                let mut rtys = rtys.clone();
-                for _ in 0..rtys.len() {
-                    if ltys
-                        .iter()
-                        .zip(rtys.iter())
-                        .all(|(l, r)| self.ctx.subtype_of(l, r))
-                    {
-                        for (l, r) in ltys.iter().zip(rtys.iter()) {
-                            self.sub_unify(l, r)?;
-                        }
-                        return Ok(());
+                let mut ltys_ = ltys.clone();
+                let mut rtys_ = rtys.clone();
+                // Show and EqHash and T <: Eq and Show and Ord
+                // => EqHash and T <: Eq and Ord
+                for lty in ltys.iter() {
+                    if let Some(idx) = rtys_.iter().position(|r| r == lty) {
+                        rtys_.remove(idx);
+                        let idx = ltys_.iter().position(|l| l == lty).unwrap();
+                        ltys_.remove(idx);
                     }
-                    rtys.rotate_left(1);
                 }
-                return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
-                    self.ctx.cfg.input.clone(),
-                    line!() as usize,
-                    self.loc.loc(),
-                    self.ctx.caused_by(),
-                    self.param_name.as_ref().unwrap_or(&Str::ever("_")),
-                    None,
-                    maybe_sup,
-                    maybe_sub,
-                    self.ctx.get_candidates(maybe_sub),
-                    self.ctx.get_simple_type_mismatch_hint(maybe_sup, maybe_sub),
-                )));
+                // EqHash and T <: Eq and Ord
+                for lty in ltys_.iter() {
+                    // lty: EqHash
+                    // rty: Eq, Ord
+                    for rty in rtys_.iter() {
+                        if self.ctx.subtype_of(lty, rty) {
+                            self.sub_unify(lty, rty)?;
+                            continue;
+                        }
+                    }
+                }
             }
+            // TODO: Preferentially compare same-structure types (e.g. K(?T) <: K(?U))
+            // Nat or Str or NoneType <: NoneType or ?T or Int
+            // => Str <: ?T
             // (Int or ?T) <: (?U or Int)
             // OK: (Int <: Int); (?T <: ?U)
             // NG: (Int <: ?U); (?T <: Int)
             (Or(ltys), Or(rtys)) => {
-                let ltys = ltys.to_vec();
-                let mut rtys = rtys.to_vec();
-                for _ in 0..rtys.len() {
-                    if ltys
-                        .iter()
-                        .zip(rtys.iter())
-                        .all(|(l, r)| self.ctx.subtype_of(l, r))
-                    {
-                        for (l, r) in ltys.iter().zip(rtys.iter()) {
-                            self.sub_unify(l, r)?;
-                        }
-                        return Ok(());
+                let mut ltys_ = ltys.clone();
+                let mut rtys_ = rtys.clone();
+                // Nat or T or Str <: Str or Int or NoneType
+                // => Nat or T <: Int or NoneType
+                for lty in ltys {
+                    if rtys_.linear_remove(lty) {
+                        ltys_.linear_remove(lty);
                     }
-                    rtys.rotate_left(1);
                 }
-                return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
-                    self.ctx.cfg.input.clone(),
-                    line!() as usize,
-                    self.loc.loc(),
-                    self.ctx.caused_by(),
-                    self.param_name.as_ref().unwrap_or(&Str::ever("_")),
-                    None,
-                    maybe_sup,
-                    maybe_sub,
-                    self.ctx.get_candidates(maybe_sub),
-                    self.ctx.get_simple_type_mismatch_hint(maybe_sup, maybe_sub),
-                )));
+                // Nat or T <: Int or NoneType
+                for lty in ltys_.iter() {
+                    // lty: Nat
+                    // rty: Int, NoneType
+                    for rty in rtys_.iter() {
+                        if self.ctx.subtype_of(lty, rty) {
+                            self.sub_unify(lty, rty)?;
+                            continue;
+                        }
+                    }
+                }
             }
             // NG: Nat <: ?T or Int ==> Nat or Int (?T = Nat)
             // OK: Nat <: ?T or Int ==> ?T or Int
