@@ -6,6 +6,7 @@ use erg_common::dict::Dict as HashMap;
 use erg_common::error::Location;
 #[allow(unused_imports)]
 use erg_common::log;
+use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::set::Set as HashSet;
 use erg_common::traits::{Locational, NestedDisplay, NoTypeDisplay, Stream};
 use erg_common::{
@@ -3216,6 +3217,7 @@ impl Module {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct HIR {
     pub name: Str,
+    pub dependencies: HashSet<NormalizedPathBuf>,
     pub module: Module,
 }
 
@@ -3229,13 +3231,25 @@ impl Default for HIR {
     fn default() -> Self {
         Self {
             name: Str::ever("<module>"),
+            dependencies: HashSet::default(),
             module: Module(vec![]),
         }
     }
 }
 
 impl HIR {
-    pub const fn new(name: Str, module: Module) -> Self {
-        Self { name, module }
+    pub fn new(name: Str, module: Module) -> Self {
+        Self {
+            name,
+            dependencies: HashSet::default(),
+            module,
+        }
+    }
+
+    pub fn with_dependencies(self, deps: HashSet<NormalizedPathBuf>) -> Self {
+        Self {
+            dependencies: self.dependencies.concat(deps),
+            ..self
+        }
     }
 }

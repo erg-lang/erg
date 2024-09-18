@@ -13,6 +13,7 @@ use erg_common::consts::PYTHON_MODE;
 use erg_common::dict::Dict;
 use erg_common::env::erg_path;
 use erg_common::pathutil::{project_entry_dir_of, NormalizedPathBuf};
+use erg_common::set::Set;
 use erg_common::shared::{MappedRwLockReadGuard, Shared};
 use erg_common::spawn::{safe_yield, spawn_new_thread};
 use erg_common::traits::Stream;
@@ -344,6 +345,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 if let Err(err) = _self.dispatch(msg) {
                     lsp_log!("error: {err}");
                     if err.to_string().contains("sending on a closed channel") {
+                        _self
+                            .send_error_info("An error occurred. Restarting...")
+                            .unwrap();
                         _self.restart();
                     };
                 }
@@ -371,6 +375,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                         if let Err(err) = _self.dispatch(msg) {
                             lsp_log!("error: {err}");
                             if err.to_string().contains("sending on a closed channel") {
+                                _self
+                                    .send_error_info("An error occurred again. Restarting...")
+                                    .unwrap();
                                 _self.restart();
                             };
                         }
@@ -882,7 +889,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 let ver = params.text_document.version;
                 self.file_cache.update(&uri, code.clone(), Some(ver));
                 let token = self.start_work_done_progress("checking files ...");
-                let res = self.check_file(uri, code);
+                let mut checked = Set::new();
+                let res = self.check_file(uri.clone(), code, &mut checked);
+                // self.send_empty_diagnostics(checked)?;
                 self.stop_work_done_progress(token, "checking done");
                 res
             }

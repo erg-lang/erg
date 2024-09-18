@@ -6,9 +6,17 @@ use std::sync::mpsc::Receiver;
 use std::thread::sleep;
 use std::time::Duration;
 
+use lsp_types::{
+    ConfigurationParams, Diagnostic, DiagnosticSeverity, NumberOrString, Position, ProgressParams,
+    ProgressParamsValue, PublishDiagnosticsParams, Range, Url, WorkDoneProgress,
+    WorkDoneProgressBegin, WorkDoneProgressCreateParams, WorkDoneProgressEnd,
+};
+use serde_json::json;
+
 use erg_common::consts::PYTHON_MODE;
 use erg_common::dict::Dict;
-use erg_common::pathutil::{project_entry_dir_of, project_entry_file_of};
+use erg_common::pathutil::{project_entry_dir_of, project_entry_file_of, NormalizedPathBuf};
+use erg_common::set::Set;
 use erg_common::spawn::{safe_yield, spawn_new_thread};
 use erg_common::style::*;
 use erg_common::{fn_name, lsp_log};
@@ -18,13 +26,6 @@ use erg_compiler::erg_parser::ast::Module;
 use erg_compiler::erg_parser::error::IncompleteArtifact;
 use erg_compiler::erg_parser::parse::Parsable;
 use erg_compiler::error::CompileErrors;
-
-use lsp_types::{
-    ConfigurationParams, Diagnostic, DiagnosticSeverity, NumberOrString, Position, ProgressParams,
-    ProgressParamsValue, PublishDiagnosticsParams, Range, Url, WorkDoneProgress,
-    WorkDoneProgressBegin, WorkDoneProgressCreateParams, WorkDoneProgressEnd,
-};
-use serde_json::json;
 
 use crate::_log;
 use crate::channels::WorkerMessage;
@@ -95,16 +96,20 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             return Ok(());
         }
         // self.clear_cache(&uri);
-        self.check_file(uri, code)
+        let mut checked = Set::new();
+        self.check_file(uri, code, &mut checked)?;
+        self.send_empty_diagnostics(checked)?;
+        Ok(())
     }
 
     pub(crate) fn check_file(
         &mut self,
         uri: NormalizedUrl,
         code: impl Into<String>,
+        checked: &mut Set<NormalizedUrl>,
     ) -> ELSResult<()> {
         _log!(self, "checking {uri}");
-        if self.file_cache.editing.borrow().contains(&uri) {
+        if self.file_cache.editing.borrow().contains(&uri) || checked.contains(&uri) {
             _log!(self, "skipped: {uri}");
             return Ok(());
         }
@@ -170,6 +175,15 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 (artifact, CheckStatus::Failed)
             }
         };
+        checked.insert(uri.clone());
+        if let Some(files) = artifact.object.as_ref().map(|art| &art.dependencies) {
+            checked.extend(
+                files
+                    .iter()
+                    .cloned()
+                    .filter_map(|file| NormalizedUrl::from_file_path(file).ok()),
+            );
+        }
         let ast = match self.build_ast(&uri) {
             Ok(ast) => Some(ast),
             Err(BuildASTError::ParseError(err)) => err.ast,
@@ -192,10 +206,23 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         for dep in dependents {
             // _log!(self, "dep: {dep}");
             let code = self.file_cache.get_entire_code(&dep)?.to_string();
-            self.check_file(dep, code)?;
+            self.check_file(dep, code, checked)?;
         }
         self.shared.errors.extend(artifact.errors);
         self.shared.warns.extend(artifact.warns);
+        Ok(())
+    }
+
+    pub(crate) fn send_empty_diagnostics(&self, checked: Set<NormalizedUrl>) -> ELSResult<()> {
+        for checked in checked {
+            let Ok(path) = checked.to_file_path() else {
+                continue;
+            };
+            let path = NormalizedPathBuf::from(path);
+            if self.shared.errors.get(&path).is_empty() && self.shared.warns.get(&path).is_empty() {
+                self.send_diagnostics(checked.raw(), vec![])?;
+            }
+        }
         Ok(())
     }
 
@@ -353,7 +380,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                         };
                         if latest_ver != ver {
                             if let Ok(code) = _self.file_cache.get_entire_code(&uri) {
-                                let _ = _self.check_file(uri.clone(), code);
+                                let mut checked = Set::new();
+                                let _ = _self.check_file(uri.clone(), code, &mut checked);
+                                _self.send_empty_diagnostics(checked).unwrap();
                                 file_vers.insert(uri, latest_ver);
                             }
                         }
@@ -473,7 +502,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     }))
                     .unwrap();
                 if let Ok(code) = _self.file_cache.get_entire_code(&main_uri) {
-                    let _ = _self.check_file(main_uri.clone(), code);
+                    let mut checked = Set::new();
+                    let _ = _self.check_file(main_uri.clone(), code, &mut checked);
+                    _self.send_empty_diagnostics(checked).unwrap();
                 }
                 work_done!(token, uris);
             },

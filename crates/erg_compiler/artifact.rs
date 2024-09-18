@@ -29,7 +29,7 @@ pub struct IncompleteArtifact<Inner = HIR> {
     pub warns: CompileErrors,
 }
 
-impl fmt::Display for IncompleteArtifact {
+impl<I> fmt::Display for IncompleteArtifact<I> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if !self.warns.is_empty() {
             writeln!(f, "{}", self.warns)?;
@@ -38,10 +38,10 @@ impl fmt::Display for IncompleteArtifact {
     }
 }
 
-impl std::error::Error for IncompleteArtifact {}
+impl<I: fmt::Debug> std::error::Error for IncompleteArtifact<I> {}
 
-impl From<CompleteArtifact> for IncompleteArtifact {
-    fn from(artifact: CompleteArtifact) -> Self {
+impl<Inner> From<CompleteArtifact<Inner>> for IncompleteArtifact<Inner> {
+    fn from(artifact: CompleteArtifact<Inner>) -> Self {
         Self {
             object: Some(artifact.object),
             errors: CompileErrors::empty(),
@@ -77,8 +77,8 @@ impl fmt::Display for ErrorArtifact {
 
 impl std::error::Error for ErrorArtifact {}
 
-impl From<IncompleteArtifact> for ErrorArtifact {
-    fn from(artifact: IncompleteArtifact) -> Self {
+impl<Inner> From<IncompleteArtifact<Inner>> for ErrorArtifact {
+    fn from(artifact: IncompleteArtifact<Inner>) -> Self {
         Self {
             errors: artifact.errors,
             warns: artifact.warns,

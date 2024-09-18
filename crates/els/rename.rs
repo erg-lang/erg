@@ -1,25 +1,27 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::time::SystemTime;
+use std::thread::sleep;
+use std::time::{Duration, SystemTime};
 
-use erg_common::pathutil::NormalizedPathBuf;
-use erg_common::traits::{Locational, Stream};
-use erg_compiler::erg_parser::parse::Parsable;
 use serde::Deserialize;
 use serde_json::json;
 use serde_json::Value;
-
-use erg_common::dict::Dict;
-
-use erg_compiler::artifact::BuildRunnable;
-use erg_compiler::hir::{Expr, Literal};
-use erg_compiler::varinfo::{AbsLocation, VarKind};
 
 use lsp_types::{
     DocumentChangeOperation, DocumentChanges, OneOf, OptionalVersionedTextDocumentIdentifier,
     RenameFile, RenameFilesParams, RenameParams, ResourceOp, TextDocumentEdit, TextEdit, Url,
     WorkspaceEdit,
 };
+
+use erg_common::dict::Dict;
+use erg_common::pathutil::NormalizedPathBuf;
+use erg_common::set::Set;
+use erg_common::traits::{Locational, Stream};
+
+use erg_compiler::artifact::BuildRunnable;
+use erg_compiler::erg_parser::parse::Parsable;
+use erg_compiler::hir::{Expr, Literal};
+use erg_compiler::varinfo::{AbsLocation, VarKind};
 
 #[allow(unused_imports)]
 use crate::_log;
@@ -93,14 +95,16 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     if self.all_changed(&timestamps) {
                         break;
                     }
-                    std::thread::sleep(std::time::Duration::from_millis(50));
+                    sleep(Duration::from_millis(50));
                 }
+                let mut checked = Set::new();
                 // recheck dependencies and finally the file itself
                 for dep in dependencies {
                     let code = self.file_cache.get_entire_code(&dep)?.to_string();
-                    self.check_file(dep.clone(), code)?;
+                    self.check_file(dep.clone(), code, &mut checked)?;
                     self.file_cache.editing.borrow_mut().remove(&dep);
                 }
+                self.send_empty_diagnostics(checked)?;
                 // dependents are checked after changes are committed
                 return Ok(());
             }

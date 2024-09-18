@@ -22,6 +22,7 @@ use erg_common::io::Input;
 #[allow(unused)]
 use erg_common::log;
 use erg_common::pathutil::{mod_name, project_entry_dir_of, NormalizedPathBuf};
+use erg_common::set::Set;
 use erg_common::spawn::spawn_new_thread;
 use erg_common::str::Str;
 use erg_common::traits::{ExitStatus, New, Runnable, Stream};
@@ -277,7 +278,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable> Buildable
         &mut self,
         ast: AST,
         mode: &str,
-    ) -> Result<CompleteArtifact<crate::hir::HIR>, IncompleteArtifact<crate::hir::HIR>> {
+    ) -> Result<CompleteArtifact, IncompleteArtifact> {
         self.build_root(ast, mode)
     }
     fn pop_context(&mut self) -> Option<ModuleContext> {
@@ -820,14 +821,29 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         log!(info "Start to spawn dependencies processes");
         let path = NormalizedPathBuf::from(self.cfg.input.path());
         let mut graph = self.shared.graph.clone_inner();
-        self.build_deps_and_module(&path, &mut graph);
+        let deps = self.build_deps_and_module(&path, &mut graph);
         log!(info "All dependencies have started to analyze");
         debug_power_assert!(self.asts.len(), ==, 0);
         self.finalize();
-        self.main_builder.build_from_ast(ast, mode)
+        match self.main_builder.build_from_ast(ast, mode) {
+            Ok(artifact) => Ok(CompleteArtifact::new(
+                artifact.object.with_dependencies(deps),
+                artifact.warns,
+            )),
+            Err(artifact) => Err(IncompleteArtifact::new(
+                artifact.object.map(|hir| hir.with_dependencies(deps)),
+                artifact.errors,
+                artifact.warns,
+            )),
+        }
     }
 
-    fn build_deps_and_module(&mut self, path: &NormalizedPathBuf, graph: &mut ModuleGraph) {
+    fn build_deps_and_module(
+        &mut self,
+        path: &NormalizedPathBuf,
+        graph: &mut ModuleGraph,
+    ) -> Set<NormalizedPathBuf> {
+        let mut deps = Set::new();
         let mut ancestors = graph.ancestors(path).into_vec();
         let nmods = ancestors.len();
         let pad = nmods.to_string().len();
@@ -842,6 +858,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
             if graph.ancestors(&ancestor).is_empty() {
                 graph.remove(&ancestor);
                 if let Some(entry) = self.asts.remove(&ancestor) {
+                    deps.insert(ancestor.clone());
                     if print_progress {
                         let name = ancestor.file_name().unwrap_or_default().to_string_lossy();
                         let checked = nmods - ancestors.len();
@@ -867,8 +884,10 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         if print_progress {
             println!();
         }
+        deps
     }
 
+    // REVIEW: should return dep files?
     fn build_inlined_module(&mut self, path: &NormalizedPathBuf, graph: &mut ModuleGraph) {
         if self.shared.get_module(path).is_some() {
             // do nothing
