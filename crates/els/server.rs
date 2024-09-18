@@ -722,7 +722,8 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
 
     pub fn dispatch(&mut self, msg: Value) -> ELSResult<()> {
         match (
-            msg.get("id").and_then(|i| i.as_i64()),
+            msg.get("id")
+                .and_then(|i| i.as_i64().or(i.as_str().and_then(|s| s.parse().ok()))),
             msg.get("method").and_then(|m| m.as_str()),
         ) {
             (Some(id), Some(method)) => self.handle_request(&msg, id, method),
@@ -767,6 +768,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                                 let _ = _self.send_stdout(&LSPResult::new(id, result));
                             }
                             Err(err) => {
+                                lsp_log!("error: {err}");
                                 let _ = _self.send_stdout(&ErrorMessage::new(
                                     Some(id),
                                     format!("err from {}: {err}", type_name::<R>()).into(),
@@ -779,6 +781,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                         break;
                     }
                     Err(err) => {
+                        lsp_log!("error: {err}");
                         _log!(_self, "error: {err}");
                         break;
                     }

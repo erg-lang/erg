@@ -356,6 +356,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let mut _self = self.clone();
         spawn_new_thread(
             move || {
+                while !_self.flags.client_initialized() {
+                    safe_yield();
+                }
                 let mut file_vers = Dict::<NormalizedUrl, i32>::new();
                 loop {
                     if _self
@@ -521,10 +524,12 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             return;
         }
         let _self = self.clone();
-        // let mut self_ = self.clone();
         // FIXME: close this thread when the server is restarted
         spawn_new_thread(
             move || {
+                while !_self.flags.client_initialized() {
+                    safe_yield();
+                }
                 loop {
                     // self.send_log("checking client health").unwrap();
                     let params = ConfigurationParams { items: vec![] };
