@@ -9,7 +9,7 @@ use erg_parser::ast::{
     TypeSpec, AST,
 };
 
-use crate::error::{TyCheckError, TyCheckErrors};
+use crate::error::{Failable, TyCheckError, TyCheckErrors};
 
 /// Combine method definitions across multiple modules, specialized class contexts, etc.
 #[derive(Debug, Default)]
@@ -31,7 +31,7 @@ impl ASTLinker {
         }
     }
 
-    pub fn link(mut self, ast: AST, mode: &str) -> Result<AST, TyCheckErrors> {
+    pub fn link(mut self, ast: AST, mode: &str) -> Failable<AST> {
         log!(info "the AST-linking process has started.");
         let mut new = vec![];
         for chunk in ast.module.into_iter() {
@@ -111,7 +111,7 @@ impl ASTLinker {
         if self.errs.is_empty() {
             Ok(ast)
         } else {
-            Err(self.errs)
+            Err((ast, self.errs))
         }
     }
 

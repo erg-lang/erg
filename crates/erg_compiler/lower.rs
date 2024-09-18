@@ -3770,11 +3770,13 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
     pub fn lower(&mut self, ast: AST, mode: &str) -> Result<CompleteArtifact, IncompleteArtifact> {
         log!(info "the AST lowering process has started.");
         log!(info "the type-checking process has started.");
-        let ast = ASTLinker::new(self.cfg.clone())
-            .link(ast, mode)
-            .map_err(|errs| {
-                IncompleteArtifact::new(None, errs, LowerWarnings::from(self.warns.take_all()))
-            })?;
+        let ast = match ASTLinker::new(self.cfg.clone()).link(ast, mode) {
+            Ok(ast) => ast,
+            Err((ast, errs)) => {
+                self.errs.extend(errs);
+                ast
+            }
+        };
         if mode == "declare" {
             let hir = self.declare_module(ast);
             if self.errs.is_empty() {
