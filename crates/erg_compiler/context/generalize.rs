@@ -289,17 +289,21 @@ impl Generalizer {
                 }
                 proj_call(lhs, attr_name, args)
             }
-            And(l, r) => {
-                let l = self.generalize_t(*l, uninit);
-                let r = self.generalize_t(*r, uninit);
+            And(ands) => {
                 // not `self.intersection` because types are generalized
-                and(l, r)
+                let ands = ands
+                    .into_iter()
+                    .map(|t| self.generalize_t(t, uninit))
+                    .collect();
+                Type::checked_and(ands)
             }
-            Or(l, r) => {
-                let l = self.generalize_t(*l, uninit);
-                let r = self.generalize_t(*r, uninit);
+            Or(ors) => {
                 // not `self.union` because types are generalized
-                or(l, r)
+                let ors = ors
+                    .into_iter()
+                    .map(|t| self.generalize_t(t, uninit))
+                    .collect();
+                Type::checked_or(ors)
             }
             Not(l) => not(self.generalize_t(*l, uninit)),
             Structural(ty) => {
@@ -1045,15 +1049,23 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 let pred = self.deref_pred(*refine.pred)?;
                 Ok(refinement(refine.var, t, pred))
             }
-            And(l, r) => {
-                let l = self.deref_tyvar(*l)?;
-                let r = self.deref_tyvar(*r)?;
-                Ok(self.ctx.intersection(&l, &r))
+            And(ands) => {
+                let mut new_ands = vec![];
+                for t in ands.into_iter() {
+                    new_ands.push(self.deref_tyvar(t)?);
+                }
+                Ok(new_ands
+                    .into_iter()
+                    .fold(Type::Obj, |acc, t| self.ctx.intersection(&acc, &t)))
             }
-            Or(l, r) => {
-                let l = self.deref_tyvar(*l)?;
-                let r = self.deref_tyvar(*r)?;
-                Ok(self.ctx.union(&l, &r))
+            Or(ors) => {
+                let mut new_ors = vec![];
+                for t in ors.into_iter() {
+                    new_ors.push(self.deref_tyvar(t)?);
+                }
+                Ok(new_ors
+                    .into_iter()
+                    .fold(Type::Never, |acc, t| self.ctx.union(&acc, &t)))
             }
             Not(ty) => {
                 let ty = self.deref_tyvar(*ty)?;
@@ -1733,22 +1745,33 @@ impl Context {
     /// ```
     pub(crate) fn squash_tyvar(&self, typ: Type) -> Type {
         match typ {
-            Or(l, r) => {
-                let l = self.squash_tyvar(*l);
-                let r = self.squash_tyvar(*r);
+            Or(tys) => {
+                let new_tys = tys
+                    .into_iter()
+                    .map(|t| self.squash_tyvar(t))
+                    .collect::<Vec<_>>();
+                let mut union = Never;
                 // REVIEW:
-                if l.is_unnamed_unbound_var() && r.is_unnamed_unbound_var() {
-                    match (self.subtype_of(&l, &r), self.subtype_of(&r, &l)) {
-                        (true, true) | (true, false) => {
-                            let _ = self.sub_unify(&l, &r, &(), None);
+                if new_tys.iter().all(|t| t.is_unnamed_unbound_var()) {
+                    for ty in new_tys.iter() {
+                        if union == Never {
+                            union = ty.clone();
+                            continue;
                         }
-                        (false, true) => {
-                            let _ = self.sub_unify(&r, &l, &(), None);
+                        match (self.subtype_of(&union, ty), self.subtype_of(&union, ty)) {
+                            (true, true) | (true, false) => {
+                                let _ = self.sub_unify(&union, ty, &(), None);
+                            }
+                            (false, true) => {
+                                let _ = self.sub_unify(ty, &union, &(), None);
+                            }
+                            _ => {}
                         }
-                        _ => {}
                     }
                 }
-                self.union(&l, &r)
+                new_tys
+                    .into_iter()
+                    .fold(Never, |acc, t| self.union(&acc, &t))
             }
             FreeVar(ref fv) if fv.constraint_is_sandwiched() => {
                 let (sub_t, super_t) = fv.get_subsup().unwrap();

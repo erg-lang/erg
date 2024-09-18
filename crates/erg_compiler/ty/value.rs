@@ -2080,7 +2080,7 @@ impl ValueObj {
 
     pub fn has_type_satisfies(&self, f: impl Fn(&Type) -> bool + Copy) -> bool {
         match self {
-            Self::Type(t) => t.typ().has_type_satisfies(f),
+            Self::Type(t) => f(t.typ()),
             Self::List(ts) | Self::Tuple(ts) => ts.iter().any(|t| t.has_type_satisfies(f)),
             Self::UnsizedList(elem) => elem.has_type_satisfies(f),
             Self::Set(ts) => ts.iter().any(|t| t.has_type_satisfies(f)),

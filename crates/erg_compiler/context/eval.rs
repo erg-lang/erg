@@ -2285,44 +2285,42 @@ impl Context {
                     Err((t, errs))
                 }
             }
-            Type::And(l, r) => {
-                let l = match self.eval_t_params(*l, level, t_loc) {
-                    Ok(l) => l,
-                    Err((l, es)) => {
-                        errs.extend(es);
-                        l
+            Type::And(ands) => {
+                let mut new_ands = set! {};
+                for and in ands.into_iter() {
+                    match self.eval_t_params(and, level, t_loc) {
+                        Ok(and) => {
+                            new_ands.insert(and);
+                        }
+                        Err((and, es)) => {
+                            new_ands.insert(and);
+                            errs.extend(es);
+                        }
                     }
-                };
-                let r = match self.eval_t_params(*r, level, t_loc) {
-                    Ok(r) => r,
-                    Err((r, es)) => {
-                        errs.extend(es);
-                        r
-                    }
-                };
-                let intersec = self.intersection(&l, &r);
+                }
+                let intersec = new_ands
+                    .into_iter()
+                    .fold(Type::Obj, |l, r| self.intersection(&l, &r));
                 if errs.is_empty() {
                     Ok(intersec)
                 } else {
                     Err((intersec, errs))
                 }
             }
-            Type::Or(l, r) => {
-                let l = match self.eval_t_params(*l, level, t_loc) {
-                    Ok(l) => l,
-                    Err((l, es)) => {
-                        errs.extend(es);
-                        l
+            Type::Or(ors) => {
+                let mut new_ors = set! {};
+                for or in ors.into_iter() {
+                    match self.eval_t_params(or, level, t_loc) {
+                        Ok(or) => {
+                            new_ors.insert(or);
+                        }
+                        Err((or, es)) => {
+                            new_ors.insert(or);
+                            errs.extend(es);
+                        }
                     }
-                };
-                let r = match self.eval_t_params(*r, level, t_loc) {
-                    Ok(r) => r,
-                    Err((r, es)) => {
-                        errs.extend(es);
-                        r
-                    }
-                };
-                let union = self.union(&l, &r);
+                }
+                let union = new_ors.into_iter().fold(Never, |l, r| self.union(&l, &r));
                 if errs.is_empty() {
                     Ok(union)
                 } else {

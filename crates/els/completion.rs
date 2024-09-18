@@ -42,24 +42,30 @@ fn comp_item_kind(t: &Type, muty: Mutability) -> CompletionItemKind {
         Type::Subr(_) | Type::Quantified(_) => CompletionItemKind::FUNCTION,
         Type::ClassType => CompletionItemKind::CLASS,
         Type::TraitType => CompletionItemKind::INTERFACE,
-        Type::Or(l, r) => {
-            let l = comp_item_kind(l, muty);
-            let r = comp_item_kind(r, muty);
-            if l == r {
-                l
+        Type::Or(tys) => {
+            let fst = comp_item_kind(tys.iter().next().unwrap(), muty);
+            if tys
+                .iter()
+                .map(|t| comp_item_kind(t, muty))
+                .all(|k| k == fst)
+            {
+                fst
             } else if muty.is_const() {
                 CompletionItemKind::CONSTANT
             } else {
                 CompletionItemKind::VARIABLE
             }
         }
-        Type::And(l, r) => {
-            let l = comp_item_kind(l, muty);
-            let r = comp_item_kind(r, muty);
-            if l == CompletionItemKind::VARIABLE {
-                r
+        Type::And(tys) => {
+            for k in tys.iter().map(|t| comp_item_kind(t, muty)) {
+                if k != CompletionItemKind::VARIABLE {
+                    return k;
+                }
+            }
+            if muty.is_const() {
+                CompletionItemKind::CONSTANT
             } else {
-                l
+                CompletionItemKind::VARIABLE
             }
         }
         Type::Refinement(r) => comp_item_kind(&r.t, muty),

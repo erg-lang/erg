@@ -656,7 +656,8 @@ impl Predicate {
 
     pub fn qvars(&self) -> Set<(Str, Constraint)> {
         match self {
-            Self::Value(_) | Self::Const(_) | Self::Failure => set! {},
+            Self::Const(_) | Self::Failure => set! {},
+            Self::Value(val) => val.qvars(),
             Self::Call { receiver, args, .. } => {
                 let mut set = receiver.qvars();
                 for arg in args {
@@ -680,9 +681,35 @@ impl Predicate {
         }
     }
 
+    pub fn has_type_satisfies(&self, f: impl Fn(&Type) -> bool + Copy) -> bool {
+        match self {
+            Self::Const(_) | Self::Failure => false,
+            Self::Value(val) => val.has_type_satisfies(f),
+            Self::Call { receiver, args, .. } => {
+                receiver.has_type_satisfies(f) || args.iter().any(|a| a.has_type_satisfies(f))
+            }
+            Self::Attr { receiver, .. } => receiver.has_type_satisfies(f),
+            Self::Equal { rhs, .. }
+            | Self::GreaterEqual { rhs, .. }
+            | Self::LessEqual { rhs, .. }
+            | Self::NotEqual { rhs, .. } => rhs.has_type_satisfies(f),
+            Self::GeneralEqual { lhs, rhs }
+            | Self::GeneralLessEqual { lhs, rhs }
+            | Self::GeneralGreaterEqual { lhs, rhs }
+            | Self::GeneralNotEqual { lhs, rhs } => {
+                lhs.has_type_satisfies(f) || rhs.has_type_satisfies(f)
+            }
+            Self::Or(lhs, rhs) | Self::And(lhs, rhs) => {
+                lhs.has_type_satisfies(f) || rhs.has_type_satisfies(f)
+            }
+            Self::Not(pred) => pred.has_type_satisfies(f),
+        }
+    }
+
     pub fn has_qvar(&self) -> bool {
         match self {
-            Self::Value(_) | Self::Const(_) | Self::Failure => false,
+            Self::Const(_) | Self::Failure => false,
+            Self::Value(val) => val.has_qvar(),
             Self::Call { receiver, args, .. } => {
                 receiver.has_qvar() || args.iter().any(|a| a.has_qvar())
             }
@@ -702,7 +729,8 @@ impl Predicate {
 
     pub fn has_unbound_var(&self) -> bool {
         match self {
-            Self::Value(_) | Self::Const(_) | Self::Failure => false,
+            Self::Const(_) | Self::Failure => false,
+            Self::Value(val) => val.has_unbound_var(),
             Self::Call { receiver, args, .. } => {
                 receiver.has_unbound_var() || args.iter().any(|a| a.has_unbound_var())
             }
@@ -724,7 +752,8 @@ impl Predicate {
 
     pub fn has_undoable_linked_var(&self) -> bool {
         match self {
-            Self::Value(_) | Self::Const(_) | Self::Failure => false,
+            Self::Const(_) | Self::Failure => false,
+            Self::Value(val) => val.has_undoable_linked_var(),
             Self::Call { receiver, args, .. } => {
                 receiver.has_undoable_linked_var()
                     || args.iter().any(|a| a.has_undoable_linked_var())

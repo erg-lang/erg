@@ -588,10 +588,10 @@ impl Context {
         neg.register_builtin_erg_decl(OP_NEG, op_t, Visibility::BUILTIN_PUBLIC);
         neg.register_builtin_erg_decl(OUTPUT, Type, Visibility::BUILTIN_PUBLIC);
         /* Num */
-        let mut num = Self::builtin_mono_trait(NUM, 2);
-        num.register_superclass(poly(ADD, vec![]), &add);
-        num.register_superclass(poly(SUB, vec![]), &sub);
-        num.register_superclass(poly(MUL, vec![]), &mul);
+        let num = Self::builtin_mono_trait(NUM, 2);
+        // num.register_superclass(poly(ADD, vec![]), &add);
+        // num.register_superclass(poly(SUB, vec![]), &sub);
+        // num.register_superclass(poly(MUL, vec![]), &mul);
         /* ToBool */
         let mut to_bool = Self::builtin_mono_trait(TO_BOOL, 2);
         let _Slf = mono_q(SELF, subtypeof(mono(TO_BOOL)));

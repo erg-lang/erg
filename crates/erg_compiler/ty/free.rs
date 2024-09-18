@@ -774,7 +774,12 @@ impl Free<Type> {
         let placeholder = placeholder.unwrap_or(&Type::Failure);
         let is_recursive = self.is_recursive();
         if is_recursive {
-            self.undoable_link(placeholder);
+            let target = Type::FreeVar(self.clone());
+            let placeholder_ = placeholder
+                .clone()
+                .eliminate_subsup(&target)
+                .eliminate_and_or_recursion(&target);
+            self.undoable_link(&placeholder_);
         }
         let res = f();
         if is_recursive {
@@ -884,7 +889,9 @@ impl Free<TyParam> {
         let placeholder = placeholder.unwrap_or(&TyParam::Failure);
         let is_recursive = self.is_recursive();
         if is_recursive {
-            self.undoable_link(placeholder);
+            let target = TyParam::FreeVar(self.clone());
+            let placeholder_ = placeholder.clone().eliminate_recursion(&target);
+            self.undoable_link(&placeholder_);
         }
         let res = f();
         if is_recursive {

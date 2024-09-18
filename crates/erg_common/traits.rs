@@ -1407,6 +1407,8 @@ impl<T: Immutable + ?Sized> Immutable for &T {}
 impl<T: Immutable> Immutable for Option<T> {}
 impl<T: Immutable> Immutable for Vec<T> {}
 impl<T: Immutable> Immutable for [T] {}
+impl<T: Immutable, U: Immutable> Immutable for (T, U) {}
+impl<T: Immutable, U: Immutable, V: Immutable> Immutable for (T, U, V) {}
 impl<T: Immutable + ?Sized> Immutable for Box<T> {}
 impl<T: Immutable + ?Sized> Immutable for std::rc::Rc<T> {}
 impl<T: Immutable + ?Sized> Immutable for std::sync::Arc<T> {}

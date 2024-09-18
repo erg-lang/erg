@@ -17,6 +17,11 @@ fn exec_advanced_type_spec() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_and() -> Result<(), ()> {
+    expect_success("tests/should_ok/and.er", 0)
+}
+
+#[test]
 fn exec_args_expansion() -> Result<(), ()> {
     expect_success("tests/should_ok/args_expansion.er", 0)
 }
@@ -328,6 +333,11 @@ fn exec_operators() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_or() -> Result<(), ()> {
+    expect_success("tests/should_ok/or.er", 0)
+}
+
+#[test]
 fn exec_patch() -> Result<(), ()> {
     expect_success("examples/patch.er", 0)
 }
@@ -528,6 +538,11 @@ fn exec_list_member_err() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_and_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/and.er", 0, 1)
+}
+
+#[test]
 fn exec_as() -> Result<(), ()> {
     expect_failure("tests/should_err/as.er", 0, 6)
 }
@@ -632,6 +647,11 @@ fn exec_invalid_param() -> Result<(), ()> {
 #[test]
 fn exec_move_check() -> Result<(), ()> {
     expect_failure("examples/move_check.er", 1, 1)
+}
+
+#[test]
+fn exec_or_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/or.er", 0, 1)
 }
 
 #[test]

@@ -382,6 +382,20 @@ impl<T: Hash + Eq + Clone> Set<T> {
         self.insert(other);
         self
     }
+
+    /// ```
+    /// # use erg_common::set;
+    /// assert_eq!(set!{1, 2}.product(&set!{3, 4}), set!{(&1, &3), (&1, &4), (&2, &3), (&2, &4)});
+    /// ```
+    pub fn product<'l, 'r, U: Hash + Eq>(&'l self, other: &'r Set<U>) -> Set<(&'l T, &'r U)> {
+        let mut res = set! {};
+        for x in self.iter() {
+            for y in other.iter() {
+                res.insert((x, y));
+            }
+        }
+        res
+    }
 }
 
 impl<T: Hash + Ord> Set<T> {

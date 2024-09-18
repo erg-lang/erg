@@ -18,6 +18,16 @@ impl<T: fmt::Display, E: fmt::Display> fmt::Display for Triple<T, E> {
 }
 
 impl<T, E> Triple<T, E> {
+    pub const fn is_ok(&self) -> bool {
+        matches!(self, Triple::Ok(_))
+    }
+    pub const fn is_err(&self) -> bool {
+        matches!(self, Triple::Err(_))
+    }
+    pub const fn is_none(&self) -> bool {
+        matches!(self, Triple::None)
+    }
+
     pub fn none_then(self, err: E) -> Result<T, E> {
         match self {
             Triple::None => Err(err),

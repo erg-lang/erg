@@ -1,0 +1,3 @@
+a as Int or Str or NoneType = 1
+f _: Nat or NoneType or Str = None
+f a # ERR

@@ -627,6 +627,17 @@ impl RecursionCounter {
 
 #[macro_export]
 macro_rules! set_recursion_limit {
+    (panic, $msg:expr, $limit:expr) => {
+        use std::sync::atomic::AtomicU32;
+
+        static COUNTER: AtomicU32 = AtomicU32::new($limit);
+
+        let counter = $crate::macros::RecursionCounter::new(&COUNTER);
+        if counter.limit_reached() {
+            $crate::log!(err "Recursion limit reached");
+            panic!($msg);
+        }
+    };
     ($returns:expr, $limit:expr) => {
         use std::sync::atomic::AtomicU32;
 

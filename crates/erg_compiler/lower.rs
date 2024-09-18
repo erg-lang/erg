@@ -362,10 +362,9 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         }
     }
 
-    fn elem_err(&self, l: &Type, r: &Type, elem: &hir::Expr) -> LowerErrors {
+    fn elem_err(&self, union: Type, elem: &hir::Expr) -> LowerErrors {
         let elem_disp_notype = elem.to_string_notype();
-        let l = self.module.context.readable_type(l.clone());
-        let r = self.module.context.readable_type(r.clone());
+        let union = self.module.context.readable_type(union);
         LowerErrors::from(LowerError::syntax_error(
             self.cfg.input.clone(),
             line!() as usize,
@@ -379,10 +378,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             )
             .to_owned(),
             Some(switch_lang!(
-                "japanese" => format!("[..., {elem_disp_notype}: {l} or {r}]など明示的に型を指定してください"),
-                "simplified_chinese" => format!("请明确指定类型，例如: [..., {elem_disp_notype}: {l} or {r}]"),
-                "traditional_chinese" => format!("請明確指定類型，例如: [..., {elem_disp_notype}: {l} or {r}]"),
-                "english" => format!("please specify the type explicitly, e.g. [..., {elem_disp_notype}: {l} or {r}]"),
+                "japanese" => format!("[..., {elem_disp_notype}: {union}]など明示的に型を指定してください"),
+                "simplified_chinese" => format!("请明确指定类型，例如: [..., {elem_disp_notype}: {union}]"),
+                "traditional_chinese" => format!("請明確指定類型，例如: [..., {elem_disp_notype}: {union}]"),
+                "english" => format!("please specify the type explicitly, e.g. [..., {elem_disp_notype}: {union}]"),
             )),
         ))
     }
@@ -453,36 +452,25 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         union: &Type,
         elem: &hir::Expr,
     ) -> LowerResult<()> {
-        if ERG_MODE && expect_elem.is_none() {
-            if let Some((l, r)) = union_.union_pair() {
-                match (l.is_unbound_var(), r.is_unbound_var()) {
-                    // e.g. [1, "a"]
-                    (false, false) => {
-                        if let hir::Expr::TypeAsc(type_asc) = elem {
-                            // e.g. [1, "a": Str or NoneType]
-                            if !self
-                                .module
-                                .context
-                                .supertype_of(&type_asc.spec.spec_t, union)
-                            {
-                                return Err(self.elem_err(&l, &r, elem));
-                            } // else(OK): e.g. [1, "a": Str or Int]
-                        }
-                        // OK: ?T(:> {"a"}) or ?U(:> {"b"}) or {"c", "d"} => {"a", "b", "c", "d"} <: Str
-                        else if self
-                            .module
-                            .context
-                            .coerce(union_.derefine(), &())
-                            .map_or(true, |coerced| coerced.union_pair().is_some())
-                        {
-                            return Err(self.elem_err(&l, &r, elem));
-                        }
-                    }
-                    // TODO: check if the type is compatible with the other type
-                    (true, false) => {}
-                    (false, true) => {}
-                    (true, true) => {}
-                }
+        if ERG_MODE && expect_elem.is_none() && union_.union_size() > 1 {
+            if let hir::Expr::TypeAsc(type_asc) = elem {
+                // e.g. [1, "a": Str or NoneType]
+                if !self
+                    .module
+                    .context
+                    .supertype_of(&type_asc.spec.spec_t, union)
+                {
+                    return Err(self.elem_err(union_.clone(), elem));
+                } // else(OK): e.g. [1, "a": Str or Int]
+            }
+            // OK: ?T(:> {"a"}) or ?U(:> {"b"}) or {"c", "d"} => {"a", "b", "c", "d"} <: Str
+            else if self
+                .module
+                .context
+                .coerce(union_.derefine(), &())
+                .map_or(true, |coerced| coerced.union_pair().is_some())
+            {
+                return Err(self.elem_err(union_.clone(), elem));
             }
         }
         Ok(())
@@ -1502,9 +1490,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 }
                 _ => {}
             },
-            Type::And(lhs, rhs) => {
-                self.push_guard(nth, kind, lhs);
-                self.push_guard(nth, kind, rhs);
+            Type::And(tys) => {
+                for ty in tys {
+                    self.push_guard(nth, kind, ty);
+                }
             }
             _ => {}
         }

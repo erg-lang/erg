@@ -1,0 +1,3 @@
+a as Eq and Hash and Show and Add(Str) = "a"
+f _: Ord and Eq and Show and Hash = None
+f a # ERR

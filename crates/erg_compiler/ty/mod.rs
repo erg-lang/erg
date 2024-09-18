@@ -537,48 +537,15 @@ impl SubrType {
     }
 
     pub fn contains_tvar(&self, target: &FreeTyVar) -> bool {
-        self.non_default_params
-            .iter()
-            .any(|pt| pt.typ().contains_tvar(target))
-            || self
-                .var_params
-                .as_ref()
-                .map_or(false, |pt| pt.typ().contains_tvar(target))
-            || self.default_params.iter().any(|pt| {
-                pt.typ().contains_tvar(target)
-                    || pt.default_typ().is_some_and(|t| t.contains_tvar(target))
-            })
-            || self.return_t.contains_tvar(target)
+        self.has_type_satisfies(|t| t.contains_tvar(target))
     }
 
     pub fn contains_type(&self, target: &Type) -> bool {
-        self.non_default_params
-            .iter()
-            .any(|pt| pt.typ().contains_type(target))
-            || self
-                .var_params
-                .as_ref()
-                .map_or(false, |pt| pt.typ().contains_type(target))
-            || self.default_params.iter().any(|pt| {
-                pt.typ().contains_type(target)
-                    || pt.default_typ().is_some_and(|t| t.contains_type(target))
-            })
-            || self.return_t.contains_type(target)
+        self.has_type_satisfies(|t| t.contains_type(target))
     }
 
     pub fn contains_tp(&self, target: &TyParam) -> bool {
-        self.non_default_params
-            .iter()
-            .any(|pt| pt.typ().contains_tp(target))
-            || self
-                .var_params
-                .as_ref()
-                .map_or(false, |pt| pt.typ().contains_tp(target))
-            || self.default_params.iter().any(|pt| {
-                pt.typ().contains_tp(target)
-                    || pt.default_typ().is_some_and(|t| t.contains_tp(target))
-            })
-            || self.return_t.contains_tp(target)
+        self.has_type_satisfies(|t| t.contains_tp(target))
     }
 
     pub fn map(self, f: &mut impl FnMut(Type) -> Type) -> Self {
@@ -708,48 +675,27 @@ impl SubrType {
         Set::multi_intersection(qnames_sets).extended(structural_qname)
     }
 
-    pub fn has_qvar(&self) -> bool {
-        self.non_default_params.iter().any(|pt| pt.typ().has_qvar())
-            || self
-                .var_params
-                .as_ref()
-                .map_or(false, |pt| pt.typ().has_qvar())
+    pub fn has_type_satisfies(&self, f: impl Fn(&Type) -> bool + Copy) -> bool {
+        self.non_default_params.iter().any(|pt| f(pt.typ()))
+            || self.var_params.as_ref().map_or(false, |pt| f(pt.typ()))
             || self
                 .default_params
                 .iter()
-                .any(|pt| pt.typ().has_qvar() || pt.default_typ().is_some_and(|t| t.has_qvar()))
-            || self.return_t.has_qvar()
+                .any(|pt| f(pt.typ()) || pt.default_typ().is_some_and(f))
+            || self.kw_var_params.as_ref().map_or(false, |pt| f(pt.typ()))
+            || f(&self.return_t)
+    }
+
+    pub fn has_qvar(&self) -> bool {
+        self.has_type_satisfies(|t| t.has_qvar())
     }
 
     pub fn has_unbound_var(&self) -> bool {
-        self.non_default_params
-            .iter()
-            .any(|pt| pt.typ().has_unbound_var())
-            || self
-                .var_params
-                .as_ref()
-                .map_or(false, |pt| pt.typ().has_unbound_var())
-            || self.default_params.iter().any(|pt| {
-                pt.typ().has_unbound_var() || pt.default_typ().is_some_and(|t| t.has_unbound_var())
-            })
-            || self.return_t.has_unbound_var()
+        self.has_type_satisfies(|t| t.has_unbound_var())
     }
 
     pub fn has_undoable_linked_var(&self) -> bool {
-        self.non_default_params
-            .iter()
-            .any(|pt| pt.typ().has_undoable_linked_var())
-            || self
-                .var_params
-                .as_ref()
-                .map_or(false, |pt| pt.typ().has_undoable_linked_var())
-            || self.default_params.iter().any(|pt| {
-                pt.typ().has_undoable_linked_var()
-                    || pt
-                        .default_typ()
-                        .is_some_and(|t| t.has_undoable_linked_var())
-            })
-            || self.return_t.has_undoable_linked_var()
+        self.has_type_satisfies(|t| t.has_undoable_linked_var())
     }
 
     pub fn typarams(&self) -> Vec<TyParam> {
@@ -1410,8 +1356,8 @@ pub enum Type {
     Refinement(RefinementType),
     // e.g. |T: Type| T -> T
     Quantified(Box<Type>),
-    And(Box<Type>, Box<Type>),
-    Or(Box<Type>, Box<Type>),
+    And(Vec<Type>),
+    Or(Set<Type>),
     Not(Box<Type>),
     // NOTE: It was found that adding a new variant above `Poly` may cause a subtyping bug,
     // possibly related to enum internal numbering, but the cause is unknown.
@@ -1504,8 +1450,10 @@ impl PartialEq for Type {
             (Self::NamedTuple(lhs), Self::NamedTuple(rhs)) => lhs == rhs,
             (Self::Refinement(l), Self::Refinement(r)) => l == r,
             (Self::Quantified(l), Self::Quantified(r)) => l == r,
-            (Self::And(_, _), Self::And(_, _)) => self.ands().linear_eq(&other.ands()),
-            (Self::Or(_, _), Self::Or(_, _)) => self.ors().linear_eq(&other.ors()),
+            (Self::And(l), Self::And(r)) => {
+                l.iter().collect::<Set<_>>().linear_eq(&r.iter().collect())
+            }
+            (Self::Or(l), Self::Or(r)) => l.linear_eq(r),
             (Self::Not(l), Self::Not(r)) => l == r,
             (
                 Self::Poly {
@@ -1659,19 +1607,27 @@ impl LimitedDisplay for Type {
                 write!(f, "|")?;
                 quantified.limited_fmt(f, limit - 1)
             }
-            Self::And(lhs, rhs) => {
-                lhs.limited_fmt(f, limit - 1)?;
-                write!(f, " and ")?;
-                rhs.limited_fmt(f, limit - 1)
+            Self::And(ands) => {
+                for (i, ty) in ands.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, " and ")?;
+                    }
+                    ty.limited_fmt(f, limit - 1)?;
+                }
+                Ok(())
+            }
+            Self::Or(ors) => {
+                for (i, ty) in ors.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, " or ")?;
+                    }
+                    ty.limited_fmt(f, limit - 1)?;
+                }
+                Ok(())
             }
             Self::Not(ty) => {
                 write!(f, "not ")?;
                 ty.limited_fmt(f, limit - 1)
-            }
-            Self::Or(lhs, rhs) => {
-                lhs.limited_fmt(f, limit - 1)?;
-                write!(f, " or ")?;
-                rhs.limited_fmt(f, limit - 1)
             }
             Self::Poly { name, params } => {
                 write!(f, "{name}(")?;
@@ -1845,14 +1801,40 @@ impl From<Dict<Field, Type>> for Type {
 impl BitAnd for Type {
     type Output = Self;
     fn bitand(self, rhs: Self) -> Self::Output {
-        Self::And(Box::new(self), Box::new(rhs))
+        match (self, rhs) {
+            (Self::And(l), Self::And(r)) => Self::And([l, r].concat()),
+            (Self::Obj, other) | (other, Self::Obj) => other,
+            (Self::Never, _) | (_, Self::Never) => Self::Never,
+            (Self::And(mut l), r) => {
+                l.push(r);
+                Self::And(l)
+            }
+            (l, Self::And(mut r)) => {
+                r.push(l);
+                Self::And(r)
+            }
+            (l, r) => Self::checked_and(vec![l, r]),
+        }
     }
 }
 
 impl BitOr for Type {
     type Output = Self;
     fn bitor(self, rhs: Self) -> Self::Output {
-        Self::Or(Box::new(self), Box::new(rhs))
+        match (self, rhs) {
+            (Self::Or(l), Self::Or(r)) => Self::Or(l.union(&r)),
+            (Self::Obj, _) | (_, Self::Obj) => Self::Obj,
+            (Self::Never, other) | (other, Self::Never) => other,
+            (Self::Or(mut l), r) => {
+                l.insert(r);
+                Self::Or(l)
+            }
+            (l, Self::Or(mut r)) => {
+                r.insert(l);
+                Self::Or(r)
+            }
+            (l, r) => Self::checked_or(set! {l, r}),
+        }
     }
 }
 
@@ -1967,17 +1949,8 @@ impl HasLevel for Type {
                     .filter_map(|o| *o)
                     .min()
             }
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
-                let l = lhs
-                    .level()
-                    .unwrap_or(GENERIC_LEVEL)
-                    .min(rhs.level().unwrap_or(GENERIC_LEVEL));
-                if l == GENERIC_LEVEL {
-                    None
-                } else {
-                    Some(l)
-                }
-            }
+            Self::And(tys) => tys.iter().filter_map(|t| t.level()).min(),
+            Self::Or(tys) => tys.iter().filter_map(|t| t.level()).min(),
             Self::Not(ty) => ty.level(),
             Self::Record(attrs) => attrs.values().filter_map(|t| t.level()).min(),
             Self::NamedTuple(attrs) => attrs.iter().filter_map(|(_, t)| t.level()).min(),
@@ -2058,9 +2031,15 @@ impl HasLevel for Type {
             Self::Quantified(quant) => {
                 quant.set_level(level);
             }
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
-                lhs.set_level(level);
-                rhs.set_level(level);
+            Self::And(tys) => {
+                for t in tys.iter() {
+                    t.set_level(level);
+                }
+            }
+            Self::Or(tys) => {
+                for t in tys.iter() {
+                    t.set_level(level);
+                }
             }
             Self::Not(ty) => ty.set_level(level),
             Self::Record(attrs) => {
@@ -2211,9 +2190,9 @@ impl StructuralEq for Type {
             (Self::Guard(l), Self::Guard(r)) => l.structural_eq(r),
             // NG: (l.structural_eq(l2) && r.structural_eq(r2))
             //     || (l.structural_eq(r2) && r.structural_eq(l2))
-            (Self::And(_, _), Self::And(_, _)) => {
-                let self_ands = self.ands();
-                let other_ands = other.ands();
+            (Self::And(self_ands), Self::And(other_ands)) => {
+                let self_ands = self_ands.iter().collect::<Set<_>>();
+                let other_ands = other_ands.iter().collect::<Set<_>>();
                 if self_ands.len() != other_ands.len() {
                     return false;
                 }
@@ -2227,9 +2206,7 @@ impl StructuralEq for Type {
                 }
                 true
             }
-            (Self::Or(_, _), Self::Or(_, _)) => {
-                let self_ors = self.ors();
-                let other_ors = other.ors();
+            (Self::Or(self_ors), Self::Or(other_ors)) => {
                 if self_ors.len() != other_ors.len() {
                     return false;
                 }
@@ -2323,10 +2300,30 @@ impl Type {
         }
     }
 
+    pub fn checked_or(tys: Set<Type>) -> Self {
+        if tys.is_empty() {
+            panic!("tys is empty");
+        } else if tys.len() == 1 {
+            tys.into_iter().next().unwrap()
+        } else {
+            Self::Or(tys)
+        }
+    }
+
+    pub fn checked_and(tys: Vec<Type>) -> Self {
+        if tys.is_empty() {
+            panic!("tys is empty");
+        } else if tys.len() == 1 {
+            tys.into_iter().next().unwrap()
+        } else {
+            Self::And(tys)
+        }
+    }
+
     pub fn quantify(self) -> Self {
         debug_assert!(self.is_subr(), "{self} is not subr");
         match self {
-            Self::And(lhs, rhs) => lhs.quantify() & rhs.quantify(),
+            Self::And(tys) => Self::And(tys.into_iter().map(|t| t.quantify()).collect()),
             other => Self::Quantified(Box::new(other)),
         }
     }
@@ -2424,7 +2421,7 @@ impl Type {
             Self::Quantified(t) => t.is_procedure(),
             Self::Subr(subr) if subr.kind == SubrKind::Proc => true,
             Self::Refinement(refine) => refine.t.is_procedure(),
-            Self::And(lhs, rhs) => lhs.is_procedure() && rhs.is_procedure(),
+            Self::And(tys) => tys.iter().any(|t| t.is_procedure()),
             _ => false,
         }
     }
@@ -2442,6 +2439,7 @@ impl Type {
                 name.ends_with('!')
             }
             Self::Refinement(refine) => refine.t.is_mut_type(),
+            Self::And(tys) => tys.iter().any(|t| t.is_mut_type()),
             _ => false,
         }
     }
@@ -2460,6 +2458,7 @@ impl Type {
             Self::Poly { name, params, .. } if &name[..] == "Tuple" => params.is_empty(),
             Self::Refinement(refine) => refine.t.is_nonelike(),
             Self::Bounded { sup, .. } => sup.is_nonelike(),
+            Self::And(tys) => tys.iter().any(|t| t.is_nonelike()),
             _ => false,
         }
     }
@@ -2509,7 +2508,7 @@ impl Type {
     pub fn is_union_type(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_union_type(),
-            Self::Or(_, _) => true,
+            Self::Or(_) => true,
             Self::Refinement(refine) => refine.t.is_union_type(),
             _ => false,
         }
@@ -2542,7 +2541,7 @@ impl Type {
     pub fn is_intersection_type(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_intersection_type(),
-            Self::And(_, _) => true,
+            Self::And(_) => true,
             Self::Refinement(refine) => refine.t.is_intersection_type(),
             _ => false,
         }
@@ -2556,11 +2555,11 @@ impl Type {
                 fv.do_avoiding_recursion(|| sub.union_size().max(sup.union_size()))
             }
             // Or(Or(Int, Str), Nat) == 3
-            Self::Or(l, r) => l.union_size() + r.union_size(),
+            Self::Or(tys) => tys.len(),
             Self::Refinement(refine) => refine.t.union_size(),
             Self::Ref(t) => t.union_size(),
             Self::RefMut { before, after: _ } => before.union_size(),
-            Self::And(lhs, rhs) => lhs.union_size().max(rhs.union_size()),
+            Self::And(tys) => tys.iter().map(|ty| ty.union_size()).max().unwrap_or(1),
             Self::Not(ty) => ty.union_size(),
             Self::Callable { param_ts, return_t } => param_ts
                 .iter()
@@ -2601,7 +2600,7 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_refinement(),
             Self::Refinement(_) => true,
-            Self::And(l, r) => l.is_refinement() && r.is_refinement(),
+            Self::And(tys) => tys.iter().any(|t| t.is_refinement()),
             _ => false,
         }
     }
@@ -2610,6 +2609,7 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_singleton_refinement(),
             Self::Refinement(refine) => matches!(refine.pred.as_ref(), Predicate::Equal { .. }),
+            Self::And(tys) => tys.iter().any(|t| t.is_singleton_refinement()),
             _ => false,
         }
     }
@@ -2619,6 +2619,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_record(),
             Self::Record(_) => true,
             Self::Refinement(refine) => refine.t.is_record(),
+            Self::And(tys) => tys.iter().any(|t| t.is_record()),
             _ => false,
         }
     }
@@ -2632,6 +2633,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_erg_module(),
             Self::Refinement(refine) => refine.t.is_erg_module(),
             Self::Poly { name, .. } => &name[..] == "Module",
+            Self::And(tys) => tys.iter().any(|t| t.is_erg_module()),
             _ => false,
         }
     }
@@ -2641,6 +2643,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_py_module(),
             Self::Refinement(refine) => refine.t.is_py_module(),
             Self::Poly { name, .. } => &name[..] == "PyModule",
+            Self::And(tys) => tys.iter().any(|t| t.is_py_module()),
             _ => false,
         }
     }
@@ -2651,7 +2654,7 @@ impl Type {
             Self::Refinement(refine) => refine.t.is_method(),
             Self::Subr(subr) => subr.is_method(),
             Self::Quantified(quant) => quant.is_method(),
-            Self::And(l, r) => l.is_method() && r.is_method(),
+            Self::And(tys) => tys.iter().any(|t| t.is_method()),
             _ => false,
         }
     }
@@ -2662,7 +2665,7 @@ impl Type {
             Self::Subr(_) => true,
             Self::Quantified(quant) => quant.is_subr(),
             Self::Refinement(refine) => refine.t.is_subr(),
-            Self::And(l, r) => l.is_subr() && r.is_subr(),
+            Self::And(tys) => tys.iter().any(|t| t.is_subr()),
             _ => false,
         }
     }
@@ -2673,7 +2676,10 @@ impl Type {
             Self::Subr(subr) => Some(subr.kind),
             Self::Refinement(refine) => refine.t.subr_kind(),
             Self::Quantified(quant) => quant.subr_kind(),
-            Self::And(l, r) => l.subr_kind().and_then(|k| r.subr_kind().map(|k2| k | k2)),
+            Self::And(tys) => tys
+                .iter()
+                .filter_map(|t| t.subr_kind())
+                .fold(None, |a, b| Some(a? | b)),
             _ => None,
         }
     }
@@ -2683,7 +2689,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_quantified_subr(),
             Self::Quantified(_) => true,
             Self::Refinement(refine) => refine.t.is_quantified_subr(),
-            Self::And(l, r) => l.is_quantified_subr() && r.is_quantified_subr(),
+            Self::And(tys) => tys.iter().any(|t| t.is_quantified_subr()),
             _ => false,
         }
     }
@@ -2720,6 +2726,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_iterable(),
             Self::Poly { name, .. } => &name[..] == "Iterable",
             Self::Refinement(refine) => refine.t.is_iterable(),
+            Self::And(tys) => tys.iter().any(|t| t.is_iterable()),
             _ => false,
         }
     }
@@ -2810,6 +2817,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_structural(),
             Self::Structural(_) => true,
             Self::Refinement(refine) => refine.t.is_structural(),
+            Self::And(tys) => tys.iter().any(|t| t.is_structural()),
             _ => false,
         }
     }
@@ -2819,6 +2827,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_failure(),
             Self::Refinement(refine) => refine.t.is_failure(),
             Self::Failure => true,
+            Self::And(tys) => tys.iter().any(|t| t.is_failure()),
             _ => false,
         }
     }
@@ -2890,92 +2899,37 @@ impl Type {
                         })
                         .unwrap_or(false)
             }
-            Self::Record(rec) => rec.iter().any(|(_, t)| t.contains_tvar(target)),
-            Self::NamedTuple(rec) => rec.iter().any(|(_, t)| t.contains_tvar(target)),
-            Self::Poly { params, .. } => params.iter().any(|tp| tp.contains_tvar(target)),
-            Self::Quantified(t) => t.contains_tvar(target),
-            Self::Subr(subr) => subr.contains_tvar(target),
-            // TODO: preds
-            Self::Refinement(refine) => refine.t.contains_tvar(target),
-            Self::Structural(ty) => ty.contains_tvar(target),
-            Self::Proj { lhs, .. } => lhs.contains_tvar(target),
-            Self::ProjCall { lhs, args, .. } => {
-                lhs.contains_tvar(target) || args.iter().any(|t| t.contains_tvar(target))
-            }
-            Self::And(lhs, rhs) => lhs.contains_tvar(target) || rhs.contains_tvar(target),
-            Self::Or(lhs, rhs) => lhs.contains_tvar(target) || rhs.contains_tvar(target),
-            Self::Not(t) => t.contains_tvar(target),
-            Self::Ref(t) => t.contains_tvar(target),
-            Self::RefMut { before, after } => {
-                before.contains_tvar(target)
-                    || after.as_ref().map_or(false, |t| t.contains_tvar(target))
-            }
-            Self::Bounded { sub, sup } => sub.contains_tvar(target) || sup.contains_tvar(target),
-            Self::Callable { param_ts, return_t } => {
-                param_ts.iter().any(|t| t.contains_tvar(target)) || return_t.contains_tvar(target)
-            }
-            Self::Guard(guard) => guard.to.contains_tvar(target),
-            mono_type_pattern!() => false,
+            _ => self.has_type_satisfies(|t| t.contains_tvar(target)),
         }
     }
 
     pub fn has_type_satisfies(&self, f: impl Fn(&Type) -> bool + Copy) -> bool {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().has_type_satisfies(f),
-            Self::FreeVar(fv) if fv.constraint_is_typeof() => {
-                fv.get_type().unwrap().has_type_satisfies(f)
-            }
+            Self::FreeVar(fv) if fv.is_linked() => f(&fv.crack()),
+            Self::FreeVar(fv) if fv.constraint_is_typeof() => f(&fv.get_type().unwrap()),
             Self::FreeVar(fv) => fv
                 .get_subsup()
-                .map(|(sub, sup)| {
-                    fv.do_avoiding_recursion(|| {
-                        sub.has_type_satisfies(f) || sup.has_type_satisfies(f)
-                    })
-                })
+                .map(|(sub, sup)| fv.do_avoiding_recursion(|| f(&sub) || f(&sup)))
                 .unwrap_or(false),
-            Self::Record(rec) => rec.iter().any(|(_, t)| t.has_type_satisfies(f)),
-            Self::NamedTuple(rec) => rec.iter().any(|(_, t)| t.has_type_satisfies(f)),
+            Self::Record(rec) => rec.values().any(f),
+            Self::NamedTuple(rec) => rec.iter().any(|(_, t)| f(t)),
             Self::Poly { params, .. } => params.iter().any(|tp| tp.has_type_satisfies(f)),
-            Self::Quantified(t) => t.has_type_satisfies(f),
-            Self::Subr(subr) => {
-                subr.non_default_params
-                    .iter()
-                    .any(|pt| pt.typ().has_type_satisfies(f))
-                    || subr
-                        .var_params
-                        .as_ref()
-                        .map_or(false, |pt| pt.typ().has_type_satisfies(f))
-                    || subr
-                        .default_params
-                        .iter()
-                        .any(|pt| pt.typ().has_type_satisfies(f))
-                    || subr
-                        .default_params
-                        .iter()
-                        .any(|pt| pt.default_typ().map_or(false, |t| t.has_type_satisfies(f)))
-                    || subr.return_t.has_type_satisfies(f)
-            }
-            // TODO: preds
-            Self::Refinement(refine) => refine.t.has_type_satisfies(f),
-            Self::Structural(ty) => ty.has_type_satisfies(f),
-            Self::Proj { lhs, .. } => lhs.has_type_satisfies(f),
+            Self::Quantified(t) => f(t),
+            Self::Subr(subr) => subr.has_type_satisfies(f),
+            Self::Refinement(refine) => f(&refine.t) || refine.pred.has_type_satisfies(f),
+            Self::Structural(ty) => f(ty),
+            Self::Proj { lhs, .. } => f(lhs),
             Self::ProjCall { lhs, args, .. } => {
-                lhs.has_type_satisfies(f) || args.iter().any(|t| t.has_type_satisfies(f))
+                lhs.has_type_satisfies(f) || args.iter().any(|tp| tp.has_type_satisfies(f))
             }
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
-                lhs.has_type_satisfies(f) || rhs.has_type_satisfies(f)
-            }
-            Self::Not(t) => t.has_type_satisfies(f),
-            Self::Ref(t) => t.has_type_satisfies(f),
-            Self::RefMut { before, after } => {
-                before.has_type_satisfies(f)
-                    || after.as_ref().map_or(false, |t| t.has_type_satisfies(f))
-            }
-            Self::Bounded { sub, sup } => sub.has_type_satisfies(f) || sup.has_type_satisfies(f),
-            Self::Callable { param_ts, return_t } => {
-                param_ts.iter().any(|t| t.has_type_satisfies(f)) || return_t.has_type_satisfies(f)
-            }
-            Self::Guard(guard) => guard.to.has_type_satisfies(f),
+            Self::And(tys) => tys.iter().any(f),
+            Self::Or(tys) => tys.iter().any(f),
+            Self::Not(t) => f(t),
+            Self::Ref(t) => f(t),
+            Self::RefMut { before, after } => f(before) || after.as_ref().map_or(false, |t| f(t)),
+            Self::Bounded { sub, sup } => f(sub) || f(sup),
+            Self::Callable { param_ts, return_t } => param_ts.iter().any(f) || f(return_t),
+            Self::Guard(guard) => f(&guard.to),
             mono_type_pattern!() => false,
         }
     }
@@ -3037,8 +2991,8 @@ impl Type {
             Self::ProjCall { lhs, args, .. } => {
                 lhs.contains_type(target) || args.iter().any(|t| t.contains_type(target))
             }
-            Self::And(lhs, rhs) => lhs.contains_type(target) || rhs.contains_type(target),
-            Self::Or(lhs, rhs) => lhs.contains_type(target) || rhs.contains_type(target),
+            Self::And(tys) => tys.iter().any(|t| t.contains_type(target)),
+            Self::Or(tys) => tys.iter().any(|t| t.contains_type(target)),
             Self::Not(t) => t.contains_type(target),
             Self::Ref(t) => t.contains_type(target),
             Self::RefMut { before, after } => {
@@ -3075,8 +3029,8 @@ impl Type {
             Self::ProjCall { lhs, args, .. } => {
                 lhs.contains_tp(target) || args.iter().any(|t| t.contains_tp(target))
             }
-            Self::And(lhs, rhs) => lhs.contains_tp(target) || rhs.contains_tp(target),
-            Self::Or(lhs, rhs) => lhs.contains_tp(target) || rhs.contains_tp(target),
+            Self::And(tys) => tys.iter().any(|t| t.contains_tp(target)),
+            Self::Or(tys) => tys.iter().any(|t| t.contains_tp(target)),
             Self::Not(t) => t.contains_tp(target),
             Self::Ref(t) => t.contains_tp(target),
             Self::RefMut { before, after } => {
@@ -3109,8 +3063,8 @@ impl Type {
             Self::ProjCall { lhs, args, .. } => {
                 lhs.contains_value(target) || args.iter().any(|t| t.contains_value(target))
             }
-            Self::And(lhs, rhs) => lhs.contains_value(target) || rhs.contains_value(target),
-            Self::Or(lhs, rhs) => lhs.contains_value(target) || rhs.contains_value(target),
+            Self::And(tys) => tys.iter().any(|t| t.contains_value(target)),
+            Self::Or(tys) => tys.iter().any(|t| t.contains_value(target)),
             Self::Not(t) => t.contains_value(target),
             Self::Ref(t) => t.contains_value(target),
             Self::RefMut { before, after } => {
@@ -3153,9 +3107,8 @@ impl Type {
             Self::ProjCall { lhs, args, .. } => {
                 lhs.contains_type(self) || args.iter().any(|t| t.contains_type(self))
             }
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
-                lhs.contains_type(self) || rhs.contains_type(self)
-            }
+            Self::And(tys) => tys.iter().any(|t| t.contains_type(self)),
+            Self::Or(tys) => tys.iter().any(|t| t.contains_type(self)),
             Self::Not(t) => t.contains_type(self),
             Self::Ref(t) => t.contains_type(self),
             Self::RefMut { before, after } => {
@@ -3225,9 +3178,9 @@ impl Type {
             Self::Inf => Str::ever("Inf"),
             Self::NegInf => Str::ever("NegInf"),
             Self::Mono(name) => name.clone(),
-            Self::And(_, _) => Str::ever("And"),
+            Self::And(_) => Str::ever("And"),
             Self::Not(_) => Str::ever("Not"),
-            Self::Or(_, _) => Str::ever("Or"),
+            Self::Or(_) => Str::ever("Or"),
             Self::Ref(_) => Str::ever("Ref"),
             Self::RefMut { .. } => Str::ever("RefMut"),
             Self::Subr(SubrType {
@@ -3317,7 +3270,7 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_intersec(typ),
             Self::Refinement(refine) => refine.t.contains_intersec(typ),
-            Self::And(t1, t2) => t1.contains_intersec(typ) || t2.contains_intersec(typ),
+            Self::And(tys) => tys.iter().any(|t| t.contains_intersec(typ)),
             _ => self == typ,
         }
     }
@@ -3326,7 +3279,25 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().union_pair(),
             Self::Refinement(refine) => refine.t.union_pair(),
-            Self::Or(t1, t2) => Some((*t1.clone(), *t2.clone())),
+            Self::Or(tys) if tys.len() == 2 => {
+                let mut iter = tys.iter();
+                Some((iter.next().unwrap().clone(), iter.next().unwrap().clone()))
+            }
+            Self::Or(tys) => {
+                let mut iter = tys.iter();
+                let t1 = iter.next().unwrap().clone();
+                let t2 = iter.cloned().collect();
+                Some((t1, Type::Or(t2)))
+            }
+            _ => None,
+        }
+    }
+
+    pub fn union_types(&self) -> Option<Set<Type>> {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().union_types(),
+            Self::Refinement(refine) => refine.t.union_types(),
+            Self::Or(tys) => Some(tys.clone()),
             _ => None,
         }
     }
@@ -3336,7 +3307,7 @@ impl Type {
         match self {
             Type::FreeVar(fv) if fv.is_linked() => fv.crack().contains_union(typ),
             Type::Refinement(refine) => refine.t.contains_union(typ),
-            Type::Or(t1, t2) => t1.contains_union(typ) || t2.contains_union(typ),
+            Type::Or(tys) => tys.iter().any(|t| t.contains_union(typ)),
             _ => self == typ,
         }
     }
@@ -3350,11 +3321,7 @@ impl Type {
                 .into_iter()
                 .map(|t| t.quantify())
                 .collect(),
-            Type::And(t1, t2) => {
-                let mut types = t1.intersection_types();
-                types.extend(t2.intersection_types());
-                types
-            }
+            Type::And(tys) => tys.clone(),
             _ => vec![self.clone()],
         }
     }
@@ -3430,9 +3397,8 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_unbound() => true,
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_totally_unbound(),
-            Self::Or(t1, t2) | Self::And(t1, t2) => {
-                t1.is_totally_unbound() && t2.is_totally_unbound()
-            }
+            Self::And(tys) => tys.iter().all(|t| t.is_totally_unbound()),
+            Self::Or(tys) => tys.iter().all(|t| t.is_totally_unbound()),
             Self::Not(t) => t.is_totally_unbound(),
             _ => false,
         }
@@ -3539,9 +3505,15 @@ impl Type {
                 sub.destructive_coerce();
                 self.destructive_link(&sub);
             }
-            Type::And(l, r) | Type::Or(l, r) => {
-                l.destructive_coerce();
-                r.destructive_coerce();
+            Type::And(tys) => {
+                for t in tys {
+                    t.destructive_coerce();
+                }
+            }
+            Type::Or(tys) => {
+                for t in tys {
+                    t.destructive_coerce();
+                }
             }
             Type::Not(l) => l.destructive_coerce(),
             Type::Poly { params, .. } => {
@@ -3594,9 +3566,15 @@ impl Type {
                 sub.undoable_coerce(list);
                 self.undoable_link(&sub, list);
             }
-            Type::And(l, r) | Type::Or(l, r) => {
-                l.undoable_coerce(list);
-                r.undoable_coerce(list);
+            Type::And(tys) => {
+                for t in tys {
+                    t.undoable_coerce(list);
+                }
+            }
+            Type::Or(tys) => {
+                for t in tys {
+                    t.undoable_coerce(list);
+                }
             }
             Type::Not(l) => l.undoable_coerce(list),
             Type::Poly { params, .. } => {
@@ -3655,7 +3633,12 @@ impl Type {
                     .map(|t| t.qvars_inner())
                     .unwrap_or_else(|| set! {}),
             ),
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => lhs.qvars_inner().concat(rhs.qvars_inner()),
+            Self::And(tys) => tys
+                .iter()
+                .fold(set! {}, |acc, t| acc.concat(t.qvars_inner())),
+            Self::Or(tys) => tys
+                .iter()
+                .fold(set! {}, |acc, t| acc.concat(t.qvars_inner())),
             Self::Not(ty) => ty.qvars_inner(),
             Self::Callable { param_ts, return_t } => param_ts
                 .iter()
@@ -3719,30 +3702,15 @@ impl Type {
                     opt_t.map_or(false, |t| t.has_qvar())
                 }
             }
-            Self::Ref(ty) => ty.has_qvar(),
-            Self::RefMut { before, after } => {
-                before.has_qvar() || after.as_ref().map(|t| t.has_qvar()).unwrap_or(false)
-            }
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => lhs.has_qvar() || rhs.has_qvar(),
-            Self::Not(ty) => ty.has_qvar(),
-            Self::Callable { param_ts, return_t } => {
-                param_ts.iter().any(|t| t.has_qvar()) || return_t.has_qvar()
-            }
             Self::Subr(subr) => subr.has_qvar(),
             Self::Quantified(_) => false,
             // Self::Quantified(quant) => quant.has_qvar(),
-            Self::Record(r) => r.values().any(|t| t.has_qvar()),
-            Self::NamedTuple(r) => r.iter().any(|(_, t)| t.has_qvar()),
             Self::Refinement(refine) => refine.t.has_qvar() || refine.pred.has_qvar(),
             Self::Poly { params, .. } => params.iter().any(|tp| tp.has_qvar()),
-            Self::Proj { lhs, .. } => lhs.has_qvar(),
             Self::ProjCall { lhs, args, .. } => {
                 lhs.has_qvar() || args.iter().any(|tp| tp.has_qvar())
             }
-            Self::Structural(ty) => ty.has_qvar(),
-            Self::Guard(guard) => guard.to.has_qvar(),
-            Self::Bounded { sub, sup } => sub.has_qvar() || sup.has_qvar(),
-            mono_type_pattern!() => false,
+            _ => self.has_type_satisfies(|t| t.has_qvar()),
         }
     }
 
@@ -3768,40 +3736,12 @@ impl Type {
                     opt_t.map_or(false, |t| t.has_undoable_linked_var())
                 }
             }
-            Self::Ref(ty) => ty.has_undoable_linked_var(),
-            Self::RefMut { before, after } => {
-                before.has_undoable_linked_var()
-                    || after
-                        .as_ref()
-                        .map(|t| t.has_undoable_linked_var())
-                        .unwrap_or(false)
-            }
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
-                lhs.has_undoable_linked_var() || rhs.has_undoable_linked_var()
-            }
-            Self::Not(ty) => ty.has_undoable_linked_var(),
-            Self::Callable { param_ts, return_t } => {
-                param_ts.iter().any(|t| t.has_undoable_linked_var())
-                    || return_t.has_undoable_linked_var()
-            }
             Self::Subr(subr) => subr.has_undoable_linked_var(),
-            Self::Quantified(quant) => quant.has_undoable_linked_var(),
-            Self::Record(r) => r.values().any(|t| t.has_undoable_linked_var()),
-            Self::NamedTuple(r) => r.iter().any(|(_, t)| t.has_undoable_linked_var()),
-            Self::Refinement(refine) => {
-                refine.t.has_undoable_linked_var() || refine.pred.has_undoable_linked_var()
-            }
             Self::Poly { params, .. } => params.iter().any(|tp| tp.has_undoable_linked_var()),
-            Self::Proj { lhs, .. } => lhs.has_undoable_linked_var(),
             Self::ProjCall { lhs, args, .. } => {
                 lhs.has_undoable_linked_var() || args.iter().any(|tp| tp.has_undoable_linked_var())
             }
-            Self::Structural(ty) => ty.has_undoable_linked_var(),
-            Self::Guard(guard) => guard.to.has_undoable_linked_var(),
-            Self::Bounded { sub, sup } => {
-                sub.has_undoable_linked_var() || sup.has_undoable_linked_var()
-            }
-            mono_type_pattern!() => false,
+            _ => self.has_type_satisfies(|t| t.has_undoable_linked_var()),
         }
     }
 
@@ -3812,46 +3752,13 @@ impl Type {
     pub fn has_unbound_var(&self) -> bool {
         match self {
             Self::FreeVar(fv) => fv.has_unbound_var(),
-            Self::Ref(t) => t.has_unbound_var(),
-            Self::RefMut { before, after } => {
-                before.has_unbound_var()
-                    || after.as_ref().map(|t| t.has_unbound_var()).unwrap_or(false)
-            }
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
-                lhs.has_unbound_var() || rhs.has_unbound_var()
-            }
-            Self::Not(ty) => ty.has_unbound_var(),
-            Self::Callable { param_ts, return_t } => {
-                param_ts.iter().any(|t| t.has_unbound_var()) || return_t.has_unbound_var()
-            }
-            Self::Subr(subr) => {
-                subr.non_default_params
-                    .iter()
-                    .any(|pt| pt.typ().has_unbound_var())
-                    || subr
-                        .var_params
-                        .as_ref()
-                        .map(|pt| pt.typ().has_unbound_var())
-                        .unwrap_or(false)
-                    || subr.default_params.iter().any(|pt| {
-                        pt.typ().has_unbound_var()
-                            || pt.default_typ().is_some_and(|t| t.has_unbound_var())
-                    })
-                    || subr.return_t.has_unbound_var()
-            }
-            Self::Record(r) => r.values().any(|t| t.has_unbound_var()),
-            Self::NamedTuple(r) => r.iter().any(|(_, t)| t.has_unbound_var()),
+            Self::Subr(subr) => subr.has_unbound_var(),
             Self::Refinement(refine) => refine.t.has_unbound_var() || refine.pred.has_unbound_var(),
-            Self::Quantified(quant) => quant.has_unbound_var(),
             Self::Poly { params, .. } => params.iter().any(|p| p.has_unbound_var()),
-            Self::Proj { lhs, .. } => lhs.has_unbound_var(),
             Self::ProjCall { lhs, args, .. } => {
                 lhs.has_unbound_var() || args.iter().any(|t| t.has_unbound_var())
             }
-            Self::Structural(ty) => ty.has_unbound_var(),
-            Self::Guard(guard) => guard.to.has_unbound_var(),
-            Self::Bounded { sub, sup } => sub.has_unbound_var() || sup.has_unbound_var(),
-            mono_type_pattern!() => false,
+            _ => self.has_type_satisfies(|t| t.has_unbound_var()),
         }
     }
 
@@ -3874,7 +3781,8 @@ impl Type {
             Self::Refinement(refine) => refine.t.typarams_len(),
             // REVIEW:
             Self::Ref(_) | Self::RefMut { .. } => Some(1),
-            Self::And(_, _) | Self::Or(_, _) => Some(2),
+            Self::And(tys) => Some(tys.len()),
+            Self::Or(tys) => Some(tys.len()),
             Self::Not(_) => Some(1),
             Self::Subr(subr) => Some(
                 subr.non_default_params.len()
@@ -3940,9 +3848,8 @@ impl Type {
             Self::FreeVar(_unbound) => vec![],
             Self::Refinement(refine) => refine.t.typarams(),
             Self::Ref(t) | Self::RefMut { before: t, .. } => vec![TyParam::t(*t.clone())],
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
-                vec![TyParam::t(*lhs.clone()), TyParam::t(*rhs.clone())]
-            }
+            Self::And(tys) => tys.iter().cloned().map(TyParam::t).collect(),
+            Self::Or(tys) => tys.iter().cloned().map(TyParam::t).collect(),
             Self::Not(t) => vec![TyParam::t(*t.clone())],
             Self::Subr(subr) => subr.typarams(),
             Self::Quantified(quant) => quant.typarams(),
@@ -4163,8 +4070,8 @@ impl Type {
                 let r = r.iter().map(|(k, v)| (k.clone(), v.derefine())).collect();
                 Self::NamedTuple(r)
             }
-            Self::And(l, r) => l.derefine() & r.derefine(),
-            Self::Or(l, r) => l.derefine() | r.derefine(),
+            Self::And(tys) => Self::checked_and(tys.iter().map(|t| t.derefine()).collect()),
+            Self::Or(tys) => Self::checked_or(tys.iter().map(|t| t.derefine()).collect()),
             Self::Not(ty) => !ty.derefine(),
             Self::Proj { lhs, rhs } => lhs.derefine().proj(rhs.clone()),
             Self::ProjCall {
@@ -4219,7 +4126,7 @@ impl Type {
     /// (T or U).eliminate_subsup(T) == U
     /// ?X(<: T or U).eliminate_subsup(T) == ?X(<: U)
     /// ```
-    pub fn eliminate_subsup(self, target: &Type) -> Self {
+    pub(crate) fn eliminate_subsup(self, target: &Type) -> Self {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().eliminate_subsup(target),
             Self::FreeVar(ref fv) if fv.constraint_is_sandwiched() => {
@@ -4237,22 +4144,28 @@ impl Type {
                 });
                 self
             }
-            Self::And(l, r) => {
-                if l.addr_eq(target) {
-                    return r.eliminate_subsup(target);
-                } else if r.addr_eq(target) {
-                    return l.eliminate_subsup(target);
-                }
-                l.eliminate_subsup(target) & r.eliminate_subsup(target)
-            }
-            Self::Or(l, r) => {
-                if l.addr_eq(target) {
-                    return r.eliminate_subsup(target);
-                } else if r.addr_eq(target) {
-                    return l.eliminate_subsup(target);
-                }
-                l.eliminate_subsup(target) | r.eliminate_subsup(target)
-            }
+            Self::And(tys) => Self::checked_and(
+                tys.into_iter()
+                    .filter_map(|t| {
+                        if t.addr_eq(target) {
+                            None
+                        } else {
+                            Some(t.eliminate_subsup(target))
+                        }
+                    })
+                    .collect(),
+            ),
+            Self::Or(tys) => Self::checked_or(
+                tys.into_iter()
+                    .filter_map(|t| {
+                        if t.addr_eq(target) {
+                            None
+                        } else {
+                            Some(t.eliminate_subsup(target))
+                        }
+                    })
+                    .collect(),
+            ),
             other => other,
         }
     }
@@ -4261,7 +4174,7 @@ impl Type {
     /// ?T(<: K(X)).eliminate_recursion(X) == ?T(<: K(X))
     /// Tuple(X).eliminate_recursion(X) == Tuple(Never)
     /// ```
-    pub fn eliminate_recursion(self, target: &Type) -> Self {
+    pub(crate) fn eliminate_recursion(self, target: &Type) -> Self {
         if self.is_free_var() && self.addr_eq(target) {
             return Self::Never;
         }
@@ -4307,8 +4220,18 @@ impl Type {
                 before: Box::new(before.eliminate_recursion(target)),
                 after: after.map(|t| Box::new(t.eliminate_recursion(target))),
             },
-            Self::And(l, r) => l.eliminate_recursion(target) & r.eliminate_recursion(target),
-            Self::Or(l, r) => l.eliminate_recursion(target) | r.eliminate_recursion(target),
+            Self::And(tys) => Self::checked_and(
+                tys.into_iter()
+                    .filter(|t| !t.addr_eq(target))
+                    .map(|t| t.eliminate_recursion(target))
+                    .collect(),
+            ),
+            Self::Or(tys) => Self::checked_or(
+                tys.into_iter()
+                    .filter(|t| !t.addr_eq(target))
+                    .map(|t| t.eliminate_recursion(target))
+                    .collect(),
+            ),
             Self::Not(ty) => !ty.eliminate_recursion(target),
             Self::Proj { lhs, rhs } => lhs.eliminate_recursion(target).proj(rhs),
             Self::ProjCall {
@@ -4330,6 +4253,18 @@ impl Type {
                 sup: Box::new(sup.eliminate_recursion(target)),
             },
             mono_type_pattern!() => self,
+        }
+    }
+
+    pub(crate) fn eliminate_and_or_recursion(self, target: &Type) -> Self {
+        match self {
+            Self::And(tys) => {
+                Self::checked_and(tys.into_iter().filter(|t| !t.addr_eq(target)).collect())
+            }
+            Self::Or(tys) => {
+                Self::checked_or(tys.into_iter().filter(|t| !t.addr_eq(target)).collect())
+            }
+            _ => self,
         }
     }
 
@@ -4461,8 +4396,8 @@ impl Type {
                 before: Box::new(before.map(f)),
                 after: after.map(|t| Box::new(t.map(f))),
             },
-            Self::And(l, r) => l.map(f) & r.map(f),
-            Self::Or(l, r) => l.map(f) | r.map(f),
+            Self::And(tys) => Self::checked_and(tys.into_iter().map(|t| t.map(f)).collect()),
+            Self::Or(tys) => Self::checked_or(tys.into_iter().map(|t| t.map(f)).collect()),
             Self::Not(ty) => !ty.map(f),
             Self::Proj { lhs, rhs } => lhs.map(f).proj(rhs),
             Self::ProjCall {
@@ -4489,7 +4424,7 @@ impl Type {
 
     /// Unlike `replace`, this does not make a look-up table.
     fn _replace(mut self, target: &Type, to: &Type) -> Type {
-        if self.structural_eq(target) {
+        if &self == target {
             self = to.clone();
         }
         self.map(&mut |t| t._replace(target, to))
@@ -4555,8 +4490,12 @@ impl Type {
                 before: Box::new(before._replace_tp(target, to)),
                 after: after.map(|t| Box::new(t._replace_tp(target, to))),
             },
-            Self::And(l, r) => l._replace_tp(target, to) & r._replace_tp(target, to),
-            Self::Or(l, r) => l._replace_tp(target, to) | r._replace_tp(target, to),
+            Self::And(tys) => {
+                Self::checked_and(tys.into_iter().map(|t| t._replace_tp(target, to)).collect())
+            }
+            Self::Or(tys) => {
+                Self::checked_or(tys.into_iter().map(|t| t._replace_tp(target, to)).collect())
+            }
             Self::Not(ty) => !ty._replace_tp(target, to),
             Self::Proj { lhs, rhs } => lhs._replace_tp(target, to).proj(rhs),
             Self::ProjCall {
@@ -4632,8 +4571,8 @@ impl Type {
                 before: Box::new(before.map_tp(f)),
                 after: after.map(|t| Box::new(t.map_tp(f))),
             },
-            Self::And(l, r) => l.map_tp(f) & r.map_tp(f),
-            Self::Or(l, r) => l.map_tp(f) | r.map_tp(f),
+            Self::And(tys) => Self::checked_and(tys.into_iter().map(|t| t.map_tp(f)).collect()),
+            Self::Or(tys) => Self::checked_or(tys.into_iter().map(|t| t.map_tp(f)).collect()),
             Self::Not(ty) => !ty.map_tp(f),
             Self::Proj { lhs, rhs } => lhs.map_tp(f).proj(rhs),
             Self::ProjCall {
@@ -4721,8 +4660,16 @@ impl Type {
                     after,
                 })
             }
-            Self::And(l, r) => Ok(l.try_map_tp(f)? & r.try_map_tp(f)?),
-            Self::Or(l, r) => Ok(l.try_map_tp(f)? | r.try_map_tp(f)?),
+            Self::And(tys) => Ok(Self::checked_and(
+                tys.into_iter()
+                    .map(|t| t.try_map_tp(f))
+                    .collect::<Result<_, _>>()?,
+            )),
+            Self::Or(tys) => Ok(Self::checked_or(
+                tys.into_iter()
+                    .map(|t| t.try_map_tp(f))
+                    .collect::<Result<_, _>>()?,
+            )),
             Self::Not(ty) => Ok(!ty.try_map_tp(f)?),
             Self::Proj { lhs, rhs } => Ok(lhs.try_map_tp(f)?.proj(rhs)),
             Self::ProjCall {
@@ -4755,9 +4702,25 @@ impl Type {
                 *refine.t = refine.t.replace_param(target, to);
                 Self::Refinement(refine)
             }
-            Self::And(l, r) => l.replace_param(target, to) & r.replace_param(target, to),
+            Self::And(tys) => Self::And(
+                tys.into_iter()
+                    .map(|t| t.replace_param(target, to))
+                    .collect(),
+            ),
             Self::Guard(guard) => Self::Guard(guard.replace_param(target, to)),
             _ => self,
+        }
+    }
+
+    pub fn eliminate_and_or(&mut self) {
+        match self {
+            Self::And(tys) if tys.len() == 1 => {
+                *self = tys.remove(0);
+            }
+            Self::Or(tys) if tys.len() == 1 => {
+                *self = tys.take_all().into_iter().next().unwrap();
+            }
+            _ => {}
         }
     }
 
@@ -4828,8 +4791,8 @@ impl Type {
                 }
                 Self::NamedTuple(r)
             }
-            Self::And(l, r) => l.normalize() & r.normalize(),
-            Self::Or(l, r) => l.normalize() | r.normalize(),
+            Self::And(tys) => Self::checked_and(tys.into_iter().map(|t| t.normalize()).collect()),
+            Self::Or(tys) => Self::checked_or(tys.into_iter().map(|t| t.normalize()).collect()),
             Self::Not(ty) => !ty.normalize(),
             Self::Structural(ty) => ty.normalize().structuralize(),
             Self::Quantified(quant) => quant.normalize().quantify(),
@@ -4861,9 +4824,31 @@ impl Type {
             free.get_sub().unwrap_or(self.clone())
         } else {
             match self {
-                Self::And(l, r) => l.lower_bounded() & r.lower_bounded(),
-                Self::Or(l, r) => l.lower_bounded() | r.lower_bounded(),
+                Self::And(tys) => {
+                    Self::checked_and(tys.iter().map(|t| t.lower_bounded()).collect())
+                }
+                Self::Or(tys) => Self::checked_or(tys.iter().map(|t| t.lower_bounded()).collect()),
                 Self::Not(ty) => !ty.lower_bounded(),
+                _ => self.clone(),
+            }
+        }
+    }
+
+    /// ```erg
+    /// assert Int.upper_bounded() == Int
+    /// assert ?T(<: Str).upper_bounded() == Str
+    /// assert (?T(<: Str) or ?U(<: Int)).upper_bounded() == (Str or Int)
+    /// ```
+    pub fn upper_bounded(&self) -> Type {
+        if let Ok(free) = <&FreeTyVar>::try_from(self) {
+            free.get_super().unwrap_or(self.clone())
+        } else {
+            match self {
+                Self::And(tys) => {
+                    Self::checked_and(tys.iter().map(|t| t.upper_bounded()).collect())
+                }
+                Self::Or(tys) => Self::checked_or(tys.iter().map(|t| t.upper_bounded()).collect()),
+                Self::Not(ty) => !ty.upper_bounded(),
                 _ => self.clone(),
             }
         }
@@ -4891,8 +4876,8 @@ impl Type {
         }
         match self {
             Self::FreeVar(fv) => {
-                let to = to.clone().eliminate_subsup(self).eliminate_recursion(self);
-                fv.link(&to);
+                let to_ = to.clone().eliminate_subsup(self).eliminate_recursion(self);
+                fv.link(&to_);
             }
             Self::Refinement(refine) => refine.t.destructive_link(to),
             _ => {
@@ -4914,8 +4899,12 @@ impl Type {
         }
         match self {
             Self::FreeVar(fv) => {
-                let to = to.clone().eliminate_subsup(self); // FIXME: .eliminate_recursion(self)
-                fv.undoable_link(&to);
+                // NOTE: we can't use `eliminate_recursion`
+                let to_ = to
+                    .clone()
+                    .eliminate_subsup(self)
+                    .eliminate_and_or_recursion(self);
+                fv.undoable_link(&to_);
             }
             Self::Refinement(refine) => refine.t.undoable_link(to, list),
             _ => {
@@ -5027,12 +5016,12 @@ impl Type {
     /// Add.ands() == {Add}
     /// (Add and Sub).ands() == {Add, Sub}
     /// ```
-    pub fn ands(&self) -> Set<Type> {
+    pub fn ands(&self) -> Vec<Type> {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().ands(),
             Self::Refinement(refine) => refine.t.ands(),
-            Self::And(l, r) => l.ands().union(&r.ands()),
-            _ => set![self.clone()],
+            Self::And(tys) => tys.clone(),
+            _ => vec![self.clone()],
         }
     }
 
@@ -5044,7 +5033,7 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().ors(),
             Self::Refinement(refine) => refine.t.ors(),
-            Self::Or(l, r) => l.ors().union(&r.ors()),
+            Self::Or(tys) => tys.clone(),
             _ => set![self.clone()],
         }
     }
@@ -5089,7 +5078,8 @@ impl Type {
             Self::Callable { param_ts, .. } => {
                 param_ts.iter().flat_map(|t| t.contained_ts()).collect()
             }
-            Self::And(l, r) | Self::Or(l, r) => l.contained_ts().union(&r.contained_ts()),
+            Self::And(tys) => tys.iter().flat_map(|t| t.contained_ts()).collect(),
+            Self::Or(tys) => tys.iter().flat_map(|t| t.contained_ts()).collect(),
             Self::Not(t) => t.contained_ts(),
             Self::Bounded { sub, sup } => sub.contained_ts().union(&sup.contained_ts()),
             Self::Quantified(ty) | Self::Structural(ty) => ty.contained_ts(),
@@ -5158,9 +5148,30 @@ impl Type {
                 }
                 return_t.dereference();
             }
-            Self::And(l, r) | Self::Or(l, r) => {
-                l.dereference();
-                r.dereference();
+            Self::And(tys) => {
+                *tys = std::mem::take(tys)
+                    .into_iter()
+                    .map(|mut t| {
+                        t.dereference();
+                        t
+                    })
+                    .collect();
+                if tys.len() == 1 {
+                    *self = tys.remove(0);
+                }
+            }
+            Self::Or(tys) => {
+                *tys = tys
+                    .take_all()
+                    .into_iter()
+                    .map(|mut t| {
+                        t.dereference();
+                        t
+                    })
+                    .collect();
+                if tys.len() == 1 {
+                    *self = tys.take_all().into_iter().next().unwrap();
+                }
             }
             Self::Not(ty) => {
                 ty.dereference();
@@ -5268,7 +5279,8 @@ impl Type {
                 set.extend(return_t.variables());
                 set
             }
-            Self::And(l, r) | Self::Or(l, r) => l.variables().union(&r.variables()),
+            Self::And(tys) => tys.iter().flat_map(|t| t.variables()).collect(),
+            Self::Or(tys) => tys.iter().flat_map(|t| t.variables()).collect(),
             Self::Not(ty) => ty.variables(),
             Self::Bounded { sub, sup } => sub.variables().union(&sup.variables()),
             Self::Quantified(ty) | Self::Structural(ty) => ty.variables(),
@@ -5380,13 +5392,16 @@ impl<'t> ReplaceTable<'t> {
                     self.iterate(l, r);
                 }
             }
-            (Type::And(l, r), Type::And(l2, r2)) => {
-                self.iterate(l, l2);
-                self.iterate(r, r2);
+            // FIXME:
+            (Type::And(tys), Type::And(tys2)) => {
+                for (l, r) in tys.iter().zip(tys2.iter()) {
+                    self.iterate(l, r);
+                }
             }
-            (Type::Or(l, r), Type::Or(l2, r2)) => {
-                self.iterate(l, l2);
-                self.iterate(r, r2);
+            (Type::Or(tys), Type::Or(tys2)) => {
+                for (l, r) in tys.iter().zip(tys2.iter()) {
+                    self.iterate(l, r);
+                }
             }
             (Type::Not(t), Type::Not(t2)) => {
                 self.iterate(t, t2);

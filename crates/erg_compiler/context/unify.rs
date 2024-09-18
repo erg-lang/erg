@@ -70,6 +70,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
     /// occur(?T(<: Str) or ?U(<: Int), ?T(<: Str)) ==> Error
     /// occur(?T(<: ?U or Y), ?U) ==> OK
     /// occur(?T, ?T.Output) ==> OK
+    /// occur(?T, ?T or Int) ==> Error
     /// ```
     fn occur(&self, maybe_sub: &Type, maybe_sup: &Type) -> TyCheckResult<()> {
         if maybe_sub == maybe_sup {
@@ -155,17 +156,71 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 }
                 Ok(())
             }
-            (Or(l, r), Or(l2, r2)) | (And(l, r), And(l2, r2)) => self
-                .occur(l, l2)
-                .and(self.occur(r, r2))
-                .or(self.occur(l, r2).and(self.occur(r, l2))),
-            (lhs, Or(l, r)) | (lhs, And(l, r)) => {
-                self.occur_inner(lhs, l)?;
-                self.occur_inner(lhs, r)
+            // FIXME: This is not correct, we must visit all permutations of the types
+            (And(l), And(r)) if l.len() == r.len() => {
+                let mut r = r.clone();
+                for _ in 0..r.len() {
+                    if l.iter()
+                        .zip(r.iter())
+                        .all(|(l, r)| self.occur_inner(l, r).is_ok())
+                    {
+                        return Ok(());
+                    }
+                    r.rotate_left(1);
+                }
+                Err(TyCheckErrors::from(TyCheckError::subtyping_error(
+                    self.ctx.cfg.input.clone(),
+                    line!() as usize,
+                    maybe_sub,
+                    maybe_sup,
+                    self.loc.loc(),
+                    self.ctx.caused_by(),
+                )))
             }
-            (Or(l, r), rhs) | (And(l, r), rhs) => {
-                self.occur_inner(l, rhs)?;
-                self.occur_inner(r, rhs)
+            (Or(l), Or(r)) if l.len() == r.len() => {
+                let l = l.to_vec();
+                let mut r = r.to_vec();
+                for _ in 0..r.len() {
+                    if l.iter()
+                        .zip(r.iter())
+                        .all(|(l, r)| self.occur_inner(l, r).is_ok())
+                    {
+                        return Ok(());
+                    }
+                    r.rotate_left(1);
+                }
+                Err(TyCheckErrors::from(TyCheckError::subtyping_error(
+                    self.ctx.cfg.input.clone(),
+                    line!() as usize,
+                    maybe_sub,
+                    maybe_sup,
+                    self.loc.loc(),
+                    self.ctx.caused_by(),
+                )))
+            }
+            (lhs, And(tys)) => {
+                for ty in tys.iter() {
+                    self.occur_inner(lhs, ty)?;
+                }
+                Ok(())
+            }
+            (lhs, Or(tys)) => {
+                for ty in tys.iter() {
+                    self.occur_inner(lhs, ty)?;
+                }
+                Ok(())
+            }
+            (And(tys), rhs) => {
+                for ty in tys.iter() {
+                    self.occur_inner(ty, rhs)?;
+                }
+                Ok(())
+            }
+            (Or(tys), rhs) => {
+                for ty in tys.iter() {
+                    self.occur_inner(ty, rhs)?;
+                }
+                Ok(())
             }
             _ => Ok(()),
         }
@@ -266,13 +321,29 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 }
                 Ok(())
             }
-            (lhs, Or(l, r)) | (lhs, And(l, r)) => {
-                self.occur_inner(lhs, l)?;
-                self.occur_inner(lhs, r)
+            (lhs, And(tys)) => {
+                for ty in tys.iter() {
+                    self.occur_inner(lhs, ty)?;
+                }
+                Ok(())
             }
-            (Or(l, r), rhs) | (And(l, r), rhs) => {
-                self.occur_inner(l, rhs)?;
-                self.occur_inner(r, rhs)
+            (lhs, Or(tys)) => {
+                for ty in tys.iter() {
+                    self.occur_inner(lhs, ty)?;
+                }
+                Ok(())
+            }
+            (And(tys), rhs) => {
+                for ty in tys.iter() {
+                    self.occur_inner(ty, rhs)?;
+                }
+                Ok(())
+            }
+            (Or(tys), rhs) => {
+                for ty in tys.iter() {
+                    self.occur_inner(ty, rhs)?;
+                }
+                Ok(())
             }
             _ => Ok(()),
         }
@@ -1227,38 +1298,66 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 // self.sub_unify(&lsub, &union, loc, param_name)?;
                 maybe_sup.update_tyvar(union, intersec, self.undoable, false);
             }
+            // TODO: Preferentially compare same-structure types (e.g. K(?T) <: K(?U))
+            (And(ltys), And(rtys)) => {
+                let mut ltys_ = ltys.clone();
+                let mut rtys_ = rtys.clone();
+                // Show and EqHash and T <: Eq and Show and Ord
+                // => EqHash and T <: Eq and Ord
+                for lty in ltys.iter() {
+                    if let Some(idx) = rtys_.iter().position(|r| r == lty) {
+                        rtys_.remove(idx);
+                        let idx = ltys_.iter().position(|l| l == lty).unwrap();
+                        ltys_.remove(idx);
+                    }
+                }
+                // EqHash and T <: Eq and Ord
+                for lty in ltys_.iter() {
+                    // lty: EqHash
+                    // rty: Eq, Ord
+                    for rty in rtys_.iter() {
+                        if self.ctx.subtype_of(lty, rty) {
+                            self.sub_unify(lty, rty)?;
+                            continue;
+                        }
+                    }
+                }
+            }
+            // TODO: Preferentially compare same-structure types (e.g. K(?T) <: K(?U))
+            // Nat or Str or NoneType <: NoneType or ?T or Int
+            // => Str <: ?T
             // (Int or ?T) <: (?U or Int)
             // OK: (Int <: Int); (?T <: ?U)
             // NG: (Int <: ?U); (?T <: Int)
-            (Or(l1, r1), Or(l2, r2)) | (And(l1, r1), And(l2, r2)) => {
-                if self.ctx.subtype_of(l1, l2) && self.ctx.subtype_of(r1, r2) {
-                    let (l_sup, r_sup) = if !l1.is_unbound_var()
-                        && !r2.is_unbound_var()
-                        && self.ctx.subtype_of(l1, r2)
-                    {
-                        (r2, l2)
-                    } else {
-                        (l2, r2)
-                    };
-                    self.sub_unify(l1, l_sup)?;
-                    self.sub_unify(r1, r_sup)?;
-                } else {
-                    self.sub_unify(l1, r2)?;
-                    self.sub_unify(r1, l2)?;
+            (Or(ltys), Or(rtys)) => {
+                let mut ltys_ = ltys.clone();
+                let mut rtys_ = rtys.clone();
+                // Nat or T or Str <: Str or Int or NoneType
+                // => Nat or T <: Int or NoneType
+                for lty in ltys {
+                    if rtys_.linear_remove(lty) {
+                        ltys_.linear_remove(lty);
+                    }
+                }
+                // Nat or T <: Int or NoneType
+                for lty in ltys_.iter() {
+                    // lty: Nat
+                    // rty: Int, NoneType
+                    for rty in rtys_.iter() {
+                        if self.ctx.subtype_of(lty, rty) {
+                            self.sub_unify(lty, rty)?;
+                            continue;
+                        }
+                    }
                 }
             }
             // NG: Nat <: ?T or Int ==> Nat or Int (?T = Nat)
             // OK: Nat <: ?T or Int ==> ?T or Int
-            (sub, Or(l, r))
-                if l.is_unbound_var()
-                    && !sub.is_unbound_var()
-                    && !r.is_unbound_var()
-                    && self.ctx.subtype_of(sub, r) => {}
-            (sub, Or(l, r))
-                if r.is_unbound_var()
-                    && !sub.is_unbound_var()
-                    && !l.is_unbound_var()
-                    && self.ctx.subtype_of(sub, l) => {}
+            (sub, Or(tys))
+                if !sub.is_unbound_var()
+                    && tys
+                        .iter()
+                        .any(|ty| !ty.is_unbound_var() && self.ctx.subtype_of(sub, ty)) => {}
             // e.g. Structural({ .method = (self: T) -> Int })/T
             (Structural(sub), FreeVar(sup_fv))
                 if sup_fv.is_unbound() && sub.contains_tvar(sup_fv) => {}
@@ -1622,30 +1721,34 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 }
             }
             // (X or Y) <: Z is valid when X <: Z and Y <: Z
-            (Or(l, r), _) => {
-                self.sub_unify(l, maybe_sup)?;
-                self.sub_unify(r, maybe_sup)?;
+            (Or(tys), _) => {
+                for ty in tys {
+                    self.sub_unify(ty, maybe_sup)?;
+                }
             }
             // X <: (Y and Z) is valid when X <: Y and X <: Z
-            (_, And(l, r)) => {
-                self.sub_unify(maybe_sub, l)?;
-                self.sub_unify(maybe_sub, r)?;
+            (_, And(tys)) => {
+                for ty in tys {
+                    self.sub_unify(maybe_sub, ty)?;
+                }
             }
             // (X and Y) <: Z is valid when X <: Z or Y <: Z
-            (And(l, r), _) => {
-                if self.ctx.subtype_of(l, maybe_sup) {
-                    self.sub_unify(l, maybe_sup)?;
-                } else {
-                    self.sub_unify(r, maybe_sup)?;
+            (And(tys), _) => {
+                for ty in tys {
+                    if self.ctx.subtype_of(ty, maybe_sup) {
+                        return self.sub_unify(ty, maybe_sup);
+                    }
                 }
+                self.sub_unify(tys.iter().next().unwrap(), maybe_sup)?;
             }
             // X <: (Y or Z) is valid when X <: Y or X <: Z
-            (_, Or(l, r)) => {
-                if self.ctx.subtype_of(maybe_sub, l) {
-                    self.sub_unify(maybe_sub, l)?;
-                } else {
-                    self.sub_unify(maybe_sub, r)?;
+            (_, Or(tys)) => {
+                for ty in tys {
+                    if self.ctx.subtype_of(maybe_sub, ty) {
+                        return self.sub_unify(maybe_sub, ty);
+                    }
                 }
+                self.sub_unify(maybe_sub, tys.iter().next().unwrap())?;
             }
             (Ref(sub), Ref(sup)) => {
                 self.sub_unify(sub, sup)?;
@@ -1887,27 +1990,35 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
     /// ```
     fn unify(&self, lhs: &Type, rhs: &Type) -> Option<Type> {
         match (lhs, rhs) {
-            (Type::Or(l, r), other) | (other, Type::Or(l, r)) => {
-                if let Some(t) = self.unify(l, other) {
-                    return self.unify(&t, l);
-                } else if let Some(t) = self.unify(r, other) {
-                    return self.unify(&t, l);
-                }
-                return None;
+            (Never, other) | (other, Never) => {
+                return Some(other.clone());
             }
-            (Type::FreeVar(fv), _) if fv.is_linked() => return self.unify(&fv.crack(), rhs),
-            (_, Type::FreeVar(fv)) if fv.is_linked() => return self.unify(lhs, &fv.crack()),
+            (Or(tys), other) | (other, Or(tys)) => {
+                let mut unified = Never;
+                for ty in tys {
+                    if let Some(t) = self.unify(ty, other) {
+                        unified = self.ctx.union(&unified, &t);
+                    }
+                }
+                if unified != Never {
+                    return Some(unified);
+                } else {
+                    return None;
+                }
+            }
+            (FreeVar(fv), _) if fv.is_linked() => return self.unify(&fv.crack(), rhs),
+            (_, FreeVar(fv)) if fv.is_linked() => return self.unify(lhs, &fv.crack()),
             // TODO: unify(?T, ?U) ?
-            (Type::FreeVar(_), Type::FreeVar(_)) => {}
-            (Type::FreeVar(fv), _) if fv.constraint_is_sandwiched() => {
+            (FreeVar(_), FreeVar(_)) => {}
+            (FreeVar(fv), _) if fv.constraint_is_sandwiched() => {
                 let sub = fv.get_sub()?;
                 return self.unify(&sub, rhs);
             }
-            (_, Type::FreeVar(fv)) if fv.constraint_is_sandwiched() => {
+            (_, FreeVar(fv)) if fv.constraint_is_sandwiched() => {
                 let sub = fv.get_sub()?;
                 return self.unify(lhs, &sub);
             }
-            (Type::Refinement(lhs), Type::Refinement(rhs)) => {
+            (Refinement(lhs), Refinement(rhs)) => {
                 if let Some(_union) = self.unify(&lhs.t, &rhs.t) {
                     return Some(self.ctx.union_refinement(lhs, rhs).into());
                 }
@@ -1917,11 +2028,11 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
         let l_sups = self.ctx.get_super_classes(lhs)?;
         let r_sups = self.ctx.get_super_classes(rhs)?;
         for l_sup in l_sups {
-            if self.ctx.supertype_of(&l_sup, &Obj) {
+            if l_sup == Obj || self.ctx.is_trait(&l_sup) {
                 continue;
             }
             for r_sup in r_sups.clone() {
-                if self.ctx.supertype_of(&r_sup, &Obj) {
+                if r_sup == Obj || self.ctx.is_trait(&r_sup) {
                     continue;
                 }
                 if let Some(t) = self.ctx.max(&l_sup, &r_sup).either() {
