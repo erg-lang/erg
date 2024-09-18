@@ -54,6 +54,10 @@ impl Promise {
         matches!(self, Self::Joined)
     }
 
+    pub const fn is_joining(&self) -> bool {
+        matches!(self, Self::Joining)
+    }
+
     pub fn thread_id(&self) -> Option<ThreadId> {
         match self {
             Self::Joined | Self::Joining => None,
@@ -172,8 +176,8 @@ impl SharedPromises {
         if !self.graph.entries().contains(path) {
             return Err(Box::new(format!("not registered: {path}")));
         }
-        if self.graph.ancestors(path).contains(&self.root) {
-            // cycle detected, `self.path` must not in the dependencies
+        if self.graph.ancestors(path).contains(&self.root) || path == &self.root {
+            // cycle detected, `self.root` must not in the dependencies
             // Erg analysis processes never join ancestor threads (although joining ancestors itself is allowed in Rust)
             // self.wait_until_finished(path);
             return Ok(());
@@ -206,6 +210,7 @@ impl SharedPromises {
             return Ok(());
         };
         if handle.thread().id() == current().id() {
+            *self.promises.borrow_mut().get_mut(path).unwrap() = Promise::Joined;
             return Ok(());
         }
         let res = handle.join();

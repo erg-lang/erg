@@ -819,11 +819,19 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
     /// Launch the analysis processes in order according to the dependency graph.
     fn execute(&mut self, ast: AST, mode: &str) -> Result<CompleteArtifact, IncompleteArtifact> {
         log!(info "Start to spawn dependencies processes");
-        let path = NormalizedPathBuf::from(self.cfg.input.path());
+        let root = NormalizedPathBuf::from(self.cfg.input.path());
         let mut graph = self.shared.graph.clone_inner();
-        let deps = self.build_deps_and_module(&path, &mut graph);
+        let deps = self.build_deps_and_module(&root, &mut graph);
         log!(info "All dependencies have started to analyze");
         debug_power_assert!(self.asts.len(), ==, 0);
+        if self.cfg.mode != ErgMode::LanguageServer {
+            for path in self.shared.graph.ancestors(&root) {
+                assert!(
+                    self.shared.promises.is_registered(&path),
+                    "{path} is not registered"
+                );
+            }
+        }
         self.finalize();
         match self.main_builder.build_from_ast(ast, mode) {
             Ok(artifact) => Ok(CompleteArtifact::new(
@@ -895,6 +903,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
             self.shared.promises.wait_until_finished(path);
         } else if let Some(inliner) = self.inlines.get(path).cloned() {
             self.build_deps_and_module(&inliner, graph);
+            self.shared.promises.mark_as_joined(path.clone());
         } else {
             unreachable!("{path} is not found in self.inlines and self.asts");
         }
@@ -998,10 +1007,17 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
             }
             Err(artifact) => {
                 let ctx = builder.pop_context().unwrap();
-                py_mod_cache.register(path, raw_ast, artifact.object, ctx, CheckStatus::Failed);
+                py_mod_cache.register(
+                    path.clone(),
+                    raw_ast,
+                    artifact.object,
+                    ctx,
+                    CheckStatus::Failed,
+                );
                 self.shared.warns.extend(artifact.warns);
                 self.shared.errors.extend(artifact.errors);
             }
         }
+        self.shared.promises.mark_as_joined(path);
     }
 }

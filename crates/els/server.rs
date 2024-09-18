@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc};
 use std::time::Duration;
 
-use erg_common::config::ErgConfig;
+use erg_common::config::{ErgConfig, ErgMode};
 use erg_common::consts::PYTHON_MODE;
 use erg_common::dict::Dict;
 use erg_common::env::erg_path;
@@ -213,7 +213,11 @@ impl Server {
     #[allow(unused)]
     pub fn bind_fake_client() -> FakeClient<Server> {
         let (sender, receiver) = std::sync::mpsc::channel();
-        FakeClient::new(Server::new(ErgConfig::default(), Some(sender)), receiver)
+        let cfg = ErgConfig {
+            mode: ErgMode::LanguageServer,
+            ..Default::default()
+        };
+        FakeClient::new(Server::new(cfg, Some(sender)), receiver)
     }
 }
 
