@@ -1685,6 +1685,19 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
+        if PYTHON_MODE {
+            let t_getitem = func1(
+                t_singleton(T.clone()),
+                t_singleton(unknown_len_list_t(T.clone())),
+            )
+            .quantify();
+            generic_list.register_builtin_erg_impl(
+                FUNDAMENTAL_GETITEM,
+                t_getitem,
+                Immutable,
+                Visibility::BUILTIN_PUBLIC,
+            );
+        }
         let mut list_hash = Self::builtin_methods(Some(mono(HASH)), 1);
         list_hash.register_builtin_erg_impl(
             OP_HASH,
@@ -2211,6 +2224,19 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
+        if PYTHON_MODE {
+            let t_getitem = func1(
+                tuple_t(vec![t_singleton(T.clone()), t_singleton(U.clone())]),
+                t_singleton(Type::from(dict! { T.clone() => U.clone() })),
+            )
+            .quantify();
+            generic_dict.register_builtin_erg_impl(
+                FUNDAMENTAL_GETITEM,
+                t_getitem,
+                Immutable,
+                Visibility::BUILTIN_PUBLIC,
+            );
+        }
         let dict_t = poly(DICT, vec![D.clone()]);
         let mut dict_ =
             // TODO: D <: GenericDict
@@ -2780,6 +2806,20 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
+        if PYTHON_MODE {
+            let Ts = type_q(TY_TS);
+            let t_getitem = func1(
+                Ts.clone(),
+                t_singleton(poly(TUPLE, vec![ty_tp(Ts.clone())])),
+            )
+            .quantify();
+            generic_tuple.register_builtin_erg_impl(
+                FUNDAMENTAL_GETITEM,
+                t_getitem,
+                Immutable,
+                Visibility::BUILTIN_PUBLIC,
+            );
+        }
         /* HomogenousTuple */
         let mut homo_tuple = Self::builtin_poly_class(HOMOGENOUS_TUPLE, vec![PS::t_nd(TY_T)], 1);
         homo_tuple.register_superclass(mono(GENERIC_TUPLE), &generic_tuple);
