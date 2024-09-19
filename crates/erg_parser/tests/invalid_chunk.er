@@ -65,7 +65,6 @@ block =
     c = "Hello, world" [0] # is it possible to parse?
     d = True {1}
     e = False {"a": 2}
-    f = 0.1 (1)
     g = {x = 1} Class {name = Str; age = Nat}
 
     [1, 2, 3] {1}

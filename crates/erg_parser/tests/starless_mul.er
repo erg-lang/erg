@@ -1,0 +1,4 @@
+x = 1
+assert 3x.real + 1 == 4
+assert 3(2+x) + 1 == 10
+assert 2.1x + 1.2 >= 3.1

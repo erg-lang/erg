@@ -2443,6 +2443,22 @@ impl Parser {
                         self.errs.push(err);
                         debug_exit_info!(self);
                         return Err(());
+                    } else if lit.is_number() && tk.is(Symbol) {
+                        // *-less multiplication (e.g. 3x, 3x.y)
+                        let rhs = self.try_reduce_call_or_acc(false)?;
+                        let lhs = Expr::Literal(lit);
+                        debug_exit_info!(self);
+                        let op = Token::dummy(Star, "*");
+                        return Ok(Expr::BinOp(lhs.bin_op(op, rhs)));
+                    } else if lit.is_number() && tk.is(LParen) {
+                        // *-less multiplication (e.g. 3(4+1), 3(4+1).y)
+                        self.lpop();
+                        let rhs = self.try_reduce_expr(false, false, false, false)?;
+                        expect_pop!(self, RParen);
+                        let lhs = Expr::Literal(lit);
+                        debug_exit_info!(self);
+                        let op = Token::dummy(Star, "*");
+                        return Ok(Expr::BinOp(lhs.bin_op(op, rhs)));
                     }
                 }
                 debug_exit_info!(self);

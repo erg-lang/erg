@@ -40,6 +40,11 @@ fn parse_simple_if() -> Result<(), ()> {
 }
 
 #[test]
+fn parse_starless_mul() -> Result<(), ()> {
+    expect_success("tests/starless_mul.er", 0)
+}
+
+#[test]
 fn parse_stream() -> Result<(), ()> {
     expect_success("tests/stream.er", 0)
 }
@@ -66,7 +71,7 @@ fn parse_str_literal() -> Result<(), ()> {
 
 #[test]
 fn parse_invalid_chunk() -> Result<(), ()> {
-    expect_failure("tests/invalid_chunk.er", 0, 62)
+    expect_failure("tests/invalid_chunk.er", 0, 60)
 }
 
 #[test]
@@ -80,12 +85,7 @@ fn parse_invalid_class_definition() -> Result<(), ()> {
 }
 
 #[test]
-fn exec_invalid_chunk_prs_err() -> Result<(), ()> {
-    expect_failure("tests/invalid_chunk.er", 0, 62)
-}
-
-#[test]
-fn exec_warns() -> Result<(), ()> {
+fn parse_warns() -> Result<(), ()> {
     expect_success("tests/warns.er", 1)
 }
 

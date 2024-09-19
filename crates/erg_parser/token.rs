@@ -534,6 +534,13 @@ impl Token {
         self.kind == kind
     }
 
+    pub fn is_number(&self) -> bool {
+        matches!(
+            self.kind,
+            NatLit | IntLit | BinLit | OctLit | HexLit | RatioLit | InfLit
+        )
+    }
+
     pub const fn is_block_op(&self) -> bool {
         self.category().is_block_op()
     }

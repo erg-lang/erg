@@ -257,6 +257,10 @@ impl Literal {
         self.token.is(kind)
     }
 
+    pub fn is_number(&self) -> bool {
+        self.token.is_number()
+    }
+
     #[inline]
     pub fn is_doc_comment(&self) -> bool {
         self.token.is(TokenKind::DocComment)

@@ -616,16 +616,28 @@ impl Lexer /*<'a>*/ {
                     num.push(self.consume().unwrap());
                 }
                 'b' | 'B' => {
-                    num.push(self.consume().unwrap());
-                    return self.lex_bin(num);
+                    if num == "0" && self.peek_next_ch().is_some_and(|c| c.is_ascii_digit()) {
+                        num.push(self.consume().unwrap());
+                        return self.lex_bin(num);
+                    } else {
+                        break;
+                    }
                 }
                 'o' | 'O' => {
-                    num.push(self.consume().unwrap());
-                    return self.lex_oct(num);
+                    if num == "0" && self.peek_next_ch().is_some_and(|c| c.is_ascii_digit()) {
+                        num.push(self.consume().unwrap());
+                        return self.lex_oct(num);
+                    } else {
+                        break;
+                    }
                 }
                 'x' | 'X' => {
-                    num.push(self.consume().unwrap());
-                    return self.lex_hex(num);
+                    if num == "0" && self.peek_next_ch().is_some_and(|c| c.is_ascii_hexdigit()) {
+                        num.push(self.consume().unwrap());
+                        return self.lex_hex(num);
+                    } else {
+                        break;
+                    }
                 }
                 c if Self::is_valid_continue_symbol_ch(c) => {
                     // exponent (e.g. 10e+3)
@@ -635,12 +647,7 @@ impl Lexer /*<'a>*/ {
                         return self.lex_exponent(num);
                     } else {
                         // IntLit * Symbol(e.g. 3x + 1)
-                        let token = self.emit_singleline_token(Illegal, &(num + &c.to_string()));
-                        return Err(LexError::feature_error(
-                            line!() as usize,
-                            token.loc(),
-                            "*-less multiply",
-                        ));
+                        break;
                     }
                 }
                 _ => {
