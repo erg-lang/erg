@@ -17,11 +17,11 @@ traditional_chinese = ["erg_common/traditional_chinese"]
 unicode = ["erg_common/unicode"]
 pretty = ["erg_common/pretty"]
 large_thread = ["erg_common/large_thread"]
-experimental = ["erg_common/experimental"]
+experimental = ["erg_common/experimental", "parallel"]
 pylib = ["dep:pyo3", "erg_common/pylib"]
 pylib_parser = ["pylib"]
 log-level-error = ["erg_common/log-level-error"]
-single-thread = ["erg_common/single-thread"]
+parallel = ["erg_common/parallel"]
 
 [dependencies]
 erg_common = { workspace = true }

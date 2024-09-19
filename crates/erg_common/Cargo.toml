@@ -23,10 +23,10 @@ py_compat = []
 gal = []
 no_std = []
 full-repl = ["dep:crossterm"]
-experimental = []
+experimental = ["parallel"]
 pylib = ["dep:pyo3"]
 log-level-error = []
-single-thread = []
+parallel = []
 
 [target.'cfg(unix)'.dependencies]
 backtrace-on-stack-overflow = { version = "0.3.0", optional = true }

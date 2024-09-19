@@ -40,7 +40,8 @@ full-repl = ["erg_common/full-repl"]
 full = ["full-repl", "unicode", "pretty"]
 experimental = ["erg_common/experimental", "erg_parser/experimental", "erg_compiler/experimental"]
 log-level-error = ["erg_common/log-level-error", "erg_parser/log-level-error", "erg_compiler/log-level-error"]
-single-thread = ["erg_common/single-thread", "erg_parser/single-thread", "erg_compiler/single-thread"]
+# The parallelizing compiler was found to contain a bug that caused it to hang in complex dependencies, so it is disabled by default.
+parallel = ["erg_common/parallel", "erg_parser/parallel", "erg_compiler/parallel"]
 
 [dependencies]
 erg_common = { workspace = true }

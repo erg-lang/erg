@@ -45,8 +45,12 @@ Python互換モードを有効にする。APIや文法の一部がPythonと互�
 
 ## experimental
 
-実験的な機能を有効にする。
+実験的な機能を有効にする。`parallel`も有効化される。
 
 ## log-level-error
 
 エラーログのみ表示する。
+
+## parallel
+
+コンパイラの並列化を有効にする。不安定機能。

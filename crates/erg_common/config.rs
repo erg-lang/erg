@@ -467,6 +467,8 @@ impl ErgConfig {
                 "--build-features" => {
                     #[cfg(feature = "debug")]
                     print!("debug ");
+                    #[cfg(feature = "backtrace")]
+                    println!("backtrace");
                     #[cfg(feature = "els")]
                     print!("els ");
                     #[cfg(feature = "py_compat")]
@@ -483,6 +485,18 @@ impl ErgConfig {
                     print!("pretty ");
                     #[cfg(feature = "large_thread")]
                     print!("large_thread");
+                    #[cfg(feature = "no_std")]
+                    println!("no_std");
+                    #[cfg(feature = "full-repl")]
+                    println!("full-repl");
+                    #[cfg(feature = "experimental")]
+                    println!("experimental");
+                    #[cfg(feature = "pylib")]
+                    println!("pylib");
+                    #[cfg(feature = "log-level-error")]
+                    println!("log-level-error");
+                    #[cfg(feature = "parallel")]
+                    println!("parallel");
                     println!();
                     process::exit(0);
                 }

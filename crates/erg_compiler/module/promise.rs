@@ -1,7 +1,7 @@
 use std::fmt;
 use std::thread::{current, JoinHandle, ThreadId};
 
-use erg_common::consts::{DEBUG_MODE, SINGLE_THREAD};
+use erg_common::consts::{DEBUG_MODE, PARALLEL};
 use erg_common::dict::Dict;
 use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::shared::Shared;
@@ -182,7 +182,7 @@ impl SharedPromises {
             // self.wait_until_finished(path);
             return Ok(());
         }
-        if SINGLE_THREAD {
+        if !PARALLEL {
             assert!(self.is_joined(path));
             return Ok(());
         }
