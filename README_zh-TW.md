@@ -9,7 +9,7 @@
 <p align='center'>
     <a href="https://github.com/erg-lang/erg/releases"><img alt="Build status" src="https://img.shields.io/github/v/release/erg-lang/erg.svg"></a>
     <a href="https://github.com/erg-lang/erg/actions/workflows/main.yml"><img alt="Build status" src="https://github.com/erg-lang/erg/actions/workflows/main.yml/badge.svg"></a>
-    <a href="https://discord.gg/zfAAUbgGr4" rel="nofollow"><img src="https://camo.githubusercontent.com/2fe0be53a1df61baaa90fcf17f265be8b485ec681a3f69467304491a223dd4db/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f446973636f72642d2532333538363546322e7376673f6c6f676f3d646973636f7264266c6f676f436f6c6f723d7768697465" alt="Discord" data-canonical-src="https://img.shields.io/badge/Discord-%235865F2.svg?logo=discord&amp;logoColor=white" style="max-width: 100%;"></a>
+    <a href="https://discord.gg/zfAAUbgGr4" rel="nofollow"><img alt="Discord" src="https://img.shields.io/badge/Discord-%235865F2.svg?logo=discord&amp;logoColor=white" style="max-width: 100%;"></a>
 <br>
     <a href="https://erg-lang.org/web-ide/" data-size="large">
         <img src="https://img.shields.io/static/v1?style=for-the-badge&label=&message=playground&color=green">
