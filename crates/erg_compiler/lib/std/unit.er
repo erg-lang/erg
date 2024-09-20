@@ -16,6 +16,11 @@ cd = Dimension(1)
 .k = unsound.pyeval("k")
 .mol = unsound.pyeval("mol")
 .cd = unsound.pyeval("cd")
+.meter = .m
+.sec = .s
+.ampere = .a
+.kelvin = .k
+.candela = .cd
 
 assert .kg in  Dimension(Int, 1, 0, 0, 0, 0, 0, 0)
 assert .m in   Dimension(Int, 0, 1, 0, 0, 0, 0, 0)
@@ -24,6 +29,11 @@ assert .a in   Dimension(Int, 0, 0, 0, 1, 0, 0, 0)
 assert .k in   Dimension(Int, 0, 0, 0, 0, 1, 0, 0)
 assert .mol in Dimension(Int, 0, 0, 0, 0, 0, 1, 0)
 assert .cd in  Dimension(Int, 0, 0, 0, 0, 0, 0, 1)
+assert .meter in   Dimension(Int, 0, 1, 0, 0, 0, 0, 0)
+assert .sec in     Dimension(Int, 0, 0, 1, 0, 0, 0, 0)
+assert .ampere in  Dimension(Int, 0, 0, 0, 1, 0, 0, 0)
+assert .kelvin in  Dimension(Int, 0, 0, 0, 0, 1, 0, 0)
+assert .candela in Dimension(Int, 0, 0, 0, 0, 0, 0, 1)
 
 # Base unit types
 '''
@@ -34,41 +44,59 @@ Kilogram
 Meter
 '''
 .M = Dimension(Int, 0, 1, 0, 0, 0, 0, 0)
+.Meter = .M
 '''
 Second
 '''
 .S = Dimension(Int, 0, 0, 1, 0, 0, 0, 0)
+.Sec = .S
 '''
 Ampere
 '''
 .A = Dimension(Int, 0, 0, 0, 1, 0, 0, 0)
+.Ampere = .A
 '''
 Kelvin
 '''
 .K = Dimension(Int, 0, 0, 0, 0, 1, 0, 0)
+.Kelvin = .K
 .Mol = Dimension(Int, 0, 0, 0, 0, 0, 1, 0)
 '''
 Candela
 '''
 .Cd = Dimension(Int, 0, 0, 0, 0, 0, 0, 1)
+.Candela = .Cd
 # Derived unit types
 .Hz = Dimension(Int, 0, 0, -1, 0, 0, 0, 0)
+.Hertz = .Hz
 .J = Dimension(Int, 1, 2, -2, 0, 0, 0, 0)
+.Joule = .J
 .N = Dimension(Int, 1, 1, -2, 0, 0, 0, 0)
+.Newton = .N
 .Pa = Dimension(Int, 1, -1, -2, 0, 0, 0, 0)
+.Pascal = .Pa
 .W = Dimension(Int, 1, 2, -3, 0, 0, 0, 0)
+.Watt = .W
 .C = Dimension(Int, 0, 0, 1, 1, 0, 0, 0)
+.Coulomb = .C
 .V = Dimension(Int, 1, 2, -3, -1, 0, 0, 0)
+.Volt = .V
 .F = Dimension(Int, -1, -2, 4, 2, 0, 0, 0)
+.Farad = .F
 .Ohm = Dimension(Int, 1, 2, -3, -2, 0, 0, 0)
 .Siemens = Dimension(Int, -1, -2, 3, 2, 0, 0, 0)
 .Wb = Dimension(Int, 1, 2, -2, -1, 0, 0, 0)
+.Weber = .Wb
 .Tesla = Dimension(Int, 1, 0, -2, -1, 0, 0, 0)
 .Henry = Dimension(Int, 1, 2, -2, -2, 0, 0, 0)
 .Bq = Dimension(Int, 0, 0, -1, 0, 0, 0, 0)
+.Becquerel = .Bq
 .Gy = Dimension(Int, 2, 0, -2, 0, 0, 0, 0)
+.Gray = .Gy
 .Sv = Dimension(Int, 2, 0, -2, 0, 0, 0, 0)
+.Sievert = .Sv
 .Kat = Dimension(Int, 0, 0, -1, 0, 0, 1, 0)
+.Katal = .Kat
 
 .quecto = 1e-30
 .ronto = 1e-27

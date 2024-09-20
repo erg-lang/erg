@@ -54,11 +54,11 @@
         print! "hello,", end := ""
     # TypeError: `.times!`は`Nat`(0以上のInt)のメソッドです、`Int`ではありません
 
-    {Meter; Sec; meter; yard; sec} = import "unit"
+    {Meter; Sec; Kg; meter; sec} = import "unit"
 
     velocity x: Meter, t: Sec = x / t
 
-    v = velocity 3yard, 2sec # TypeError: `x`の型が適合しません。`Meter`を予期しましたが、`Yard`が渡されました
+    v = velocity 3kg, 2sec # TypeError: `x`の型が適合しません。`Meter`を予期しましたが、`Kg`が渡されました
     v = velocity 3meter, 2sec # v == 1.5 m/s
     ```
 

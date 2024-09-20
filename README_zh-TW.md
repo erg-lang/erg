@@ -53,11 +53,11 @@
         print! "hello, ", end := ""
     # 類型錯誤: `.times!`是`Nat`(0或更大整數)的方法，不是`Int`的
 
-    {Meter; Sec; meter; yard; sec} = import "unit"
+    {Meter; Sec; meter; kg; sec} = import "unit"
 
     velocity x: Meter, t: Sec = x / t
 
-    v = velocity 3yard, 2sec # 類型錯誤: `x`的類型不匹配: 預期為`Meter`，找到`Yard'`
+    v = velocity 3kg, 2sec # 類型錯誤: `x`的類型不匹配: 預期為`Meter`，找到`Kg`
     v = velocity 3meter, 2sec # v == 1.5 m/s
     ```
 
