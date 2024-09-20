@@ -25,10 +25,12 @@ class UnionType:
 
 
 class FakeGenericAlias:
+    __name__: str
     __origin__: type
     __args__: list  # list[type]
 
     def __init__(self, origin, *args):
+        self.__name__ = origin.__name__
         self.__origin__ = origin
         self.__args__ = args
 

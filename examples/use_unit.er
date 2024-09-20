@@ -1,0 +1,13 @@
+{m; s; kg; Kg} = import "unit"
+
+print! kg + kg
+j = kg*m*m/(s*s)
+v = j/kg*s/m
+print! m/s + v
+
+Joule = Dimension(Int, 1, 2, -2, 0, 0, 0, 0)
+j: Joule
+
+f _: Kg = None
+f kg
+f kg/m*m

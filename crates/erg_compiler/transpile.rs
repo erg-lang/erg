@@ -988,7 +988,7 @@ impl PyScriptGenerator {
     }
 
     fn transpile_simple_call(&mut self, call: Call) -> String {
-        let enc = if call.obj.ref_t().is_poly_type_meta() {
+        let enc = if call.obj.ref_t().is_poly_meta_type() {
             Enclosure::Bracket
         } else {
             Enclosure::Paren

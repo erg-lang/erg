@@ -1,0 +1,12 @@
+{m; s; kg; Kg} = import "unit"
+
+print! kg + m # ERR
+j = kg*m*m/(s*s)
+v = j/kg*s/m
+print! m/s + v*m # ERR
+
+Joule = Dimension(Int, 1, 2, -2, 0, 0, 0, 0)
+m: Joule # ERR
+
+f _: Kg = None
+f kg/m # ERR

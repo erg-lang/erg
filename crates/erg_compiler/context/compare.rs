@@ -1154,12 +1154,15 @@ impl Context {
                         Type::Obj
                     }
                 };
+                /*
                 if variance == Variance::Contravariant {
                     self.subtype_of(&fv_t, &sub_t)
                 } else {
                     // REVIEW: covariant, invariant
                     self.supertype_of(&fv_t, &sub_t)
                 }
+                */
+                self.subtype_of(&sub_t, &fv_t) || self.supertype_of(&sub_t, &fv_t)
             }
             (_, TyParam::FreeVar(fv)) if fv.is_unbound() => {
                 let Some(fv_t) = fv.get_type() else {
@@ -1172,14 +1175,18 @@ impl Context {
                         Type::Obj
                     }
                 };
+                /*
                 if variance == Variance::Contravariant {
                     self.subtype_of(&sup_t, &fv_t)
                 } else {
                     // REVIEW: covariant, invariant
                     self.supertype_of(&sup_t, &fv_t)
                 }
+                */
+                self.subtype_of(&sup_t, &fv_t) || self.supertype_of(&sup_t, &fv_t)
             }
             (TyParam::Value(sup), _) => {
+                // Value([Value(1)]) => TyParam([Value(1)])
                 if let Ok(sup) = Self::convert_value_into_tp(sup.clone()) {
                     self.supertype_of_tp(&sup, sub_p, variance)
                 } else {
@@ -1408,6 +1415,7 @@ impl Context {
     /// union(?T(<: Str), ?U(<: Int)) == ?T or ?U
     /// union(List(Int, 2), List(Str, 2)) == List(Int or Str, 2)
     /// union(List(Int, 2), List(Str, 3)) == List(Int, 2) or List(Int, 3)
+    /// union(List(Int, 2), List(Int, ?N)) == List(Int, ?N)
     /// union({ .a = Int }, { .a = Str }) == { .a = Int or Str }
     /// union({ .a = Int }, { .a = Int; .b = Int }) == { .a = Int } or { .a = Int; .b = Int } # not to lost `b` information
     /// union((A and B) or C) == (A or C) and (B or C)

@@ -12,6 +12,7 @@ use erg_common::Str;
 use erg_common::{fmt_vec, fn_name, log};
 
 use crate::context::eval::Substituter;
+use crate::context::instantiate::TyVarCache;
 use crate::ty::constructors::*;
 use crate::ty::free::{Constraint, FreeKind, HasLevel, GENERIC_LEVEL};
 use crate::ty::typaram::{OpKind, TyParam};
@@ -1377,6 +1378,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 // * sub_unify({0},   ?T(:> {1},   <: Nat)): (?T(:> {0, 1}, <: Nat))
                 // * sub_unify(Bool,  ?T(<: Bool or Y)): (?T == Bool)
                 // * sub_unify(Float, ?T(<: Structural{ .imag = ?U })) ==> ?U == Float
+                // * sub_unify(K(Int, 1), ?T(:> K(?A, ?N))) ==> ?A(:> Int), ?N == 1
                 if let Type::Refinement(refine) = maybe_sub {
                     if refine.t.addr_eq(maybe_sup) {
                         return Ok(());
@@ -1386,7 +1388,18 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     if sup.is_structural() || !sup.is_recursive() {
                         self.sub_unify(maybe_sub, &sup)?;
                     }
-                    let new_sub = self.ctx.union(maybe_sub, &sub);
+                    let mut new_sub = self.ctx.union(maybe_sub, &sub);
+                    if maybe_sub.qual_name() == sub.qual_name() && new_sub.has_unbound_var() {
+                        let list = UndoableLinkedList::new();
+                        if self
+                            .ctx
+                            .undoable_sub_unify(maybe_sub, &sub, &(), &list, None)
+                            .is_ok()
+                        {
+                            drop(list);
+                            self.sub_unify(maybe_sub, &sub)?;
+                        }
+                    }
                     // Expanding to an Or-type is prohibited by default
                     // This increases the quality of error reporting
                     // (Try commenting out this part and run tests/should_err/subtyping.er to see the error report changes on lines 29-30)
@@ -1397,6 +1410,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                         let unified = self.unify(&l, &r);
                         if let Some(unified) = unified {
                             log!("unify({l}, {r}) == {unified}");
+                            new_sub = unified;
                         } else {
                             let maybe_sub = self.ctx.readable_type(maybe_sub.clone());
                             let new_sub = self.ctx.readable_type(new_sub);
@@ -1987,6 +2001,8 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
     /// unify(Eq, Int) == None
     /// unify(Int or Str, Int) == Some(Int or Str)
     /// unify(Int or Str, NoneType) == None
+    /// unify(K(1), K(2)) == None
+    /// unify(Int, ?U(<: Int) and ?T(<: Int)) == Some(?U and ?T)
     /// ```
     fn unify(&self, lhs: &Type, rhs: &Type) -> Option<Type> {
         match (lhs, rhs) {
@@ -2001,6 +2017,19 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     }
                 }
                 if unified != Never {
+                    return Some(unified);
+                } else {
+                    return None;
+                }
+            }
+            (And(tys), other) | (other, And(tys)) => {
+                let mut unified = Obj;
+                for ty in tys {
+                    if let Some(t) = self.unify(ty, other) {
+                        unified = self.ctx.intersection(&unified, &t);
+                    }
+                }
+                if unified != Obj && unified != Never {
                     return Some(unified);
                 } else {
                     return None;
@@ -2035,6 +2064,20 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 if r_sup == Obj || self.ctx.is_trait(&r_sup) {
                     continue;
                 }
+                let Ok(l_substituter) = Substituter::substitute_typarams(self.ctx, &l_sup, lhs)
+                else {
+                    continue;
+                };
+                let mut tv_cache = TyVarCache::new(self.ctx.level, self.ctx);
+                let l_sup = self.ctx.detach(l_sup.clone(), &mut tv_cache);
+                drop(l_substituter);
+                let Ok(r_substituter) = Substituter::substitute_typarams(self.ctx, &r_sup, rhs)
+                else {
+                    continue;
+                };
+                let mut tv_cache = TyVarCache::new(self.ctx.level, self.ctx);
+                let r_sup = self.ctx.detach(r_sup.clone(), &mut tv_cache);
+                drop(r_substituter);
                 if let Some(t) = self.ctx.max(&l_sup, &r_sup).either() {
                     return Some(t.clone());
                 }

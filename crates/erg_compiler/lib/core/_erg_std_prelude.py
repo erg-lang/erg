@@ -24,3 +24,37 @@ Record = tuple
 
 class Never:
     pass
+
+from typing import Generic, TypeVar
+
+Ty = TypeVar('Ty')
+M = TypeVar('M', bound=int)
+L = TypeVar("L", bound=int)
+T = TypeVar("T", bound=int)
+I = TypeVar("I", bound=int)
+Θ = TypeVar("Θ", bound=int)
+N = TypeVar("N", bound=int)
+J = TypeVar("J", bound=int)
+class Dimension(float, Generic[Ty, M, L, T, I, Θ, N, J]):
+    def value(self) -> float:
+        return float(self)
+    def __str__(self):
+        return f"Dimension({float(self)})"
+    def __add__(self, other):
+        return Dimension(float(self) + other)
+    def __sub__(self, other):
+        return Dimension(float(self) - other)
+    def __mul__(self, other):
+        return Dimension(float(self) * other)
+    def __rmul__(self, other):
+        return Dimension(other * float(self))
+    def __truediv__(self, other):
+        return Dimension(float(self) / other)
+    def __floordiv__(self, other):
+        return Dimension(float(self) // other)
+    def __rtruediv__(self, other):
+        return Dimension(other / float(self))
+    def __rfloordiv__(self, other):
+        return Dimension(other // float(self))
+    def type_check(self, t: type) -> bool:
+        return t.__name__ == "Dimension"

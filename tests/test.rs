@@ -468,6 +468,11 @@ fn exec_tuple_test() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_use_unit() -> Result<(), ()> {
+    expect_success("examples/use_unit.er", 0)
+}
+
+#[test]
 fn exec_unit_test() -> Result<(), ()> {
     expect_success("examples/unit_test.er", 0)
 }
@@ -767,6 +772,11 @@ fn exec_refinement_err() -> Result<(), ()> {
 #[test]
 fn exec_refinement_class_err() -> Result<(), ()> {
     expect_failure("tests/should_err/refinement_class.er", 0, 2)
+}
+
+#[test]
+fn exec_use_unit_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/use_unit.er", 0, 4)
 }
 
 #[test]

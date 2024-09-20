@@ -2689,6 +2689,7 @@ impl Context {
             fmt_slice(pos_args),
             fmt_slice(kw_args)
         );
+        debug_assert!(instance.has_no_qvar(), "{instance} has qvar");
         let instance = match self
             .substitute_call(
                 obj,
@@ -2717,6 +2718,7 @@ impl Context {
             "{instance} is quantified subr"
         );
         log!(info "Substituted:\ninstance: {instance}");
+        debug_assert!(instance.has_no_qvar(), "{instance} has qvar");
         let res = self
             .eval_t_params(instance, self.level, obj)
             .map_err(|(t, errs)| {

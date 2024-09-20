@@ -2853,11 +2853,11 @@ impl Type {
         }
     }
 
-    pub fn is_poly_type_meta(&self) -> bool {
+    pub fn is_poly_meta_type(&self) -> bool {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_poly_type_meta(),
-            Self::Refinement(refine) => refine.t.is_poly_type_meta(),
-            Self::Quantified(q) => q.is_poly_type_meta(),
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_poly_meta_type(),
+            Self::Refinement(refine) => refine.t.is_poly_meta_type(),
+            Self::Quantified(q) => q.is_poly_meta_type(),
             Self::Subr(subr) => subr.return_t.is_type(),
             _ => false,
         }
@@ -3413,6 +3413,10 @@ impl Type {
     pub fn is_monomorphized(&self) -> bool {
         matches!(self.typarams_len(), Some(0) | None)
             || (self.has_no_qvar() && self.has_no_unbound_var())
+    }
+
+    pub fn is_polymorphic(&self) -> bool {
+        matches!(self.typarams_len(), Some(1..))
     }
 
     /// TODO:
