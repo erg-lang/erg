@@ -56,7 +56,7 @@ fn comp_item_kind(t: &Type, muty: Mutability) -> CompletionItemKind {
                 CompletionItemKind::VARIABLE
             }
         }
-        Type::And(tys) => {
+        Type::And(tys, _) => {
             for k in tys.iter().map(|t| comp_item_kind(t, muty)) {
                 if k != CompletionItemKind::VARIABLE {
                     return k;

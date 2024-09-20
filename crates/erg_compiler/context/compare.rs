@@ -827,7 +827,7 @@ impl Context {
             (lhs, Or(ors)) => ors.iter().all(|or| self.supertype_of(lhs, or)),
             // Hash and Eq :> HashEq and ... == true
             // Add(T) and Eq :> Add(Int) and Eq == true
-            (And(l), And(r)) => {
+            (And(l, _), And(r, _)) => {
                 if r.iter().any(|r| l.iter().all(|l| self.supertype_of(l, r))) {
                     return true;
                 }
@@ -843,9 +843,9 @@ impl Context {
                 false
             }
             // (Num and Show) :> Show == false
-            (And(ands), rhs) => ands.iter().all(|and| self.supertype_of(and, rhs)),
+            (And(ands, _), rhs) => ands.iter().all(|and| self.supertype_of(and, rhs)),
             // Show :> (Num and Show) == true
-            (lhs, And(ands)) => ands.iter().any(|and| self.supertype_of(lhs, and)),
+            (lhs, And(ands, _)) => ands.iter().any(|and| self.supertype_of(lhs, and)),
             // Not(Eq) :> Float == !(Eq :> Float) == true
             (Not(_), Obj) => false,
             (Not(l), rhs) => !self.supertype_of(l, rhs),
@@ -1097,6 +1097,23 @@ impl Context {
                 Variance::Covariant => self.supertype_of(sup, sub),
                 Variance::Invariant => self.same_type_of(sup, sub),
             },
+            (TyParam::Type(sup), TyParam::Value(ValueObj::Type(sub))) => match variance {
+                Variance::Contravariant => self.subtype_of(sup, sub.typ()),
+                Variance::Covariant => self.supertype_of(sup, sub.typ()),
+                Variance::Invariant => self.same_type_of(sup, sub.typ()),
+            },
+            (TyParam::Value(ValueObj::Type(sup)), TyParam::Type(sub)) => match variance {
+                Variance::Contravariant => self.subtype_of(sup.typ(), sub),
+                Variance::Covariant => self.supertype_of(sup.typ(), sub),
+                Variance::Invariant => self.same_type_of(sup.typ(), sub),
+            },
+            (TyParam::Value(ValueObj::Type(sup)), TyParam::Value(ValueObj::Type(sub))) => {
+                match variance {
+                    Variance::Contravariant => self.subtype_of(sup.typ(), sub.typ()),
+                    Variance::Covariant => self.supertype_of(sup.typ(), sub.typ()),
+                    Variance::Invariant => self.same_type_of(sup.typ(), sub.typ()),
+                }
+            }
             (
                 TyParam::App { name, args },
                 TyParam::App {
@@ -1485,7 +1502,7 @@ impl Context {
             },
             (other, or @ Or(_)) | (or @ Or(_), other) => self.union_add(or, other),
             // (A and B) or C ==> (A or C) and (B or C)
-            (And(ands), other) | (other, And(ands)) => {
+            (And(ands, _), other) | (other, And(ands, _)) => {
                 let mut t = Type::Obj;
                 for branch in ands.iter() {
                     let union = self.union(branch, other);
@@ -1705,7 +1722,9 @@ impl Context {
             (_, Not(r)) => self.diff(lhs, r),
             (Not(l), _) => self.diff(rhs, l),
             // A and B and A == A and B
-            (other, and @ And(_)) | (and @ And(_), other) => self.intersection_add(and, other),
+            (other, and @ And(_, _)) | (and @ And(_, _), other) => {
+                self.intersection_add(and, other)
+            }
             // (A or B) and C == (A and C) or (B and C)
             (Or(ors), other) | (other, Or(ors)) => {
                 if ors.iter().any(|t| t.has_unbound_var()) {
@@ -2003,7 +2022,7 @@ impl Context {
             Or(ors) => ors
                 .iter()
                 .fold(Obj, |l, r| self.intersection(&l, &self.complement(r))),
-            And(ands) => ands
+            And(ands, _) => ands
                 .iter()
                 .fold(Never, |l, r| self.union(&l, &self.complement(r))),
             other => not(other.clone()),

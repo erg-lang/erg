@@ -1078,6 +1078,10 @@ impl RefinementType {
     pub fn invert(self) -> Self {
         Self::new(self.var, Type::Obj, !*self.pred)
     }
+
+    pub fn map_t(self, f: &mut impl FnMut(Type) -> Type) -> Self {
+        Self::new(self.var, f(*self.t), *self.pred)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -1356,7 +1360,8 @@ pub enum Type {
     Refinement(RefinementType),
     // e.g. |T: Type| T -> T
     Quantified(Box<Type>),
-    And(Vec<Type>),
+    /// usize: default type index
+    And(Vec<Type>, Option<usize>),
     Or(Set<Type>),
     Not(Box<Type>),
     // NOTE: It was found that adding a new variant above `Poly` may cause a subtyping bug,
@@ -1450,7 +1455,7 @@ impl PartialEq for Type {
             (Self::NamedTuple(lhs), Self::NamedTuple(rhs)) => lhs == rhs,
             (Self::Refinement(l), Self::Refinement(r)) => l == r,
             (Self::Quantified(l), Self::Quantified(r)) => l == r,
-            (Self::And(l), Self::And(r)) => {
+            (Self::And(l, _), Self::And(r, _)) => {
                 l.iter().collect::<Set<_>>().linear_eq(&r.iter().collect())
             }
             (Self::Or(l), Self::Or(r)) => l.linear_eq(r),
@@ -1607,7 +1612,7 @@ impl LimitedDisplay for Type {
                 write!(f, "|")?;
                 quantified.limited_fmt(f, limit - 1)
             }
-            Self::And(ands) => {
+            Self::And(ands, _) => {
                 for (i, ty) in ands.iter().enumerate() {
                     if i > 0 {
                         write!(f, " and ")?;
@@ -1802,18 +1807,18 @@ impl BitAnd for Type {
     type Output = Self;
     fn bitand(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
-            (Self::And(l), Self::And(r)) => Self::And([l, r].concat()),
+            (Self::And(l, _), Self::And(r, _)) => Self::And([l, r].concat(), None),
             (Self::Obj, other) | (other, Self::Obj) => other,
             (Self::Never, _) | (_, Self::Never) => Self::Never,
-            (Self::And(mut l), r) => {
+            (Self::And(mut l, idx), r) => {
                 l.push(r);
-                Self::And(l)
+                Self::And(l, idx)
             }
-            (l, Self::And(mut r)) => {
+            (l, Self::And(mut r, idx)) => {
                 r.push(l);
-                Self::And(r)
+                Self::And(r, idx)
             }
-            (l, r) => Self::checked_and(vec![l, r]),
+            (l, r) => Self::checked_and(vec![l, r], None),
         }
     }
 }
@@ -1949,7 +1954,7 @@ impl HasLevel for Type {
                     .filter_map(|o| *o)
                     .min()
             }
-            Self::And(tys) => tys.iter().filter_map(|t| t.level()).min(),
+            Self::And(tys, _) => tys.iter().filter_map(|t| t.level()).min(),
             Self::Or(tys) => tys.iter().filter_map(|t| t.level()).min(),
             Self::Not(ty) => ty.level(),
             Self::Record(attrs) => attrs.values().filter_map(|t| t.level()).min(),
@@ -2031,7 +2036,7 @@ impl HasLevel for Type {
             Self::Quantified(quant) => {
                 quant.set_level(level);
             }
-            Self::And(tys) => {
+            Self::And(tys, _) => {
                 for t in tys.iter() {
                     t.set_level(level);
                 }
@@ -2190,7 +2195,7 @@ impl StructuralEq for Type {
             (Self::Guard(l), Self::Guard(r)) => l.structural_eq(r),
             // NG: (l.structural_eq(l2) && r.structural_eq(r2))
             //     || (l.structural_eq(r2) && r.structural_eq(l2))
-            (Self::And(self_ands), Self::And(other_ands)) => {
+            (Self::And(self_ands, _), Self::And(other_ands, _)) => {
                 let self_ands = self_ands.iter().collect::<Set<_>>();
                 let other_ands = other_ands.iter().collect::<Set<_>>();
                 if self_ands.len() != other_ands.len() {
@@ -2310,20 +2315,20 @@ impl Type {
         }
     }
 
-    pub fn checked_and(tys: Vec<Type>) -> Self {
+    pub fn checked_and(tys: Vec<Type>, idx: Option<usize>) -> Self {
         if tys.is_empty() {
             panic!("tys is empty");
         } else if tys.len() == 1 {
             tys.into_iter().next().unwrap()
         } else {
-            Self::And(tys)
+            Self::And(tys, idx)
         }
     }
 
     pub fn quantify(self) -> Self {
         debug_assert!(self.is_subr(), "{self} is not subr");
         match self {
-            Self::And(tys) => Self::And(tys.into_iter().map(|t| t.quantify()).collect()),
+            Self::And(tys, idx) => Self::And(tys.into_iter().map(|t| t.quantify()).collect(), idx),
             other => Self::Quantified(Box::new(other)),
         }
     }
@@ -2421,7 +2426,7 @@ impl Type {
             Self::Quantified(t) => t.is_procedure(),
             Self::Subr(subr) if subr.kind == SubrKind::Proc => true,
             Self::Refinement(refine) => refine.t.is_procedure(),
-            Self::And(tys) => tys.iter().any(|t| t.is_procedure()),
+            Self::And(tys, _) => tys.iter().any(|t| t.is_procedure()),
             _ => false,
         }
     }
@@ -2439,7 +2444,7 @@ impl Type {
                 name.ends_with('!')
             }
             Self::Refinement(refine) => refine.t.is_mut_type(),
-            Self::And(tys) => tys.iter().any(|t| t.is_mut_type()),
+            Self::And(tys, _) => tys.iter().any(|t| t.is_mut_type()),
             _ => false,
         }
     }
@@ -2458,7 +2463,7 @@ impl Type {
             Self::Poly { name, params, .. } if &name[..] == "Tuple" => params.is_empty(),
             Self::Refinement(refine) => refine.t.is_nonelike(),
             Self::Bounded { sup, .. } => sup.is_nonelike(),
-            Self::And(tys) => tys.iter().any(|t| t.is_nonelike()),
+            Self::And(tys, _) => tys.iter().any(|t| t.is_nonelike()),
             _ => false,
         }
     }
@@ -2541,7 +2546,7 @@ impl Type {
     pub fn is_intersection_type(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_intersection_type(),
-            Self::And(_) => true,
+            Self::And(_, _) => true,
             Self::Refinement(refine) => refine.t.is_intersection_type(),
             _ => false,
         }
@@ -2559,7 +2564,7 @@ impl Type {
             Self::Refinement(refine) => refine.t.union_size(),
             Self::Ref(t) => t.union_size(),
             Self::RefMut { before, after: _ } => before.union_size(),
-            Self::And(tys) => tys.iter().map(|ty| ty.union_size()).max().unwrap_or(1),
+            Self::And(tys, _) => tys.iter().map(|ty| ty.union_size()).max().unwrap_or(1),
             Self::Not(ty) => ty.union_size(),
             Self::Callable { param_ts, return_t } => param_ts
                 .iter()
@@ -2600,7 +2605,7 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_refinement(),
             Self::Refinement(_) => true,
-            Self::And(tys) => tys.iter().any(|t| t.is_refinement()),
+            Self::And(tys, _) => tys.iter().any(|t| t.is_refinement()),
             _ => false,
         }
     }
@@ -2609,7 +2614,7 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_singleton_refinement(),
             Self::Refinement(refine) => matches!(refine.pred.as_ref(), Predicate::Equal { .. }),
-            Self::And(tys) => tys.iter().any(|t| t.is_singleton_refinement()),
+            Self::And(tys, _) => tys.iter().any(|t| t.is_singleton_refinement()),
             _ => false,
         }
     }
@@ -2619,7 +2624,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_record(),
             Self::Record(_) => true,
             Self::Refinement(refine) => refine.t.is_record(),
-            Self::And(tys) => tys.iter().any(|t| t.is_record()),
+            Self::And(tys, _) => tys.iter().any(|t| t.is_record()),
             _ => false,
         }
     }
@@ -2633,7 +2638,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_erg_module(),
             Self::Refinement(refine) => refine.t.is_erg_module(),
             Self::Poly { name, .. } => &name[..] == "Module",
-            Self::And(tys) => tys.iter().any(|t| t.is_erg_module()),
+            Self::And(tys, _) => tys.iter().any(|t| t.is_erg_module()),
             _ => false,
         }
     }
@@ -2643,7 +2648,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_py_module(),
             Self::Refinement(refine) => refine.t.is_py_module(),
             Self::Poly { name, .. } => &name[..] == "PyModule",
-            Self::And(tys) => tys.iter().any(|t| t.is_py_module()),
+            Self::And(tys, _) => tys.iter().any(|t| t.is_py_module()),
             _ => false,
         }
     }
@@ -2654,7 +2659,7 @@ impl Type {
             Self::Refinement(refine) => refine.t.is_method(),
             Self::Subr(subr) => subr.is_method(),
             Self::Quantified(quant) => quant.is_method(),
-            Self::And(tys) => tys.iter().any(|t| t.is_method()),
+            Self::And(tys, _) => tys.iter().any(|t| t.is_method()),
             _ => false,
         }
     }
@@ -2665,7 +2670,7 @@ impl Type {
             Self::Subr(_) => true,
             Self::Quantified(quant) => quant.is_subr(),
             Self::Refinement(refine) => refine.t.is_subr(),
-            Self::And(tys) => tys.iter().any(|t| t.is_subr()),
+            Self::And(tys, _) => tys.iter().any(|t| t.is_subr()),
             _ => false,
         }
     }
@@ -2676,7 +2681,7 @@ impl Type {
             Self::Subr(subr) => Some(subr.kind),
             Self::Refinement(refine) => refine.t.subr_kind(),
             Self::Quantified(quant) => quant.subr_kind(),
-            Self::And(tys) => tys
+            Self::And(tys, _) => tys
                 .iter()
                 .filter_map(|t| t.subr_kind())
                 .fold(None, |a, b| Some(a? | b)),
@@ -2689,7 +2694,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_quantified_subr(),
             Self::Quantified(_) => true,
             Self::Refinement(refine) => refine.t.is_quantified_subr(),
-            Self::And(tys) => tys.iter().any(|t| t.is_quantified_subr()),
+            Self::And(tys, _) => tys.iter().any(|t| t.is_quantified_subr()),
             _ => false,
         }
     }
@@ -2726,7 +2731,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_iterable(),
             Self::Poly { name, .. } => &name[..] == "Iterable",
             Self::Refinement(refine) => refine.t.is_iterable(),
-            Self::And(tys) => tys.iter().any(|t| t.is_iterable()),
+            Self::And(tys, _) => tys.iter().any(|t| t.is_iterable()),
             _ => false,
         }
     }
@@ -2817,7 +2822,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_structural(),
             Self::Structural(_) => true,
             Self::Refinement(refine) => refine.t.is_structural(),
-            Self::And(tys) => tys.iter().any(|t| t.is_structural()),
+            Self::And(tys, _) => tys.iter().any(|t| t.is_structural()),
             _ => false,
         }
     }
@@ -2827,7 +2832,7 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_failure(),
             Self::Refinement(refine) => refine.t.is_failure(),
             Self::Failure => true,
-            Self::And(tys) => tys.iter().any(|t| t.is_failure()),
+            Self::And(tys, _) => tys.iter().any(|t| t.is_failure()),
             _ => false,
         }
     }
@@ -2922,7 +2927,7 @@ impl Type {
             Self::ProjCall { lhs, args, .. } => {
                 lhs.has_type_satisfies(f) || args.iter().any(|tp| tp.has_type_satisfies(f))
             }
-            Self::And(tys) => tys.iter().any(f),
+            Self::And(tys, _) => tys.iter().any(f),
             Self::Or(tys) => tys.iter().any(f),
             Self::Not(t) => f(t),
             Self::Ref(t) => f(t),
@@ -2991,7 +2996,7 @@ impl Type {
             Self::ProjCall { lhs, args, .. } => {
                 lhs.contains_type(target) || args.iter().any(|t| t.contains_type(target))
             }
-            Self::And(tys) => tys.iter().any(|t| t.contains_type(target)),
+            Self::And(tys, _) => tys.iter().any(|t| t.contains_type(target)),
             Self::Or(tys) => tys.iter().any(|t| t.contains_type(target)),
             Self::Not(t) => t.contains_type(target),
             Self::Ref(t) => t.contains_type(target),
@@ -3029,7 +3034,7 @@ impl Type {
             Self::ProjCall { lhs, args, .. } => {
                 lhs.contains_tp(target) || args.iter().any(|t| t.contains_tp(target))
             }
-            Self::And(tys) => tys.iter().any(|t| t.contains_tp(target)),
+            Self::And(tys, _) => tys.iter().any(|t| t.contains_tp(target)),
             Self::Or(tys) => tys.iter().any(|t| t.contains_tp(target)),
             Self::Not(t) => t.contains_tp(target),
             Self::Ref(t) => t.contains_tp(target),
@@ -3063,7 +3068,7 @@ impl Type {
             Self::ProjCall { lhs, args, .. } => {
                 lhs.contains_value(target) || args.iter().any(|t| t.contains_value(target))
             }
-            Self::And(tys) => tys.iter().any(|t| t.contains_value(target)),
+            Self::And(tys, _) => tys.iter().any(|t| t.contains_value(target)),
             Self::Or(tys) => tys.iter().any(|t| t.contains_value(target)),
             Self::Not(t) => t.contains_value(target),
             Self::Ref(t) => t.contains_value(target),
@@ -3107,7 +3112,7 @@ impl Type {
             Self::ProjCall { lhs, args, .. } => {
                 lhs.contains_type(self) || args.iter().any(|t| t.contains_type(self))
             }
-            Self::And(tys) => tys.iter().any(|t| t.contains_type(self)),
+            Self::And(tys, _) => tys.iter().any(|t| t.contains_type(self)),
             Self::Or(tys) => tys.iter().any(|t| t.contains_type(self)),
             Self::Not(t) => t.contains_type(self),
             Self::Ref(t) => t.contains_type(self),
@@ -3178,7 +3183,7 @@ impl Type {
             Self::Inf => Str::ever("Inf"),
             Self::NegInf => Str::ever("NegInf"),
             Self::Mono(name) => name.clone(),
-            Self::And(_) => Str::ever("And"),
+            Self::And(_, _) => Str::ever("And"),
             Self::Not(_) => Str::ever("Not"),
             Self::Or(_) => Str::ever("Or"),
             Self::Ref(_) => Str::ever("Ref"),
@@ -3270,7 +3275,7 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_intersec(typ),
             Self::Refinement(refine) => refine.t.contains_intersec(typ),
-            Self::And(tys) => tys.iter().any(|t| t.contains_intersec(typ)),
+            Self::And(tys, _) => tys.iter().any(|t| t.contains_intersec(typ)),
             _ => self == typ,
         }
     }
@@ -3321,8 +3326,32 @@ impl Type {
                 .into_iter()
                 .map(|t| t.quantify())
                 .collect(),
-            Type::And(tys) => tys.clone(),
+            Type::And(tys, _) => tys.clone(),
             _ => vec![self.clone()],
+        }
+    }
+
+    pub fn default_intersection_type(&self) -> Option<Type> {
+        match self {
+            Type::FreeVar(fv) if fv.is_linked() => fv.crack().default_intersection_type(),
+            Type::Refinement(refine) => refine.t.default_intersection_type(),
+            Type::Quantified(tys) => tys.default_intersection_type().map(|t| t.quantify()),
+            Type::And(tys, idx) => idx.and_then(|idx| tys.get(idx).cloned()),
+            _ => None,
+        }
+    }
+
+    pub fn with_default_intersec_index(self, idx: usize) -> Self {
+        match self {
+            Type::FreeVar(fv) if fv.is_linked() => {
+                fv.unwrap_linked().with_default_intersec_index(idx)
+            }
+            Type::And(tys, _) => Type::And(tys, Some(idx)),
+            Type::Quantified(tys) => tys.with_default_intersec_index(idx).quantify(),
+            Type::Refinement(refine) => {
+                Type::Refinement(refine.map_t(&mut |t| t.with_default_intersec_index(idx)))
+            }
+            _ => self,
         }
     }
 
@@ -3397,7 +3426,7 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_unbound() => true,
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_totally_unbound(),
-            Self::And(tys) => tys.iter().all(|t| t.is_totally_unbound()),
+            Self::And(tys, _) => tys.iter().all(|t| t.is_totally_unbound()),
             Self::Or(tys) => tys.iter().all(|t| t.is_totally_unbound()),
             Self::Not(t) => t.is_totally_unbound(),
             _ => false,
@@ -3509,7 +3538,7 @@ impl Type {
                 sub.destructive_coerce();
                 self.destructive_link(&sub);
             }
-            Type::And(tys) => {
+            Type::And(tys, _) => {
                 for t in tys {
                     t.destructive_coerce();
                 }
@@ -3570,7 +3599,7 @@ impl Type {
                 sub.undoable_coerce(list);
                 self.undoable_link(&sub, list);
             }
-            Type::And(tys) => {
+            Type::And(tys, _) => {
                 for t in tys {
                     t.undoable_coerce(list);
                 }
@@ -3637,7 +3666,7 @@ impl Type {
                     .map(|t| t.qvars_inner())
                     .unwrap_or_else(|| set! {}),
             ),
-            Self::And(tys) => tys
+            Self::And(tys, _) => tys
                 .iter()
                 .fold(set! {}, |acc, t| acc.concat(t.qvars_inner())),
             Self::Or(tys) => tys
@@ -3785,7 +3814,7 @@ impl Type {
             Self::Refinement(refine) => refine.t.typarams_len(),
             // REVIEW:
             Self::Ref(_) | Self::RefMut { .. } => Some(1),
-            Self::And(tys) => Some(tys.len()),
+            Self::And(tys, _) => Some(tys.len()),
             Self::Or(tys) => Some(tys.len()),
             Self::Not(_) => Some(1),
             Self::Subr(subr) => Some(
@@ -3852,7 +3881,7 @@ impl Type {
             Self::FreeVar(_unbound) => vec![],
             Self::Refinement(refine) => refine.t.typarams(),
             Self::Ref(t) | Self::RefMut { before: t, .. } => vec![TyParam::t(*t.clone())],
-            Self::And(tys) => tys.iter().cloned().map(TyParam::t).collect(),
+            Self::And(tys, _) => tys.iter().cloned().map(TyParam::t).collect(),
             Self::Or(tys) => tys.iter().cloned().map(TyParam::t).collect(),
             Self::Not(t) => vec![TyParam::t(*t.clone())],
             Self::Subr(subr) => subr.typarams(),
@@ -4074,7 +4103,9 @@ impl Type {
                 let r = r.iter().map(|(k, v)| (k.clone(), v.derefine())).collect();
                 Self::NamedTuple(r)
             }
-            Self::And(tys) => Self::checked_and(tys.iter().map(|t| t.derefine()).collect()),
+            Self::And(tys, idx) => {
+                Self::checked_and(tys.iter().map(|t| t.derefine()).collect(), *idx)
+            }
             Self::Or(tys) => Self::checked_or(tys.iter().map(|t| t.derefine()).collect()),
             Self::Not(ty) => !ty.derefine(),
             Self::Proj { lhs, rhs } => lhs.derefine().proj(rhs.clone()),
@@ -4148,7 +4179,7 @@ impl Type {
                 });
                 self
             }
-            Self::And(tys) => Self::checked_and(
+            Self::And(tys, idx) => Self::checked_and(
                 tys.into_iter()
                     .filter_map(|t| {
                         if t.addr_eq(target) {
@@ -4158,6 +4189,7 @@ impl Type {
                         }
                     })
                     .collect(),
+                idx,
             ),
             Self::Or(tys) => Self::checked_or(
                 tys.into_iter()
@@ -4224,11 +4256,12 @@ impl Type {
                 before: Box::new(before.eliminate_recursion(target)),
                 after: after.map(|t| Box::new(t.eliminate_recursion(target))),
             },
-            Self::And(tys) => Self::checked_and(
+            Self::And(tys, idx) => Self::checked_and(
                 tys.into_iter()
                     .filter(|t| !t.addr_eq(target))
                     .map(|t| t.eliminate_recursion(target))
                     .collect(),
+                idx,
             ),
             Self::Or(tys) => Self::checked_or(
                 tys.into_iter()
@@ -4262,9 +4295,10 @@ impl Type {
 
     pub(crate) fn eliminate_and_or_recursion(self, target: &Type) -> Self {
         match self {
-            Self::And(tys) => {
-                Self::checked_and(tys.into_iter().filter(|t| !t.addr_eq(target)).collect())
-            }
+            Self::And(tys, idx) => Self::checked_and(
+                tys.into_iter().filter(|t| !t.addr_eq(target)).collect(),
+                idx,
+            ),
             Self::Or(tys) => {
                 Self::checked_or(tys.into_iter().filter(|t| !t.addr_eq(target)).collect())
             }
@@ -4400,7 +4434,9 @@ impl Type {
                 before: Box::new(before.map(f)),
                 after: after.map(|t| Box::new(t.map(f))),
             },
-            Self::And(tys) => Self::checked_and(tys.into_iter().map(|t| t.map(f)).collect()),
+            Self::And(tys, idx) => {
+                Self::checked_and(tys.into_iter().map(|t| t.map(f)).collect(), idx)
+            }
             Self::Or(tys) => Self::checked_or(tys.into_iter().map(|t| t.map(f)).collect()),
             Self::Not(ty) => !ty.map(f),
             Self::Proj { lhs, rhs } => lhs.map(f).proj(rhs),
@@ -4494,9 +4530,10 @@ impl Type {
                 before: Box::new(before._replace_tp(target, to)),
                 after: after.map(|t| Box::new(t._replace_tp(target, to))),
             },
-            Self::And(tys) => {
-                Self::checked_and(tys.into_iter().map(|t| t._replace_tp(target, to)).collect())
-            }
+            Self::And(tys, idx) => Self::checked_and(
+                tys.into_iter().map(|t| t._replace_tp(target, to)).collect(),
+                idx,
+            ),
             Self::Or(tys) => {
                 Self::checked_or(tys.into_iter().map(|t| t._replace_tp(target, to)).collect())
             }
@@ -4575,7 +4612,9 @@ impl Type {
                 before: Box::new(before.map_tp(f)),
                 after: after.map(|t| Box::new(t.map_tp(f))),
             },
-            Self::And(tys) => Self::checked_and(tys.into_iter().map(|t| t.map_tp(f)).collect()),
+            Self::And(tys, idx) => {
+                Self::checked_and(tys.into_iter().map(|t| t.map_tp(f)).collect(), idx)
+            }
             Self::Or(tys) => Self::checked_or(tys.into_iter().map(|t| t.map_tp(f)).collect()),
             Self::Not(ty) => !ty.map_tp(f),
             Self::Proj { lhs, rhs } => lhs.map_tp(f).proj(rhs),
@@ -4664,10 +4703,11 @@ impl Type {
                     after,
                 })
             }
-            Self::And(tys) => Ok(Self::checked_and(
+            Self::And(tys, idx) => Ok(Self::checked_and(
                 tys.into_iter()
                     .map(|t| t.try_map_tp(f))
                     .collect::<Result<_, _>>()?,
+                idx,
             )),
             Self::Or(tys) => Ok(Self::checked_or(
                 tys.into_iter()
@@ -4706,10 +4746,11 @@ impl Type {
                 *refine.t = refine.t.replace_param(target, to);
                 Self::Refinement(refine)
             }
-            Self::And(tys) => Self::And(
+            Self::And(tys, idx) => Self::And(
                 tys.into_iter()
                     .map(|t| t.replace_param(target, to))
                     .collect(),
+                idx,
             ),
             Self::Guard(guard) => Self::Guard(guard.replace_param(target, to)),
             _ => self,
@@ -4718,7 +4759,7 @@ impl Type {
 
     pub fn eliminate_and_or(&mut self) {
         match self {
-            Self::And(tys) if tys.len() == 1 => {
+            Self::And(tys, _) if tys.len() == 1 => {
                 *self = tys.remove(0);
             }
             Self::Or(tys) if tys.len() == 1 => {
@@ -4795,7 +4836,9 @@ impl Type {
                 }
                 Self::NamedTuple(r)
             }
-            Self::And(tys) => Self::checked_and(tys.into_iter().map(|t| t.normalize()).collect()),
+            Self::And(tys, idx) => {
+                Self::checked_and(tys.into_iter().map(|t| t.normalize()).collect(), idx)
+            }
             Self::Or(tys) => Self::checked_or(tys.into_iter().map(|t| t.normalize()).collect()),
             Self::Not(ty) => !ty.normalize(),
             Self::Structural(ty) => ty.normalize().structuralize(),
@@ -4828,8 +4871,8 @@ impl Type {
             free.get_sub().unwrap_or(self.clone())
         } else {
             match self {
-                Self::And(tys) => {
-                    Self::checked_and(tys.iter().map(|t| t.lower_bounded()).collect())
+                Self::And(tys, idx) => {
+                    Self::checked_and(tys.iter().map(|t| t.lower_bounded()).collect(), *idx)
                 }
                 Self::Or(tys) => Self::checked_or(tys.iter().map(|t| t.lower_bounded()).collect()),
                 Self::Not(ty) => !ty.lower_bounded(),
@@ -4848,8 +4891,8 @@ impl Type {
             free.get_super().unwrap_or(self.clone())
         } else {
             match self {
-                Self::And(tys) => {
-                    Self::checked_and(tys.iter().map(|t| t.upper_bounded()).collect())
+                Self::And(tys, idx) => {
+                    Self::checked_and(tys.iter().map(|t| t.upper_bounded()).collect(), *idx)
                 }
                 Self::Or(tys) => Self::checked_or(tys.iter().map(|t| t.upper_bounded()).collect()),
                 Self::Not(ty) => !ty.upper_bounded(),
@@ -5024,7 +5067,7 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().ands(),
             Self::Refinement(refine) => refine.t.ands(),
-            Self::And(tys) => tys.clone(),
+            Self::And(tys, _) => tys.clone(),
             _ => vec![self.clone()],
         }
     }
@@ -5082,7 +5125,7 @@ impl Type {
             Self::Callable { param_ts, .. } => {
                 param_ts.iter().flat_map(|t| t.contained_ts()).collect()
             }
-            Self::And(tys) => tys.iter().flat_map(|t| t.contained_ts()).collect(),
+            Self::And(tys, _) => tys.iter().flat_map(|t| t.contained_ts()).collect(),
             Self::Or(tys) => tys.iter().flat_map(|t| t.contained_ts()).collect(),
             Self::Not(t) => t.contained_ts(),
             Self::Bounded { sub, sup } => sub.contained_ts().union(&sup.contained_ts()),
@@ -5152,7 +5195,7 @@ impl Type {
                 }
                 return_t.dereference();
             }
-            Self::And(tys) => {
+            Self::And(tys, _) => {
                 *tys = std::mem::take(tys)
                     .into_iter()
                     .map(|mut t| {
@@ -5283,7 +5326,7 @@ impl Type {
                 set.extend(return_t.variables());
                 set
             }
-            Self::And(tys) => tys.iter().flat_map(|t| t.variables()).collect(),
+            Self::And(tys, _) => tys.iter().flat_map(|t| t.variables()).collect(),
             Self::Or(tys) => tys.iter().flat_map(|t| t.variables()).collect(),
             Self::Not(ty) => ty.variables(),
             Self::Bounded { sub, sup } => sub.variables().union(&sup.variables()),
@@ -5397,7 +5440,7 @@ impl<'t> ReplaceTable<'t> {
                 }
             }
             // FIXME:
-            (Type::And(tys), Type::And(tys2)) => {
+            (Type::And(tys, _), Type::And(tys2, _)) => {
                 for (l, r) in tys.iter().zip(tys2.iter()) {
                     self.iterate(l, r);
                 }

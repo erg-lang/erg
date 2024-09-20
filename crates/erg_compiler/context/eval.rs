@@ -2285,7 +2285,7 @@ impl Context {
                     Err((t, errs))
                 }
             }
-            Type::And(ands) => {
+            Type::And(ands, _) => {
                 let mut new_ands = set! {};
                 for and in ands.into_iter() {
                     match self.eval_t_params(and, level, t_loc) {

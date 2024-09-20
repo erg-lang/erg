@@ -1229,6 +1229,9 @@ impl Context {
                     }
                 }
             }
+            if let Some(default) = instance.default_intersection_type() {
+                return Ok(default.clone());
+            }
             let Type::Subr(subr_t) = input_t else {
                 unreachable!()
             };
@@ -1952,7 +1955,7 @@ impl Context {
                     res
                 }
             }
-            Type::And(_) => {
+            Type::And(_, _) => {
                 let instance = self.resolve_overload(
                     obj,
                     instance.clone(),
@@ -2852,11 +2855,11 @@ impl Context {
     pub(crate) fn type_params_variance(&self) -> Vec<Variance> {
         let match_tp_name = |tp: &TyParam, name: &VarName| -> bool {
             if let Ok(free) = <&FreeTyParam>::try_from(tp) {
-                if let Some(prev) = free.get_previous() {
+                if let Some(prev) = free.get_undoable_root() {
                     return prev.unbound_name().as_ref() == Some(name.inspect());
                 }
             } else if let Ok(free) = <&FreeTyVar>::try_from(tp) {
-                if let Some(prev) = free.get_previous() {
+                if let Some(prev) = free.get_undoable_root() {
                     return prev.unbound_name().as_ref() == Some(name.inspect());
                 }
             }
@@ -3014,7 +3017,7 @@ impl Context {
                     self.get_nominal_super_type_ctxs(&Type)
                 }
             }
-            Type::And(tys) => {
+            Type::And(tys, _) => {
                 let mut acc = vec![];
                 for ctxs in tys
                     .iter()
@@ -3366,7 +3369,7 @@ impl Context {
         match trait_ {
             // And(Add, Sub) == intersection({Int <: Add(Int), Bool <: Add(Bool) ...}, {Int <: Sub(Int), ...})
             // == {Int <: Add(Int) and Sub(Int), ...}
-            Type::And(tys) => {
+            Type::And(tys, _) => {
                 let impls = tys
                     .iter()
                     .flat_map(|ty| self.get_trait_impls(ty))
@@ -3956,7 +3959,7 @@ impl Context {
 
     pub fn is_class(&self, typ: &Type) -> bool {
         match typ {
-            Type::And(_) => false,
+            Type::And(_, _) => false,
             Type::Never => true,
             Type::FreeVar(fv) if fv.is_linked() => self.is_class(&fv.crack()),
             Type::FreeVar(_) => false,
@@ -3983,7 +3986,7 @@ impl Context {
             Type::Never => false,
             Type::FreeVar(fv) if fv.is_linked() => self.is_class(&fv.crack()),
             Type::FreeVar(_) => false,
-            Type::And(tys) => tys.iter().any(|t| self.is_trait(t)),
+            Type::And(tys, _) => tys.iter().any(|t| self.is_trait(t)),
             Type::Or(tys) => tys.iter().all(|t| self.is_trait(t)),
             Type::Proj { lhs, rhs } => self
                 .get_proj_candidates(lhs, rhs)

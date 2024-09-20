@@ -1490,7 +1490,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 }
                 _ => {}
             },
-            Type::And(tys) => {
+            Type::And(tys, _) => {
                 for ty in tys {
                     self.push_guard(nth, kind, ty);
                 }

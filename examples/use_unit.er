@@ -11,3 +11,7 @@ j: Joule
 f _: Kg = None
 f kg
 f kg/m*m
+
+w = 2.0kg
+assert w >= 1.0kg
+assert int(w.value()) == 2

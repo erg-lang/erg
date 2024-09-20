@@ -4119,6 +4119,39 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
+        let mut dimension_to_float = Self::builtin_methods(Some(mono(TO_FLOAT)), 1);
+        dimension_to_float.register_builtin_erg_impl(
+            FUNDAMENTAL_FLOAT,
+            fn0_met(dimension_t.clone(), Float).quantify(),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        dimension.register_trait_methods(dimension_t.clone(), dimension_to_float);
+        let mut dimension_to_int = Self::builtin_methods(Some(mono(TO_INT)), 1);
+        dimension_to_int.register_builtin_erg_impl(
+            FUNDAMENTAL_INT,
+            fn0_met(dimension_t.clone(), Int).quantify(),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        dimension.register_trait_methods(dimension_t.clone(), dimension_to_int);
+        let mut dimension_eq = Self::builtin_methods(Some(mono(EQ)), 2);
+        let t = fn1_met(dimension_t.clone(), dimension_t.clone(), Bool).quantify();
+        dimension_eq.register_builtin_erg_impl(OP_EQ, t, Immutable, Visibility::BUILTIN_PUBLIC);
+        dimension.register_trait_methods(dimension_t.clone(), dimension_eq);
+        let mut dimension_partial_ord = Self::builtin_methods(Some(mono(PARTIAL_ORD)), 2);
+        dimension_partial_ord.register_builtin_erg_impl(
+            OP_PARTIAL_CMP,
+            fn1_met(
+                dimension_t.clone(),
+                dimension_t.clone(),
+                mono(ORDERING) | NoneType,
+            )
+            .quantify(),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        dimension.register_trait_methods(dimension_t.clone(), dimension_partial_ord);
         let mut dimension_add =
             Self::builtin_methods(Some(poly(ADD, vec![ty_tp(dimension_t.clone())])), 2);
         let t = fn1_met(
@@ -4181,6 +4214,17 @@ impl Context {
             ValueObj::builtin_class(dimension_added_t),
         );
         dimension.register_trait_methods(dimension_t.clone(), dimension_mul);
+        let mut dimension_rmul =
+            Self::builtin_methods(Some(poly(RMUL, vec![ty_tp(Ty.clone())])), 2);
+        let t = fn1_met(dimension_t.clone(), Ty.clone(), dimension_t.clone()).quantify();
+        dimension_rmul.register_builtin_erg_impl(OP_RMUL, t, Immutable, Visibility::BUILTIN_PUBLIC);
+        dimension_rmul.register_builtin_const(
+            OUTPUT,
+            Visibility::BUILTIN_PUBLIC,
+            None,
+            ValueObj::builtin_class(dimension_t.clone()),
+        );
+        dimension.register_trait_methods(dimension_t.clone(), dimension_rmul);
         let mut dimension_div =
             Self::builtin_methods(Some(poly(DIV, vec![ty_tp(dimension2_t.clone())])), 2);
         let dimension_subtracted_t = poly(
@@ -4210,6 +4254,17 @@ impl Context {
             ValueObj::builtin_class(dimension_subtracted_t),
         );
         dimension.register_trait_methods(dimension_t.clone(), dimension_div);
+        let mut dimension_rdiv =
+            Self::builtin_methods(Some(poly(RDIV, vec![ty_tp(Ty.clone())])), 2);
+        let t = fn1_met(dimension_t.clone(), Ty.clone(), dimension_t.clone()).quantify();
+        dimension_rdiv.register_builtin_erg_impl(OP_RDIV, t, Immutable, Visibility::BUILTIN_PUBLIC);
+        dimension_rdiv.register_builtin_const(
+            OUTPUT,
+            Visibility::BUILTIN_PUBLIC,
+            None,
+            ValueObj::builtin_class(dimension_t.clone()),
+        );
+        dimension.register_trait_methods(dimension_t.clone(), dimension_rdiv);
         let mut base_exception = Self::builtin_mono_class(BASE_EXCEPTION, 2);
         base_exception.register_superclass(Obj, &obj);
         base_exception.register_builtin_erg_impl(

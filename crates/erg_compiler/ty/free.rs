@@ -545,6 +545,13 @@ impl<T> FreeKind<T> {
             _ => {}
         }
     }
+
+    pub fn get_previous(&self) -> Option<&FreeKind<T>> {
+        match self {
+            Self::UndoableLinked { previous, .. } => Some(previous),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -1206,6 +1213,20 @@ impl<T: Clone + Send + Sync + 'static> Free<T> {
             _ => None,
         })
         .ok()
+    }
+
+    pub fn get_undoable_root(&self) -> Option<Ref<FreeKind<T>>> {
+        let mut prev = Ref::map(self.get_previous()?, |f| f.as_ref());
+        loop {
+            match Ref::filter_map(prev, |f| f.get_previous()) {
+                Ok(p) => prev = p,
+                Err(p) => {
+                    prev = p;
+                    break;
+                }
+            }
+        }
+        Some(prev)
     }
 
     pub fn detach(&self) -> Self {

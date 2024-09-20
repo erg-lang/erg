@@ -289,13 +289,13 @@ impl Generalizer {
                 }
                 proj_call(lhs, attr_name, args)
             }
-            And(ands) => {
+            And(ands, idx) => {
                 // not `self.intersection` because types are generalized
                 let ands = ands
                     .into_iter()
                     .map(|t| self.generalize_t(t, uninit))
                     .collect();
-                Type::checked_and(ands)
+                Type::checked_and(ands, idx)
             }
             Or(ors) => {
                 // not `self.union` because types are generalized
@@ -1049,7 +1049,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 let pred = self.deref_pred(*refine.pred)?;
                 Ok(refinement(refine.var, t, pred))
             }
-            And(ands) => {
+            And(ands, _) => {
                 let mut new_ands = vec![];
                 for t in ands.into_iter() {
                     new_ands.push(self.deref_tyvar(t)?);

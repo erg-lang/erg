@@ -158,7 +158,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 Ok(())
             }
             // FIXME: This is not correct, we must visit all permutations of the types
-            (And(l), And(r)) if l.len() == r.len() => {
+            (And(l, _), And(r, _)) if l.len() == r.len() => {
                 let mut r = r.clone();
                 for _ in 0..r.len() {
                     if l.iter()
@@ -199,7 +199,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     self.ctx.caused_by(),
                 )))
             }
-            (lhs, And(tys)) => {
+            (lhs, And(tys, _)) => {
                 for ty in tys.iter() {
                     self.occur_inner(lhs, ty)?;
                 }
@@ -211,7 +211,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 }
                 Ok(())
             }
-            (And(tys), rhs) => {
+            (And(tys, _), rhs) => {
                 for ty in tys.iter() {
                     self.occur_inner(ty, rhs)?;
                 }
@@ -322,7 +322,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 }
                 Ok(())
             }
-            (lhs, And(tys)) => {
+            (lhs, And(tys, _)) => {
                 for ty in tys.iter() {
                     self.occur_inner(lhs, ty)?;
                 }
@@ -334,7 +334,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 }
                 Ok(())
             }
-            (And(tys), rhs) => {
+            (And(tys, _), rhs) => {
                 for ty in tys.iter() {
                     self.occur_inner(ty, rhs)?;
                 }
@@ -1300,7 +1300,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 maybe_sup.update_tyvar(union, intersec, self.undoable, false);
             }
             // TODO: Preferentially compare same-structure types (e.g. K(?T) <: K(?U))
-            (And(ltys), And(rtys)) => {
+            (And(ltys, _), And(rtys, _)) => {
                 let mut ltys_ = ltys.clone();
                 let mut rtys_ = rtys.clone();
                 // Show and EqHash and T <: Eq and Show and Ord
@@ -1741,13 +1741,13 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 }
             }
             // X <: (Y and Z) is valid when X <: Y and X <: Z
-            (_, And(tys)) => {
+            (_, And(tys, _)) => {
                 for ty in tys {
                     self.sub_unify(maybe_sub, ty)?;
                 }
             }
             // (X and Y) <: Z is valid when X <: Z or Y <: Z
-            (And(tys), _) => {
+            (And(tys, _), _) => {
                 for ty in tys {
                     if self.ctx.subtype_of(ty, maybe_sup) {
                         return self.sub_unify(ty, maybe_sup);
@@ -2022,7 +2022,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     return None;
                 }
             }
-            (And(tys), other) | (other, And(tys)) => {
+            (And(tys, _), other) | (other, And(tys, _)) => {
                 let mut unified = Obj;
                 for ty in tys {
                     if let Some(t) = self.unify(ty, other) {

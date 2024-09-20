@@ -587,6 +587,23 @@ impl Context {
         let op_t = fn0_met(_Slf.clone(), proj(_Slf, OUTPUT)).quantify();
         neg.register_builtin_erg_decl(OP_NEG, op_t, Visibility::BUILTIN_PUBLIC);
         neg.register_builtin_erg_decl(OUTPUT, Type, Visibility::BUILTIN_PUBLIC);
+        /* RMul */
+        let L = mono_q(TY_L, instanceof(Type));
+        let rparams = vec![PS::t(TY_L, false, WithDefault)];
+        let ty_rparams = vec![ty_tp(L.clone())];
+        let mut rmul = Self::builtin_poly_trait(RMUL, rparams.clone(), 2);
+        rmul.register_superclass(poly(OUTPUT, vec![ty_tp(L.clone())]), &output);
+        let RSlf = mono_q(SELF, subtypeof(poly(RMUL, ty_rparams.clone())));
+        let op_t = fn1_met(RSlf.clone(), L.clone(), proj(RSlf, OUTPUT)).quantify();
+        rmul.register_builtin_erg_decl(OP_RMUL, op_t, Visibility::BUILTIN_PUBLIC);
+        rmul.register_builtin_erg_decl(OUTPUT, Type, Visibility::BUILTIN_PUBLIC);
+        /* RDiv */
+        let mut rdiv = Self::builtin_poly_trait(RDIV, rparams.clone(), 2);
+        rdiv.register_superclass(poly(OUTPUT, vec![ty_tp(L.clone())]), &output);
+        let RSlf = mono_q(SELF, subtypeof(poly(RDIV, ty_rparams.clone())));
+        let op_t = fn1_met(RSlf.clone(), L.clone(), proj(RSlf, OUTPUT)).quantify();
+        rdiv.register_builtin_erg_decl(OP_RDIV, op_t, Visibility::BUILTIN_PUBLIC);
+        rdiv.register_builtin_erg_decl(OUTPUT, Type, Visibility::BUILTIN_PUBLIC);
         /* Num */
         let num = Self::builtin_mono_trait(NUM, 2);
         // num.register_superclass(poly(ADD, vec![]), &add);
@@ -832,7 +849,15 @@ impl Context {
             None,
         );
         self.register_builtin_type(mono(POS), pos, vis.clone(), Const, Some(POS));
-        self.register_builtin_type(mono(NEG), neg, vis, Const, Some(NEG));
+        self.register_builtin_type(mono(NEG), neg, vis.clone(), Const, Some(NEG));
+        self.register_builtin_type(
+            poly(RMUL, ty_rparams.clone()),
+            rmul,
+            vis.clone(),
+            Const,
+            Some(RMUL),
+        );
+        self.register_builtin_type(poly(RDIV, ty_rparams), rdiv, vis.clone(), Const, Some(RDIV));
         self.register_const_param_defaults(
             ADD,
             vec![ConstTemplate::Obj(ValueObj::builtin_type(Slf.clone()))],

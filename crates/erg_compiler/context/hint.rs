@@ -116,7 +116,7 @@ impl Context {
                     return Some(hint);
                 }
             }
-            (Type::And(tys), found) if tys.len() == 2 => {
+            (Type::And(tys, _), found) if tys.len() == 2 => {
                 let mut iter = tys.iter();
                 let l = iter.next().unwrap();
                 let r = iter.next().unwrap();

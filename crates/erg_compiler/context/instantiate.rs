@@ -953,7 +953,7 @@ impl Context {
                 let t = self.instantiate_t_inner(*t, tmp_tv_cache, loc)?;
                 Ok(t.structuralize())
             }
-            And(tys) => {
+            And(tys, _) => {
                 let mut new_tys = vec![];
                 for ty in tys.iter().cloned() {
                     new_tys.push(self.instantiate_t_inner(ty, tmp_tv_cache, loc)?);
@@ -1004,7 +1004,7 @@ impl Context {
                 let t = fv.crack().clone();
                 self.instantiate(t, callee)
             }
-            And(tys) => {
+            And(tys, _idx) => {
                 let tys = tys
                     .into_iter()
                     .map(|t| self.instantiate(t, callee))
@@ -1036,7 +1036,7 @@ impl Context {
                             )?;
                         }
                     }
-                    Type::And(tys) => {
+                    Type::And(tys, _) => {
                         for ty in tys {
                             if let Some(self_t) = ty.self_t() {
                                 self.sub_unify(
@@ -1068,7 +1068,7 @@ impl Context {
                 let t = fv.crack().clone();
                 self.instantiate_dummy(t)
             }
-            And(tys) => {
+            And(tys, _) => {
                 let tys = tys
                     .into_iter()
                     .map(|t| self.instantiate_dummy(t))
