@@ -24,3 +24,60 @@ Record = tuple
 
 class Never:
     pass
+
+from typing import Generic, TypeVar
+
+Ty = TypeVar('Ty')
+M = TypeVar('M', bound=int)
+L = TypeVar("L", bound=int)
+T = TypeVar("T", bound=int)
+I = TypeVar("I", bound=int)
+Θ = TypeVar("Θ", bound=int)
+N = TypeVar("N", bound=int)
+J = TypeVar("J", bound=int)
+class Dimension(Generic[Ty, M, L, T, I, Θ, N, J]):
+    val: float
+    def __init__(self, val: float):
+        self.val = val
+    def __float__(self):
+        return float(self.val)
+    def __int__(self):
+        return int(self.val)
+    def __str__(self):
+        return f"Dimension({self.val})"
+    def __add__(self, other):
+        return Dimension(self.val + other)
+    def __radd__(self, other):
+        return Dimension(other + self.val)
+    def __sub__(self, other):
+        return Dimension(self.val - other)
+    def __rsub__(self, other):
+        return Dimension(other - self.val)
+    def __mul__(self, other):
+        return Dimension(self.val * other)
+    def __rmul__(self, other):
+        return Dimension(other * self.val)
+    def __truediv__(self, other):
+        return Dimension(self.val / other)
+    def __floordiv__(self, other):
+        return Dimension(self.val // other)
+    def __rtruediv__(self, other):
+        return Dimension(other / self.val)
+    def __rfloordiv__(self, other):
+        return Dimension(other // self.val)
+    def __eq__(self, other):
+        return self.val == other.val
+    def __ne__(self, other):
+        return self.val != other.val
+    def __lt__(self, other):
+        return self.val < other.val
+    def __le__(self, other):
+        return self.val <= other.val
+    def __gt__(self, other):
+        return self.val > other.val
+    def __ge__(self, other):
+        return self.val >= other.val
+    def value(self):
+        return self.val
+    def type_check(self, t: type) -> bool:
+        return t.__name__ == "Dimension"

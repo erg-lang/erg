@@ -1,6 +1,5 @@
 unsound = import "unsound"
 
-# TODO: exception: Exception
 unsound.pyexec("""
 def try_(p, exc=lambda _: None, els=lambda: None, fin=lambda: None):
     __result = None

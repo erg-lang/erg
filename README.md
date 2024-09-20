@@ -53,11 +53,11 @@
         print! "hello, ", end := ""
     # TypeError: `.times!` is a method of `Nat` (0 or more Int), not `Int`
 
-    {Meter; Sec; meter; yard; sec} = import "unit"
+    {Meter; Sec; meter; kg; sec} = import "unit"
 
     velocity x: Meter, t: Sec = x / t
 
-    v = velocity 3yard, 2sec # TypeError: the type of `x` was mismatched: expect `Meter`, found `Yard`
+    v = velocity 3kg, 2sec # TypeError: the type of `x` was mismatched: expect `Meter`, found `Kg`
     v = velocity 3meter, 2sec # v == 1.5 m/s
     ```
 

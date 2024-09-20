@@ -2716,7 +2716,7 @@ impl PyCodeGenerator {
                 Expr::Accessor(Accessor::Ident(ident)) if ident.vis().is_private() => {
                     self.emit_call_local(ident, call.args)
                 }
-                other if other.ref_t().is_poly_type_meta() => {
+                other if other.ref_t().is_poly_meta_type() => {
                     self.emit_expr(other);
                     self.emit_index_args(call.args);
                 }
@@ -2754,7 +2754,7 @@ impl PyCodeGenerator {
                 self.emit_load_name_instr(Identifier::private("#sum"));
                 self.emit_args_311(args, Name);
             }
-            other if local.ref_t().is_poly_type_meta() && other != "classof" => {
+            other if local.ref_t().is_poly_meta_type() && other != "classof" => {
                 if self.py_version.minor <= Some(9) {
                     self.load_fake_generic();
                     self.emit_load_name_instr(Identifier::private("#FakeGenericAlias"));
@@ -2798,7 +2798,7 @@ impl PyCodeGenerator {
         if let Some(func_name) = debind(&method_name) {
             return self.emit_call_fake_method(obj, func_name, method_name, args);
         }
-        let is_type = method_name.ref_t().is_poly_type_meta();
+        let is_type = method_name.ref_t().is_poly_meta_type();
         let kind = if self.py_version.minor >= Some(11) || method_name.vi.t.is_method() {
             BoundAttr
         } else {

@@ -975,6 +975,7 @@ impl PartialEq for ValueObj {
         match (self, other) {
             (Self::Int(i1), Self::Int(i2)) => i1 == i2,
             (Self::Nat(n1), Self::Nat(n2)) => n1 == n2,
+            (Self::Int(i), Self::Nat(n)) | (Self::Nat(n), Self::Int(i)) => *i as u64 == *n,
             (Self::Float(f1), Self::Float(f2)) => f1 == f2,
             (Self::Str(s1), Self::Str(s2)) => s1 == s2,
             (Self::Bool(b1), Self::Bool(b2)) => b1 == b2,

@@ -1005,7 +1005,11 @@ impl Context {
             Some(FUNC_SUB),
         );
         let L = mono_q(TY_L, subtypeof(poly(MUL, params.clone())));
-        let op_t = bin_op(L.clone(), R.clone(), proj(L, OUTPUT)).quantify();
+        let L2 = type_q(TY_L);
+        let R2 = mono_q(TY_R, subtypeof(poly(RMUL, vec![ty_tp(L2.clone())])));
+        let op_t = (bin_op(L.clone(), R.clone(), proj(L, OUTPUT)).quantify()
+            & bin_op(L2.clone(), R2.clone(), proj(R2, OUTPUT)).quantify())
+        .with_default_intersec_index(0);
         self.register_builtin_py_impl(
             OP_MUL,
             op_t,
@@ -1014,7 +1018,11 @@ impl Context {
             Some(FUNC_MUL),
         );
         let L = mono_q(TY_L, subtypeof(poly(DIV, params.clone())));
-        let op_t = bin_op(L.clone(), R.clone(), proj(L, OUTPUT)).quantify();
+        let L2 = type_q(TY_L);
+        let R2 = mono_q(TY_R, subtypeof(poly(RDIV, vec![ty_tp(L2.clone())])));
+        let op_t = (bin_op(L.clone(), R.clone(), proj(L, OUTPUT)).quantify()
+            & bin_op(L2.clone(), R2.clone(), proj(R2, OUTPUT)).quantify())
+        .with_default_intersec_index(0);
         self.register_builtin_py_impl(
             OP_DIV,
             op_t,
