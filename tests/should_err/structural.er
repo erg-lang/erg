@@ -33,3 +33,5 @@ _ = add e, 1 # ERR
 x = add e, e
 _ = add x, 1 # ERR
 _ = add 1, x # ERR
+_ = add Str(1), 1 # ERR
+_ = add 1, Str(1) # ERR

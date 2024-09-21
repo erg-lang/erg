@@ -1165,6 +1165,9 @@ impl Context {
         }
     }
 
+    /// ```erg
+    /// resolve_overload(obj, (|T|T -> T and (Int, Str) -> Str), [1], ...) => OK(|T| T -> T)
+    /// ```
     fn resolve_overload(
         &self,
         obj: &hir::Expr,
@@ -1224,12 +1227,14 @@ impl Context {
                             .is_ok();
                         let eval = self.eval_t_params(instance, self.level, obj).is_ok();
                         if subst && eval {
+                            debug_assert!(!ty.is_intersection_type());
                             return Ok(ty.clone());
                         }
                     }
                 }
             }
             if let Some(default) = instance.default_intersection_type() {
+                debug_assert!(!default.is_intersection_type());
                 return Ok(default.clone());
             }
             let Type::Subr(subr_t) = input_t else {
@@ -1833,6 +1838,8 @@ impl Context {
     /// substitute_call(instance: ((?M(: Nat)..?N(: Nat)) -> ?M+?N), [1..2], []) => instance: (1..2) -> {3}
     /// substitute_call(instance: ((?L(: Add(?R, ?O)), ?R) -> ?O), [1, 2], []) => instance: (Nat, Nat) -> Nat
     /// substitute_call(instance: ((Failure, ?T) -> ?T), [Int, Int]) => instance: (Failure, Int) -> Int
+    /// substitute_call(instance: (|T|T -> T, [1]) => Err(...) # instance must be instantiated
+    /// substitute_call(instance: (|T|T -> T and (Int, Int) -> Int, [1]) => instance(Coerced): Int -> Int
     /// ↓ don't substitute `Int` to `self`
     /// substitute_call(obj: Int, instance: ((self: Int, other: Int) -> Int), [1, 2]) => instance: (Int, Int) -> Int
     /// ```
@@ -1956,7 +1963,7 @@ impl Context {
                 }
             }
             Type::And(_, _) => {
-                let instance = self.resolve_overload(
+                let resolved = self.resolve_overload(
                     obj,
                     instance.clone(),
                     pos_args,
@@ -1964,6 +1971,7 @@ impl Context {
                     (var_args, kw_var_args),
                     &obj,
                 )?;
+                let instance = self.instantiate(resolved, obj)?;
                 self.substitute_call(
                     obj,
                     attr_name,
@@ -1973,6 +1981,13 @@ impl Context {
                     (var_args, kw_var_args),
                     namespace,
                 )
+                .map(|res| {
+                    if let SubstituteResult::Ok = res {
+                        SubstituteResult::Coerced(instance)
+                    } else {
+                        res
+                    }
+                })
             }
             Type::Failure | Type::Never => Ok(SubstituteResult::Ok),
             _ => self.substitute_dunder_call(
@@ -2298,6 +2313,7 @@ impl Context {
                         | SubstituteResult::Coerced(instance) => instance,
                         SubstituteResult::Ok => instance,
                     };
+                    debug_assert!(!instance.is_intersection_type());
                     return Ok(SubstituteResult::__Call__(instance));
                 }
             // instance method __call__

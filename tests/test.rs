@@ -700,7 +700,7 @@ fn exec_side_effect_test() -> Result<(), ()> {
 
 #[test]
 fn exec_structural_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/structural.er", 1, 9)
+    expect_failure("tests/should_err/structural.er", 1, 11)
 }
 
 #[test]
