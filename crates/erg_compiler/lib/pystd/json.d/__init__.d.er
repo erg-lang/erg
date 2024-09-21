@@ -1,7 +1,59 @@
-.dump: (obj: Obj, fp: FileLike!) -> Str
-.dumps: (obj: Obj,) -> Str
-.load: (fp: File!,) -> Obj
-.loads: (s: Str,) -> Obj
+.dump: (
+    obj: Obj,
+    fp: FileLike!,
+    skipkeys := Bool,
+    ensure_ascii := Bool,
+    check_circular := Bool,
+    allow_nan := Bool,
+    cls := Type,
+    indent := Int,
+    separators := Iterable(Str),
+    default := GenericCallable,
+    sort_keys := Bool,
+    **kw: Obj,
+) -> Str
+.dumps: (
+    obj: Obj,
+    skipkeys := Bool,
+    ensure_ascii := Bool,
+    check_circular := Bool,
+    allow_nan := Bool,
+    cls := Type,
+    indent := Int,
+    separators := Iterable(Str),
+    default := GenericCallable,
+    sort_keys := Bool,
+    **kw: Obj,
+) -> Str
+.load: (
+    fp: File!,
+    cls := Type,
+    object_hook := GenericCallable,
+    parse_float := GenericCallable,
+    parse_int := GenericCallable,
+    parse_constant := GenericCallable,
+    object_pairs_hook := GenericCallable,
+    **kw: Obj,
+) -> Obj
+.loads: (
+    s: Str,
+    cls := Type,
+    object_hook := GenericCallable,
+    parse_float := GenericCallable,
+    parse_int := GenericCallable,
+    parse_constant := GenericCallable,
+    object_pairs_hook := GenericCallable,
+    **kw: Obj,
+) -> Obj
 
 .JsonDecoder: ClassType
 .JsonEncoder: ClassType
+
+.JsonDecodeError: ClassType
+.JsonDecodeError <: ValueError
+.JsonDecodeError.
+    msg: Str
+    doc: Str
+    pos: Nat
+    lineno: Nat
+    colno: Nat

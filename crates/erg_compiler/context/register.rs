@@ -44,7 +44,7 @@ use RegistrationMode::*;
 use super::eval::Substituter;
 use super::instantiate::TyVarCache;
 use super::instantiate_spec::ParamKind;
-use super::{MethodContext, ParamSpec, TraitImpl, TypeContext};
+use super::{ControlKind, MethodContext, ParamSpec, TraitImpl, TypeContext};
 
 pub fn valid_mod_name(name: &str) -> bool {
     !name.is_empty() && !name.starts_with('/') && name.trim() == name
@@ -1103,6 +1103,11 @@ impl Context {
                         total_errs.extend(errs);
                     }
                 }
+                ast::Expr::Call(call) if PYTHON_MODE => {
+                    if let Err(errs) = self.preregister_control_consts(call) {
+                        total_errs.extend(errs);
+                    }
+                }
                 _ => {}
             }
         }
@@ -1111,6 +1116,44 @@ impl Context {
         } else {
             Err(total_errs)
         }
+    }
+
+    fn preregister_control_consts(&mut self, call: &ast::Call) -> TyCheckResult<()> {
+        match call
+            .obj
+            .get_name()
+            .and_then(|s| ControlKind::try_from(&s[..]).ok())
+        {
+            Some(ControlKind::If) => {
+                let Some(ast::Expr::Lambda(then)) = call.args.nth_or_key(1, "then") else {
+                    return Ok(());
+                };
+                self.preregister_consts(&then.body)?;
+                if let Some(ast::Expr::Lambda(else_)) = call.args.nth_or_key(2, "else") {
+                    self.preregister_consts(&else_.body)?;
+                }
+            }
+            Some(ControlKind::For) => {
+                let Some(ast::Expr::Lambda(body)) = call.args.nth_or_key(1, "body") else {
+                    return Ok(());
+                };
+                self.preregister_consts(&body.body)?;
+            }
+            Some(ControlKind::While) => {
+                let Some(ast::Expr::Lambda(body)) = call.args.nth_or_key(1, "body") else {
+                    return Ok(());
+                };
+                self.preregister_consts(&body.body)?;
+            }
+            Some(ControlKind::With) => {
+                let Some(ast::Expr::Lambda(body)) = call.args.nth_or_key(1, "body") else {
+                    return Ok(());
+                };
+                self.preregister_consts(&body.body)?;
+            }
+            _ => {}
+        }
+        Ok(())
     }
 
     pub(crate) fn register_defs(&mut self, block: &ast::Block) -> TyCheckResult<()> {
@@ -1181,6 +1224,11 @@ impl Context {
                         total_errs.extend(errs);
                     }
                 }
+                ast::Expr::Call(call) if PYTHON_MODE => {
+                    if let Err(errs) = self.register_control_defs(call) {
+                        total_errs.extend(errs);
+                    }
+                }
                 _ => {}
             }
         }
@@ -1189,6 +1237,44 @@ impl Context {
         } else {
             Err(total_errs)
         }
+    }
+
+    fn register_control_defs(&mut self, call: &ast::Call) -> TyCheckResult<()> {
+        match call
+            .obj
+            .get_name()
+            .and_then(|s| ControlKind::try_from(&s[..]).ok())
+        {
+            Some(ControlKind::If) => {
+                let Some(ast::Expr::Lambda(then)) = call.args.nth_or_key(1, "then") else {
+                    return Ok(());
+                };
+                self.register_defs(&then.body)?;
+                if let Some(ast::Expr::Lambda(else_)) = call.args.nth_or_key(2, "else") {
+                    self.register_defs(&else_.body)?;
+                }
+            }
+            Some(ControlKind::For) => {
+                let Some(ast::Expr::Lambda(body)) = call.args.nth_or_key(1, "body") else {
+                    return Ok(());
+                };
+                self.register_defs(&body.body)?;
+            }
+            Some(ControlKind::While) => {
+                let Some(ast::Expr::Lambda(body)) = call.args.nth_or_key(1, "body") else {
+                    return Ok(());
+                };
+                self.register_defs(&body.body)?;
+            }
+            Some(ControlKind::With) => {
+                let Some(ast::Expr::Lambda(body)) = call.args.nth_or_key(1, "body") else {
+                    return Ok(());
+                };
+                self.register_defs(&body.body)?;
+            }
+            _ => {}
+        }
+        Ok(())
     }
 
     /// HACK: The constant expression evaluator can evaluate attributes when the type of the receiver is known.
