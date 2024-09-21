@@ -1,0 +1,7 @@
+i: Int
+i = 1
+
+C = Class()
+C.
+    i: Int
+    i = 1

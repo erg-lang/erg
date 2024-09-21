@@ -122,6 +122,11 @@ fn exec_decimal() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_decl() -> Result<(), ()> {
+    expect_success("tests/should_ok/decl.er", 1)
+}
+
+#[test]
 fn exec_default_param() -> Result<(), ()> {
     expect_success("tests/should_ok/default_param.er", 0)
 }
@@ -575,6 +580,11 @@ fn exec_coercion_err() -> Result<(), ()> {
 #[test]
 fn exec_collection_err() -> Result<(), ()> {
     expect_failure("tests/should_err/collection.er", 0, 5)
+}
+
+#[test]
+fn exec_decl_err() -> Result<(), ()> {
+    expect_failure("tests/should_err/decl.er", 1, 2)
 }
 
 #[test]

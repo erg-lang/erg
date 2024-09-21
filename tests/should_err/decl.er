@@ -1,0 +1,7 @@
+i: Int
+i = "a" # ERR
+
+C = Class()
+C.
+    i: Int
+    i = "a" # ERR

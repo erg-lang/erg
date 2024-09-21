@@ -77,6 +77,55 @@ impl Context {
         }
     }
 
+    fn declare_var(&mut self, ident: &Identifier, t_spec: &TypeSpecWithOp) -> Failable<()> {
+        if self.decls.get(&ident.name).is_some()
+            || self
+                .future_defined_locals
+                .get(&ident.name)
+                .is_some_and(|future| future.def_loc.loc < ident.loc())
+        {
+            return Ok(());
+        }
+        let mut errs = TyCheckErrors::empty();
+        let vis = match self.instantiate_vis_modifier(&ident.vis) {
+            Ok(vis) => vis,
+            Err(es) => {
+                errs.extend(es);
+                VisibilityModifier::Public
+            }
+        };
+        let kind = VarKind::Declared;
+        let sig_t = match self.instantiate_var_sig_t(Some(&t_spec.t_spec), PreRegister) {
+            Ok(t) => t,
+            Err((t, _es)) => {
+                // errs.extend(es);
+                t
+            }
+        };
+        let py_name = if let ContextKind::PatchMethodDefs(_base) = &self.kind {
+            Some(Str::from(format!("::{}{}", self.name, ident)))
+        } else {
+            None
+        };
+        let vi = VarInfo::new(
+            sig_t,
+            Mutability::from(&ident.inspect()[..]),
+            Visibility::new(vis, self.name.clone()),
+            kind,
+            None,
+            self.kind.clone(),
+            py_name,
+            self.absolutize(ident.name.loc()),
+        );
+        // self.index().register(ident.inspect().clone(), &vi);
+        self.decls.insert(ident.name.clone(), vi);
+        if errs.is_empty() {
+            Ok(())
+        } else {
+            Err(((), errs))
+        }
+    }
+
     fn pre_define_var(&mut self, sig: &ast::VarSignature, id: Option<DefId>) -> Failable<()> {
         let mut errs = TyCheckErrors::empty();
         let muty = Mutability::from(&sig.inspect().unwrap_or(UBAR)[..]);
@@ -109,6 +158,20 @@ impl Context {
         } else {
             None
         };
+        if self.decls.get(&ident.name).is_some() {
+            let vi = VarInfo::new(
+                sig_t,
+                muty,
+                Visibility::new(vis, self.name.clone()),
+                kind,
+                None,
+                self.kind.clone(),
+                py_name,
+                self.absolutize(ident.name.loc()),
+            );
+            self.index().register(ident.inspect().clone(), &vi);
+            return Ok(());
+        }
         if self
             .remove_class_attr(ident.name.inspect())
             .is_some_and(|(_, decl)| !decl.kind.is_auto())
@@ -181,6 +244,7 @@ impl Context {
             self.absolutize(sig.ident.name.loc()),
         );
         self.index().register(sig.ident.inspect().clone(), &vi);
+        self.decls.remove(name);
         if self
             .remove_class_attr(name)
             .is_some_and(|(_, decl)| !decl.kind.is_auto())
@@ -1193,10 +1257,24 @@ impl Context {
                             ContextKind::MethodDefs(impl_trait.as_ref().map(|(t, _)| t.clone()));
                         self.grow(&class.local_name(), kind, vis.clone(), None);
                         for attr in methods.attrs.iter() {
-                            if let ClassAttr::Def(def) = attr {
-                                if let Err(errs) = self.register_def(def) {
-                                    total_errs.extend(errs);
+                            match attr {
+                                ClassAttr::Def(def) => {
+                                    if let Err(errs) = self.register_def(def) {
+                                        total_errs.extend(errs);
+                                    }
                                 }
+                                ClassAttr::Decl(decl) => {
+                                    if let ast::Expr::Accessor(ast::Accessor::Ident(ident)) =
+                                        decl.expr.as_ref()
+                                    {
+                                        if let Err((_, errs)) =
+                                            self.declare_var(ident, &decl.t_spec)
+                                        {
+                                            total_errs.extend(errs);
+                                        }
+                                    }
+                                }
+                                _ => {}
                             }
                         }
                         let ctx = self.pop();
@@ -1222,6 +1300,16 @@ impl Context {
                 ast::Expr::Dummy(dummy) => {
                     if let Err(errs) = self.register_defs(&dummy.exprs) {
                         total_errs.extend(errs);
+                    }
+                }
+                ast::Expr::TypeAscription(tasc) => {
+                    if !self.kind.is_module() {
+                        continue;
+                    }
+                    if let ast::Expr::Accessor(ast::Accessor::Ident(ident)) = tasc.expr.as_ref() {
+                        if let Err((_, errs)) = self.declare_var(ident, &tasc.t_spec) {
+                            total_errs.extend(errs);
+                        }
                     }
                 }
                 ast::Expr::Call(call) if PYTHON_MODE => {
