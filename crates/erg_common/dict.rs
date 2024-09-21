@@ -344,6 +344,7 @@ impl<K: Hash + Eq, V> Dict<K, V> {
         self.dict.extend(iter);
     }
 
+    /// If the key already exists, the value will not be updated.
     #[inline]
     pub fn guaranteed_extend<I: IntoIterator<Item = (K, V)>>(&mut self, other: I) {
         for (k, v) in other {

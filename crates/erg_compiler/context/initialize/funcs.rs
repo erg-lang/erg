@@ -1381,6 +1381,14 @@ impl Context {
             .structuralize();
             bin_op(S, R.clone(), Bool).quantify()
         };
+        let op_t2 = {
+            let S = Type::from(
+                dict! { Field::public(FUNDAMENTAL_ITER.into()) => fn0_met(Never, poly(ITERATOR, vec![ty_tp(R.clone())])) },
+            )
+            .structuralize();
+            bin_op(S, R.clone(), Bool).quantify()
+        };
+        let op_t = (op_t & op_t2).with_default_intersec_index(0);
         self.register_builtin_erg_impl(
             FUNDAMENTAL_CONTAINS,
             op_t.clone(),

@@ -385,8 +385,14 @@ impl Context {
         let mut iterator = Self::builtin_poly_trait(ITERATOR, vec![PS::t_nd(TY_T)], 2);
         iterator.register_superclass(poly(ITERABLE, vec![ty_tp(T.clone())]), &iterable);
         let Slf = mono_q(SELF, subtypeof(poly(ITERATOR, vec![ty_tp(T.clone())])));
-        let t = fn0_met(Slf, or(T.clone(), NoneType)).quantify();
+        let t = fn0_met(Slf.clone(), or(T.clone(), NoneType)).quantify();
         iterator.register_builtin_erg_decl(FUNDAMENTAL_NEXT, t, Visibility::BUILTIN_PUBLIC);
+        iterator.register_builtin_erg_impl(
+            FUNDAMENTAL_ITER,
+            fn0_met(Slf.clone(), Slf.clone()).quantify(),
+            Const,
+            Visibility::BUILTIN_PUBLIC,
+        );
         /* Container */
         let mut container = Self::builtin_poly_trait(CONTAINER, vec![PS::t_nd(TY_T)], 2);
         let op_t = fn1_met(mono(CONTAINER), T.clone(), Bool).quantify();

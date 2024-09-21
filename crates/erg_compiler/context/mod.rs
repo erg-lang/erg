@@ -1435,6 +1435,32 @@ impl Context {
                 attrs.guaranteed_extend(sup_ctx.type_dir(namespace));
             }
         }
+        for sup in self.super_traits.iter() {
+            if let Some(sup_ctx) = namespace.get_nominal_type_ctx(sup) {
+                if sup_ctx.name == self.name {
+                    continue;
+                }
+                attrs.guaranteed_extend(sup_ctx.type_impl_dir(namespace));
+            }
+        }
+        attrs
+    }
+
+    fn type_impl_dir<'t>(&'t self, namespace: &'t Context) -> Dict<&VarName, &VarInfo> {
+        let mut attrs = self.locals.iter().collect::<Dict<_, _>>();
+        attrs.guaranteed_extend(
+            self.methods_list
+                .iter()
+                .flat_map(|ctx| ctx.type_impl_dir(namespace)),
+        );
+        for sup in self.super_classes.iter().chain(self.super_traits.iter()) {
+            if let Some(sup_ctx) = namespace.get_nominal_type_ctx(sup) {
+                if sup_ctx.name == self.name {
+                    continue;
+                }
+                attrs.guaranteed_extend(sup_ctx.type_impl_dir(namespace));
+            }
+        }
         attrs
     }
 
