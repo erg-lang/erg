@@ -6,3 +6,6 @@ _: {I: Int | I < 5 or I != 3 and I != 4} = 4
 
 check _: {S: Str | S.replace("abc", "") == ""} = None
 check "abc"
+
+dic as Dict({{111}: {222}}) = {111: 222}
+_: {222} = dic[111]

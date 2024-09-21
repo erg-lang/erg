@@ -13,3 +13,6 @@ _: {I: Int | (I < 5 or I != 3) and I != 4} = 4 # ERR
 
 check _: {S: Str | S.replace("abc", "") == ""} = None
 check "abcd" # ERR
+
+dic as Dict({{111}: {222}}) = {111: 222}
+_ = dic[333] # ERR

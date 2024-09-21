@@ -1221,7 +1221,17 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 Some(guard(namespace, target, to))
             }
             TokenKind::Symbol if &op.content[..] == "isinstance" => {
-                let to = self.module.context.expr_to_type(rhs.clone()).ok()?;
+                // isinstance(x, (T, U)) => x: T or U
+                let to = if let ast::Expr::Tuple(ast::Tuple::Normal(tys)) = rhs {
+                    tys.elems.pos_args.iter().fold(Type::Never, |acc, ex| {
+                        let Ok(ty) = self.module.context.expr_to_type(ex.expr.clone()) else {
+                            return acc;
+                        };
+                        self.module.context.union(&acc, &ty)
+                    })
+                } else {
+                    self.module.context.expr_to_type(rhs.clone()).ok()?
+                };
                 Some(guard(namespace, target, to))
             }
             TokenKind::IsOp | TokenKind::DblEq => {

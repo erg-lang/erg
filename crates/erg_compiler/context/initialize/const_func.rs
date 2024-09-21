@@ -239,21 +239,21 @@ pub(crate) fn sub_vdict_get<'d>(
 ) -> Option<&'d ValueObj> {
     let mut matches = vec![];
     for (k, v) in dict.iter() {
-        match (key, k) {
-            (ValueObj::Type(idx), ValueObj::Type(kt))
-                if ctx.subtype_of(&idx.typ().lower_bounded(), &kt.typ().lower_bounded()) =>
+        if key == k {
+            return Some(v);
+        }
+        match (ctx.convert_value_into_type(key.clone()), ctx.convert_value_into_type(k.clone())) {
+            (Ok(idx), Ok(kt))
+                if ctx.subtype_of(&idx.lower_bounded(), &kt.lower_bounded()) /*|| dict.len() == 1*/ =>
             {
                 matches.push((idx, kt, v));
-            }
-            (idx, k) if idx == k => {
-                return Some(v);
             }
             _ => {}
         }
     }
     for (idx, kt, v) in matches.into_iter() {
         let list = UndoableLinkedList::new();
-        match ctx.undoable_sub_unify(idx.typ(), kt.typ(), &(), &list, None) {
+        match ctx.undoable_sub_unify(&idx, &kt, &(), &list, None) {
             Ok(_) => {
                 return Some(v);
             }
@@ -272,21 +272,24 @@ pub(crate) fn sub_tpdict_get<'d>(
 ) -> Option<&'d TyParam> {
     let mut matches = vec![];
     for (k, v) in dict.iter() {
-        match (<&Type>::try_from(key), <&Type>::try_from(k)) {
+        if key == k {
+            return Some(v);
+        }
+        match (
+            ctx.convert_tp_into_type(key.clone()),
+            ctx.convert_tp_into_type(k.clone()),
+        ) {
             (Ok(idx), Ok(kt))
                 if ctx.subtype_of(&idx.lower_bounded(), &kt.lower_bounded()) || dict.len() == 1 =>
             {
                 matches.push((idx, kt, v));
-            }
-            (_, _) if key == k => {
-                return Some(v);
             }
             _ => {}
         }
     }
     for (idx, kt, v) in matches.into_iter() {
         let list = UndoableLinkedList::new();
-        match ctx.undoable_sub_unify(idx, kt, &(), &list, None) {
+        match ctx.undoable_sub_unify(&idx, &kt, &(), &list, None) {
             Ok(_) => {
                 return Some(v);
             }

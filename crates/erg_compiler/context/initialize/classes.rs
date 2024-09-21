@@ -2359,14 +2359,13 @@ impl Context {
         )));
         dict_.register_builtin_const(FUNC_AS_RECORD, Visibility::BUILTIN_PUBLIC, None, as_record);
         let Def = type_q(TY_DEFAULT);
+        let K = type_q(TY_K);
+        let V = type_q(TY_V);
         let get_t = no_var_fn_met(
-            dict_t.clone(),
-            vec![kw(KW_KEY, T.clone())],
+            dict! { K.clone() => V.clone() }.into(),
+            vec![kw(KW_KEY, K.clone())],
             vec![kw_default(KW_DEFAULT, Def.clone(), NoneType)],
-            or(
-                proj_call(D.clone(), FUNDAMENTAL_GETITEM, vec![ty_tp(T.clone())]),
-                Def,
-            ),
+            or(V.clone(), Def),
         )
         .quantify();
         dict_.register_py_builtin(FUNC_GET, get_t, Some(FUNC_GET), 9);

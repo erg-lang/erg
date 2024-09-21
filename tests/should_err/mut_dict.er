@@ -4,4 +4,6 @@ dict = !d
 dict.insert! "b", 2
 _ = dict.get("a") == "a" # ERR
 _ = dict.get("b") == "a" # ERR
-_ = dict.get("c") # ERR
+_ = dict.get("c") # OK
+_ = dict["b"] # OK
+_ = dict["c"] # ERR
