@@ -1395,6 +1395,8 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                             .ctx
                             .undoable_sub_unify(maybe_sub, &sub, &(), &list, None)
                             .is_ok()
+                            && !maybe_sub.is_recursive()
+                            && !sub.is_recursive()
                         {
                             drop(list);
                             self.sub_unify(maybe_sub, &sub)?;
