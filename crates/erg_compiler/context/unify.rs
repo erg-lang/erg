@@ -1440,7 +1440,8 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                         let constr = Constraint::new_supertype_of(maybe_sub.clone());
                         maybe_sup.update_constraint(constr, self.undoable, true);
                     } else {
-                        todo!("{maybe_sub} <: {maybe_sup}")
+                        // ?T: GenericDict
+                        // todo!("{maybe_sub} <: {maybe_sup}")
                     }
                 }
             }
@@ -1518,7 +1519,8 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                         let constr = Constraint::new_subtype_of(maybe_sup.clone());
                         maybe_sub.update_constraint(constr, self.undoable, true);
                     } else {
-                        todo!("{maybe_sub} <: {maybe_sup}")
+                        // ?T: GenericDict
+                        // todo!("{maybe_sub} <: {maybe_sup}")
                     }
                 }
             }
