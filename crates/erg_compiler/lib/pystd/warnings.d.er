@@ -1,0 +1,52 @@
+.CatchWarnings = 'catch_warnings': ClassType
+.CatchWarnings.
+    __call__: () => CatchWarnings
+.catch_warnings!: () => CatchWarnings
+
+.warn!: (
+    message: Str,
+    category := Exception,
+    stacklevel := Nat,
+    source := Obj,
+    skip_file_prefixes := Iterable(Str),
+) => NoneType
+.warn_explicit!: (
+    message: Str,
+    category: Exception,
+    filename: Str,
+    lineno: Nat,
+    module := Str,
+    registry := GenericDict,
+    module_globals := GenericDict,
+    source := Obj,
+) => NoneType
+.showwarning!: (
+    message: Str,
+    category: Exception,
+    filename: Str,
+    lineno: Nat,
+    file := FileLike!,
+    line := Str,
+) => NoneType
+.formatwarning!: (
+    message: Str,
+    category: Exception,
+    filename: Str,
+    lineno: Nat,
+    line := Str,
+) => Str
+.filterwarnings!: (
+    action: Str,
+    message := Str,
+    category := Exception,
+    module := Str,
+    lineno := Nat,
+    append := Bool,
+) => NoneType
+.simplefilter!: (
+    action: Str,
+    category := Exception,
+    lineno := Nat,
+    append := Bool,
+) => NoneType
+.resetwarnings!: () => NoneType

@@ -1,0 +1,84 @@
+.BOM: Bytes
+.BOM_BE: Bytes
+.BOM_LE: Bytes
+.BOM_UTF8: Bytes
+.BOM_UTF16: Bytes
+.BOM_UTF16_BE: Bytes
+.BOM_UTF16_LE: Bytes
+.BOM_UTF32: Bytes
+.BOM_UTF32_BE: Bytes
+.BOM_UTF32_LE: Bytes
+
+.EncodedFile: ClassType
+
+.StreamReader!: ClassType
+.StreamReader!.
+    read!: (self: RefMut StreamReader!, size := Int, chars := Int, firstline := Bool) => Bytes
+    readline!: (self: RefMut StreamReader!, size := Int, keepends := Bool) => Bytes
+    readlines!: (self: RefMut StreamReader!, sizehint := Int, keepends := Bool) => List Bytes
+    reset!: (self: RefMut StreamReader!) => NoneType
+    __iter__: (self: Ref StreamReader!) => Iterator Bytes
+
+.StreamWriter!: ClassType
+.StreamWriter!.
+    write!: (self: RefMut StreamWriter!, obj: Bytes) => Int
+    writelines!: (self: RefMut StreamWriter!, obj: List Bytes) => NoneType
+    reset!: (self: RefMut StreamWriter!) => NoneType
+
+.StreamReaderWriter!: ClassType
+.StreamReaderWriter!.
+    read!: (self: RefMut StreamReaderWriter!, size := Int, chars := Int, firstline := Bool) => Bytes
+    readline!: (self: RefMut StreamReaderWriter!, size := Int, keepends := Bool) => Bytes
+    readlines!: (self: RefMut StreamReaderWriter!, sizehint := Int, keepends := Bool) => List Bytes
+    write!: (self: RefMut StreamReaderWriter!, obj: Bytes) => Int
+    writelines!: (self: RefMut StreamReaderWriter!, obj: List Bytes) => NoneType
+    reset!: (self: RefMut StreamReaderWriter!) => NoneType
+    __iter__: (self: Ref StreamReaderWriter!) => Iterator Bytes
+
+.Codec: ClassType
+.Codec.
+    name: Str
+    encode: (obj: Str, errors := Str) -> Bytes
+    decode: (obj: Bytes, errors := Str) -> Str
+
+.CodecInfo: ClassType
+.CodecInfo.
+    name: Str
+    encode: (obj: Str, encoding := Str, errors := Str) -> Bytes
+    decode: (obj: Bytes, encoding := Str, errors:= Str) -> Str
+    streamreader: (obj: Bytes, errors: Str) -> StreamReader!
+    streamwriter: (obj: Bytes, errors: Str) -> StreamWriter!
+    __call__: (
+        encode: (obj: Str, encoding := Str, errors := Str) -> Bytes,
+        decode: (obj: Bytes, encoding := Str, errors := Str) -> Str,
+        streamreader := StreamReader!,
+        streamwriter := StreamWriter!,
+        incrementalencoder := IncrementalEncoder,
+        incrementaldecoder := IncrementalDecoder,
+        name := Str,
+    ) -> CodecInfo
+
+.IncrementalEncoder: ClassType
+.IncrementalEncoder.
+    encode: (obj: Str, final := Bool) -> Bytes
+
+.IncrementalDecoder: ClassType
+.IncrementalDecoder.
+    decode: (obj: Bytes, final := Bool) -> Str
+
+.BufferedIncrementalEncoder: ClassType
+.BufferedIncrementalEncoder <: IncrementalEncoder
+
+.BufferedIncrementalDecoder: ClassType
+.BufferedIncrementalDecoder <: IncrementalDecoder
+
+.encode: (obj: Str, encoding := Str, errors := Str) -> Bytes
+.decode: (obj: Bytes, encoding := Str, errors := Str) -> Str
+.lookup: (encoding: Str) -> CodecInfo
+
+.getencoder: (encoding: Str) -> (obj: Str) -> (Bytes, Nat)
+.getdecoder: (encoding: Str) -> (obj: Bytes) -> (Str, Nat)
+
+.open!: (filename: Str, mode := Str, encoding := Str, errors := Str, buffering := Int) -> StreamReaderWriter!
+.register!: (search_function: (name: Str) -> CodecInfo or NoneType) => NoneType
+.unregister!: (search_function: (name: Str) -> CodecInfo or NoneType) => NoneType

@@ -1,7 +1,31 @@
+.OPENSSL_VERSION: Str
+.OPENSSL_VERSION_INFO: (Nat, Nat, Nat)
+
 .SSLContext: ClassType
 .create_default_context!: () => .SSLContext
 
 .SSLError: ClassType
+.SSLError <: OSError
+
+.SSLZeroReturnError: ClassType
+.SSLZeroReturnError <: SSLError
+
+.SSLWantReadError: ClassType
+.SSLWantReadError <: SSLError
+
+.SSLWantWriteError: ClassType
+.SSLWantWriteError <: SSLError
+
+.SSLSyscallError: ClassType
+.SSLSyscallError <: SSLError
+
+.SSLEOFError: ClassType
+.SSLEOFError <: SSLError
+
+.SSLCertVerificationError: ClassType
+.SSLCertVerificationError <: SSLError
+
+.CertificateError = .SSLCertVerificationError
 
 .SSLSocket: ClassType
 .SSLSocket <: FileLike!
