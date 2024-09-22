@@ -45,7 +45,7 @@
     chmod!: (self: .Path, mode: Nat) => NoneType
     exists!: (self: .Path) => Bool
     expanduser!: (self: .Path) => .Path
-    glob!: (self: .Path, pattern: Str) -> Generator .Path
+    glob!: (self: .Path, pattern: Str) => Generator .Path
     home!: () => .Path
     iterdir!: (self: .Path) => Generator .Path
     joinpath: (self: .Path, *other: PathLike) -> .Path
