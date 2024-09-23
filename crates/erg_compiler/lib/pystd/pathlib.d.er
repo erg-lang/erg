@@ -45,8 +45,9 @@
     chmod!: (self: .Path, mode: Nat) => NoneType
     exists!: (self: .Path) => Bool
     expanduser!: (self: .Path) => .Path
+    glob!: (self: .Path, pattern: Str) => Generator .Path
     home!: () => .Path
-    iterdir!: (self: .Path) => Iterable .Path
+    iterdir!: (self: .Path) => Generator .Path
     joinpath: (self: .Path, *other: PathLike) -> .Path
     mkdir!: (self: .Path, mode := Nat, parents := Bool, exist_ok := Bool) => NoneType
     open!: (self: .Path, mode := Str) => File!
@@ -54,6 +55,7 @@
     read_bytes!: (self: .Path) => Bytes
     read_text!: (self: .Path, encoding := Str, errors := Str) => Str
     rename!: (self: .Path, target: PathLike) => NoneType
+    resolve!: (self: .Path, strict := Bool) => .Path
     samefile!: (self: .Path, other: PathLike) => Bool
     touch!: (self: .Path, mode := Nat, exist_ok := Bool) => NoneType
     unlink!: (self: .Path, missing_ok := Bool) => NoneType

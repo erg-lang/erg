@@ -352,7 +352,6 @@ const PROC_INVERT: &str = "invert!";
 const RANGE: &str = "Range";
 const GENERIC_CALLABLE: &str = "GenericCallable";
 const SUBROUTINE: &str = "Subroutine";
-const GENERIC_GENERATOR: &str = "GenericGenerator";
 const FUNC_RETURN: &str = "return";
 const FUNC_YIELD: &str = "yield";
 const PROC: &str = "Proc";

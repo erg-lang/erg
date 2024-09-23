@@ -4045,10 +4045,14 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PRIVATE,
         );
-        let mut g_generator = Self::builtin_mono_class(GENERIC_GENERATOR, 2);
-        g_generator.register_superclass(mono(SUBROUTINE), &subr);
-        let t_yield = fn1_met(mono(GENERIC_GENERATOR), Obj, Never).quantify();
-        g_generator.register_builtin_erg_impl(
+        let generator_t = poly(GENERATOR, vec![ty_tp(T.clone())]);
+        let mut generator = Self::builtin_poly_class(GENERATOR, vec![PS::t_nd(TY_T)], 2);
+        generator.register_superclass(mono(SUBROUTINE), &subr);
+        generator
+            .register_trait(self, poly(ITERATOR, vec![ty_tp(T.clone())]))
+            .unwrap();
+        let t_yield = fn1_met(generator_t.clone(), T.clone(), Never).quantify();
+        generator.register_builtin_erg_impl(
             FUNC_YIELD,
             t_yield,
             Immutable,
@@ -4674,13 +4678,7 @@ impl Context {
         self.register_builtin_type(dict_mut_t, dict_mut, vis.clone(), Const, Some(DICT));
         self.register_builtin_type(set_mut_t, set_mut_, vis.clone(), Const, Some(SET));
         self.register_builtin_type(mono(SUBROUTINE), subr, vis.clone(), Const, Some(SUBROUTINE));
-        self.register_builtin_type(
-            mono(GENERIC_GENERATOR),
-            g_generator,
-            vis.clone(),
-            Const,
-            Some(GENERATOR),
-        );
+        self.register_builtin_type(generator_t, generator, vis.clone(), Const, Some(GENERATOR));
         self.register_builtin_type(dimension_t, dimension, vis.clone(), Const, Some(DIMENSION));
         self.register_builtin_type(
             mono(BASE_EXCEPTION),
