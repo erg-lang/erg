@@ -2,7 +2,7 @@
 name = "els"
 description = "An Erg compiler frontend for IDEs, implements LSP."
 documentation = "http://docs.rs/els"
-version = "0.1.57-nightly.1"
+version = "0.1.57-nightly.2"
 authors.workspace = true
 license.workspace = true
 edition.workspace = true
