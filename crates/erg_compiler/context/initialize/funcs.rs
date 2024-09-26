@@ -351,8 +351,8 @@ impl Context {
         )
         .quantify();
         let t_slice = no_var_func(
-            vec![kw(KW_START, Int)],
-            vec![kw(KW_STOP, Int), kw(KW_STEP, Int)],
+            vec![kw(KW_START, Int | NoneType)],
+            vec![kw(KW_STOP, Int | NoneType), kw(KW_STEP, Int | NoneType)],
             mono(SLICE),
         );
         let t_sorted = nd_func(
@@ -974,6 +974,40 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
             None,
+        );
+        let t_exec = func(
+            vec![kw(KW_CODE, Str)],
+            None,
+            vec![
+                kw(KW_GLOBALS, mono(GENERIC_DICT)),
+                kw(KW_LOCALS, mono(GENERIC_DICT)),
+            ],
+            None,
+            NoneType,
+        );
+        self.register_builtin_py_impl(
+            FUNC_EXEC,
+            t_exec,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_EXEC),
+        );
+        let t_eval = func(
+            vec![kw(KW_CODE, Str)],
+            None,
+            vec![
+                kw(KW_GLOBALS, mono(GENERIC_DICT)),
+                kw(KW_LOCALS, mono(GENERIC_DICT)),
+            ],
+            None,
+            NoneType,
+        );
+        self.register_builtin_py_impl(
+            FUNC_EVAL,
+            t_eval,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_EVAL),
         );
     }
 

@@ -273,6 +273,11 @@ impl Context {
             })
     }
 
+    /// ```erg
+    /// get_singular_ctxs_by_hir_expr(1) == Err
+    /// get_singular_ctxs_by_hir_expr(Int) == [<type Int>, <type Type>, ...]
+    /// get_singular_ctxs_by_hir_expr(math) == [<module math>]
+    /// ```
     pub fn get_singular_ctxs_by_hir_expr(
         &self,
         obj: &hir::Expr,
@@ -1342,6 +1347,20 @@ impl Context {
             }
             _ => {}
         }
+        if let Ok(singular_ctxs) = self.get_singular_ctxs_by_hir_expr(obj, namespace) {
+            for ctx in singular_ctxs {
+                if let Some(vi) = ctx.get_current_scope_non_param(&attr_name.name) {
+                    self.validate_visibility(attr_name, vi, input, namespace)?;
+                    return Ok(vi.clone());
+                }
+                for method_ctx in ctx.methods_list.iter() {
+                    if let Some(vi) = method_ctx.get_current_scope_non_param(&attr_name.name) {
+                        self.validate_visibility(attr_name, vi, input, namespace)?;
+                        return Ok(vi.clone());
+                    }
+                }
+            }
+        }
         for ctx in self
             .get_nominal_super_type_ctxs(obj.ref_t())
             .ok_or_else(|| {
@@ -1375,30 +1394,6 @@ impl Context {
                     Triple::None => {}
                 }
             }
-        }
-        if let Ok(singular_ctxs) = self.get_singular_ctxs_by_hir_expr(obj, namespace) {
-            for ctx in singular_ctxs {
-                if let Some(vi) = ctx.get_current_scope_non_param(&attr_name.name) {
-                    self.validate_visibility(attr_name, vi, input, namespace)?;
-                    return Ok(vi.clone());
-                }
-                for method_ctx in ctx.methods_list.iter() {
-                    if let Some(vi) = method_ctx.get_current_scope_non_param(&attr_name.name) {
-                        self.validate_visibility(attr_name, vi, input, namespace)?;
-                        return Ok(vi.clone());
-                    }
-                }
-            }
-            return Err(TyCheckError::singular_no_attr_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                attr_name.loc(),
-                namespace.name.to_string(),
-                obj.qual_name().as_deref().unwrap_or("?"),
-                obj.ref_t(),
-                attr_name.inspect(),
-                self.get_similar_attr_from_singular(obj, attr_name.inspect()),
-            ));
         }
         match self.get_attr_type_by_name(obj, attr_name, namespace) {
             Triple::Ok(method) => {
@@ -1436,16 +1431,17 @@ impl Context {
                 );
                 return Ok(vi);
             }
-        }
-        for patch in self.find_patches_of(obj.ref_t()) {
-            if let Some(vi) = patch.get_current_scope_non_param(&attr_name.name) {
-                self.validate_visibility(attr_name, vi, input, namespace)?;
-                return Ok(vi.clone());
-            }
-            for methods_ctx in patch.methods_list.iter() {
-                if let Some(vi) = methods_ctx.get_current_scope_non_param(&attr_name.name) {
+        } else {
+            for patch in self.find_patches_of(obj.ref_t()) {
+                if let Some(vi) = patch.get_current_scope_non_param(&attr_name.name) {
                     self.validate_visibility(attr_name, vi, input, namespace)?;
                     return Ok(vi.clone());
+                }
+                for methods_ctx in patch.methods_list.iter() {
+                    if let Some(vi) = methods_ctx.get_current_scope_non_param(&attr_name.name) {
+                        self.validate_visibility(attr_name, vi, input, namespace)?;
+                        return Ok(vi.clone());
+                    }
                 }
             }
         }
@@ -1487,6 +1483,20 @@ impl Context {
             }
             _ => {}
         }
+        if let Ok(singular_ctxs) = self.get_singular_ctxs_by_hir_expr(obj, namespace) {
+            for ctx in singular_ctxs {
+                if let Some(vi) = ctx.get_current_scope_callable(&attr_name.name) {
+                    self.validate_visibility(attr_name, vi, input, namespace)?;
+                    return Ok(vi.clone());
+                }
+                for method_ctx in ctx.methods_list.iter() {
+                    if let Some(vi) = method_ctx.get_current_scope_callable(&attr_name.name) {
+                        self.validate_visibility(attr_name, vi, input, namespace)?;
+                        return Ok(vi.clone());
+                    }
+                }
+            }
+        }
         for ctx in self
             .get_nominal_super_type_ctxs(obj.ref_t())
             .ok_or_else(|| {
@@ -1520,30 +1530,6 @@ impl Context {
                     Triple::None => {}
                 }
             }
-        }
-        if let Ok(singular_ctxs) = self.get_singular_ctxs_by_hir_expr(obj, namespace) {
-            for ctx in singular_ctxs {
-                if let Some(vi) = ctx.get_current_scope_callable(&attr_name.name) {
-                    self.validate_visibility(attr_name, vi, input, namespace)?;
-                    return Ok(vi.clone());
-                }
-                for method_ctx in ctx.methods_list.iter() {
-                    if let Some(vi) = method_ctx.get_current_scope_callable(&attr_name.name) {
-                        self.validate_visibility(attr_name, vi, input, namespace)?;
-                        return Ok(vi.clone());
-                    }
-                }
-            }
-            return Err(TyCheckError::singular_no_attr_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                attr_name.loc(),
-                namespace.name.to_string(),
-                obj.qual_name().as_deref().unwrap_or("?"),
-                obj.ref_t(),
-                attr_name.inspect(),
-                self.get_similar_attr_from_singular(obj, attr_name.inspect()),
-            ));
         }
         match self.get_attr_type_by_name(obj, attr_name, namespace) {
             Triple::Ok(method) => {
@@ -1581,16 +1567,17 @@ impl Context {
                 );
                 return Ok(vi);
             }
-        }
-        for patch in self.find_patches_of(obj.ref_t()) {
-            if let Some(vi) = patch.get_current_scope_callable(&attr_name.name) {
-                self.validate_visibility(attr_name, vi, input, namespace)?;
-                return Ok(vi.clone());
-            }
-            for methods_ctx in patch.methods_list.iter() {
-                if let Some(vi) = methods_ctx.get_current_scope_callable(&attr_name.name) {
+        } else {
+            for patch in self.find_patches_of(obj.ref_t()) {
+                if let Some(vi) = patch.get_current_scope_callable(&attr_name.name) {
                     self.validate_visibility(attr_name, vi, input, namespace)?;
                     return Ok(vi.clone());
+                }
+                for methods_ctx in patch.methods_list.iter() {
+                    if let Some(vi) = methods_ctx.get_current_scope_callable(&attr_name.name) {
+                        self.validate_visibility(attr_name, vi, input, namespace)?;
+                        return Ok(vi.clone());
+                    }
                 }
             }
         }
@@ -2824,7 +2811,7 @@ impl Context {
         )
     }
 
-    pub(crate) fn get_similar_attr_from_singular<'a>(
+    pub(crate) fn _get_similar_attr_from_singular<'a>(
         &'a self,
         obj: &hir::Expr,
         name: &str,
@@ -3023,6 +3010,10 @@ impl Context {
         opt_max
     }
 
+    /// ```erg
+    /// get_nominal_super_type_ctx(Nat) == [<Nat>, <Int>, <Float>, ..., <Obj>, <Eq>, ...]
+    /// get_nominal_super_type_ctx({Nat}) == [<Type>, <Obj>, <Eq>, ...]
+    /// ```
     pub fn get_nominal_super_type_ctxs<'a>(&'a self, t: &Type) -> Option<Vec<&'a TypeContext>> {
         match t {
             Type::FreeVar(fv) if fv.is_linked() => self.get_nominal_super_type_ctxs(&fv.crack()),

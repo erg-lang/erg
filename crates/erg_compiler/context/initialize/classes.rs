@@ -87,6 +87,13 @@ impl Context {
             Some(FUNDAMENTAL_FORMAT),
             14,
         );
+        obj.register_builtin_py_impl(
+            FUNDAMENTAL_CALL,
+            func0(Obj),
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNDAMENTAL_CALL),
+        );
         // Obj does not implement Eq
         let mut complex = Self::builtin_mono_class(COMPLEX, 2);
         complex.register_superclass(Obj, &obj);

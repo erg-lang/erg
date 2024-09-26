@@ -8,21 +8,21 @@
 .TypeAlias: ClassType
 .Tuple: ClassType
 .Tuple.
-    __getitem__: (*Type) -> Type
+    __getitem__: (HomogenousTuple Type) -> Type
 .Union: ClassType
 .Union.
-    __getitem__: (*Type) -> Type
+    __getitem__: (HomogenousTuple Type) -> Type
 .Optional: ClassType
 .Optional.
-    __getitem__: (Type) -> Type
+    __getitem__: (HomogenousTuple Type) -> Type
 .Callable: ClassType
 .Callable.
-    __getitem__: (params: [Type; _], Type) -> Type
+    __getitem__: (HomogenousTuple Type) -> Type
 .Concatenate: (*Type) -> Type
 .Type: (Type) -> Type
 .Literal: ClassType
 .Literal.
-    __getitem__: (*Obj) -> Type
+    __getitem__: (HomogenousTuple Obj) -> Type
 .ClassVar: (Type) -> Type
 .Final: (Type) -> Type
 .Required: (Type) -> Type
@@ -64,24 +64,42 @@
 .AnyStr: ClassType
 .Protocol: (Type := NoneType) -> Type
 .NamedTuple: ClassType
+.NamedTuple.
+    __call__: (typename: Str, it := global::Iterable(Obj)) -> Type
 .NewType: ClassType
 .NewType.
     __module__: Str
     __name__: Str
     __supertype__: Type
     __call__: (name: Str, tp: Type) -> NewType
-.TypedDict: (Str, Type) -> Type
+.TypedDict: (typename: Str, it := global::Iterable(Obj)) -> Type
 .Dict: (Type, Type) -> Type
 .List: (Type) -> Type
 .Set: (Type) -> Type
-.FrozenSet: (Type) -> Type
-.OrderedDict: (Type, Type) -> Type
+.FrozenSet: (Type) -> ClassType
+.FrozenSet.
+    __getitem__: Type -> Type
+.OrderedDict: (Type, Type) -> ClassType
+.OrderedDict.
+    __getitem__: (kv: (Type, Type)) -> Type
 .ChainMap: (Type, Type) -> Type
 .Counter: (Type, Int) -> Type
-.Deque: (Type) -> Type
-.IO: ClassType
+.Deque: (T: Type) -> ClassType
+.Deque.
+    __call__: |T|(iter: global::Iterable(T)) -> Deque T
+    __getitem__: (Type) -> Type
+.IO: Type -> ClassType
+.IO.
+    __call__: () -> IO Obj
+    __getitem__: (Type) -> Type
 .TextIO: ClassType
+.TextIO <: IO Str
+.TextIO.
+    __call__: () -> TextIO
 .BinaryIO: ClassType
+.BinaryIO <: IO Bytes
+.BinaryIO.
+    __call__: () -> BinaryIO
 .Pattern: ClassType
 .Match: ClassType
 .Text: ClassType
@@ -127,20 +145,40 @@
 .KeysView: ClassType
 .Mapping: ClassType
 .Mapping.
-    __getitem__: (Type, Type) -> Type
+    __getitem__: (kv: (Type, Type)) -> Type
 .MappingView: ClassType
+.MappingView.
+    __getitem__: (Type) -> Type
 .MutableMapping: ClassType
+.MutableMapping.
+    __getitem__: (kv: (Type, Type)) -> Type
 .MutableSequence: ClassType
+.MutableSequence.
+    __getitem__: Type -> Type
 .MutableSet: ClassType
+.MutableSet.
+    __getitem__: Type -> Type
 .Sized: ClassType
 .ValuesView: ClassType
 .Awaitable: ClassType
 .AsyncIterator: ClassType
+.AsyncIterator.
+    __getitem__: Type -> Type
 .AsyncIterable: ClassType
+.AsyncIterable.
+    __getitem__: Type -> Type
 .Coroutine: ClassType
+.Coroutine.
+    __getitem__: (t: (Type, Type, Type)) -> Type
 .Collection: ClassType
+.Collection.
+    __getitem__: Type -> Type
 .AsyncGenerator: ClassType
+.AsyncGenerator.
+    __getitem__: (t: (Type, Type)) -> Type
 .AsyncContextManager: ClassType
+.AsyncContextManager.
+    __getitem__: Type -> Type
 .SupportsAbs: ClassType
 .SupportsBytes: ClassType
 .SupportsComplex: ClassType
@@ -149,5 +187,9 @@
 .SupportsInt: ClassType
 .SupportsRound: ClassType
 
-.Genertor: ClassType
+.Generator: ClassType
+.Generator.
+    __getitem__: (t: (Type, Type, Type)) -> Type
 .Reversible: ClassType
+.Reversible.
+    __getitem__: Type -> Type

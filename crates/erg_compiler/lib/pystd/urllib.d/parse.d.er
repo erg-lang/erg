@@ -1,0 +1,21 @@
+.urlparse: (urlstring: Str, scheme := Str, allow_fragments := Bool) -> NamedTuple {
+    .scheme = Str;
+    .netloc = Str;
+    .path = Str;
+    .params = Str;
+    .query = Str;
+    .fragment = Str;
+    .username = Str or NoneType;
+    .password = Str or NoneType;
+    .hostname = Str or NoneType;
+    .port = Int or NoneType;
+}
+.parse_qs: (
+    qs: Str,
+    keep_blank_values := Bool,
+    strict_parsing := Bool,
+    encoding := Str,
+    errors := Str,
+    max_num_fields := Nat or NoneType,
+    separator := Str,
+) -> {Str: [Str; _]}
