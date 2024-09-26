@@ -431,3 +431,39 @@ impl SharedGeneralizationCache {
         self.0.borrow().linear_get(key).cloned()
     }
 }
+
+use crate::ty::Type;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TypeRelationResult {
+    pub is_subtype: bool,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct SupAndResult(Dict<Type, TypeRelationResult>);
+
+#[derive(Debug, Clone, Default)]
+pub struct SharedTypeRelationCache(Shared<Dict<Type, SupAndResult>>);
+
+impl SharedTypeRelationCache {
+    pub fn new() -> Self {
+        Self(Shared::new(Dict::new()))
+    }
+
+    pub fn insert(&self, sub: Type, sup: Type, is_subtype: bool) {
+        self.0
+            .borrow_mut()
+            .entry(sub)
+            .or_default()
+            .0
+            .insert(sup, TypeRelationResult { is_subtype });
+    }
+
+    pub fn get(&self, sub: &Type, sup: &Type) -> Option<TypeRelationResult> {
+        self.0
+            .borrow()
+            .force_o1_get(sub)
+            .and_then(|dict| dict.0.force_o1_get(sup))
+            .copied()
+    }
+}

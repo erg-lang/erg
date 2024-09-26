@@ -2042,8 +2042,8 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     return None;
                 }
             }
-            (FreeVar(fv), _) if fv.is_linked() => return self.unify(&fv.crack(), rhs),
-            (_, FreeVar(fv)) if fv.is_linked() => return self.unify(lhs, &fv.crack()),
+            (FreeVar(fv), _) if fv.is_linked() => return self.unify(&fv.unwrap_linked(), rhs),
+            (_, FreeVar(fv)) if fv.is_linked() => return self.unify(lhs, &fv.unwrap_linked()),
             // TODO: unify(?T, ?U) ?
             (FreeVar(_), FreeVar(_)) => {}
             (FreeVar(fv), _) if fv.constraint_is_sandwiched() => {

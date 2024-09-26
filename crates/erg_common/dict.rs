@@ -260,6 +260,26 @@ impl<K: Eq, V> Dict<K, V> {
             .find(|(k, _)| (*k).borrow() == key)
             .map(|(_, v)| v)
     }
+
+    /// K: interior-mutable
+    /// This method is O(1) but may fail to get the value.
+    pub fn force_o1_get<Q>(&self, key: &Q) -> Option<&V>
+    where
+        K: Borrow<Q> + Hash,
+        Q: Hash + Eq + ?Sized,
+    {
+        self.dict.get(key)
+    }
+
+    /// K: interior-mutable
+    /// This method is O(1) but may fail to get the value.
+    pub fn force_o1_get_mut<Q>(&mut self, key: &Q) -> Option<&mut V>
+    where
+        K: Borrow<Q> + Hash,
+        Q: Hash + Eq + ?Sized,
+    {
+        self.dict.get_mut(key)
+    }
 }
 
 impl<K: Eq, V: Eq> Dict<K, V> {
