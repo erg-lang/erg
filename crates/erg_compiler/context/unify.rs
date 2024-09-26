@@ -1049,8 +1049,6 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             log!(info "no-op:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
             return Ok(());
         }
-        self.occur(maybe_sub, maybe_sup)
-            .inspect_err(|_e| log!(err "occur error: {maybe_sub} / {maybe_sup}"))?;
         let maybe_sub_is_sub = self.ctx.subtype_of(maybe_sub, maybe_sup);
         if !maybe_sub_is_sub {
             log!(err "{maybe_sub} !<: {maybe_sup}");
@@ -1070,12 +1068,20 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             log!(info "no-op:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
             return Ok(());
         }
+        self.nocheck_sub_unify(maybe_sub, maybe_sup)?;
+        log!(info "sub_unified:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
+        Ok(())
+    }
+
+    fn nocheck_sub_unify(&self, maybe_sub: &Type, maybe_sup: &Type) -> TyCheckResult<()> {
+        self.occur(maybe_sub, maybe_sup)
+            .inspect_err(|_e| log!(err "occur error: {maybe_sub} / {maybe_sup}"))?;
         match (maybe_sub, maybe_sup) {
             (FreeVar(sub_fv), _) if sub_fv.is_linked() => {
-                self.sub_unify(&sub_fv.unwrap_linked(), maybe_sup)?;
+                self.nocheck_sub_unify(&sub_fv.unwrap_linked(), maybe_sup)?;
             }
             (_, FreeVar(sup_fv)) if sup_fv.is_linked() => {
-                self.sub_unify(maybe_sub, &sup_fv.unwrap_linked())?;
+                self.nocheck_sub_unify(maybe_sub, &sup_fv.unwrap_linked())?;
             }
             // lfv's sup can be shrunk (take min), rfv's sub can be expanded (take union)
             // lfvのsupは縮小可能(minを取る)、rfvのsubは拡大可能(unionを取る)
@@ -1318,7 +1324,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     // rty: Eq, Ord
                     for rty in rtys_.iter() {
                         if self.ctx.subtype_of(lty, rty) {
-                            self.sub_unify(lty, rty)?;
+                            self.nocheck_sub_unify(lty, rty)?;
                             continue;
                         }
                     }
@@ -1346,7 +1352,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     // rty: Int, NoneType
                     for rty in rtys_.iter() {
                         if self.ctx.subtype_of(lty, rty) {
-                            self.sub_unify(lty, rty)?;
+                            self.nocheck_sub_unify(lty, rty)?;
                             continue;
                         }
                     }
@@ -1475,7 +1481,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 }
             }
             (FreeVar(sub_fv), Ref(sup)) if sub_fv.is_unbound() => {
-                self.sub_unify(maybe_sub, sup)?;
+                self.nocheck_sub_unify(maybe_sub, sup)?;
             }
             (FreeVar(sub_fv), _) if !self.change_generalized && sub_fv.is_generalized() => {}
             (FreeVar(sub_fv), _) if sub_fv.is_unbound() => {
@@ -1530,7 +1536,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             (Record(sub_rec), Record(sup_rec)) => {
                 for (k, l) in sub_rec.iter() {
                     if let Some(r) = sup_rec.get(k) {
-                        self.sub_unify(l, r)?;
+                        self.nocheck_sub_unify(l, r)?;
                     } else {
                         return Err(TyCheckErrors::from(TyCheckError::subtyping_error(
                             self.ctx.cfg.input.clone(),
@@ -1545,7 +1551,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             }
             (NamedTuple(sub_tup), NamedTuple(sup_tup)) => {
                 for ((_, lt), (_, rt)) in sub_tup.iter().zip(sup_tup.iter()) {
-                    self.sub_unify(lt, rt)?;
+                    self.nocheck_sub_unify(lt, rt)?;
                 }
             }
             (Subr(sub_subr), Subr(sup_subr)) => {
@@ -1718,10 +1724,10 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 }
             }
             (Structural(sub), Structural(sup)) => {
-                self.sub_unify(sub, sup)?;
+                self.nocheck_sub_unify(sub, sup)?;
             }
             (Guard(sub), Guard(sup)) => {
-                self.sub_unify(&sub.to, &sup.to)?;
+                self.nocheck_sub_unify(&sub.to, &sup.to)?;
             }
             (sub, Structural(sup)) => {
                 let sub_fields = self.ctx.fields(sub);
@@ -1757,7 +1763,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             (And(tys, _), _) => {
                 for ty in tys {
                     if self.ctx.subtype_of(ty, maybe_sup) {
-                        return self.sub_unify(ty, maybe_sup);
+                        return self.nocheck_sub_unify(ty, maybe_sup);
                     }
                 }
                 self.sub_unify(tys.iter().next().unwrap(), maybe_sup)?;
@@ -1766,22 +1772,22 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             (_, Or(tys)) => {
                 for ty in tys {
                     if self.ctx.subtype_of(maybe_sub, ty) {
-                        return self.sub_unify(maybe_sub, ty);
+                        return self.nocheck_sub_unify(maybe_sub, ty);
                     }
                 }
                 self.sub_unify(maybe_sub, tys.iter().next().unwrap())?;
             }
             (Ref(sub), Ref(sup)) => {
-                self.sub_unify(sub, sup)?;
+                self.nocheck_sub_unify(sub, sup)?;
             }
             (_, Ref(t)) => {
-                self.sub_unify(maybe_sub, t)?;
+                self.nocheck_sub_unify(maybe_sub, t)?;
             }
             (RefMut { before: l, .. }, RefMut { before: r, .. }) => {
-                self.sub_unify(l, r)?;
+                self.nocheck_sub_unify(l, r)?;
             }
             (_, RefMut { before, .. }) => {
-                self.sub_unify(maybe_sub, before)?;
+                self.nocheck_sub_unify(maybe_sub, before)?;
             }
             (_, Proj { lhs, rhs }) => {
                 if let Ok(evaled) =
@@ -1789,7 +1795,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                         .eval_proj(*lhs.clone(), rhs.clone(), self.ctx.level, self.loc)
                 {
                     if maybe_sup != &evaled {
-                        self.sub_unify(maybe_sub, &evaled)?;
+                        self.nocheck_sub_unify(maybe_sub, &evaled)?;
                     }
                 }
             }
@@ -1799,7 +1805,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                         .eval_proj(*lhs.clone(), rhs.clone(), self.ctx.level, self.loc)
                 {
                     if maybe_sub != &evaled {
-                        self.sub_unify(&evaled, maybe_sup)?;
+                        self.nocheck_sub_unify(&evaled, maybe_sup)?;
                     }
                 }
             }
@@ -1818,7 +1824,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     .and_then(|tp| self.ctx.convert_tp_into_type(tp).ok())
                 {
                     if maybe_sup != &evaled {
-                        self.sub_unify(maybe_sub, &evaled)?;
+                        self.nocheck_sub_unify(maybe_sub, &evaled)?;
                     }
                 }
             }
@@ -1837,7 +1843,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     .and_then(|tp| self.ctx.convert_tp_into_type(tp).ok())
                 {
                     if maybe_sub != &evaled {
-                        self.sub_unify(&evaled, maybe_sup)?;
+                        self.nocheck_sub_unify(&evaled, maybe_sup)?;
                     }
                 }
             }
@@ -1856,14 +1862,14 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             // {I: Int | I >= 1} <: Nat == {I: Int | I >= 0}
             (Refinement(_), sup) => {
                 let sup = sup.clone().into_refinement();
-                self.sub_unify(maybe_sub, &Type::Refinement(sup))?;
+                self.nocheck_sub_unify(maybe_sub, &Type::Refinement(sup))?;
             }
             (sub, Refinement(_)) => {
                 if let Some(sub) = sub.to_singleton() {
-                    self.sub_unify(&Type::Refinement(sub), maybe_sup)?;
+                    self.nocheck_sub_unify(&Type::Refinement(sub), maybe_sup)?;
                 } else {
                     let sub = sub.clone().into_refinement();
-                    self.sub_unify(&Type::Refinement(sub), maybe_sup)?;
+                    self.nocheck_sub_unify(&Type::Refinement(sub), maybe_sup)?;
                 }
             }
             (Subr(_) | Record(_), Type) => {}
@@ -1890,7 +1896,6 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 )
             }
         }
-        log!(info "sub_unified:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
         Ok(())
     }
 

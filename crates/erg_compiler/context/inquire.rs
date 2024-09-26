@@ -3537,16 +3537,12 @@ impl Context {
     }
 
     pub(crate) fn get_mono_type(&self, name: &Str) -> Option<&TypeContext> {
-        if let Some(ctx) = self.rec_local_get_mono_type(name) {
-            return Some(ctx);
-        }
         let typ = Type::Mono(Str::rc(name));
         if self.name.starts_with(&typ.namespace()[..]) {
             if let Some(ctx) = self.rec_local_get_mono_type(&typ.local_name()) {
                 return Some(ctx);
             }
-        }
-        if let Some(ctx) = self.get_namespace(&typ.namespace()) {
+        } else if let Some(ctx) = self.get_namespace(&typ.namespace()) {
             if let Some(ctx) = ctx.rec_local_get_mono_type(&typ.local_name()) {
                 return Some(ctx);
             }
@@ -3580,16 +3576,12 @@ impl Context {
     }
 
     pub(crate) fn get_poly_type(&self, name: &Str) -> Option<&TypeContext> {
-        if let Some(ctx) = self.rec_local_get_poly_type(name) {
-            return Some(ctx);
-        }
         let typ = Type::Mono(Str::rc(name));
         if self.name.starts_with(&typ.namespace()[..]) {
             if let Some(ctx) = self.rec_local_get_poly_type(&typ.local_name()) {
                 return Some(ctx);
             }
-        }
-        if let Some(ctx) = self.get_namespace(&typ.namespace()) {
+        } else if let Some(ctx) = self.get_namespace(&typ.namespace()) {
             if let Some(ctx) = ctx.rec_local_get_poly_type(&typ.local_name()) {
                 return Some(ctx);
             }
@@ -3637,16 +3629,12 @@ impl Context {
     }
 
     pub(crate) fn get_type_ctx(&self, name: &str) -> Option<&TypeContext> {
-        if let Some(ctx) = self.rec_local_get_type(name) {
-            return Some(ctx);
-        }
         let typ = Type::Mono(Str::rc(name));
         if self.name.starts_with(&typ.namespace()[..]) {
             if let Some(ctx) = self.rec_local_get_type(&typ.local_name()) {
                 return Some(ctx);
             }
-        }
-        if let Some(ctx) = self.get_namespace(&typ.namespace()) {
+        } else if let Some(ctx) = self.get_namespace(&typ.namespace()) {
             if let Some(ctx) = ctx.rec_local_get_type(&typ.local_name()) {
                 return Some(ctx);
             }

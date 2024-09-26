@@ -234,24 +234,12 @@ impl Context {
     /// make judgments that include supertypes in the same namespace & take into account glue patches
     /// 同一名前空間にある上位型を含めた判定&接着パッチを考慮した判定を行う
     fn nominal_supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
-        if let Some(res) = self.shared().type_cache.get(lhs, rhs) {
-            return res.is_subtype;
-        }
         if let (Absolutely, judge) = self.classes_supertype_of(lhs, rhs) {
-            self.shared()
-                .type_cache
-                .insert(lhs.clone(), rhs.clone(), judge);
             return judge;
         }
         if let (Absolutely, judge) = self.traits_supertype_of(lhs, rhs) {
-            self.shared()
-                .type_cache
-                .insert(lhs.clone(), rhs.clone(), judge);
             return judge;
         }
-        self.shared()
-            .type_cache
-            .insert(lhs.clone(), rhs.clone(), false);
         false
     }
 
