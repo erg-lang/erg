@@ -1389,7 +1389,10 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                         self.sub_unify(maybe_sub, &sup)?;
                     }
                     let mut new_sub = self.ctx.union(maybe_sub, &sub);
-                    if maybe_sub.qual_name() == sub.qual_name() && new_sub.has_unbound_var() {
+                    if !sub.is_recursive()
+                        && maybe_sub.qual_name() == sub.qual_name()
+                        && new_sub.has_unbound_var()
+                    {
                         let list = UndoableLinkedList::new();
                         if self
                             .ctx
