@@ -181,8 +181,10 @@ impl TyVarCache {
                 self.update_tyvar(inst, tv, ctx);
             } else if let TyParam::FreeVar(_fv) = inst {
                 inst.destructive_link(&TyParam::t(tv.clone()));
-            } else {
-                unreachable!()
+            } else if let Ok(inst) = ctx.convert_tp_into_type(inst.clone()) {
+                self.update_tyvar(&inst, tv, ctx);
+            } else if DEBUG_MODE {
+                unreachable!("{name} / {inst} / {tv}");
             }
         } else {
             self.tyvar_instances.insert(name.clone(), tv.clone());
@@ -201,8 +203,10 @@ impl TyVarCache {
                 self.update_tyvar(inst, tv, ctx);
             } else if let TyParam::FreeVar(_fv) = inst {
                 inst.destructive_link(&TyParam::t(tv.clone()));
-            } else {
-                unreachable!()
+            } else if let Ok(inst) = ctx.convert_tp_into_type(inst.clone()) {
+                self.update_tyvar(&inst, tv, ctx);
+            } else if DEBUG_MODE {
+                unreachable!("{name} / {inst} / {tv}");
             }
         } else {
             self.tyvar_instances.insert(name.clone(), tv.clone());
@@ -286,7 +290,9 @@ impl TyVarCache {
         } else if let Some(inst) = self.tyvar_instances.get(name) {
             if let Ok(tv) = <&Type>::try_from(tp) {
                 self.update_tyvar(inst, tv, ctx);
-            } else {
+            } else if let Ok(tv) = ctx.convert_tp_into_type(tp.clone()) {
+                self.update_tyvar(inst, &tv, ctx);
+            } else if DEBUG_MODE {
                 unreachable!("{name} / {inst} / {tp}");
             }
         } else {
@@ -321,8 +327,10 @@ impl TyVarCache {
         } else if let Some(inst) = self.tyvar_instances.get(name) {
             if let Ok(tv) = <&Type>::try_from(tp) {
                 self.update_tyvar(inst, tv, ctx);
-            } else {
-                unreachable!()
+            } else if let Ok(tv) = ctx.convert_tp_into_type(tp.clone()) {
+                self.update_tyvar(inst, &tv, ctx);
+            } else if DEBUG_MODE {
+                unreachable!("{name} / {inst} / {tp}")
             }
         } else {
             self.typaram_instances.insert(name.clone(), tp.clone());
