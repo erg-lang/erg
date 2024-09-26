@@ -8,7 +8,7 @@ use erg_common::consts::DEBUG_MODE;
 use erg_common::shared::Forkable;
 use erg_common::traits::{LimitedDisplay, StructuralEq};
 use erg_common::Str;
-use erg_common::{addr_eq, log};
+use erg_common::{addr, addr_eq, log};
 
 use super::typaram::TyParam;
 use super::Type;
@@ -573,7 +573,12 @@ impl Hash for Free<Type> {
         } else if let Some(t) = self.get_type() {
             t.hash(state);
         } else if self.is_linked() {
-            self.crack().hash(state);
+            let cracked = self.crack();
+            if !Type::FreeVar(self.clone()).addr_eq(&cracked) {
+                cracked.hash(state);
+            } else {
+                addr!(self).hash(state);
+            }
         }
     }
 }
@@ -785,7 +790,7 @@ impl Free<Type> {
             let placeholder_ = placeholder
                 .clone()
                 .eliminate_subsup(&target)
-                .eliminate_and_or_recursion(&target);
+                .eliminate_recursion(&target);
             self.undoable_link(&placeholder_);
         }
         let res = f();
@@ -983,7 +988,13 @@ impl HasLevel for Free<Type> {
     fn level(&self) -> Option<Level> {
         match &*self.borrow() {
             FreeKind::Unbound { lev, .. } | FreeKind::NamedUnbound { lev, .. } => Some(*lev),
-            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t.level(),
+            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
+                if t.is_recursive() {
+                    None
+                } else {
+                    t.level()
+                }
+            }
         }
     }
 }
@@ -1009,7 +1020,13 @@ impl HasLevel for Free<TyParam> {
     fn level(&self) -> Option<Level> {
         match &*self.borrow() {
             FreeKind::Unbound { lev, .. } | FreeKind::NamedUnbound { lev, .. } => Some(*lev),
-            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t.level(),
+            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
+                if t.is_recursive() {
+                    None
+                } else {
+                    t.level()
+                }
+            }
         }
     }
 }

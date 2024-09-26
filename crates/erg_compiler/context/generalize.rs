@@ -835,7 +835,12 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
         match t {
             FreeVar(fv) if fv.is_linked() => {
                 let t = fv.unwrap_linked();
-                self.deref_tyvar(t)
+                // (((((...))))) == Never
+                if t.is_recursive() {
+                    Ok(Type::Never)
+                } else {
+                    self.deref_tyvar(t)
+                }
             }
             FreeVar(mut fv)
                 if fv.is_generalized() && self.qnames.contains(&fv.unbound_name().unwrap()) =>

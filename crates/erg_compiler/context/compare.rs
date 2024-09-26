@@ -1410,12 +1410,36 @@ impl Context {
             (l, r @ (TyParam::Erased(_) | TyParam::FreeVar(_))) =>
                 self.try_cmp(r, l).map(|ord| ord.reverse()),
             (TyParam::App { name, args }, r) => {
-                self.eval_app(name.clone(), args.clone()).ok()
-                    .and_then(|tp| self.try_cmp(&tp, r))
+                let evaled = self.eval_app(name.clone(), args.clone()).ok()?;
+                if evaled != TyParam::app(name.clone(), args.clone()) {
+                    self.try_cmp(&evaled, r)
+                } else {
+                    None
+                }
             }
             (l, TyParam::App { name, args }) => {
-                self.eval_app(name.clone(), args.clone()).ok()
-                    .and_then(|tp| self.try_cmp(l, &tp))
+                let evaled = self.eval_app(name.clone(), args.clone()).ok()?;
+                if evaled != TyParam::app(name.clone(), args.clone()) {
+                    self.try_cmp(l, &evaled)
+                } else {
+                    None
+                }
+            }
+            (TyParam::Proj { obj, attr }, r) => {
+                let evaled = self.eval_tp_proj(*obj.clone(), attr.clone(), &()).ok()?;
+                if evaled != obj.clone().proj(attr.clone()) {
+                    self.try_cmp(&evaled, r)
+                } else {
+                    None
+                }
+            }
+            (l, TyParam::Proj { obj, attr }) => {
+                let evaled = self.eval_tp_proj(*obj.clone(), attr.clone(), &()).ok()?;
+                if evaled != obj.clone().proj(attr.clone()) {
+                    self.try_cmp(l, &evaled)
+                } else {
+                    None
+                }
             }
             (_l, _r) => {
                 erg_common::fmt_dbg!(_l, _r,);

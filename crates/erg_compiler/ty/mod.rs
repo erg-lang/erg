@@ -3591,7 +3591,13 @@ impl Type {
     pub fn undoable_coerce(&self, list: &UndoableLinkedList) {
         match self {
             Type::FreeVar(fv) if fv.is_linked() => {
-                fv.crack().undoable_coerce(list);
+                let cracked = fv.crack();
+                if cracked.is_recursive() {
+                    drop(cracked);
+                    fv.undoable_link(&Type::Never);
+                } else {
+                    cracked.undoable_coerce(list);
+                }
             }
             Type::FreeVar(fv) if fv.is_unbound_and_sandwiched() => {
                 set_recursion_limit!({}, 128);

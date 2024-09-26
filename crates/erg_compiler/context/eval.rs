@@ -1823,6 +1823,9 @@ impl Context {
     }
 
     /// args: may be unevaluated
+    ///
+    /// NOTE: This function may not evaluate app and return `TyParam::app(name, args)`.
+    /// Be careful with recursive calls.
     pub(crate) fn eval_app(&self, name: Str, args: Vec<TyParam>) -> Failable<TyParam> {
         /*let args = self
         .eval_type_args(args)
