@@ -518,8 +518,8 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     /// Send an empty `workspace/configuration` request periodically.
     /// If there is no response to the request within a certain period of time, terminate the server.
     pub fn start_client_health_checker(&self, receiver: Receiver<WorkerMessage<()>>) {
-        const INTERVAL: Duration = Duration::from_secs(5);
-        const TIMEOUT: Duration = Duration::from_secs(10);
+        const INTERVAL: Duration = Duration::from_secs(10);
+        const TIMEOUT: Duration = Duration::from_secs(30);
         if self.stdout_redirect.is_some() {
             return;
         }
