@@ -91,6 +91,15 @@ pub(crate) fn loc_to_range(loc: erg_common::error::Location) -> Option<Range> {
     Some(Range::new(start, end))
 }
 
+pub(crate) fn _range_to_loc(range: Range) -> erg_common::error::Location {
+    erg_common::error::Location::range(
+        range.start.line + 1,
+        range.start.character,
+        range.end.line + 1,
+        range.end.character,
+    )
+}
+
 pub(crate) fn loc_to_pos(loc: erg_common::error::Location) -> Option<Position> {
     // FIXME: should `Position::new(loc.ln_begin()? - 1, loc.col_begin()?)`
     // but completion doesn't work (because the newline will be included)
