@@ -688,6 +688,10 @@ impl TryFrom<TyParam> for Dict<TyParam, TyParam> {
         match tp {
             TyParam::FreeVar(fv) if fv.is_linked() => Dict::try_from(fv.crack().clone()),
             TyParam::Dict(tps) => Ok(tps),
+            TyParam::Value(ValueObj::Dict(dict)) => Ok(dict
+                .into_iter()
+                .map(|(k, v)| (TyParam::value(k), TyParam::value(v)))
+                .collect()),
             _ => Err(()),
         }
     }
@@ -699,6 +703,9 @@ impl TryFrom<TyParam> for Vec<TyParam> {
         match tp {
             TyParam::FreeVar(fv) if fv.is_linked() => Vec::try_from(fv.crack().clone()),
             TyParam::List(tps) => Ok(tps),
+            TyParam::Value(ValueObj::List(list)) => {
+                Ok(list.iter().cloned().map(TyParam::value).collect::<Vec<_>>())
+            }
             _ => Err(()),
         }
     }

@@ -1,6 +1,5 @@
 use std::path::Path;
 
-use lsp_types::CompletionResponse;
 use serde_json::Value;
 
 use erg_common::config::ErgConfig;
@@ -27,13 +26,13 @@ use erg_compiler::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
 use TokenKind::*;
 
 use lsp_types::{
-    CompletionItem, CompletionItemKind, CompletionParams, Documentation, MarkedString,
-    MarkupContent, MarkupKind, Position, Range, TextEdit,
+    CompletionItem, CompletionItemKind, CompletionParams, CompletionResponse, Documentation,
+    MarkedString, MarkupContent, MarkupKind, Position, Range, TextEdit,
 };
 
 use crate::_log;
 use crate::server::{ELSResult, Flags, RedirectableStdout, Server};
-use crate::util::{self, loc_to_pos, NormalizedUrl};
+use crate::util::{self, loc_to_pos, loc_to_range, NormalizedUrl};
 
 fn comp_item_kind(t: &Type, muty: Mutability) -> CompletionItemKind {
     match t {
@@ -682,6 +681,20 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             .set(&mut item);
             item.kind = Some(comp_item_kind(&vi.t, vi.muty));
             item.data = Some(Value::String(vi.def_loc.to_string()));
+            // s.`Function::map` => map(s)
+            if comp_kind.should_be_method() && item.label.starts_with("Function::") {
+                let receiver = self.get_receiver(&uri, pos)?;
+                if let Some(mut range) = receiver.as_ref().and_then(|expr| loc_to_range(expr.loc()))
+                {
+                    // FIXME:
+                    let s_receiver = self.file_cache.get_ranged(&uri, range)?.unwrap_or_default();
+                    range.end.character += 1;
+                    let name = item.label.trim_start_matches("Function::");
+                    let remove = TextEdit::new(range, "".to_string());
+                    item.insert_text = Some(format!("{name}({s_receiver})"));
+                    item.additional_text_edits = Some(vec![remove]);
+                }
+            }
             already_appeared.insert(item.label.clone());
             result.push(item);
         }

@@ -26,7 +26,7 @@ use erg_compiler::context::{Context, ModuleContext};
 use erg_compiler::erg_parser::ast::Module;
 use erg_compiler::erg_parser::parse::{Parsable, SimpleParser};
 use erg_compiler::error::CompileWarning;
-use erg_compiler::hir::HIR;
+use erg_compiler::hir::{Expr, HIR};
 use erg_compiler::lower::ASTLowerer;
 use erg_compiler::module::{IRs, ModuleEntry, SharedCompilerResource};
 use erg_compiler::ty::{HasType, Type};
@@ -1094,6 +1094,32 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             }
         }
         ctxs
+    }
+
+    pub(crate) fn get_receiver(
+        &self,
+        uri: &NormalizedUrl,
+        attr_marker_pos: Position,
+    ) -> ELSResult<Option<Expr>> {
+        let maybe_token = self.file_cache.get_receiver(uri, attr_marker_pos);
+        if let Some(token) = maybe_token {
+            let expr = if let Some(visitor) = self.get_visitor(uri) {
+                if let Some(expr) =
+                    loc_to_pos(token.loc()).and_then(|pos| visitor.get_min_expr(pos).cloned())
+                {
+                    Some(expr)
+                } else {
+                    _log!(self, "expr not found: {token}");
+                    None
+                }
+            } else {
+                None
+            };
+            Ok(expr)
+        } else {
+            self.send_log("token not found")?;
+            Ok(None)
+        }
     }
 
     pub(crate) fn get_receiver_and_ctxs(
