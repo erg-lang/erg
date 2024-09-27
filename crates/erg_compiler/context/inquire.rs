@@ -1362,18 +1362,21 @@ impl Context {
             }
         }
         let mut checked = vec![];
-        for ctx in self
-            .get_nominal_super_type_ctxs(&obj.ref_t().lower_bounded())
-            .ok_or_else(|| {
-                TyCheckError::type_not_found(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    obj.loc(),
-                    self.caused_by(),
-                    obj.ref_t(),
-                )
-            })?
-        {
+        // FIXME: tests/should_ok/collection.er
+        let obj_t = if obj.ref_t().lower_bounded().is_dict() {
+            obj.t()
+        } else {
+            obj.ref_t().lower_bounded()
+        };
+        for ctx in self.get_nominal_super_type_ctxs(&obj_t).ok_or_else(|| {
+            TyCheckError::type_not_found(
+                self.cfg.input.clone(),
+                line!() as usize,
+                obj.loc(),
+                self.caused_by(),
+                obj.ref_t(),
+            )
+        })? {
             checked.push(&ctx.typ);
             if let Some(vi) = ctx.get_current_scope_non_param(&attr_name.name) {
                 self.validate_visibility(attr_name, vi, input, namespace)?;
@@ -4058,12 +4061,14 @@ impl Context {
     /// Int.meta_type() == ClassType (<: Type)
     /// Show.meta_type() == TraitType (<: Type)
     /// [Int; 3].meta_type() == [ClassType; 3] (<: Type)
+    /// (Int, Str).meta_type() == (ClassType, ClassType) (<: Type)
+    /// {Str: Int}.meta_type() == {ClassType: ClassType} (<: Type)
     /// Indexable(T).meta_type() == TraitType (<: Type)
     /// NamedTuple({ .x = Int; .y = Str }).meta_type() == NamedTuple({ .x = ClassType; .y = ClassType })
     /// ```
     pub fn meta_type(&self, typ: &Type) -> Type {
         match typ {
-            Type::Poly { name, params } if &name[..] == "List" || &name[..] == "Set" => poly(
+            Type::Poly { name, params } if typ.is_list() || typ.is_set() || typ.is_tuple() => poly(
                 name.clone(),
                 params
                     .iter()
@@ -4076,6 +4081,26 @@ impl Context {
                     })
                     .collect(),
             ),
+            Type::Poly { params, .. } if typ.is_dict() => self
+                .convert_tp_into_value(params[0].clone())
+                .map(|value| {
+                    if let ValueObj::Dict(dict) = value {
+                        let mut ty = dict! {};
+                        for (k, v) in dict {
+                            let Ok(k) = self.convert_value_into_type(k) else {
+                                return Type;
+                            };
+                            let Ok(v) = self.convert_value_into_type(v) else {
+                                return Type;
+                            };
+                            ty.insert(self.meta_type(&k), self.meta_type(&v));
+                        }
+                        Type::from(ty)
+                    } else {
+                        Type
+                    }
+                })
+                .unwrap_or(Type),
             NamedTuple(tuple) => NamedTuple(
                 tuple
                     .iter()

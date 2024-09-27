@@ -1715,6 +1715,7 @@ impl Context {
     /// intersection(Int, Str) == Never
     /// intersection(Obj, Int) == Int
     /// intersection(Never, Int) == Never
+    /// intersection(Iterable(Int), List(Int)) == List(Int)
     /// ```
     pub(crate) fn intersection(&self, lhs: &Type, rhs: &Type) -> Type {
         if lhs == rhs {
