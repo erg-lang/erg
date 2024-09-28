@@ -32,7 +32,9 @@ COMMAND
     compile                              コンパイル
     transpile                            トランスパイル
     run|exec                             実行(デフォルト)
-    server                               言語サーバーを起動",
+    server                               言語サーバーを起動
+    lint                                 Lintを実行
+    pack                                 パッケージング管理",
 
     "simplified_chinese" =>
     "\
@@ -63,7 +65,9 @@ COMMAND
     compile                              编译
     transpile                            转译
     run|exec                             执行(默认模式)
-    server                               执行语言服务器",
+    server                               执行语言服务器
+    lint                                 执行 Lint
+    pack                                 执行打包管理",
 
     "traditional_chinese" =>
         "\
@@ -94,7 +98,9 @@ COMMAND
     compile                              編譯
     transpile                            轉譯
     run|exec                             執行(預設模式)
-    server                               執行語言伺服器",
+    server                               執行語言伺服器
+    lint                                 執行 Lint
+    pack                                 執行打包管理",
 
     "english" =>
         "\
@@ -125,7 +131,9 @@ COMMAND
     compile                              compile
     transpile                            transpile
     run|exec                             execute (default mode)
-    server                               start Erg language server",
+    server                               start Erg language server
+    lint                                 lint
+    pack                                 run package manager",
     )
 }
 
@@ -134,7 +142,7 @@ pub fn mode_message<'a>() -> &'a str {
         "japanese" =>
         "\
 USAGE:
-    erg --mode [lex | parse | lower | check | compile | exec | read] [SUBCOMMAND] [ARGS]...
+    erg --mode [lex | parse | lower | check | compile | exec | read | lint | pack] [SUBCOMMAND] [ARGS]...
 
 lex
     <filename>.erやREPLなどから入力を受け取り、字句を解析
@@ -164,7 +172,13 @@ run/exec
     compileを実行し、更に<filename>.pycを実行
 
 read
-    <filename>.pycをデシリアライズしコードオブジェクトの情報をダンプ",
+    <filename>.pycをデシリアライズしコードオブジェクトの情報をダンプ
+
+lint
+    プログラムをLintする
+
+pack
+    パッケージ管理",
 
     "simplified_chinese" =>
     "\
@@ -200,7 +214,13 @@ run/exec
     在执行 <文件名>.pyc 后删除 <文件名>.pyc
 
 read
-    反序列化 <文件名>.pyc 和 dump",
+    反序列化 <文件名>.pyc 和 dump
+
+lint
+    Lint 程序
+
+pack
+    包管理",
 
     "traditional_chinese" =>
     "\
@@ -236,7 +256,13 @@ exec
     在執行 <檔名>.pyc 後删除 <檔名>.pyc
 
 read
-    反序列化 <檔名>.pyc 和 dump",
+    反序列化 <檔名>.pyc 和 dump
+
+lint
+    Lint 程式
+
+pack
+    封裝管理",
 
     "english" =>
     "\
@@ -271,7 +297,13 @@ run/exec
     Execute compile and then <filename>.pyc
 
 read
-    Deserialize <filename>.pyc and dump code object information",
+    Deserialize <filename>.pyc and dump code object information
+
+lint
+    Lint the program
+
+pack
+    Package management",
     )
 }
 
