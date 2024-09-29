@@ -647,6 +647,16 @@ impl CompileErrors {
         self.flush()
     }
 
+    pub fn take_last_n(&mut self, n: usize) -> Self {
+        let start = self.0.len().saturating_sub(n);
+        Self(self.0.drain(start..).collect())
+    }
+
+    pub fn take_inc(&mut self, orig: usize) -> Self {
+        let n = self.len() - orig;
+        self.take_last_n(n)
+    }
+
     pub fn len(&self) -> usize {
         self.0.len()
     }

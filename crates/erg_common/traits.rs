@@ -244,6 +244,11 @@ pub trait Stream<T>: Sized {
         self.ref_mut_payload().drain(..).collect()
     }
 
+    fn take_last_n(&mut self, n: usize) -> Vec<T> {
+        let start = self.len().saturating_sub(n);
+        self.ref_mut_payload().drain(start..).collect()
+    }
+
     fn extend<I>(&mut self, iter: I)
     where
         I: IntoIterator<Item = T>,

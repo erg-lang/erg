@@ -65,6 +65,7 @@ use VisibilityModifier::*;
 pub struct GenericASTLowerer<ASTBuilder: ASTBuildable = DefaultASTBuilder> {
     pub(crate) cfg: ErgConfig,
     pub(crate) module: ModuleContext,
+    pub(crate) tmp_errors: LowerErrors,
     pub(crate) errs: LowerErrors,
     pub(crate) warns: LowerWarnings,
     fresh_gen: FreshNameGenerator,
@@ -257,6 +258,7 @@ impl<ASTBuilder: ASTBuildable> GenericASTLowerer<ASTBuilder> {
         Self {
             module,
             cfg,
+            tmp_errors: LowerErrors::empty(),
             errs: LowerErrors::empty(),
             warns: LowerWarnings::empty(),
             fresh_gen: FreshNameGenerator::new("lower"),
@@ -268,6 +270,7 @@ impl<ASTBuilder: ASTBuildable> GenericASTLowerer<ASTBuilder> {
         Self {
             cfg: module.get_top_cfg(),
             module,
+            tmp_errors: LowerErrors::empty(),
             errs: LowerErrors::empty(),
             warns: LowerWarnings::empty(),
             fresh_gen: FreshNameGenerator::new("lower"),
@@ -392,8 +395,8 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         expect: Option<&Type>,
     ) -> Failable<hir::NormalList> {
         log!(info "entered {}({list})", fn_name!());
-        let mut errors = LowerErrors::empty();
         let mut new_list = vec![];
+        let nerrs = self.tmp_errors.len();
         let eval_result = self.module.context.eval_const_normal_list(&list);
         let (elems, ..) = list.elems.deconstruct();
         let expect_elem = expect.and_then(|t| {
@@ -411,13 +414,13 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             let elem = match self.lower_expr(elem.expr, expect_elem.as_ref()) {
                 Ok(elem) => elem,
                 Err((expr, errs)) => {
-                    errors.extend(errs);
+                    self.tmp_errors.extend(errs);
                     expr.unwrap_or(hir::Expr::Dummy(hir::Dummy::empty()))
                 }
             };
             let union_ = self.module.context.union(&union, elem.ref_t());
             if let Err(es) = self.homogeneity_check(expect_elem.as_ref(), &union_, &union, &elem) {
-                errors.extend(es);
+                self.tmp_errors.extend(es);
             }
             union = union_;
             new_list.push(elem);
@@ -438,10 +441,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             t
         };
         let list = hir::NormalList::new(list.l_sqbr, list.r_sqbr, t, elems);
-        if errors.is_empty() {
+        if self.tmp_errors.len() == nerrs {
             Ok(list)
         } else {
-            Err((list, errors))
+            Err((list, self.tmp_errors.take_inc(nerrs)))
         }
     }
 
@@ -482,7 +485,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         expect: Option<&Type>,
     ) -> Failable<hir::ListWithLength> {
         log!(info "entered {}({list})", fn_name!());
-        let mut errors = LowerErrors::empty();
+        let nerrs = self.tmp_errors.len();
         let expect_elem = expect.and_then(|t| {
             if !(t.is_list() || t.is_list_mut() || t.is_iterable()) {
                 return None;
@@ -495,7 +498,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         let elem = match self.lower_expr(list.elem.expr, expect_elem.as_ref()) {
             Ok(elem) => elem,
             Err((expr, errs)) => {
-                errors.extend(errs);
+                self.tmp_errors.extend(errs);
                 expr.unwrap_or(hir::Expr::Dummy(hir::Dummy::empty()))
             }
         };
@@ -505,16 +508,16 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             len => match self.lower_expr(len, Some(&Type::Nat)) {
                 Ok(len) => Some(len),
                 Err((expr, errs)) => {
-                    errors.extend(errs);
+                    self.tmp_errors.extend(errs);
                     expr
                 }
             },
         };
         let hir_list = hir::ListWithLength::new(list.l_sqbr, list.r_sqbr, list_t, elem, len);
-        if errors.is_empty() {
+        if self.tmp_errors.len() == nerrs {
             Ok(hir_list)
         } else {
-            Err((hir_list, errors))
+            Err((hir_list, self.tmp_errors.take_inc(nerrs)))
         }
     }
 
@@ -558,7 +561,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 .convert_type_to_tuple_type(exp.clone())
                 .ok()
         });
-        let mut errors = LowerErrors::empty();
+        let nerrs = self.tmp_errors.len();
         let mut new_tuple = vec![];
         let (elems, .., paren) = tuple.elems.deconstruct();
         let expect_ts = expect.transpose(elems.len());
@@ -566,16 +569,16 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             match self.lower_expr(elem.expr, expect.as_ref()) {
                 Ok(elem) => new_tuple.push(elem),
                 Err((expr, errs)) => {
-                    errors.extend(errs);
+                    self.tmp_errors.extend(errs);
                     new_tuple.push(expr.unwrap_or(hir::Expr::Dummy(hir::Dummy::empty())));
                 }
             }
         }
         let tuple = hir::NormalTuple::new(hir::Args::values(new_tuple, paren));
-        if errors.is_empty() {
+        if self.tmp_errors.len() == nerrs {
             Ok(tuple)
         } else {
-            Err((tuple, errors))
+            Err((tuple, self.tmp_errors.take_inc(nerrs)))
         }
     }
 
@@ -671,7 +674,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         expect: Option<&Type>,
     ) -> Failable<hir::NormalSet> {
         log!(info "entered {}({set})", fn_name!());
-        let mut errors = LowerErrors::empty();
+        let nerrs = self.tmp_errors.len();
         let (elems, ..) = set.elems.deconstruct();
         let expect_elem = expect.and_then(|t| {
             if !t.is_set() {
@@ -688,7 +691,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             let elem = match self.lower_expr(elem.expr, expect_elem.as_ref()) {
                 Ok(elem) => elem,
                 Err((expr, errs)) => {
-                    errors.extend(errs);
+                    self.tmp_errors.extend(errs);
                     expr.unwrap_or(hir::Expr::Dummy(hir::Dummy::empty()))
                 }
             };
@@ -700,7 +703,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     elem.loc(),
                     self.module.context.caused_by(),
                 );
-                errors.push(err);
+                self.tmp_errors.push(err);
             }
             new_set.push(elem);
         }
@@ -739,13 +742,13 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             .context
             .sub_unify(&elem_t, &eq_hash, &elems, None)
         {
-            errors.extend(errs);
+            self.tmp_errors.extend(errs);
         }
         let set = hir::NormalSet::new(set.l_brace, set.r_brace, elem_t, elems);
-        if errors.is_empty() {
+        if self.tmp_errors.len() == nerrs {
             Ok(set)
         } else {
-            Err((set, errors))
+            Err((set, self.tmp_errors.take_inc(nerrs)))
         }
     }
 
@@ -756,7 +759,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         expect: Option<&Type>,
     ) -> Failable<hir::SetWithLength> {
         log!("entered {}({set})", fn_name!());
-        let mut errors = LowerErrors::empty();
+        let nerrs = self.tmp_errors.len();
         let expect_elem = expect.and_then(|t| {
             if !t.is_set() {
                 return None;
@@ -769,7 +772,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         let elem = match self.lower_expr(set.elem.expr, expect_elem.as_ref()) {
             Ok(elem) => elem,
             Err((expr, errs)) => {
-                errors.extend(errs);
+                self.tmp_errors.extend(errs);
                 expr.unwrap_or(hir::Expr::Dummy(hir::Dummy::empty()))
             }
         };
@@ -777,15 +780,15 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         let len = match self.lower_expr(*set.len, Some(&Type::Nat)) {
             Ok(len) => len,
             Err((expr, errs)) => {
-                errors.extend(errs);
+                self.tmp_errors.extend(errs);
                 expr.unwrap_or(hir::Expr::Dummy(hir::Dummy::empty()))
             }
         };
         let hir_set = hir::SetWithLength::new(set.l_brace, set.r_brace, set_t, elem, len);
-        if errors.is_empty() {
+        if self.tmp_errors.len() == nerrs {
             Ok(hir_set)
         } else {
-            Err((hir_set, errors))
+            Err((hir_set, self.tmp_errors.take_inc(nerrs)))
         }
     }
 
@@ -829,7 +832,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         expect: Option<&Type>,
     ) -> Failable<hir::NormalDict> {
         log!(info "enter {}({dict})", fn_name!());
-        let mut errors = LowerErrors::empty();
+        let nerrs = self.tmp_errors.len();
         let mut union = dict! {};
         let mut new_kvs = vec![];
         let expect = expect
@@ -849,14 +852,14 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             let key = match self.lower_expr(kv.key, expect_key) {
                 Ok(key) => key,
                 Err((expr, errs)) => {
-                    errors.extend(errs);
+                    self.tmp_errors.extend(errs);
                     expr.unwrap_or(hir::Expr::Dummy(hir::Dummy::empty()))
                 }
             };
             let value = match self.lower_expr(kv.value, expect_value) {
                 Ok(value) => value,
                 Err((expr, errs)) => {
-                    errors.extend(errs);
+                    self.tmp_errors.extend(errs);
                     expr.unwrap_or(hir::Expr::Dummy(hir::Dummy::empty()))
                 }
             };
@@ -888,7 +891,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                             .to_owned(),
                         ),
                     );
-                    errors.push(err);
+                    self.tmp_errors.push(err);
                 }
             }
             new_kvs.push(hir::KeyValue::new(key, value));
@@ -898,7 +901,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             // check if key_t is Eq and Hash
             let eq_hash = mono("Eq") & mono("Hash");
             if let Err(errs) = self.module.context.sub_unify(key_t, &eq_hash, loc, None) {
-                errors.extend(errs);
+                self.tmp_errors.extend(errs);
             }
         }
         let kv_ts = if union.is_empty() {
@@ -932,10 +935,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         Ok(normal_set)
         */
         let dict = hir::NormalDict::new(dict.l_brace, dict.r_brace, kv_ts, new_kvs);
-        if errors.is_empty() {
+        if self.tmp_errors.len() == nerrs {
             Ok(dict)
         } else {
-            Err((dict, errors))
+            Err((dict, self.tmp_errors.take_inc(nerrs)))
         }
     }
 
@@ -945,28 +948,28 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         expect: Option<&Type>,
     ) -> Failable<hir::Accessor> {
         log!(info "entered {}({acc})", fn_name!());
-        let mut errors = LowerErrors::empty();
+        let nerrs = self.tmp_errors.len();
         match acc {
             ast::Accessor::Ident(ident) => {
                 let ident = match self.lower_ident(ident, expect) {
                     Ok(ident) => ident,
                     Err((ident, errs)) => {
-                        errors.extend(errs);
+                        self.tmp_errors.extend(errs);
                         ident
                     }
                 };
                 let acc = hir::Accessor::Ident(ident);
-                if errors.is_empty() {
+                if self.tmp_errors.len() == nerrs {
                     Ok(acc)
                 } else {
-                    Err((acc, errors))
+                    Err((acc, self.tmp_errors.take_inc(nerrs)))
                 }
             }
             ast::Accessor::Attr(attr) => {
                 let obj = match self.lower_expr(*attr.obj, None) {
                     Ok(obj) => obj,
                     Err((expr, errs)) => {
-                        errors.extend(errs);
+                        self.tmp_errors.extend(errs);
                         expr.unwrap_or(hir::Expr::Dummy(hir::Dummy::empty()))
                     }
                 };
@@ -982,7 +985,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                         vi
                     }
                     Triple::Err(errs) => {
-                        errors.push(errs);
+                        self.tmp_errors.push(errs);
                         VarInfo::ILLEGAL
                     }
                     Triple::None => {
@@ -1002,7 +1005,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                             similar_name,
                             similar_info,
                         );
-                        errors.push(err);
+                        self.tmp_errors.push(err);
                         VarInfo::ILLEGAL
                     }
                 };
@@ -1017,10 +1020,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 }
                 let ident = hir::Identifier::new(attr.ident, None, vi);
                 let acc = hir::Accessor::Attr(hir::Attribute::new(obj, ident));
-                if errors.is_empty() {
+                if self.tmp_errors.len() == nerrs {
                     Ok(acc)
                 } else {
-                    Err((acc, errors))
+                    Err((acc, self.tmp_errors.take_inc(nerrs)))
                 }
             }
             ast::Accessor::TypeApp(t_app) => feature_error!(
@@ -1046,7 +1049,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         ident: ast::Identifier,
         expect: Option<&Type>,
     ) -> Failable<hir::Identifier> {
-        let mut errors = LowerErrors::empty();
+        let nerrs = self.tmp_errors.len();
         // `match` is a special form, typing is magic
         let (vi, __name__) = if ident.vis.is_private()
             && (&ident.inspect()[..] == "match" || &ident.inspect()[..] == "match!")
@@ -1067,7 +1070,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             ) {
                 Triple::Ok(vi) => vi,
                 Triple::Err(err) => {
-                    errors.push(err);
+                    self.tmp_errors.push(err);
                     VarInfo::ILLEGAL
                 }
                 Triple::None => {
@@ -1085,7 +1088,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                         similar_name,
                         similar_info,
                     );
-                    errors.push(err);
+                    self.tmp_errors.push(err);
                     VarInfo::ILLEGAL
                 }
             };
@@ -1116,10 +1119,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         {
             self.module.context.captured_names.push(ident.clone());
         }
-        if errors.is_empty() {
+        if self.tmp_errors.len() == nerrs {
             Ok(ident)
         } else {
-            Err((ident, errors))
+            Err((ident, self.tmp_errors.take_inc(nerrs)))
         }
     }
 
@@ -1281,18 +1284,18 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
 
     fn lower_bin(&mut self, bin: ast::BinOp, expect: Option<&Type>) -> Failable<hir::BinOp> {
         log!(info "entered {}({bin})", fn_name!());
-        let mut errors = LowerErrors::empty();
+        let nerrs = self.tmp_errors.len();
         let mut args = bin.args.into_iter();
         let lhs = *args.next().unwrap();
         let rhs = *args.next().unwrap();
         let guard = self.get_bin_guard_type(&bin.op, &lhs, &rhs);
         let lhs = self.lower_expr(lhs, None).unwrap_or_else(|(expr, errs)| {
-            errors.extend(errs);
+            self.tmp_errors.extend(errs);
             expr.unwrap_or(hir::Expr::Dummy(hir::Dummy::new(vec![])))
         });
         let lhs = hir::PosArg::new(lhs);
         let rhs = self.lower_expr(rhs, None).unwrap_or_else(|(expr, errs)| {
-            errors.extend(errs);
+            self.tmp_errors.extend(errs);
             expr.unwrap_or(hir::Expr::Dummy(hir::Dummy::new(vec![])))
         });
         let rhs = hir::PosArg::new(rhs);
@@ -1302,7 +1305,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             .context
             .get_binop_t(&bin.op, &args, &self.cfg.input, &self.module.context)
             .unwrap_or_else(|errs| {
-                errors.extend(errs);
+                self.tmp_errors.extend(errs);
                 VarInfo::ILLEGAL
             });
         if let Some(guard) = guard {
@@ -1333,10 +1336,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         let lhs = args.next().unwrap().expr;
         let rhs = args.next().unwrap().expr;
         let bin = hir::BinOp::new(bin.op, lhs, rhs, vi);
-        if errors.is_empty() {
+        if self.tmp_errors.len() == nerrs {
             Ok(bin)
         } else {
-            Err((bin, errors))
+            Err((bin, self.tmp_errors.take_inc(nerrs)))
         }
     }
 
@@ -1346,12 +1349,12 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         expect: Option<&Type>,
     ) -> Failable<hir::UnaryOp> {
         log!(info "entered {}({unary})", fn_name!());
-        let mut errors = LowerErrors::empty();
+        let nerrs = self.tmp_errors.len();
         let mut args = unary.args.into_iter();
         let arg = self
             .lower_expr(*args.next().unwrap(), None)
             .unwrap_or_else(|(expr, errs)| {
-                errors.extend(errs);
+                self.tmp_errors.extend(errs);
                 expr.unwrap_or(hir::Expr::Dummy(hir::Dummy::new(vec![])))
             });
         let args = [hir::PosArg::new(arg)];
@@ -1360,7 +1363,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             .context
             .get_unaryop_t(&unary.op, &args, &self.cfg.input, &self.module.context)
             .unwrap_or_else(|errs| {
-                errors.extend(errs);
+                self.tmp_errors.extend(errs);
                 VarInfo::ILLEGAL
             });
         if let Some(expect) = expect {
@@ -1375,10 +1378,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         let mut args = args.into_iter();
         let expr = args.next().unwrap().expr;
         let unary = hir::UnaryOp::new(unary.op, expr, vi);
-        if errors.is_empty() {
+        if self.tmp_errors.len() == nerrs {
             Ok(unary)
         } else {
-            Err((unary, errors))
+            Err((unary, self.tmp_errors.take_inc(nerrs)))
         }
     }
 
@@ -1708,18 +1711,18 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
 
     fn lower_pack(&mut self, pack: ast::DataPack, _expect: Option<&Type>) -> Failable<hir::Call> {
         log!(info "entered {}({pack})", fn_name!());
-        let mut errors = LowerErrors::empty();
+        let nerrs = self.tmp_errors.len();
         let class = match self.lower_expr(*pack.class, None) {
             Ok(class) => class,
             Err((class, es)) => {
-                errors.extend(es);
+                self.tmp_errors.extend(es);
                 class.unwrap_or(hir::Expr::Dummy(hir::Dummy::empty()))
             }
         };
         let args = match self.lower_record(pack.args, None) {
             Ok(args) => args,
             Err((args, es)) => {
-                errors.extend(es);
+                self.tmp_errors.extend(es);
                 args
             }
         };
@@ -1749,17 +1752,17 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         ) {
             Ok(vi) => vi,
             Err((vi, errs)) => {
-                errors.extend(errs);
+                self.tmp_errors.extend(errs);
                 vi.unwrap_or(VarInfo::ILLEGAL)
             }
         };
         let args = hir::Args::pos_only(args, None);
         let attr_name = hir::Identifier::new(attr_name, None, vi);
         let call = hir::Call::new(class, Some(attr_name), args);
-        if errors.is_empty() {
+        if self.tmp_errors.len() == nerrs {
             Ok(call)
         } else {
-            Err((call, errors))
+            Err((call, self.tmp_errors.take_inc(nerrs)))
         }
     }
 
@@ -1934,7 +1937,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         lambda: ast::Lambda,
         expect: Option<&Type>,
     ) -> Failable<hir::Lambda> {
-        let mut errors = LowerErrors::empty();
+        let nerrs = self.tmp_errors.len();
         let expect = expect.and_then(|t| <&SubrType>::try_from(t).ok());
         let return_t = expect.map(|subr| subr.return_t.as_ref());
         log!(info "entered {}({lambda})", fn_name!());
@@ -1959,7 +1962,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         {
             Ok(tv_cache) => tv_cache,
             Err((tv_cache, es)) => {
-                errors.extend(es);
+                self.tmp_errors.extend(es);
                 tv_cache
             }
         };
@@ -1971,7 +1974,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         let params = match self.lower_params(lambda.sig.params, lambda.sig.bounds, expect) {
             Ok(params) => params,
             Err((params, es)) => {
-                errors.extend(es);
+                self.tmp_errors.extend(es);
                 params
             }
         };
@@ -1984,18 +1987,18 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             };
             for guard in guards.into_iter() {
                 if let Err(errs) = self.module.context.cast(guard, None, &mut overwritten) {
-                    errors.extend(errs);
+                    self.tmp_errors.extend(errs);
                 }
             }
             overwritten
         };
         if let Err(errs) = self.module.context.register_defs(&lambda.body) {
-            errors.extend(errs);
+            self.tmp_errors.extend(errs);
         }
         let body = match self.lower_block(lambda.body, return_t) {
             Ok(body) => body,
             Err((body, es)) => {
-                errors.extend(es);
+                self.tmp_errors.extend(es);
                 body
             }
         };
@@ -2128,8 +2131,8 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             body,
             t,
         );
-        if !errors.is_empty() {
-            Err((lambda, errors))
+        if self.tmp_errors.len() != nerrs {
+            Err((lambda, self.tmp_errors.take_inc(nerrs)))
         } else {
             Ok(lambda)
         }
@@ -2137,7 +2140,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
 
     fn lower_def(&mut self, def: ast::Def, expect_body: Option<&Type>) -> FailableOption<hir::Def> {
         log!(info "entered {}({})", fn_name!(), def.sig);
-        let mut errors = LowerErrors::empty();
+        let nerrs = self.tmp_errors.len();
         if def.def_kind().is_class_or_trait() && self.module.context.kind != ContextKind::Module {
             self.module
                 .context
@@ -2149,7 +2152,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 def.loc(),
                 self.module.context.caused_by(),
             );
-            errors.push(err);
+            self.tmp_errors.push(err);
         }
         let name = if let Some(name) = def.sig.name_as_str() {
             name.clone()
@@ -2164,7 +2167,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 self.module.context.caused_by(),
                 &name,
             );
-            errors.push(err);
+            self.tmp_errors.push(err);
         } else if self
             .module
             .context
@@ -2179,7 +2182,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 self.module.context.caused_by(),
                 &name,
             );
-            errors.push(err);
+            self.tmp_errors.push(err);
         } else if self
             .module
             .context
@@ -2200,7 +2203,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         let vis = match self.module.context.instantiate_vis_modifier(def.sig.vis()) {
             Ok(vis) => vis,
             Err(errs) => {
-                errors.extend(errs);
+                self.tmp_errors.extend(errs);
                 VisibilityModifier::Public
             }
         };
@@ -2213,13 +2216,13 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 {
                     Ok(tv_cache) => tv_cache,
                     Err((tv_cache, errs)) => {
-                        errors.extend(errs);
+                        self.tmp_errors.extend(errs);
                         tv_cache
                     }
                 };
                 self.module.context.grow(&name, kind, vis, Some(tv_cache));
                 self.lower_subr_def(sig, def.body)
-                    .map_err(|(def, es)| (Some(def), errors.concat(es)))
+                    .map_err(|(def, es)| (Some(def), self.tmp_errors.take_inc(nerrs).concat(es)))
             }
             ast::Signature::Var(sig) => {
                 self.module.context.grow(&name, kind, vis, None);
@@ -2240,9 +2243,9 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         expect_body: Option<&Type>,
     ) -> FailableOption<hir::Def> {
         log!(info "entered {}({sig})", fn_name!());
-        let mut errors = LowerErrors::empty();
+        let nerrs = self.tmp_errors.len();
         if let Err(errs) = self.module.context.register_defs(&body.block) {
-            errors.extend(errs);
+            self.tmp_errors.extend(errs);
         }
         let outer = self.module.context.outer.as_ref().unwrap();
         let expect_body_t = sig
@@ -2275,12 +2278,12 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     ast::VarPattern::Glob(token) => {
                         return self
                             .lower_glob(token.clone(), hir::DefBody::new(body.op, block, body.id))
-                            .map_err(|errs| (None, errors.concat(errs)));
+                            .map_err(|errs| (None, self.tmp_errors.take_inc(nerrs).concat(errs)));
                     }
                     other => {
                         log!(err "unexpected pattern: {other}");
                         return unreachable_error!(LowerErrors, LowerError, self.module.context)
-                            .map_err(|errs| (None, errors.concat(errs)));
+                            .map_err(|errs| (None, self.tmp_errors.take_inc(nerrs).concat(errs)));
                     }
                 };
                 if let Some(expect_body_t) = expect_body_t {
@@ -2293,7 +2296,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                             &expect_body_t,
                             found_body_t,
                         ) {
-                            errors.push(e);
+                            self.tmp_errors.push(e);
                         }
                     }
                 }
@@ -2306,7 +2309,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 ) {
                     Ok(vi) => vi,
                     Err(errs) => {
-                        errors.extend(errs);
+                        self.tmp_errors.extend(errs);
                         VarInfo::ILLEGAL
                     }
                 };
@@ -2315,14 +2318,14 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     let spec_t = match self.module.context.instantiate_typespec(&ts.t_spec) {
                         Ok(spec_t) => spec_t,
                         Err((spec_t, errs)) => {
-                            errors.extend(errs);
+                            self.tmp_errors.extend(errs);
                             spec_t
                         }
                     };
                     let expr = match self.fake_lower_expr(*ts.t_spec_as_expr.clone()) {
                         Ok(expr) => expr,
                         Err(errs) => {
-                            errors.extend(errs);
+                            self.tmp_errors.extend(errs);
                             hir::Expr::Dummy(hir::Dummy::empty())
                         }
                     };
@@ -2333,14 +2336,14 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 let sig = hir::VarSignature::new(ident, t_spec);
                 let body = hir::DefBody::new(body.op, block, body.id);
                 let def = hir::Def::new(hir::Signature::Var(sig), body);
-                if errors.is_empty() {
+                if self.tmp_errors.len() == nerrs {
                     Ok(def)
                 } else {
-                    Err((Some(def), errors))
+                    Err((Some(def), self.tmp_errors.take_inc(nerrs)))
                 }
             }
             Err((block, errs)) => {
-                errors.extend(errs);
+                self.tmp_errors.extend(errs);
                 let ident = match &sig.pat {
                     ast::VarPattern::Ident(ident) => ident.clone(),
                     ast::VarPattern::Discard(token) => {
@@ -2349,12 +2352,12 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     ast::VarPattern::Glob(token) => {
                         return self
                             .lower_glob(token.clone(), hir::DefBody::new(body.op, block, body.id))
-                            .map_err(|errs| (None, errors.concat(errs)));
+                            .map_err(|errs| (None, self.tmp_errors.take_inc(nerrs).concat(errs)));
                     }
                     other => {
                         log!(err "unexpected pattern: {other}");
                         return unreachable_error!(LowerErrors, LowerError, self.module.context)
-                            .map_err(|errs| (None, errors.concat(errs)));
+                            .map_err(|errs| (None, self.tmp_errors.take_inc(nerrs).concat(errs)));
                     }
                 };
                 if let Err(errs) = self.module.context.outer.as_mut().unwrap().assign_var_sig(
@@ -2364,13 +2367,13 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     None,
                     None,
                 ) {
-                    errors.extend(errs);
+                    self.tmp_errors.extend(errs);
                 }
                 let ident = hir::Identifier::new(ident, None, VarInfo::ILLEGAL);
                 let sig = hir::VarSignature::new(ident, None);
                 let body = hir::DefBody::new(body.op, block, body.id);
                 let def = hir::Def::new(hir::Signature::Var(sig), body);
-                Err((Some(def), errors))
+                Err((Some(def), self.tmp_errors.take_inc(nerrs)))
             }
         }
     }
@@ -2401,7 +2404,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         body: ast::DefBody,
     ) -> Failable<hir::Def> {
         log!(info "entered {}({sig})", fn_name!());
-        let mut errors = LowerErrors::empty();
+        let nerrs = self.tmp_errors.len();
         let registered_t = self
             .module
             .context
@@ -2420,11 +2423,11 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             let deco = match self.lower_expr(deco.0.clone(), Some(&mono("Subroutine"))) {
                 Ok(deco) => deco,
                 Err((Some(deco), es)) => {
-                    errors.extend(es);
+                    self.tmp_errors.extend(es);
                     deco
                 }
                 Err((None, es)) => {
-                    errors.extend(es);
+                    self.tmp_errors.extend(es);
                     continue;
                 }
             };
@@ -2436,7 +2439,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 let instance = match self.module.context.instantiate_dummy(quant) {
                     Ok(instance) => instance,
                     Err(errs) => {
-                        errors.extend(errs);
+                        self.tmp_errors.extend(errs);
                         Type::Failure
                     }
                 };
@@ -2447,12 +2450,12 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 let params = match self.lower_params(sig.params, sig.bounds.clone(), None) {
                     Ok(params) => params,
                     Err((params, errs)) => {
-                        errors.extend(errs);
+                        self.tmp_errors.extend(errs);
                         params
                     }
                 };
                 if let Err(errs) = self.module.context.register_defs(&body.block) {
-                    errors.extend(errs);
+                    self.tmp_errors.extend(errs);
                 }
                 if let Err(es) = self
                     .module
@@ -2462,12 +2465,12 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     .unwrap()
                     .fake_subr_assign(&sig.ident, &sig.decorators, Type::Failure)
                 {
-                    errors.extend(es);
+                    self.tmp_errors.extend(es);
                 }
                 let block = match self.lower_block(body.block, None) {
                     Ok(block) => block,
                     Err((block, errs)) => {
-                        errors.extend(errs);
+                        self.tmp_errors.extend(errs);
                         block
                     }
                 };
@@ -2476,14 +2479,14 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     let spec_t = match self.module.context.instantiate_typespec(&ts.t_spec) {
                         Ok(spec_t) => spec_t,
                         Err((spec_t, errs)) => {
-                            errors.extend(errs);
+                            self.tmp_errors.extend(errs);
                             spec_t
                         }
                     };
                     let expr = match self.fake_lower_expr(*ts.t_spec_as_expr.clone()) {
                         Ok(expr) => expr,
                         Err(errs) => {
-                            errors.extend(errs);
+                            self.tmp_errors.extend(errs);
                             hir::Expr::Dummy(hir::Dummy::empty())
                         }
                     };
@@ -2502,10 +2505,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 );
                 let body = hir::DefBody::new(body.op, block, body.id);
                 let def = hir::Def::new(hir::Signature::Subr(sig), body);
-                if errors.is_empty() {
+                if self.tmp_errors.len() == nerrs {
                     Ok(def)
                 } else {
-                    Err((def, errors))
+                    Err((def, self.tmp_errors.take_inc(nerrs)))
                 }
             }
         }
@@ -2518,7 +2521,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         decorators: Set<hir::Expr>,
         body: ast::DefBody,
     ) -> Failable<hir::Def> {
-        let mut errors = LowerErrors::empty();
+        let nerrs = self.tmp_errors.len();
         let params = match self.lower_params(
             sig.params.clone(),
             sig.bounds.clone(),
@@ -2526,12 +2529,12 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         ) {
             Ok(params) => params,
             Err((params, errs)) => {
-                errors.extend(errs);
+                self.tmp_errors.extend(errs);
                 params
             }
         };
         if let Err(errs) = self.module.context.register_defs(&body.block) {
-            errors.extend(errs);
+            self.tmp_errors.extend(errs);
         }
         let return_t = registered_subr_t
             .return_t
@@ -2549,7 +2552,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 ) {
                     Ok(vi) => vi,
                     Err((errs, vi)) => {
-                        errors.extend(errs);
+                        self.tmp_errors.extend(errs);
                         vi
                     }
                 };
@@ -2558,14 +2561,14 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     let spec_t = match self.module.context.instantiate_typespec(&ts.t_spec) {
                         Ok(spec_t) => spec_t,
                         Err((spec_t, errs)) => {
-                            errors.extend(errs);
+                            self.tmp_errors.extend(errs);
                             spec_t
                         }
                     };
                     let expr = match self.fake_lower_expr(*ts.t_spec_as_expr.clone()) {
                         Ok(expr) => expr,
                         Err(errs) => {
-                            errors.extend(errs);
+                            self.tmp_errors.extend(errs);
                             hir::Expr::Dummy(hir::Dummy::empty())
                         }
                     };
@@ -2584,14 +2587,14 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 );
                 let body = hir::DefBody::new(body.op, block, body.id);
                 let def = hir::Def::new(hir::Signature::Subr(sig), body);
-                if errors.is_empty() {
+                if self.tmp_errors.len() == nerrs {
                     Ok(def)
                 } else {
-                    Err((def, errors))
+                    Err((def, self.tmp_errors.take_inc(nerrs)))
                 }
             }
             Err((block, errs)) => {
-                errors.extend(errs);
+                self.tmp_errors.extend(errs);
                 let vi = match self.module.context.outer.as_mut().unwrap().assign_subr(
                     &sig,
                     ast::DefId(0),
@@ -2601,7 +2604,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 ) {
                     Ok(vi) => vi,
                     Err((errs, vi)) => {
-                        errors.extend(errs);
+                        self.tmp_errors.extend(errs);
                         vi
                     }
                 };
@@ -2610,14 +2613,14 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     let spec_t = match self.module.context.instantiate_typespec(&ts.t_spec) {
                         Ok(spec_t) => spec_t,
                         Err((spec_t, errs)) => {
-                            errors.extend(errs);
+                            self.tmp_errors.extend(errs);
                             spec_t
                         }
                     };
                     let expr = match self.fake_lower_expr(*ts.t_spec_as_expr.clone()) {
                         Ok(expr) => expr,
                         Err(errs) => {
-                            errors.extend(errs);
+                            self.tmp_errors.extend(errs);
                             hir::Expr::Dummy(hir::Dummy::empty())
                         }
                     };
@@ -2636,10 +2639,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 );
                 let body = hir::DefBody::new(body.op, block, body.id);
                 let def = hir::Def::new(hir::Signature::Subr(sig), body);
-                if errors.is_empty() {
+                if self.tmp_errors.len() == nerrs {
                     Ok(def)
                 } else {
-                    Err((def, errors))
+                    Err((def, self.tmp_errors.take_inc(nerrs)))
                 }
             }
         }
@@ -2647,15 +2650,15 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
 
     fn lower_class_def(&mut self, class_def: ast::ClassDef) -> Failable<hir::ClassDef> {
         log!(info "entered {}({class_def})", fn_name!());
-        let mut errors = LowerErrors::empty();
+        let nerrs = self.tmp_errors.len();
         let (is_inherit, sig, mut block) = match self.lower_def(class_def.def, None) {
             Ok(def) => (def.def_kind().is_inherit(), def.sig, def.body.block),
             Err((Some(def), errs)) => {
-                errors.extend(errs);
+                self.tmp_errors.extend(errs);
                 (false, def.sig, def.body.block)
             }
             Err((None, errs)) => {
-                errors.extend(errs);
+                self.tmp_errors.extend(errs);
                 let var = hir::VarSignature::new(hir::Identifier::public("<error>"), None);
                 (false, hir::Signature::Var(var), hir::Block::empty())
             }
@@ -2667,7 +2670,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 match self.module.context.get_class_and_impl_trait(&methods.class) {
                     Ok(x) => x,
                     Err(errs) => {
-                        errors.extend(errs);
+                        self.tmp_errors.extend(errs);
                         continue;
                     }
                 };
@@ -2681,7 +2684,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                         &class.qual_name(),
                         None,
                     );
-                    errors.push(err);
+                    self.tmp_errors.push(err);
                 }
             } else {
                 let err = LowerError::no_var_error(
@@ -2692,7 +2695,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     &class.qual_name(),
                     self.module.context.get_similar_name(&class.local_name()),
                 );
-                errors.push(err);
+                self.tmp_errors.push(err);
             }
             let Some(methods_list) = &mut self
                 .module
@@ -2705,7 +2708,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     erg_common::fn_name!(),
                     line!(),
                 );
-                errors.push(err);
+                self.tmp_errors.push(err);
                 continue;
             };
             let methods_idx = methods_list.iter().position(|m| m.id == methods.id);
@@ -2715,7 +2718,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     erg_common::fn_name!(),
                     line!(),
                 );
-                errors.push(err);
+                self.tmp_errors.push(err);
                 continue;
             };
             self.module.context.replace(methods_ctx.ctx);
@@ -2753,7 +2756,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                             if let Some(def) = def {
                                 hir_methods.push(hir::Expr::Def(def));
                             }
-                            errors.extend(errs);
+                            self.tmp_errors.extend(errs);
                         }
                     },
                     ast::ClassAttr::Decl(decl) => match self.lower_type_asc(decl, None) {
@@ -2762,7 +2765,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                         }
                         Err((tasc, errs)) => {
                             hir_methods.push(hir::Expr::TypeAsc(tasc));
-                            errors.extend(errs);
+                            self.tmp_errors.extend(errs);
                         }
                     },
                     ast::ClassAttr::Doc(doc) => match self.lower_literal(doc, None) {
@@ -2770,13 +2773,13 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                             hir_methods.push(hir::Expr::Literal(doc));
                         }
                         Err(errs) => {
-                            errors.extend(errs);
+                            self.tmp_errors.extend(errs);
                         }
                     },
                 }
             }
             if let Err(errs) = self.module.context.check_decls() {
-                errors.extend(errs);
+                self.tmp_errors.extend(errs);
             }
             if let Some((trait_, _)) = &impl_trait {
                 self.check_override(&class, Some(trait_));
@@ -2784,7 +2787,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 self.check_override(&class, None);
             }
             if let Err(err) = self.check_trait_impl(impl_trait.clone(), &class) {
-                errors.push(err);
+                self.tmp_errors.push(err);
             }
             let impl_trait = impl_trait.map(|(t, _)| t);
             self.check_collision_and_push(methods.id, class.clone(), impl_trait.clone());
@@ -2801,7 +2804,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 self.module.context.caused_by(),
                 &class,
             );
-            errors.push(err);
+            self.tmp_errors.push(err);
             None
         };
         let type_obj = match self
@@ -2820,7 +2823,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             };
             if let Some(sup_type) = call.and_then(|call| call.args.get_left_or_key("Super")) {
                 if let Err(err) = self.check_inheritable(&type_obj, sup_type, &sig) {
-                    errors.extend(err);
+                    self.tmp_errors.extend(err);
                 }
             }
         }
@@ -2841,27 +2844,27 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             constructor.clone(),
             hir_methods_list,
         );
-        if errors.is_empty() {
+        if self.tmp_errors.len() == nerrs {
             Ok(class_def)
         } else {
-            Err((class_def, errors))
+            Err((class_def, self.tmp_errors.take_inc(nerrs)))
         }
     }
 
     fn lower_patch_def(&mut self, class_def: ast::PatchDef) -> FailableOption<hir::PatchDef> {
         log!(info "entered {}({class_def})", fn_name!());
-        let mut errors = LowerErrors::empty();
+        let nerrs = self.tmp_errors.len();
         let base_t = {
             let Some(ast::Expr::Call(call)) = class_def.def.body.block.get(0) else {
                 return unreachable_error!(LowerErrors, LowerError, self)
-                    .map_err(|errs| (None, errors.concat(errs)));
+                    .map_err(|errs| (None, self.tmp_errors.take_inc(nerrs).concat(errs)));
             };
             let base_t_expr = call.args.get_left_or_key("Base").unwrap();
             let spec = Parser::expr_to_type_spec(base_t_expr.clone()).unwrap();
             match self.module.context.instantiate_typespec(&spec) {
                 Ok(t) => t,
                 Err((t, errs)) => {
-                    errors.extend(errs);
+                    self.tmp_errors.extend(errs);
                     t
                 }
             }
@@ -2869,8 +2872,8 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         let mut hir_def = match self.lower_def(class_def.def, None) {
             Ok(def) => def,
             Err((_def, errs)) => {
-                errors.extend(errs);
-                return Err((None, errors));
+                self.tmp_errors.extend(errs);
+                return Err((None, self.tmp_errors.take_inc(nerrs)));
             }
         };
         let base = Self::get_require_or_sup_or_base(hir_def.body.block.remove(0)).unwrap();
@@ -2895,7 +2898,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                             ));
                         }
                         if let Err(es) = self.module.context.register_def(def) {
-                            errors.extend(es);
+                            self.tmp_errors.extend(es);
                         }
                     }
                     ast::ClassAttr::Decl(_) | ast::ClassAttr::Doc(_) => {}
@@ -2911,7 +2914,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                             if let Some(def) = def {
                                 hir_methods.push(hir::Expr::Def(def));
                             }
-                            errors.extend(errs);
+                            self.tmp_errors.extend(errs);
                         }
                     },
                     ast::ClassAttr::Decl(decl) => match self.lower_type_asc(decl, None) {
@@ -2920,7 +2923,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                         }
                         Err((tasc, errs)) => {
                             hir_methods.push(hir::Expr::TypeAsc(tasc));
-                            errors.extend(errs);
+                            self.tmp_errors.extend(errs);
                         }
                     },
                     ast::ClassAttr::Doc(doc) => match self.lower_literal(doc, None) {
@@ -2928,27 +2931,27 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                             hir_methods.push(hir::Expr::Literal(doc));
                         }
                         Err(errs) => {
-                            errors.extend(errs);
+                            self.tmp_errors.extend(errs);
                         }
                     },
                 }
             }
             if let Err(errs) = self.module.context.check_decls() {
-                errors.extend(errs);
+                self.tmp_errors.extend(errs);
             }
             self.push_patch(methods.id);
         }
         let patch = hir::PatchDef::new(hir_def.sig, base, hir_methods);
-        if errors.is_empty() {
+        if self.tmp_errors.len() == nerrs {
             Ok(patch)
         } else {
-            Err((Some(patch), errors))
+            Err((Some(patch), self.tmp_errors.take_inc(nerrs)))
         }
     }
 
     fn lower_redef(&mut self, redef: ast::ReDef) -> FailableOption<hir::Expr> {
         log!(info "entered {}({redef})", fn_name!());
-        let mut errors = LowerErrors::empty();
+        let nerrs = self.tmp_errors.len();
         let mut attr = match self.lower_acc(redef.attr, None) {
             Ok(attr) => attr,
             Err((hir::Accessor::Ident(ident), _errs)) => {
@@ -2959,17 +2962,22 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 return self
                     .lower_def(def, None)
                     .map(hir::Expr::Def)
-                    .map_err(|(def, errs)| (def.map(hir::Expr::Def), errors.concat(errs)));
+                    .map_err(|(def, errs)| {
+                        (
+                            def.map(hir::Expr::Def),
+                            self.tmp_errors.take_inc(nerrs).concat(errs),
+                        )
+                    });
             }
             Err((acc, errs)) => {
-                errors.extend(errs);
+                self.tmp_errors.extend(errs);
                 acc
             }
         };
         let expr = match self.lower_expr(*redef.expr, None) {
             Ok(expr) => expr,
             Err((expr, errs)) => {
-                errors.extend(errs);
+                self.tmp_errors.extend(errs);
                 expr.unwrap_or(hir::Expr::Dummy(hir::Dummy::empty()))
             }
         };
@@ -2984,7 +2992,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     &derefined,
                     expr.ref_t(),
                 ) {
-                    Err(err) => errors.push(err),
+                    Err(err) => self.tmp_errors.push(err),
                     Ok(_) => {
                         if let Some(attr_t) = attr.ref_mut_t() {
                             *attr_t = derefined.clone();
@@ -3001,14 +3009,17 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     }
                 }
             } else {
-                errors.push(err);
+                self.tmp_errors.push(err);
             }
         }
         let redef = hir::ReDef::new(attr, hir::Block::new(vec![expr]));
-        if errors.is_empty() {
+        if self.tmp_errors.len() == nerrs {
             Ok(hir::Expr::ReDef(redef))
         } else {
-            Err((Some(hir::Expr::ReDef(redef)), errors))
+            Err((
+                Some(hir::Expr::ReDef(redef)),
+                self.tmp_errors.take_inc(nerrs),
+            ))
         }
     }
 
@@ -3306,7 +3317,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         expect: Option<&Type>,
     ) -> Failable<hir::TypeAscription> {
         log!(info "entered {}({tasc})", fn_name!());
-        let mut errors = LowerErrors::empty();
+        let nerrs = self.tmp_errors.len();
         let kind = tasc.kind();
         let spec_t = match self
             .module
@@ -3315,7 +3326,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         {
             Ok(spec_t) => spec_t,
             Err((t, errs)) => {
-                errors.extend(errs);
+                self.tmp_errors.extend(errs);
                 t
             }
         };
@@ -3325,7 +3336,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         let expr = match self.lower_expr(*tasc.expr, expect) {
             Ok(expr) => expr,
             Err((exp, errs)) => {
-                errors.extend(errs);
+                self.tmp_errors.extend(errs);
                 exp.unwrap_or(hir::Expr::Dummy(hir::Dummy::empty()))
             }
         };
@@ -3337,7 +3348,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     &expr,
                     Some(&Str::from(expr.to_string())),
                 ) {
-                    errors.extend(es);
+                    self.tmp_errors.extend(es);
                 }
             }
             AscriptionKind::SubtypeOf => {
@@ -3359,10 +3370,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                             Location::concat(&expr, &tasc.t_spec),
                             self.module.context.caused_by(),
                         );
-                        errors.push(errs);
+                        self.tmp_errors.push(errs);
                     }
                 } else {
-                    errors.push(LowerError::no_var_error(
+                    self.tmp_errors.push(LowerError::no_var_error(
                         self.cfg.input.clone(),
                         line!() as usize,
                         expr.loc(),
@@ -3377,21 +3388,21 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         let t_spec = match self.lower_type_spec_with_op(tasc.t_spec, spec_t) {
             Ok(t_spec) => t_spec,
             Err((t_spec, errs)) => {
-                errors.extend(errs);
+                self.tmp_errors.extend(errs);
                 t_spec
             }
         };
         let tasc = expr.type_asc(t_spec);
-        if errors.is_empty() {
+        if self.tmp_errors.len() == nerrs {
             Ok(tasc)
         } else {
-            Err((tasc, errors))
+            Err((tasc, self.tmp_errors.take_inc(nerrs)))
         }
     }
 
     fn lower_decl(&mut self, tasc: ast::TypeAscription) -> LowerResult<hir::TypeAscription> {
         log!(info "entered {}({tasc})", fn_name!());
-        let mut errors = LowerErrors::empty();
+        let nerrs = self.tmp_errors.len();
         let kind = tasc.kind();
         let spec_t = match self
             .module
@@ -3400,7 +3411,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         {
             Ok(spec_t) => spec_t,
             Err((t, errs)) => {
-                errors.extend(errs);
+                self.tmp_errors.extend(errs);
                 t
             }
         };
@@ -3486,15 +3497,15 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         let t_spec = match self.lower_type_spec_with_op(tasc.t_spec, spec_t) {
             Ok(t_spec) => t_spec,
             Err((t_spec, errs)) => {
-                errors.extend(errs);
+                self.tmp_errors.extend(errs);
                 t_spec
             }
         };
         let tasc = expr.type_asc(t_spec);
-        if errors.is_empty() {
+        if self.tmp_errors.len() == nerrs {
             Ok(tasc)
         } else {
-            Err(errors)
+            Err(self.tmp_errors.take_inc(nerrs))
         }
     }
 
@@ -3625,7 +3636,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         expect: Option<&Type>,
     ) -> Failable<hir::Block> {
         log!(info "entered {}", fn_name!());
-        let mut errors = LowerErrors::empty();
+        let nerrs = self.tmp_errors.len();
         let mut hir_block = Vec::with_capacity(ast_block.len());
         let last = ast_block.len().saturating_sub(1);
         for (i, chunk) in ast_block.into_iter().enumerate() {
@@ -3636,15 +3647,15 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     if let Some(chunk) = chunk {
                         hir_block.push(chunk);
                     }
-                    errors.extend(errs);
+                    self.tmp_errors.extend(errs);
                 }
             };
         }
         let block = hir::Block::new(hir_block);
-        if errors.is_empty() {
+        if self.tmp_errors.len() == nerrs {
             Ok(block)
         } else {
-            Err((block, errors))
+            Err((block, self.tmp_errors.take_inc(nerrs)))
         }
     }
 
@@ -3655,7 +3666,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
     ) -> Failable<hir::Block> {
         log!(info "entered {}", fn_name!());
         let mut hir_block = Vec::with_capacity(compound.len());
-        let mut errors = LowerErrors::empty();
+        let nerrs = self.tmp_errors.len();
         let last = compound.len().saturating_sub(1);
         for (i, chunk) in compound.into_iter().enumerate() {
             let expect = if i == last { expect } else { None };
@@ -3663,15 +3674,15 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 Ok(chunk) => hir_block.push(chunk),
                 Err((Some(chunk), errs)) => {
                     hir_block.push(chunk);
-                    errors.extend(errs);
+                    self.tmp_errors.extend(errs);
                 }
-                Err((None, errs)) => errors.extend(errs),
+                Err((None, errs)) => self.tmp_errors.extend(errs),
             }
         }
-        if errors.is_empty() {
+        if self.tmp_errors.len() == nerrs {
             Ok(hir::Block::new(hir_block))
         } else {
-            Err((hir::Block::new(hir_block), errors))
+            Err((hir::Block::new(hir_block), self.tmp_errors.take_inc(nerrs)))
         }
     }
 
@@ -3682,7 +3693,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
     ) -> Failable<hir::Dummy> {
         log!(info "entered {}", fn_name!());
         let mut hir_dummy = Vec::with_capacity(ast_dummy.len());
-        let mut errors = LowerErrors::empty();
+        let nerrs = self.tmp_errors.len();
         let last = ast_dummy.len().saturating_sub(1);
         for (i, chunk) in ast_dummy.into_iter().enumerate() {
             let expect = if i == last { expect } else { None };
@@ -3690,15 +3701,15 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 Ok(chunk) => hir_dummy.push(chunk),
                 Err((Some(chunk), errs)) => {
                     hir_dummy.push(chunk);
-                    errors.extend(errs);
+                    self.tmp_errors.extend(errs);
                 }
-                Err((None, errs)) => errors.extend(errs),
+                Err((None, errs)) => self.tmp_errors.extend(errs),
             }
         }
-        if errors.is_empty() {
+        if self.tmp_errors.len() == nerrs {
             Ok(hir::Dummy::new(hir_dummy))
         } else {
-            Err((hir::Dummy::new(hir_dummy), errors))
+            Err((hir::Dummy::new(hir_dummy), self.tmp_errors.take_inc(nerrs)))
         }
     }
 
