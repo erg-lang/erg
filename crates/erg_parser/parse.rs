@@ -4,6 +4,8 @@
 //!
 use std::mem;
 
+use thin_vec::{thin_vec, ThinVec};
+
 use erg_common::config::ErgConfig;
 use erg_common::error::Location;
 use erg_common::io::{Input, InputKind};
@@ -140,7 +142,7 @@ pub enum ListInner {
     WithLength(PosArg, Expr),
     Comprehension {
         layout: Option<Expr>,
-        generators: Vec<(Identifier, Expr)>,
+        generators: ThinVec<(Identifier, Expr)>,
         guard: Option<Expr>,
     },
 }
@@ -148,7 +150,7 @@ pub enum ListInner {
 impl ListInner {
     pub const fn comp(
         layout: Option<Expr>,
-        generators: Vec<(Identifier, Expr)>,
+        generators: ThinVec<(Identifier, Expr)>,
         guard: Option<Expr>,
     ) -> Self {
         Self::Comprehension {
@@ -914,7 +916,7 @@ impl Parser {
                     debug_exit_info!(self);
                     return Err(());
                 };
-                let mut generators = vec![];
+                let mut generators = thin_vec![];
                 let expr = self
                     .try_reduce_expr(false, false, false, false)
                     .map_err(|_| self.stack_dec(fn_name!()))?;
@@ -929,7 +931,7 @@ impl Parser {
             Some(VBar) => {
                 self.lpop();
                 let elem = elems.remove_pos(0).expr;
-                let mut generators = vec![];
+                let mut generators = thin_vec![];
                 loop {
                     let sym = self
                         .try_reduce_ident()
@@ -1099,7 +1101,10 @@ impl Parser {
             Some(RParen) => {
                 rp = Some(self.lpop());
                 debug_exit_info!(self);
-                return Ok(Args::pos_only(vec![], Some((lp.unwrap(), rp.unwrap()))));
+                return Ok(Args::pos_only(
+                    thin_vec![],
+                    Some((lp.unwrap(), rp.unwrap())),
+                ));
             }
             Some(RBrace | RSqBr | Dedent) => {
                 debug_exit_info!(self);
@@ -1119,9 +1124,9 @@ impl Parser {
             .map_err(|_| self.stack_dec(fn_name!()))?
         {
             ArgKind::Pos(arg) => Args::single(arg),
-            ArgKind::Var(arg) => Args::new(vec![], Some(arg), vec![], None, None),
-            ArgKind::Kw(arg) => Args::new(vec![], None, vec![arg], None, None),
-            ArgKind::KwVar(arg) => Args::new(vec![], None, vec![], Some(arg), None),
+            ArgKind::Var(arg) => Args::new(thin_vec![], Some(arg), thin_vec![], None, None),
+            ArgKind::Kw(arg) => Args::new(thin_vec![], None, thin_vec![arg], None, None),
+            ArgKind::KwVar(arg) => Args::new(thin_vec![], None, thin_vec![], Some(arg), None),
         };
         loop {
             match self.peek_kind() {
@@ -2565,7 +2570,7 @@ impl Parser {
                 };
                 if self.cur_is(RParen) {
                     let rparen = self.lpop();
-                    let args = Args::pos_only(vec![], Some((lparen, rparen)));
+                    let args = Args::pos_only(thin_vec![], Some((lparen, rparen)));
                     let unit = Tuple::Normal(NormalTuple::new(args));
                     debug_exit_info!(self);
                     return Ok(Expr::Tuple(unit));
@@ -2989,7 +2994,7 @@ impl Parser {
                 if let Some(t) = self.peek() {
                     if t.is(RBrace) {
                         let r_brace = self.lpop();
-                        let dict = NormalDict::new(l_brace, r_brace, vec![]);
+                        let dict = NormalDict::new(l_brace, r_brace, thin_vec![]);
                         debug_exit_info!(self);
                         return Ok(BraceContainer::Dict(Dict::Normal(dict)));
                     }
@@ -3082,7 +3087,7 @@ impl Parser {
                     }
                     Some(Inclusion) => {
                         self.skip();
-                        let mut generators = vec![];
+                        let mut generators = thin_vec![];
                         let Expr::Accessor(Accessor::Ident(ident)) = other else {
                             let caused_by = caused_by!();
                             log!(err "error caused by: {caused_by}");
@@ -3111,7 +3116,7 @@ impl Parser {
                     }
                     Some(VBar) => {
                         self.skip();
-                        let mut generators = vec![];
+                        let mut generators = thin_vec![];
                         loop {
                             let ident = self.try_reduce_ident()?;
                             let _ = expect_pop!(self, fail_next Inclusion);
@@ -3141,7 +3146,8 @@ impl Parser {
                         return Ok(BraceContainer::Set(Set::Comprehension(comp)));
                     }
                     Some(RBrace) => {
-                        let arg = Args::new(vec![PosArg::new(other)], None, vec![], None, None);
+                        let arg =
+                            Args::new(thin_vec![PosArg::new(other)], None, thin_vec![], None, None);
                         let r_brace = self.lpop();
                         debug_exit_info!(self);
                         return Ok(BraceContainer::Set(Set::Normal(NormalSet::new(
@@ -3169,7 +3175,7 @@ impl Parser {
         first_attr: RecordAttrOrIdent,
     ) -> ParseResult<Record> {
         debug_call_info!(self);
-        let mut attrs = vec![first_attr];
+        let mut attrs = thin_vec![first_attr];
         loop {
             match self.peek_kind() {
                 Some(Newline | Semi) => {
@@ -3288,7 +3294,7 @@ impl Parser {
                 debug_exit_info!(self);
                 return Err(());
             };
-            let generators = vec![(var, rhs)];
+            let generators = thin_vec![(var, rhs)];
             let guard = self
                 .try_reduce_chunk(false, false)
                 .map_err(|_| self.stack_dec(fn_name!()))?;
@@ -3312,7 +3318,7 @@ impl Parser {
         value: Expr,
     ) -> ParseResult<NormalDict> {
         debug_call_info!(self);
-        let mut kvs = vec![KeyValue::new(first_key, value)];
+        let mut kvs = thin_vec![KeyValue::new(first_key, value)];
         loop {
             match self.peek_kind() {
                 Some(Comma) => {
@@ -3523,9 +3529,9 @@ impl Parser {
         debug_call_info!(self);
         let mut args = match first_elem {
             ArgKind::Pos(pos) => Args::single(pos),
-            ArgKind::Var(var) => Args::new(vec![], Some(var), vec![], None, None),
-            ArgKind::Kw(kw) => Args::new(vec![], None, vec![kw], None, None),
-            ArgKind::KwVar(kw_var) => Args::new(vec![], None, vec![], Some(kw_var), None),
+            ArgKind::Var(var) => Args::new(thin_vec![], Some(var), thin_vec![], None, None),
+            ArgKind::Kw(kw) => Args::new(thin_vec![], None, thin_vec![kw], None, None),
+            ArgKind::KwVar(kw_var) => Args::new(thin_vec![], None, thin_vec![], Some(kw_var), None),
         };
         #[allow(clippy::while_let_loop)]
         loop {

@@ -10,6 +10,7 @@ use erg_common::fresh::FreshNameGenerator;
 use erg_common::traits::{Locational, Stream};
 use erg_common::{debug_power_assert, Str};
 use erg_common::{enum_unwrap, get_hash, log, set};
+use thin_vec::thin_vec;
 
 use crate::ast::{
     Accessor, Args, BinOp, Block, Call, ClassAttr, ClassAttrs, ClassDef, Compound, ConstExpr,
@@ -159,7 +160,7 @@ impl Desugarer {
                     )))
                 }
                 Record::Mixed(mixed) => {
-                    let mut new_attrs = vec![];
+                    let mut new_attrs = thin_vec![];
                     for attr in mixed.attrs {
                         match attr {
                             RecordAttrOrIdent::Attr(attr) => {
@@ -249,7 +250,7 @@ impl Desugarer {
                 }
                 astSet::Comprehension(set) => {
                     let elem = set.layout.map(|ex| desugar(*ex));
-                    let mut new_generators = vec![];
+                    let mut new_generators = thin_vec![];
                     for (ident, gen) in set.generators.into_iter() {
                         new_generators.push((ident, desugar(gen)));
                     }
@@ -339,7 +340,7 @@ impl Desugarer {
                     *t_op.t_spec_as_expr = desugar(*t_op.t_spec_as_expr.clone());
                 }
                 let attr = Self::perform_desugar_acc(desugar, redef.attr);
-                Expr::ReDef(ReDef::new(attr, redef.t_spec, expr))
+                Expr::ReDef(ReDef::new(attr, redef.t_spec.map(|x| *x), expr))
             }
             Expr::Lambda(mut lambda) => {
                 let mut chunks = vec![];
@@ -390,7 +391,7 @@ impl Desugarer {
                 let new_attrs = ClassAttrs::from(new_attrs);
                 Expr::Methods(Methods::new(
                     method_defs.id,
-                    method_defs.class,
+                    *method_defs.class,
                     *method_defs.class_as_expr,
                     method_defs.vis,
                     new_attrs,
@@ -410,7 +411,7 @@ impl Desugarer {
                     chunks.push(desugar(chunk));
                 }
                 let ast = AST::new(inline.ast.name, Module::new(chunks));
-                Expr::InlineModule(InlineModule::new(inline.input, ast, inline.import))
+                Expr::InlineModule(InlineModule::new(inline.input, ast, *inline.import))
             }
             Expr::Dummy(exprs) => {
                 let loc = exprs.loc;
@@ -424,7 +425,7 @@ impl Desugarer {
     }
 
     fn perform_desugar_params(mut desugar: impl FnMut(Expr) -> Expr, mut params: Params) -> Params {
-        let mut non_defaults = vec![];
+        let mut non_defaults = thin_vec![];
         for mut non_default in params.non_defaults.into_iter() {
             non_default.t_spec = non_default.t_spec.map(|t_spec| {
                 TypeSpecWithOp::new(t_spec.op, t_spec.t_spec, desugar(*t_spec.t_spec_as_expr))
@@ -437,7 +438,7 @@ impl Desugarer {
             });
             var_params
         });
-        let mut defaults = vec![];
+        let mut defaults = thin_vec![];
         for mut default in params.defaults.into_iter() {
             let default_val = desugar(default.default_val);
             default.sig.t_spec = default.sig.t_spec.map(|t_spec| {
@@ -448,7 +449,7 @@ impl Desugarer {
                 ..default
             });
         }
-        let mut guards = vec![];
+        let mut guards = thin_vec![];
         for guard in params.guards.into_iter() {
             let guard = match guard {
                 GuardClause::Condition(cond) => GuardClause::Condition(desugar(cond)),
@@ -634,7 +635,7 @@ impl Desugarer {
             ))))
         };
         let args = Args::pos_only(
-            vec![
+            thin_vec![
                 PosArg::new(first_arg), // dummy argument, will be removed in line 56
                 PosArg::new(Expr::Lambda(first_branch)),
                 PosArg::new(Expr::Lambda(second_branch)),
@@ -797,7 +798,7 @@ impl Desugarer {
         }
         Methods::new(
             methods.id,
-            methods.class,
+            *methods.class,
             *methods.class_as_expr,
             methods.vis,
             ClassAttrs::from(new_attrs),
@@ -1230,8 +1231,8 @@ impl Desugarer {
             }
             ParamPattern::Tuple(tup) => {
                 let (buf_name, buf_param) = self.gen_buf_nd_param(tup.loc());
-                let mut ty_specs = vec![];
-                let mut ty_exprs = vec![];
+                let mut ty_specs = thin_vec![];
+                let mut ty_exprs = thin_vec![];
                 guards.push(Self::len_guard(buf_name.clone(), tup.elems.len(), tup));
                 for (n, elem) in tup.elems.non_defaults.iter_mut().enumerate() {
                     let gs = self.desugar_nested_param_pattern(elem, &buf_name, BufIndex::Tuple(n));
@@ -1338,7 +1339,7 @@ impl Desugarer {
                 }
                 if param.t_spec.is_none() {
                     let mut attrs = RecordAttrs::new(vec![]);
-                    let mut tys = vec![];
+                    let mut tys = thin_vec![];
                     for ParamRecordAttr { lhs, rhs } in rec.elems.iter() {
                         let lhs = Identifier {
                             vis: VisModifierSpec::Public(Token::DUMMY),
@@ -1451,8 +1452,8 @@ impl Desugarer {
                 );
                 guards.push(GuardClause::Bind(def));
                 guards.push(Self::len_guard(buf_name.clone(), tup.elems.len(), tup));
-                let mut ty_exprs = vec![];
-                let mut tys = vec![];
+                let mut ty_exprs = thin_vec![];
+                let mut tys = thin_vec![];
                 for (n, elem) in tup.elems.non_defaults.iter_mut().enumerate() {
                     let gs = self.desugar_nested_param_pattern(elem, &buf_name, BufIndex::Tuple(n));
                     guards.extend(gs);
@@ -1539,7 +1540,7 @@ impl Desugarer {
                 guards.push(GuardClause::Bind(def));
                 guards.extend(Self::hasattr_guard(buf_name.clone(), rec.elems.keys(), rec));
                 let mut attrs = RecordAttrs::new(vec![]);
-                let mut tys = vec![];
+                let mut tys = thin_vec![];
                 for ParamRecordAttr { lhs, rhs } in rec.elems.iter_mut() {
                     let lhs = Identifier {
                         vis: VisModifierSpec::Public(Token::DUMMY),
@@ -1787,7 +1788,7 @@ impl Desugarer {
                 ));
                 let sig = LambdaSignature::new(params, None, TypeBoundSpecs::empty());
                 let tuple = Tuple::Normal(NormalTuple::new(Args::pos_only(
-                    vec![PosArg::new(comp.kv.key), PosArg::new(comp.kv.value)],
+                    thin_vec![PosArg::new(comp.kv.key), PosArg::new(comp.kv.value)],
                     None,
                 )));
                 let body = Block::new(vec![tuple.into()]);

@@ -16,6 +16,7 @@ use erg_common::{
     impl_stream,
 };
 use erg_common::{fmt_vec_split_with, Str};
+use thin_vec::{thin_vec, ThinVec};
 
 use crate::token::{Token, TokenKind, EQUAL};
 
@@ -327,9 +328,9 @@ impl KwArg {
 #[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Args {
-    pub pos_args: Vec<PosArg>,
+    pub pos_args: ThinVec<PosArg>,
     pub var_args: Option<Box<PosArg>>,
-    pub kw_args: Vec<KwArg>,
+    pub kw_args: ThinVec<KwArg>,
     pub kw_var_args: Option<Box<PosArg>>,
     // these are for ELS
     pub paren: Option<(Token, Token)>,
@@ -385,9 +386,9 @@ impl Args {
     pub fn deconstruct(
         self,
     ) -> (
-        Vec<PosArg>,
+        ThinVec<PosArg>,
         Option<PosArg>,
-        Vec<KwArg>,
+        ThinVec<KwArg>,
         Option<PosArg>,
         Option<(Token, Token)>,
     ) {
@@ -398,6 +399,22 @@ impl Args {
             self.kw_var_args.map(|x| *x),
             self.paren,
         )
+    }
+
+    pub fn new(
+        pos_args: ThinVec<PosArg>,
+        var_args: Option<PosArg>,
+        kw_args: ThinVec<KwArg>,
+        kw_var_args: Option<PosArg>,
+        paren: Option<(Token, Token)>,
+    ) -> Self {
+        Self {
+            pos_args,
+            var_args: var_args.map(Box::new),
+            kw_args,
+            kw_var_args: kw_var_args.map(Box::new),
+            paren,
+        }
     }
 
     pub fn into_iters(
@@ -419,13 +436,18 @@ impl Args {
     pub fn pos_args(&self) -> &[PosArg] {
         &self.pos_args[..]
     }
+
+    pub fn pos_only(pos_arg: ThinVec<PosArg>, paren: Option<(Token, Token)>) -> Self {
+        Self::new(pos_arg, None, thin_vec![], None, paren)
+    }
 }
 
 #[pymethods]
 impl Args {
     #[staticmethod]
+    #[pyo3(name = "new")]
     #[pyo3(signature = (pos_args, var_args, kw_args, kw_var_args=None, paren=None))]
-    pub fn new(
+    pub fn _new(
         pos_args: Vec<PosArg>,
         var_args: Option<PosArg>,
         kw_args: Vec<KwArg>,
@@ -433,9 +455,9 @@ impl Args {
         paren: Option<(Token, Token)>,
     ) -> Self {
         Self {
-            pos_args,
+            pos_args: pos_args.into(),
             var_args: var_args.map(Box::new),
-            kw_args,
+            kw_args: kw_args.into(),
             kw_var_args: kw_var_args.map(Box::new),
             paren,
         }
@@ -444,7 +466,7 @@ impl Args {
     #[getter]
     #[pyo3(name = "pos_args")]
     fn _pos_args(&self) -> Vec<PosArg> {
-        self.pos_args.clone()
+        self.pos_args.to_vec()
     }
 
     #[getter]
@@ -455,7 +477,7 @@ impl Args {
     #[getter]
     #[pyo3(name = "kw_args")]
     fn _kw_args(&self) -> Vec<KwArg> {
-        self.kw_args.clone()
+        self.kw_args.to_vec()
     }
 
     #[getter]
@@ -464,18 +486,19 @@ impl Args {
     }
 
     #[staticmethod]
-    pub fn pos_only(pos_arg: Vec<PosArg>, paren: Option<(Token, Token)>) -> Self {
-        Self::new(pos_arg, None, vec![], None, paren)
+    #[pyo3(name = "pos_only")]
+    fn _pos_only(pos_arg: Vec<PosArg>, paren: Option<(Token, Token)>) -> Self {
+        Self::_new(pos_arg, None, vec![], None, paren)
     }
 
     #[staticmethod]
     pub fn single(pos_args: PosArg) -> Self {
-        Self::pos_only(vec![pos_args], None)
+        Self::pos_only(thin_vec![pos_args], None)
     }
 
     #[staticmethod]
     pub fn empty() -> Self {
-        Self::new(vec![], None, vec![], None, None)
+        Self::new(thin_vec![], None, thin_vec![], None, None)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -966,7 +989,7 @@ pub struct ListComprehension {
     pub l_sqbr: Token,
     pub r_sqbr: Token,
     pub layout: Option<Box<Expr>>,
-    pub generators: Vec<(Identifier, Expr)>,
+    pub generators: ThinVec<(Identifier, Expr)>,
     pub guard: Option<Box<Expr>>,
 }
 
@@ -992,12 +1015,31 @@ impl_locational!(ListComprehension, l_sqbr, r_sqbr);
 #[pymethods]
 impl ListComprehension {
     #[staticmethod]
+    #[pyo3(name = "new")]
     #[pyo3(signature = (l_sqbr, r_sqbr, layout, generators, guard=None))]
-    pub fn new(
+    pub fn _new(
         l_sqbr: Token,
         r_sqbr: Token,
         layout: Option<Expr>,
         generators: Vec<(Identifier, Expr)>,
+        guard: Option<Expr>,
+    ) -> Self {
+        Self {
+            l_sqbr,
+            r_sqbr,
+            layout: layout.map(Box::new),
+            generators: generators.into(),
+            guard: guard.map(Box::new),
+        }
+    }
+}
+
+impl ListComprehension {
+    pub fn new(
+        l_sqbr: Token,
+        r_sqbr: Token,
+        layout: Option<Expr>,
+        generators: ThinVec<(Identifier, Expr)>,
         guard: Option<Expr>,
     ) -> Self {
         Self {
@@ -1107,12 +1149,12 @@ impl KeyValue {
     }
 }
 
-#[pyclass(get_all, set_all)]
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NormalDict {
     pub l_brace: Token,
     pub r_brace: Token,
-    pub kvs: Vec<KeyValue>,
+    pub kvs: ThinVec<KeyValue>,
 }
 
 impl NestedDisplay for NormalDict {
@@ -1124,10 +1166,52 @@ impl NestedDisplay for NormalDict {
 impl_display_from_nested!(NormalDict);
 impl_locational!(NormalDict, l_brace, r_brace);
 
+#[allow(unused)]
 #[pymethods]
 impl NormalDict {
     #[staticmethod]
-    pub const fn new(l_brace: Token, r_brace: Token, kvs: Vec<KeyValue>) -> Self {
+    #[pyo3(name = "new")]
+    fn _new(l_brace: Token, r_brace: Token, kvs: Vec<KeyValue>) -> Self {
+        Self {
+            l_brace,
+            r_brace,
+            kvs: kvs.into(),
+        }
+    }
+
+    #[getter]
+    fn kvs(&self) -> Vec<KeyValue> {
+        self.kvs.to_vec()
+    }
+
+    #[getter]
+    fn l_brace(&self) -> Token {
+        self.l_brace.clone()
+    }
+
+    #[getter]
+    fn r_brace(&self) -> Token {
+        self.r_brace.clone()
+    }
+
+    #[setter]
+    fn set_kvs(&mut self, kvs: Vec<KeyValue>) {
+        self.kvs = kvs.into();
+    }
+
+    #[setter]
+    fn set_l_brace(&mut self, l_brace: Token) {
+        self.l_brace = l_brace;
+    }
+
+    #[setter]
+    fn set_r_brace(&mut self, r_brace: Token) {
+        self.r_brace = r_brace;
+    }
+}
+
+impl NormalDict {
+    pub const fn new(l_brace: Token, r_brace: Token, kvs: ThinVec<KeyValue>) -> Self {
         Self {
             l_brace,
             r_brace,
@@ -1142,7 +1226,7 @@ pub struct DictComprehension {
     l_brace: Token,
     r_brace: Token,
     pub kv: Box<KeyValue>,
-    pub generators: Vec<(Identifier, Expr)>,
+    pub generators: ThinVec<(Identifier, Expr)>,
     pub guard: Option<Box<Expr>>,
 }
 
@@ -1167,11 +1251,30 @@ impl_locational!(DictComprehension, l_brace, kv, r_brace);
 #[pymethods]
 impl DictComprehension {
     #[staticmethod]
-    pub fn new(
+    #[pyo3(name = "new")]
+    pub fn _new(
         l_brace: Token,
         r_brace: Token,
         kv: KeyValue,
         generators: Vec<(Identifier, Expr)>,
+        guard: Option<Expr>,
+    ) -> Self {
+        Self {
+            l_brace,
+            r_brace,
+            kv: Box::new(kv),
+            generators: generators.into(),
+            guard: guard.map(Box::new),
+        }
+    }
+}
+
+impl DictComprehension {
+    pub fn new(
+        l_brace: Token,
+        r_brace: Token,
+        kv: KeyValue,
+        generators: ThinVec<(Identifier, Expr)>,
         guard: Option<Expr>,
     ) -> Self {
         Self {
@@ -1379,7 +1482,11 @@ impl_into_py_for_enum!(Record; Normal, Mixed);
 impl_from_py_for_enum!(Record; Normal(NormalRecord), Mixed(MixedRecord));
 
 impl Record {
-    pub const fn new_mixed(l_brace: Token, r_brace: Token, attrs: Vec<RecordAttrOrIdent>) -> Self {
+    pub const fn new_mixed(
+        l_brace: Token,
+        r_brace: Token,
+        attrs: ThinVec<RecordAttrOrIdent>,
+    ) -> Self {
         Self::Mixed(MixedRecord {
             l_brace,
             r_brace,
@@ -1436,12 +1543,12 @@ impl Record {
 }
 
 /// Record can be defined with shorthend/normal mixed style, i.e. {x; y=expr; z; ...}
-#[pyclass(get_all, set_all)]
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MixedRecord {
     pub l_brace: Token,
     pub r_brace: Token,
-    pub attrs: Vec<RecordAttrOrIdent>,
+    pub attrs: ThinVec<RecordAttrOrIdent>,
 }
 
 impl NestedDisplay for MixedRecord {
@@ -1457,6 +1564,7 @@ impl NestedDisplay for MixedRecord {
 impl_display_from_nested!(MixedRecord);
 impl_locational!(MixedRecord, l_brace, r_brace);
 
+#[allow(unused)]
 #[pymethods]
 impl MixedRecord {
     #[pyo3(name = "get")]
@@ -1470,16 +1578,55 @@ impl MixedRecord {
     }
 
     #[staticmethod]
-    pub const fn new(l_brace: Token, r_brace: Token, attrs: Vec<RecordAttrOrIdent>) -> Self {
+    #[pyo3(name = "new")]
+    fn _new(l_brace: Token, r_brace: Token, attrs: Vec<RecordAttrOrIdent>) -> Self {
+        Self {
+            l_brace,
+            r_brace,
+            attrs: attrs.into(),
+        }
+    }
+
+    #[getter]
+    fn attrs(&self) -> Vec<RecordAttrOrIdent> {
+        self.attrs.to_vec()
+    }
+
+    #[getter]
+    fn l_brace(&self) -> Token {
+        self.l_brace.clone()
+    }
+
+    #[getter]
+    fn r_brace(&self) -> Token {
+        self.r_brace.clone()
+    }
+
+    #[setter]
+    fn set_attrs(&mut self, attrs: Vec<RecordAttrOrIdent>) {
+        self.attrs = attrs.into();
+    }
+
+    #[setter]
+    fn set_l_brace(&mut self, l_brace: Token) {
+        self.l_brace = l_brace;
+    }
+
+    #[setter]
+    fn set_r_brace(&mut self, r_brace: Token) {
+        self.r_brace = r_brace;
+    }
+}
+
+impl MixedRecord {
+    pub const fn new(l_brace: Token, r_brace: Token, attrs: ThinVec<RecordAttrOrIdent>) -> Self {
         Self {
             l_brace,
             r_brace,
             attrs,
         }
     }
-}
 
-impl MixedRecord {
     pub fn get(&self, name: &str) -> Option<&RecordAttrOrIdent> {
         for attr in self.attrs.iter() {
             match attr {
@@ -1612,7 +1759,7 @@ pub struct SetComprehension {
     pub l_brace: Token,
     pub r_brace: Token,
     pub layout: Option<Box<Expr>>,
-    pub generators: Vec<(Identifier, Expr)>,
+    pub generators: ThinVec<(Identifier, Expr)>,
     pub guard: Option<Box<Expr>>,
 }
 
@@ -1634,11 +1781,30 @@ impl NestedDisplay for SetComprehension {
 impl_display_from_nested!(SetComprehension);
 impl_locational!(SetComprehension, l_brace, r_brace);
 
+impl SetComprehension {
+    pub fn new(
+        l_brace: Token,
+        r_brace: Token,
+        layout: Option<Expr>,
+        generators: ThinVec<(Identifier, Expr)>,
+        guard: Option<Expr>,
+    ) -> Self {
+        Self {
+            l_brace,
+            r_brace,
+            layout: layout.map(Box::new),
+            generators,
+            guard: guard.map(Box::new),
+        }
+    }
+}
+
 #[pymethods]
 impl SetComprehension {
     #[staticmethod]
+    #[pyo3(name = "new")]
     #[pyo3(signature = (l_brace, r_brace, layout, generators, guard=None))]
-    pub fn new(
+    fn _new(
         l_brace: Token,
         r_brace: Token,
         layout: Option<Expr>,
@@ -1649,7 +1815,7 @@ impl SetComprehension {
             l_brace,
             r_brace,
             layout: layout.map(Box::new),
-            generators,
+            generators: generators.into(),
             guard: guard.map(Box::new),
         }
     }
@@ -2327,7 +2493,7 @@ pub struct ConstSetComprehension {
     pub l_brace: Token,
     pub r_brace: Token,
     pub layout: Option<Box<ConstExpr>>,
-    pub generators: Vec<(ConstIdentifier, ConstExpr)>,
+    pub generators: ThinVec<(ConstIdentifier, ConstExpr)>,
     pub guard: Option<Box<ConstExpr>>,
 }
 
@@ -2352,8 +2518,9 @@ impl_locational!(ConstSetComprehension, l_brace, r_brace);
 #[pymethods]
 impl ConstSetComprehension {
     #[staticmethod]
+    #[pyo3(name = "new")]
     #[pyo3(signature = (l_brace, r_brace, elem, generators, guard=None))]
-    pub fn new(
+    pub fn _new(
         l_brace: Token,
         r_brace: Token,
         elem: Option<ConstExpr>,
@@ -2364,13 +2531,29 @@ impl ConstSetComprehension {
             l_brace,
             r_brace,
             layout: elem.map(Box::new),
-            generators,
+            generators: generators.into(),
             guard: guard.map(Box::new),
         }
     }
 }
 
 impl ConstSetComprehension {
+    pub fn new(
+        l_brace: Token,
+        r_brace: Token,
+        elem: Option<ConstExpr>,
+        generators: ThinVec<(ConstIdentifier, ConstExpr)>,
+        guard: Option<ConstExpr>,
+    ) -> Self {
+        Self {
+            l_brace,
+            r_brace,
+            layout: elem.map(Box::new),
+            generators,
+            guard: guard.map(Box::new),
+        }
+    }
+
     pub fn downgrade(self) -> SetComprehension {
         SetComprehension::new(
             self.l_brace,
@@ -2436,12 +2619,12 @@ impl ConstKeyValue {
     }
 }
 
-#[pyclass(get_all, set_all)]
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstDict {
     l_brace: Token,
     r_brace: Token,
-    pub kvs: Vec<ConstKeyValue>,
+    pub kvs: ThinVec<ConstKeyValue>,
 }
 
 impl NestedDisplay for ConstDict {
@@ -2453,15 +2636,57 @@ impl NestedDisplay for ConstDict {
 impl_display_from_nested!(ConstDict);
 impl_locational!(ConstDict, l_brace, r_brace);
 
-#[pymethods]
 impl ConstDict {
-    #[staticmethod]
-    pub const fn new(l_brace: Token, r_brace: Token, kvs: Vec<ConstKeyValue>) -> Self {
+    pub const fn new(l_brace: Token, r_brace: Token, kvs: ThinVec<ConstKeyValue>) -> Self {
         Self {
             l_brace,
             r_brace,
             kvs,
         }
+    }
+}
+
+#[allow(unused)]
+#[pymethods]
+impl ConstDict {
+    #[staticmethod]
+    #[pyo3(name = "new")]
+    fn _new(l_brace: Token, r_brace: Token, kvs: Vec<ConstKeyValue>) -> Self {
+        Self {
+            l_brace,
+            r_brace,
+            kvs: kvs.into(),
+        }
+    }
+
+    #[getter]
+    fn kvs(&self) -> Vec<ConstKeyValue> {
+        self.kvs.to_vec()
+    }
+
+    #[getter]
+    fn l_brace(&self) -> Token {
+        self.l_brace.clone()
+    }
+
+    #[getter]
+    fn r_brace(&self) -> Token {
+        self.r_brace.clone()
+    }
+
+    #[setter]
+    fn set_kvs(&mut self, kvs: Vec<ConstKeyValue>) {
+        self.kvs = kvs.into();
+    }
+
+    #[setter]
+    fn set_l_brace(&mut self, l_brace: Token) {
+        self.l_brace = l_brace;
+    }
+
+    #[setter]
+    fn set_r_brace(&mut self, r_brace: Token) {
+        self.r_brace = r_brace;
     }
 }
 
@@ -2631,7 +2856,7 @@ impl ConstLambda {
 pub struct ConstRecord {
     pub l_brace: Token,
     pub r_brace: Token,
-    pub attrs: Vec<ConstDef>,
+    pub attrs: ThinVec<ConstDef>,
 }
 
 impl NestedDisplay for ConstRecord {
@@ -2648,14 +2873,25 @@ impl Locational for ConstRecord {
 
 impl_display_from_nested!(ConstRecord);
 
-#[pymethods]
 impl ConstRecord {
-    #[staticmethod]
-    pub const fn new(l_brace: Token, r_brace: Token, attrs: Vec<ConstDef>) -> Self {
+    pub const fn new(l_brace: Token, r_brace: Token, attrs: ThinVec<ConstDef>) -> Self {
         Self {
             l_brace,
             r_brace,
             attrs,
+        }
+    }
+}
+
+#[pymethods]
+impl ConstRecord {
+    #[staticmethod]
+    #[pyo3(name = "new")]
+    pub fn _new(l_brace: Token, r_brace: Token, attrs: Vec<ConstDef>) -> Self {
+        Self {
+            l_brace,
+            r_brace,
+            attrs: attrs.into(),
         }
     }
 }
@@ -2973,9 +3209,9 @@ impl ConstKwArg {
 #[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConstArgs {
-    pub pos_args: Vec<ConstPosArg>,
+    pub pos_args: ThinVec<ConstPosArg>,
     pub var_args: Option<Box<ConstPosArg>>,
-    pub kw_args: Vec<ConstKwArg>,
+    pub kw_args: ThinVec<ConstKwArg>,
     pub kw_var: Option<Box<ConstPosArg>>,
     paren: Option<(Token, Token)>,
 }
@@ -3009,8 +3245,9 @@ impl Locational for ConstArgs {
 #[pymethods]
 impl ConstArgs {
     #[staticmethod]
+    #[pyo3(name = "new")]
     #[pyo3(signature = (pos_args, var_args, kw_args, kw_var=None, paren=None))]
-    pub fn new(
+    pub fn _new(
         pos_args: Vec<ConstPosArg>,
         var_args: Option<ConstPosArg>,
         kw_args: Vec<ConstKwArg>,
@@ -3018,9 +3255,9 @@ impl ConstArgs {
         paren: Option<(Token, Token)>,
     ) -> Self {
         Self {
-            pos_args,
+            pos_args: pos_args.into(),
             var_args: var_args.map(Box::new),
-            kw_args,
+            kw_args: kw_args.into(),
             kw_var: kw_var.map(Box::new),
             paren,
         }
@@ -3028,7 +3265,7 @@ impl ConstArgs {
 
     #[staticmethod]
     pub fn pos_only(pos_args: Vec<ConstPosArg>, paren: Option<(Token, Token)>) -> Self {
-        Self::new(pos_args, None, vec![], None, paren)
+        Self::_new(pos_args, None, vec![], None, paren)
     }
 
     #[staticmethod]
@@ -3038,7 +3275,7 @@ impl ConstArgs {
 
     #[staticmethod]
     pub fn empty() -> Self {
-        Self::new(vec![], None, vec![], None, None)
+        Self::_new(vec![], None, vec![], None, None)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -3055,13 +3292,29 @@ impl ConstArgs {
 }
 
 impl ConstArgs {
+    pub fn new(
+        pos_args: ThinVec<ConstPosArg>,
+        var_args: Option<ConstPosArg>,
+        kw_args: ThinVec<ConstKwArg>,
+        kw_var: Option<ConstPosArg>,
+        paren: Option<(Token, Token)>,
+    ) -> Self {
+        Self {
+            pos_args,
+            var_args: var_args.map(Box::new),
+            kw_args,
+            kw_var: kw_var.map(Box::new),
+            paren,
+        }
+    }
+
     #[allow(clippy::type_complexity)]
     pub fn deconstruct(
         self,
     ) -> (
-        Vec<ConstPosArg>,
+        ThinVec<ConstPosArg>,
         Option<ConstPosArg>,
-        Vec<ConstKwArg>,
+        ThinVec<ConstKwArg>,
         Option<ConstPosArg>,
         Option<(Token, Token)>,
     ) {
@@ -3158,7 +3411,8 @@ impl PolyTypeSpec {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PreDeclTypeSpec {
     Mono(Identifier),
-    Poly(PolyTypeSpec),
+    // use Box to reduce size
+    Poly(Box<PolyTypeSpec>),
     Attr {
         namespace: Box<Expr>,
         t: Identifier,
@@ -3209,7 +3463,7 @@ impl PreDeclTypeSpec {
     }
 
     pub fn poly(acc: ConstAccessor, args: ConstArgs) -> Self {
-        Self::Poly(PolyTypeSpec::new(acc, args))
+        Self::Poly(Box::new(PolyTypeSpec::new(acc, args)))
     }
 
     pub fn ident(&self) -> String {
@@ -3283,9 +3537,9 @@ impl DefaultParamTySpec {
 pub struct SubrTypeSpec {
     pub bounds: TypeBoundSpecs,
     pub lparen: Option<Token>,
-    pub non_defaults: Vec<ParamTySpec>,
+    pub non_defaults: ThinVec<ParamTySpec>,
     pub var_params: Option<Box<ParamTySpec>>,
-    pub defaults: Vec<DefaultParamTySpec>,
+    pub defaults: ThinVec<DefaultParamTySpec>,
     pub kw_var_params: Option<Box<ParamTySpec>>,
     pub arrow: Token,
     pub return_t: Box<TypeSpec>,
@@ -3332,9 +3586,9 @@ impl SubrTypeSpec {
     pub fn new(
         bounds: TypeBoundSpecs,
         lparen: Option<Token>,
-        non_defaults: Vec<ParamTySpec>,
+        non_defaults: ThinVec<ParamTySpec>,
         var_params: Option<ParamTySpec>,
-        defaults: Vec<DefaultParamTySpec>,
+        defaults: ThinVec<DefaultParamTySpec>,
         kw_var_params: Option<ParamTySpec>,
         arrow: Token,
         return_t: TypeSpec,
@@ -3357,7 +3611,8 @@ impl SubrTypeSpec {
 pub struct ListTypeSpec {
     pub sqbrs: Option<(Token, Token)>,
     pub ty: Box<TypeSpec>,
-    pub len: ConstExpr,
+    // use Box to reduce size
+    pub len: Box<ConstExpr>,
 }
 
 impl fmt::Display for ListTypeSpec {
@@ -3371,7 +3626,7 @@ impl Locational for ListTypeSpec {
         if let Some((lsqbr, rsqbr)) = &self.sqbrs {
             Location::concat(lsqbr, rsqbr)
         } else {
-            Location::concat(self.ty.as_ref(), &self.len)
+            Location::concat(self.ty.as_ref(), self.len.as_ref())
         }
     }
 }
@@ -3380,7 +3635,7 @@ impl ListTypeSpec {
     pub fn new(ty: TypeSpec, len: ConstExpr, sqbrs: Option<(Token, Token)>) -> Self {
         Self {
             ty: Box::new(ty),
-            len,
+            len: Box::new(len),
             sqbrs,
         }
     }
@@ -3390,7 +3645,7 @@ impl ListTypeSpec {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SetWithLenTypeSpec {
     pub ty: Box<TypeSpec>,
-    pub len: ConstExpr,
+    pub len: Box<ConstExpr>,
 }
 
 impl fmt::Display for SetWithLenTypeSpec {
@@ -3405,16 +3660,16 @@ impl SetWithLenTypeSpec {
     pub fn new(ty: TypeSpec, len: ConstExpr) -> Self {
         Self {
             ty: Box::new(ty),
-            len,
+            len: Box::new(len),
         }
     }
 }
 
-#[pyclass(get_all)]
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TupleTypeSpec {
     pub parens: Option<(Token, Token)>,
-    pub tys: Vec<TypeSpec>,
+    pub tys: ThinVec<TypeSpec>,
 }
 
 impl fmt::Display for TupleTypeSpec {
@@ -3436,16 +3691,29 @@ impl Locational for TupleTypeSpec {
 }
 
 impl TupleTypeSpec {
-    pub const fn new(parens: Option<(Token, Token)>, tys: Vec<TypeSpec>) -> Self {
+    pub const fn new(parens: Option<(Token, Token)>, tys: ThinVec<TypeSpec>) -> Self {
         Self { parens, tys }
     }
 }
 
-#[pyclass(get_all)]
+#[pymethods]
+impl TupleTypeSpec {
+    #[getter]
+    pub fn tys(&self) -> Vec<TypeSpec> {
+        self.tys.to_vec()
+    }
+
+    #[getter]
+    pub fn parens(&self) -> Option<(Token, Token)> {
+        self.parens.clone()
+    }
+}
+
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DictTypeSpec {
     pub braces: Option<(Token, Token)>,
-    pub kvs: Vec<(TypeSpec, TypeSpec)>,
+    pub kvs: ThinVec<(TypeSpec, TypeSpec)>,
 }
 
 impl fmt::Display for DictTypeSpec {
@@ -3473,16 +3741,29 @@ impl Locational for DictTypeSpec {
 }
 
 impl DictTypeSpec {
-    pub const fn new(braces: Option<(Token, Token)>, kvs: Vec<(TypeSpec, TypeSpec)>) -> Self {
+    pub const fn new(braces: Option<(Token, Token)>, kvs: ThinVec<(TypeSpec, TypeSpec)>) -> Self {
         Self { braces, kvs }
     }
 }
 
-#[pyclass(get_all)]
+#[pymethods]
+impl DictTypeSpec {
+    #[getter]
+    pub fn kvs(&self) -> Vec<(TypeSpec, TypeSpec)> {
+        self.kvs.to_vec()
+    }
+
+    #[getter]
+    pub fn braces(&self) -> Option<(Token, Token)> {
+        self.braces.clone()
+    }
+}
+
+#[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordTypeSpec {
     pub braces: Option<(Token, Token)>,
-    pub attrs: Vec<(Identifier, TypeSpec)>,
+    pub attrs: ThinVec<(Identifier, TypeSpec)>,
 }
 
 impl fmt::Display for RecordTypeSpec {
@@ -3510,8 +3791,24 @@ impl Locational for RecordTypeSpec {
 }
 
 impl RecordTypeSpec {
-    pub const fn new(braces: Option<(Token, Token)>, attrs: Vec<(Identifier, TypeSpec)>) -> Self {
+    pub const fn new(
+        braces: Option<(Token, Token)>,
+        attrs: ThinVec<(Identifier, TypeSpec)>,
+    ) -> Self {
         Self { braces, attrs }
+    }
+}
+
+#[pymethods]
+impl RecordTypeSpec {
+    #[getter]
+    pub fn attrs(&self) -> Vec<(Identifier, TypeSpec)> {
+        self.attrs.to_vec()
+    }
+
+    #[getter]
+    pub fn braces(&self) -> Option<(Token, Token)> {
+        self.braces.clone()
     }
 }
 
@@ -3520,7 +3817,8 @@ impl RecordTypeSpec {
 pub struct RefinementTypeSpec {
     pub var: Token,
     pub typ: Box<TypeSpec>,
-    pub pred: ConstExpr,
+    // use Box to reduce size
+    pub pred: Box<ConstExpr>,
 }
 
 impl fmt::Display for RefinementTypeSpec {
@@ -3531,7 +3829,7 @@ impl fmt::Display for RefinementTypeSpec {
 
 impl Locational for RefinementTypeSpec {
     fn loc(&self) -> Location {
-        Location::concat(&self.var, &self.pred)
+        Location::concat(&self.var, self.pred.as_ref())
     }
 }
 
@@ -3540,7 +3838,7 @@ impl RefinementTypeSpec {
         Self {
             var,
             typ: Box::new(typ),
-            pred,
+            pred: Box::new(pred),
         }
     }
 }
@@ -3573,13 +3871,15 @@ pub enum TypeSpec {
     Enum(ConstArgs),
     Interval {
         op: Token,
-        lhs: ConstExpr,
-        rhs: ConstExpr,
+        // use Box to reduce size
+        lhs: Box<ConstExpr>,
+        rhs: Box<ConstExpr>,
     },
     Subr(SubrTypeSpec),
     TypeApp {
         spec: Box<TypeSpec>,
-        args: TypeAppArgs,
+        // use Box to reduce size
+        args: Box<TypeAppArgs>,
     },
     Refinement(RefinementTypeSpec),
 }
@@ -3635,9 +3935,9 @@ impl Locational for TypeSpec {
             Self::Dict(dict) => dict.loc(),
             Self::Record(rec) => rec.loc(),
             Self::Enum(set) => set.loc(),
-            Self::Interval { lhs, rhs, .. } => Location::concat(lhs, rhs),
+            Self::Interval { lhs, rhs, .. } => Location::concat(lhs.as_ref(), rhs.as_ref()),
             Self::Subr(s) => s.loc(),
-            Self::TypeApp { spec, args } => Location::concat(spec.as_ref(), args),
+            Self::TypeApp { spec, args } => Location::concat(spec.as_ref(), args.as_ref()),
             Self::Refinement(r) => r.loc(),
         }
     }
@@ -3657,14 +3957,18 @@ impl TypeSpec {
         Self::Or(Box::new(lhs), Box::new(rhs))
     }
 
-    pub const fn interval(op: Token, lhs: ConstExpr, rhs: ConstExpr) -> Self {
-        Self::Interval { op, lhs, rhs }
+    pub fn interval(op: Token, lhs: ConstExpr, rhs: ConstExpr) -> Self {
+        Self::Interval {
+            op,
+            lhs: Box::new(lhs),
+            rhs: Box::new(rhs),
+        }
     }
 
     pub fn type_app(spec: TypeSpec, args: TypeAppArgs) -> Self {
         Self::TypeApp {
             spec: Box::new(spec),
-            args,
+            args: Box::new(args),
         }
     }
 
@@ -3675,7 +3979,7 @@ impl TypeSpec {
                 .map(|lit| ConstPosArg::new(ConstExpr::Lit(lit)))
                 .collect(),
             None,
-            vec![],
+            thin_vec![],
             None,
             None,
         ))
@@ -3686,7 +3990,7 @@ impl TypeSpec {
     }
 
     pub fn poly(acc: ConstAccessor, args: ConstArgs) -> Self {
-        Self::PreDeclTy(PreDeclTypeSpec::Poly(PolyTypeSpec::new(acc, args)))
+        Self::PreDeclTy(PreDeclTypeSpec::poly(acc, args))
     }
 
     pub fn ident(&self) -> Option<String> {
@@ -4254,7 +4558,7 @@ impl Identifier {
         Call::new(
             self.into(),
             None,
-            Args::pos_only(vec![PosArg::new(arg)], None),
+            Args::pos_only(thin_vec![PosArg::new(arg)], None),
         )
     }
 
@@ -4262,7 +4566,7 @@ impl Identifier {
         Call::new(
             self.into(),
             None,
-            Args::pos_only(vec![PosArg::new(arg1), PosArg::new(arg2)], None),
+            Args::pos_only(thin_vec![PosArg::new(arg1), PosArg::new(arg2)], None),
         )
     }
 
@@ -4392,11 +4696,14 @@ impl NestedDisplay for VarRecordAttrs {
 impl_display_from_nested!(VarRecordAttrs);
 impl_stream!(VarRecordAttrs, VarRecordAttr, elems);
 
+#[pymethods]
 impl VarRecordAttrs {
+    #[staticmethod]
     pub const fn new(elems: Vec<VarRecordAttr>) -> Self {
         Self { elems }
     }
 
+    #[staticmethod]
     pub const fn empty() -> Self {
         Self::new(vec![])
     }
@@ -4650,7 +4957,9 @@ impl Locational for Vars {
     }
 }
 
+#[pymethods]
 impl Vars {
+    #[staticmethod]
     pub fn new(elems: Vec<VarSignature>, starred: Option<VarSignature>) -> Self {
         Self {
             elems,
@@ -4658,6 +4967,7 @@ impl Vars {
         }
     }
 
+    #[staticmethod]
     pub fn empty() -> Self {
         Self::new(vec![], None)
     }
@@ -4684,7 +4994,7 @@ impl TryFrom<&ParamListPattern> for Expr {
     type Error = ();
 
     fn try_from(value: &ParamListPattern) -> Result<Self, Self::Error> {
-        let mut new = vec![];
+        let mut new = thin_vec![];
         for elem in value.elems.non_defaults.iter() {
             new.push(PosArg::new(Expr::try_from(&elem.pat)?));
         }
@@ -4753,7 +5063,7 @@ impl TryFrom<&ParamTuplePattern> for Expr {
     type Error = ();
 
     fn try_from(value: &ParamTuplePattern) -> Result<Self, Self::Error> {
-        let mut new = vec![];
+        let mut new = thin_vec![];
         for elem in value.elems.non_defaults.iter() {
             new.push(PosArg::new(Expr::try_from(&elem.pat)?));
         }
@@ -5068,12 +5378,12 @@ impl Locational for GuardClause {
 #[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Params {
-    pub non_defaults: Vec<NonDefaultParamSignature>,
+    pub non_defaults: ThinVec<NonDefaultParamSignature>,
     pub var_params: Option<Box<NonDefaultParamSignature>>,
-    pub defaults: Vec<DefaultParamSignature>,
+    pub defaults: ThinVec<DefaultParamSignature>,
     pub kw_var_params: Option<Box<NonDefaultParamSignature>>,
     /// match conditions
-    pub guards: Vec<GuardClause>,
+    pub guards: ThinVec<GuardClause>,
     pub parens: Option<(Token, Token)>,
 }
 
@@ -5139,14 +5449,15 @@ impl Locational for Params {
 }
 
 type RawParams = (
-    Vec<NonDefaultParamSignature>,
+    ThinVec<NonDefaultParamSignature>,
     Option<Box<NonDefaultParamSignature>>,
-    Vec<DefaultParamSignature>,
+    ThinVec<DefaultParamSignature>,
     Option<Box<NonDefaultParamSignature>>,
-    Vec<GuardClause>,
+    ThinVec<GuardClause>,
     Option<(Token, Token)>,
 );
 
+#[allow(unused)]
 #[pymethods]
 impl Params {
     #[staticmethod]
@@ -5159,11 +5470,11 @@ impl Params {
         parens: Option<(Token, Token)>,
     ) -> Self {
         Self {
-            non_defaults,
+            non_defaults: non_defaults.into(),
             var_params: var_params.map(Box::new),
-            defaults,
+            defaults: defaults.into(),
             kw_var_params: kw_var_params.map(Box::new),
-            guards: Vec::new(),
+            guards: ThinVec::new(),
             parens,
         }
     }
@@ -5179,28 +5490,28 @@ impl Params {
     }
 
     #[getter]
-    pub fn non_defaults(&self) -> Vec<NonDefaultParamSignature> {
-        self.non_defaults.clone()
+    fn non_defaults(&self) -> Vec<NonDefaultParamSignature> {
+        self.non_defaults.to_vec()
     }
 
     #[getter]
-    pub fn var_params(&self) -> Option<NonDefaultParamSignature> {
+    fn var_params(&self) -> Option<NonDefaultParamSignature> {
         self.var_params.as_deref().cloned()
     }
 
     #[getter]
-    pub fn defaults(&self) -> Vec<DefaultParamSignature> {
-        self.defaults.clone()
+    fn defaults(&self) -> Vec<DefaultParamSignature> {
+        self.defaults.to_vec()
     }
 
     #[getter]
-    pub fn kw_var_params(&self) -> Option<NonDefaultParamSignature> {
+    fn kw_var_params(&self) -> Option<NonDefaultParamSignature> {
         self.kw_var_params.as_deref().cloned()
     }
 
     #[getter]
-    pub fn guards(&self) -> Vec<GuardClause> {
-        self.guards.clone()
+    fn guards(&self) -> Vec<GuardClause> {
+        self.guards.to_vec()
     }
 
     #[inline]
@@ -5316,12 +5627,13 @@ impl SubrSignature {
     }
 }
 
-#[pyclass(get_all, set_all)]
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct LambdaSignature {
     pub bounds: TypeBoundSpecs,
     pub params: Params,
-    pub return_t_spec: Option<TypeSpecWithOp>,
+    // use Box to reduce size
+    pub return_t_spec: Option<Box<TypeSpecWithOp>>,
 }
 
 impl fmt::Display for LambdaSignature {
@@ -5349,7 +5661,7 @@ impl Locational for LambdaSignature {
     fn loc(&self) -> Location {
         if !self.bounds.is_empty() {
             Location::concat(&self.params, &self.bounds)
-        } else if let Some(return_t) = &self.return_t_spec {
+        } else if let Some(return_t) = self.return_t_spec.as_deref() {
             Location::concat(&self.params, return_t)
         } else if self.params.is_empty() && self.params.parens.is_none() {
             Location::Unknown
@@ -5359,19 +5671,54 @@ impl Locational for LambdaSignature {
     }
 }
 
+#[pymethods]
 impl LambdaSignature {
-    pub const fn new(
+    #[staticmethod]
+    #[pyo3(signature = (params, return_t_spec, bounds))]
+    pub fn new(
         params: Params,
         return_t_spec: Option<TypeSpecWithOp>,
         bounds: TypeBoundSpecs,
     ) -> Self {
         Self {
             params,
-            return_t_spec,
+            return_t_spec: return_t_spec.map(Box::new),
             bounds,
         }
     }
 
+    #[getter]
+    pub fn params(&self) -> Params {
+        self.params.clone()
+    }
+
+    #[getter]
+    pub fn return_t_spec(&self) -> Option<TypeSpecWithOp> {
+        self.return_t_spec.as_deref().cloned()
+    }
+
+    #[getter]
+    pub fn bounds(&self) -> TypeBoundSpecs {
+        self.bounds.clone()
+    }
+
+    #[setter]
+    pub fn set_params(&mut self, params: Params) {
+        self.params = params;
+    }
+
+    #[setter]
+    pub fn set_return_t_spec(&mut self, return_t_spec: Option<TypeSpecWithOp>) {
+        self.return_t_spec = return_t_spec.map(Box::new);
+    }
+
+    #[setter]
+    pub fn set_bounds(&mut self, bounds: TypeBoundSpecs) {
+        self.bounds = bounds;
+    }
+}
+
+impl LambdaSignature {
     pub fn do_sig(do_symbol: &Token) -> Self {
         let parens = Some((do_symbol.clone(), do_symbol.clone()));
         Self::new(
@@ -5747,7 +6094,8 @@ impl Def {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ReDef {
     pub attr: Accessor,
-    pub t_spec: Option<TypeSpecWithOp>,
+    // use Box to reduce size
+    pub t_spec: Option<Box<TypeSpecWithOp>>,
     pub expr: Box<Expr>,
 }
 
@@ -5769,7 +6117,7 @@ impl ReDef {
     pub fn new(attr: Accessor, t_spec: Option<TypeSpecWithOp>, expr: Expr) -> Self {
         Self {
             attr,
-            t_spec,
+            t_spec: t_spec.map(Box::new),
             expr: Box::new(expr),
         }
     }
@@ -5786,7 +6134,7 @@ impl ReDef {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Methods {
     pub id: DefId,
-    pub class: TypeSpec,
+    pub class: Box<TypeSpec>,
     pub class_as_expr: Box<Expr>,
     pub vis: VisModifierSpec, // `.` or `::`
     pub attrs: ClassAttrs,
@@ -5812,7 +6160,7 @@ impl Methods {
     ) -> Self {
         Self {
             id,
-            class,
+            class: Box::new(class),
             class_as_expr: Box::new(class_as_expr),
             vis,
             attrs,
@@ -6072,12 +6420,12 @@ impl Expr {
     }
 
     pub fn call1(self, expr: Expr) -> Self {
-        self.call_expr(Args::pos_only(vec![PosArg::new(expr)], None))
+        self.call_expr(Args::pos_only(thin_vec![PosArg::new(expr)], None))
     }
 
     pub fn call2(self, expr1: Expr, expr2: Expr) -> Self {
         self.call_expr(Args::pos_only(
-            vec![PosArg::new(expr1), PosArg::new(expr2)],
+            thin_vec![PosArg::new(expr1), PosArg::new(expr2)],
             None,
         ))
     }
@@ -6284,7 +6632,8 @@ impl AST {
 pub struct InlineModule {
     pub input: Input,
     pub ast: AST,
-    pub import: Call,
+    // use Box to reduce size
+    pub import: Box<Call>,
 }
 
 impl NestedDisplay for InlineModule {
@@ -6306,7 +6655,11 @@ impl InlineModule {
 }
 
 impl InlineModule {
-    pub const fn new(input: Input, ast: AST, import: Call) -> Self {
-        Self { input, ast, import }
+    pub fn new(input: Input, ast: AST, import: Call) -> Self {
+        Self {
+            input,
+            ast,
+            import: Box::new(import),
+        }
     }
 }

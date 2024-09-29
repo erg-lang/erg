@@ -27,6 +27,7 @@ parallel = ["erg_common/parallel"]
 erg_common = { workspace = true }
 erg_proc_macros = { workspace = true }
 unicode-xid = "0.2.4"
+thin-vec = "0.2"
 pyo3 = { workspace = true, optional = true }
 
 [lib]

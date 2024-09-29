@@ -1,5 +1,6 @@
 use erg_common::switch_lang;
 use erg_common::traits::{Locational, Stream};
+use thin_vec::{thin_vec, ThinVec};
 
 use crate::ast::*;
 use crate::desugar::Desugarer;
@@ -67,7 +68,7 @@ impl Parser {
                         .layout
                         .map(|ex| Self::validate_const_expr(*ex))
                         .transpose()?;
-                    let mut generators = vec![];
+                    let mut generators = thin_vec![];
                     for (name, gen) in set.generators.into_iter() {
                         let pred = Self::validate_const_expr(gen)?;
                         generators.push((name, pred));
@@ -93,7 +94,7 @@ impl Parser {
             },
             Expr::Dict(dict) => match dict {
                 Dict::Normal(dict) => {
-                    let mut const_kvs = vec![];
+                    let mut const_kvs = thin_vec![];
                     for kv in dict.kvs.into_iter() {
                         let key = Self::validate_const_expr(kv.key)?;
                         let value = Self::validate_const_expr(kv.value)?;
@@ -162,7 +163,7 @@ impl Parser {
                     Record::Normal(rec) => rec,
                     Record::Mixed(mixed) => Desugarer::desugar_shortened_record_inner(mixed),
                 };
-                let mut const_fields = vec![];
+                let mut const_fields = thin_vec![];
                 for attr in rec.attrs.into_iter() {
                     const_fields.push(Self::validate_const_def(attr)?);
                 }
@@ -231,7 +232,7 @@ impl Parser {
 
     fn args_to_const_args(args: Args) -> Result<ConstArgs, ParseError> {
         let (_pos_args, _var_args, _kw_args, _kw_var, paren) = args.deconstruct();
-        let mut pos_args = vec![];
+        let mut pos_args = thin_vec![];
         for arg in _pos_args.into_iter() {
             let const_expr = Self::validate_const_expr(arg.expr)?;
             pos_args.push(ConstPosArg::new(const_expr));
@@ -242,7 +243,7 @@ impl Parser {
         } else {
             None
         };
-        let mut kw_args = vec![];
+        let mut kw_args = thin_vec![];
         for arg in _kw_args.into_iter() {
             let const_expr = Self::validate_const_expr(arg.expr)?;
             kw_args.push(ConstKwArg::new(arg.keyword, const_expr));
@@ -292,7 +293,7 @@ impl Parser {
     fn lambda_to_subr_type_spec(mut lambda: Lambda) -> Result<SubrTypeSpec, ParseError> {
         let bounds = lambda.sig.bounds;
         let lparen = lambda.sig.params.parens.map(|(l, _)| l);
-        let mut non_defaults = vec![];
+        let mut non_defaults = thin_vec![];
         for param in lambda.sig.params.non_defaults.into_iter() {
             let param = match (param.pat, param.t_spec) {
                 (ParamPattern::VarName(name), Some(t_spec_with_op)) => {
@@ -329,7 +330,7 @@ impl Parser {
                     }
                     (param, t_spec) => todo!("{param}: {t_spec:?}"),
                 });
-        let mut defaults = vec![];
+        let mut defaults = thin_vec![];
         for param in lambda.sig.params.defaults.into_iter() {
             let param = match (param.sig.pat, param.sig.t_spec) {
                 (ParamPattern::VarName(name), Some(t_spec_with_op)) => {
@@ -438,7 +439,7 @@ impl Parser {
         let braces = (l.clone(), r.clone());
         let kvs = match dict {
             Dict::Normal(dic) => {
-                let mut kvs = vec![];
+                let mut kvs = thin_vec![];
                 for kv in dic.kvs.into_iter() {
                     let key = Self::expr_to_type_spec(kv.key)?;
                     let value = Self::expr_to_type_spec(kv.value)?;
@@ -474,7 +475,7 @@ impl Parser {
                     let value = Self::expr_to_type_spec(def.body.block.pop().unwrap())?;
                     Ok((ident.clone(), value))
                 })
-                .collect::<Result<Vec<_>, ParseError>>(),
+                .collect::<Result<ThinVec<_>, ParseError>>(),
             Record::Mixed(rec) => rec
                 .attrs
                 .into_iter()
@@ -496,7 +497,7 @@ impl Parser {
                         todo!("TypeSpec for shortened record is not implemented.")
                     }
                 })
-                .collect::<Result<Vec<_>, ParseError>>(),
+                .collect::<Result<ThinVec<_>, ParseError>>(),
         }?;
         Ok(RecordTypeSpec::new(Some(braces), attrs))
     }
@@ -504,7 +505,7 @@ impl Parser {
     fn tuple_to_tuple_type_spec(tuple: Tuple) -> Result<TupleTypeSpec, ParseError> {
         match tuple {
             Tuple::Normal(tup) => {
-                let mut tup_spec = vec![];
+                let mut tup_spec = thin_vec![];
                 let (elems, .., parens) = tup.elems.deconstruct();
                 for elem in elems.into_iter() {
                     let value = Self::expr_to_type_spec(elem.expr)?;
@@ -552,7 +553,7 @@ impl Parser {
                     let mut args = bin.args.into_iter();
                     let lhs = Self::validate_const_expr(*args.next().unwrap())?;
                     let rhs = Self::validate_const_expr(*args.next().unwrap())?;
-                    Ok(TypeSpec::Interval { op, lhs, rhs })
+                    Ok(TypeSpec::interval(op, lhs, rhs))
                 } else if bin.op.kind == TokenKind::AndOp {
                     let mut args = bin.args.into_iter();
                     let lhs = Self::expr_to_type_spec(*args.next().unwrap())?;

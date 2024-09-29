@@ -117,7 +117,7 @@ impl ASTSemanticState {
         match t_spec {
             TypeSpec::PreDeclTy(predecl) => match predecl {
                 PreDeclTypeSpec::Mono(ident) => self.gen_from_ident(ident),
-                PreDeclTypeSpec::Poly(poly) => self.gen_from_poly_typespec(poly),
+                PreDeclTypeSpec::Poly(poly) => self.gen_from_poly_typespec(*poly),
                 PreDeclTypeSpec::Attr { namespace, t } => {
                     let mut tokens = self.gen_from_expr(*namespace);
                     let ts = self.gen_from_ident(t);
@@ -194,7 +194,7 @@ impl ASTSemanticState {
 
     fn gen_from_methods(&mut self, methods: Methods) -> Vec<SemanticToken> {
         let mut tokens = vec![];
-        tokens.extend(self.gen_from_typespec(methods.class));
+        tokens.extend(self.gen_from_typespec(*methods.class));
         for attr in methods.attrs.into_iter() {
             #[allow(clippy::single_match)]
             match attr {

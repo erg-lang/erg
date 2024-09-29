@@ -76,7 +76,7 @@ impl ASTLinker {
                             ClassAttr::Decl(_) | ClassAttr::Doc(_) => {}
                         }
                     }
-                    match &methods.class {
+                    match methods.class.as_ref() {
                         TypeSpec::PreDeclTy(predecl) => {
                             self.link_methods(predecl.ident().into(), &mut new, methods, mode)
                         }

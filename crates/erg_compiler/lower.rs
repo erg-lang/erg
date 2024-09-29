@@ -3727,7 +3727,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             .get_module(&path)
             .is_some_and(|ent| ent.is_complete())
         {
-            return self.lower_call(inline.import, expect);
+            return self.lower_call(*inline.import, expect);
         }
         let parent = self.get_mod_ctx().context.get_module().unwrap().clone();
         let mod_ctx = ModuleContext::new(parent, dict! {});
@@ -3758,7 +3758,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             &self.module.context.shared().mod_cache
         };
         cache.register(path.to_path_buf(), None, hir, ctx, status);
-        self.lower_call(inline.import, expect)
+        self.lower_call(*inline.import, expect)
     }
 
     fn return_incomplete_artifact(&mut self, hir: HIR) -> IncompleteArtifact {
