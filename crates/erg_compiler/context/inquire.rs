@@ -1361,23 +1361,18 @@ impl Context {
                 }
             }
         }
-        let mut checked = vec![];
-        // FIXME: tests/should_ok/collection.er
-        let obj_t = if obj.ref_t().lower_bounded().is_dict() {
-            obj.t()
-        } else {
-            obj.ref_t().lower_bounded()
-        };
-        for ctx in self.get_nominal_super_type_ctxs(&obj_t).ok_or_else(|| {
-            TyCheckError::type_not_found(
-                self.cfg.input.clone(),
-                line!() as usize,
-                obj.loc(),
-                self.caused_by(),
-                obj.ref_t(),
-            )
-        })? {
-            checked.push(&ctx.typ);
+        for ctx in self
+            .get_nominal_super_type_ctxs(obj.ref_t())
+            .ok_or_else(|| {
+                TyCheckError::type_not_found(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    obj.loc(),
+                    self.caused_by(),
+                    obj.ref_t(),
+                )
+            })?
+        {
             if let Some(vi) = ctx.get_current_scope_non_param(&attr_name.name) {
                 self.validate_visibility(attr_name, vi, input, namespace)?;
                 return Ok(vi.clone());
@@ -1397,45 +1392,6 @@ impl Context {
                         return Err(e);
                     }
                     Triple::None => {}
-                }
-            }
-        }
-        if obj.ref_t() != &obj.ref_t().lower_bounded() {
-            for ctx in self
-                .get_nominal_super_type_ctxs(obj.ref_t())
-                .ok_or_else(|| {
-                    TyCheckError::type_not_found(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        obj.loc(),
-                        self.caused_by(),
-                        obj.ref_t(),
-                    )
-                })?
-            {
-                if checked.contains(&&ctx.typ) {
-                    continue;
-                }
-                if let Some(vi) = ctx.get_current_scope_non_param(&attr_name.name) {
-                    self.validate_visibility(attr_name, vi, input, namespace)?;
-                    return Ok(vi.clone());
-                }
-                for methods_ctx in ctx.methods_list.iter() {
-                    if let Some(vi) = methods_ctx.get_current_scope_non_param(&attr_name.name) {
-                        self.validate_visibility(attr_name, vi, input, namespace)?;
-                        return Ok(vi.clone());
-                    }
-                }
-                if let Some(ctx) = self.get_same_name_context(&ctx.name) {
-                    match ctx.rec_get_var_info(attr_name, AccessKind::BoundAttr, input, namespace) {
-                        Triple::Ok(t) => {
-                            return Ok(t);
-                        }
-                        Triple::Err(e) => {
-                            return Err(e);
-                        }
-                        Triple::None => {}
-                    }
                 }
             }
         }
@@ -3057,7 +3013,6 @@ impl Context {
     /// ```erg
     /// get_nominal_super_type_ctx(Nat) == [<Nat>, <Int>, <Float>, ..., <Obj>, <Eq>, ...]
     /// get_nominal_super_type_ctx({Nat}) == [<Type>, <Obj>, <Eq>, ...]
-    /// get_nominal_super_type_ctx(?T(:> Nat, <: Eq)) == == [<Eq>, ...]
     /// ```
     pub fn get_nominal_super_type_ctxs<'a>(&'a self, t: &Type) -> Option<Vec<&'a TypeContext>> {
         match t {
@@ -4061,14 +4016,12 @@ impl Context {
     /// Int.meta_type() == ClassType (<: Type)
     /// Show.meta_type() == TraitType (<: Type)
     /// [Int; 3].meta_type() == [ClassType; 3] (<: Type)
-    /// (Int, Str).meta_type() == (ClassType, ClassType) (<: Type)
-    /// {Str: Int}.meta_type() == {ClassType: ClassType} (<: Type)
     /// Indexable(T).meta_type() == TraitType (<: Type)
     /// NamedTuple({ .x = Int; .y = Str }).meta_type() == NamedTuple({ .x = ClassType; .y = ClassType })
     /// ```
     pub fn meta_type(&self, typ: &Type) -> Type {
         match typ {
-            Type::Poly { name, params } if typ.is_list() || typ.is_set() || typ.is_tuple() => poly(
+            Type::Poly { name, params } if &name[..] == "List" || &name[..] == "Set" => poly(
                 name.clone(),
                 params
                     .iter()
@@ -4081,26 +4034,6 @@ impl Context {
                     })
                     .collect(),
             ),
-            Type::Poly { params, .. } if typ.is_dict() => self
-                .convert_tp_into_value(params[0].clone())
-                .map(|value| {
-                    if let ValueObj::Dict(dict) = value {
-                        let mut ty = dict! {};
-                        for (k, v) in dict {
-                            let Ok(k) = self.convert_value_into_type(k) else {
-                                return Type;
-                            };
-                            let Ok(v) = self.convert_value_into_type(v) else {
-                                return Type;
-                            };
-                            ty.insert(self.meta_type(&k), self.meta_type(&v));
-                        }
-                        Type::from(ty)
-                    } else {
-                        Type
-                    }
-                })
-                .unwrap_or(Type),
             NamedTuple(tuple) => NamedTuple(
                 tuple
                     .iter()

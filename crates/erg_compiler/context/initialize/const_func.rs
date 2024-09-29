@@ -339,7 +339,7 @@ pub(crate) fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueR
     let slf = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
-    let Ok(slf) = ctx.convert_value_to_dict(&slf) else {
+    let ValueObj::Dict(slf) = slf else {
         return Err(type_mismatch("Dict", slf, "Self"));
     };
     let index = args
@@ -367,7 +367,7 @@ pub(crate) fn dict_keys(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<T
     let slf = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
-    let Ok(slf) = ctx.convert_value_to_dict(&slf) else {
+    let ValueObj::Dict(slf) = slf else {
         return Err(type_mismatch("Dict", slf, "Self"));
     };
     let dict_type = slf
@@ -394,7 +394,7 @@ pub(crate) fn dict_values(mut args: ValueArgs, ctx: &Context) -> EvalValueResult
     let slf = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
-    let Ok(slf) = ctx.convert_value_to_dict(&slf) else {
+    let ValueObj::Dict(slf) = slf else {
         return Err(type_mismatch("Dict", slf, "Self"));
     };
     let dict_type = slf
@@ -421,7 +421,7 @@ pub(crate) fn dict_items(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
     let slf = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
-    let Ok(slf) = ctx.convert_value_to_dict(&slf) else {
+    let ValueObj::Dict(slf) = slf else {
         return Err(type_mismatch("Dict", slf, "Self"));
     };
     let dict_type = slf
@@ -451,11 +451,11 @@ pub(crate) fn dict_items(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
 
 /// If the key is duplicated, the value of the right dict is used.
 /// `{Str: Int, Int: Float}.concat({Int: Str, Float: Bool}) == {Str: Int, Int: Str, Float: Bool}`
-pub(crate) fn dict_concat(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+pub(crate) fn dict_concat(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
     let slf = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
-    let Ok(slf) = ctx.convert_value_to_dict(&slf) else {
+    let ValueObj::Dict(slf) = slf else {
         return Err(type_mismatch("Dict", slf, "Self"));
     };
     let other = args
@@ -467,11 +467,11 @@ pub(crate) fn dict_concat(mut args: ValueArgs, ctx: &Context) -> EvalValueResult
     Ok(ValueObj::Dict(slf.concat(other)).into())
 }
 
-pub(crate) fn dict_diff(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+pub(crate) fn dict_diff(mut args: ValueArgs, _ctx: &Context) -> EvalValueResult<TyParam> {
     let slf = args
         .remove_left_or_key("Self")
         .ok_or_else(|| not_passed("Self"))?;
-    let Ok(slf) = ctx.convert_value_to_dict(&slf) else {
+    let ValueObj::Dict(slf) = slf else {
         return Err(type_mismatch("Dict", slf, "Self"));
     };
     let other = args
