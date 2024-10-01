@@ -454,8 +454,11 @@ impl PyScriptGenerator {
     pub fn transpile(&mut self, hir: HIR) -> PyScript {
         let mut code = String::new();
         for chunk in hir.module.into_iter() {
-            code += &self.transpile_expr(chunk);
-            code.push('\n');
+            let expr = self.transpile_expr(chunk);
+            if !expr.is_empty() {
+                code += &expr;
+                code.push('\n');
+            }
         }
         code = std::mem::take(&mut self.prelude) + &code;
         PyScript {
@@ -639,13 +642,18 @@ impl PyScriptGenerator {
             Expr::Compound(comp) => {
                 let mut code = "".to_string();
                 for expr in comp.into_iter() {
-                    code += &self.transpile_expr(expr);
-                    code += &format!("\n{}", "    ".repeat(self.level));
+                    let expr = self.transpile_expr(expr);
+                    if !expr.is_empty() {
+                        code += &expr;
+                        code += &format!("\n{}", "    ".repeat(self.level));
+                    }
                 }
                 code
             }
             Expr::Import(acc) => {
-                let full_name = Str::from(acc.show());
+                let full_name = acc
+                    .qual_name()
+                    .map_or(acc.show(), |s| s.replace(".__init__", ""));
                 let root = PyCodeGenerator::get_root(&acc);
                 self.prelude += &format!(
                     "{} = __import__(\"{full_name}\")\n",
@@ -1118,8 +1126,11 @@ impl PyScriptGenerator {
                     }
                 }
             }
-            code += &self.transpile_expr(chunk);
-            code.push('\n');
+            let expr = self.transpile_expr(chunk);
+            if !expr.is_empty() {
+                code += &expr;
+                code.push('\n');
+            }
         }
         self.level -= 1;
         code
