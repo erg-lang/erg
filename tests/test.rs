@@ -1,6 +1,6 @@
 mod common;
 use common::{
-    expect_compile_success, expect_end_with, expect_error_location_and_msg, expect_failure,
+    expect_compile_failure, expect_compile_success, expect_end_with, expect_error_location_and_msg,
     expect_success,
 };
 use erg_common::error::Location;
@@ -389,7 +389,7 @@ fn exec_record() -> Result<(), ()> {
 
 #[test]
 fn exec_record_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/record.er", 0, 2)
+    expect_compile_failure("tests/should_err/record.er", 0, 2)
 }
 
 #[test]
@@ -519,47 +519,47 @@ fn exec_with() -> Result<(), ()> {
 
 #[test]
 fn exec_addition_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/addition.er", 3, 9)
+    expect_compile_failure("tests/should_err/addition.er", 3, 9)
 }
 
 #[test]
 fn exec_advanced_type_spec_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/advanced_type_spec.er", 0, 1)
+    expect_compile_failure("tests/should_err/advanced_type_spec.er", 0, 1)
 }
 
 #[test]
 fn exec_args() -> Result<(), ()> {
-    expect_failure("tests/should_err/args.er", 0, 20)
+    expect_compile_failure("tests/should_err/args.er", 0, 20)
 }
 
 #[test]
 fn exec_args_expansion_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/args_expansion.er", 0, 4)
+    expect_compile_failure("tests/should_err/args_expansion.er", 0, 4)
 }
 
 #[test]
 fn exec_list_err() -> Result<(), ()> {
-    expect_failure("examples/list.er", 0, 1)
+    expect_compile_failure("examples/list.er", 0, 1)
 }
 
 #[test]
 fn exec_list_member_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/list_member.er", 0, 3)
+    expect_compile_failure("tests/should_err/list_member.er", 0, 3)
 }
 
 #[test]
 fn exec_and_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/and.er", 0, 1)
+    expect_compile_failure("tests/should_err/and.er", 0, 1)
 }
 
 #[test]
 fn exec_as() -> Result<(), ()> {
-    expect_failure("tests/should_err/as.er", 0, 6)
+    expect_compile_failure("tests/should_err/as.er", 0, 6)
 }
 
 #[test]
 fn exec_assert_cast() -> Result<(), ()> {
-    expect_failure("examples/assert_cast.er", 0, 3)
+    expect_compile_failure("examples/assert_cast.er", 0, 3)
 }
 
 #[test]
@@ -569,42 +569,42 @@ fn exec_assert_cast_err() -> Result<(), ()> {
 
 #[test]
 fn exec_class_attr_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/class_attr.er", 1, 1)
+    expect_compile_failure("tests/should_err/class_attr.er", 1, 1)
 }
 
 #[test]
 fn exec_coercion_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/coercion.er", 0, 1)
+    expect_compile_failure("tests/should_err/coercion.er", 0, 1)
 }
 
 #[test]
 fn exec_collection_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/collection.er", 0, 5)
+    expect_compile_failure("tests/should_err/collection.er", 0, 5)
 }
 
 #[test]
 fn exec_decl_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/decl.er", 1, 2)
+    expect_compile_failure("tests/should_err/decl.er", 1, 2)
 }
 
 #[test]
 fn exec_default_param_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/default_param.er", 0, 8)
+    expect_compile_failure("tests/should_err/default_param.er", 0, 8)
 }
 
 #[test]
 fn exec_dependent_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/dependent.er", 0, 5)
+    expect_compile_failure("tests/should_err/dependent.er", 0, 5)
 }
 
 #[test]
 fn exec_dict_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/dict.er", 0, 2)
+    expect_compile_failure("tests/should_err/dict.er", 0, 2)
 }
 
 #[test]
 fn exec_err_import() -> Result<(), ()> {
-    expect_failure("tests/should_err/err_import.er", 0, 9)
+    expect_compile_failure("tests/should_err/err_import.er", 0, 9)
 }
 
 /// This file compiles successfully, but causes a run-time error due to incomplete method dispatching
@@ -615,68 +615,68 @@ fn exec_tests_impl() -> Result<(), ()> {
 
 #[test]
 fn exec_impl_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/impl.er", 2, 2)
+    expect_compile_failure("tests/should_err/impl.er", 2, 2)
 }
 
 #[test]
 fn exec_import_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/import.er", 0, 2)
+    expect_compile_failure("tests/should_err/import.er", 0, 2)
 }
 
 #[test]
 fn exec_import_cyclic_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/cyclic/import.er", 0, 1)
+    expect_compile_failure("tests/should_err/cyclic/import.er", 0, 1)
 }
 
 #[test]
 fn exec_incomplete_typespec() -> Result<(), ()> {
     // TODO: errs: 2
-    expect_failure("tests/should_err/incomplete_typespec.er", 0, 3)
+    expect_compile_failure("tests/should_err/incomplete_typespec.er", 0, 3)
 }
 
 #[test]
 fn exec_infer_fn_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/infer_fn.er", 2, 6)
+    expect_compile_failure("tests/should_err/infer_fn.er", 2, 6)
 }
 
 #[test]
 fn exec_infer_union_array() -> Result<(), ()> {
-    expect_failure("tests/should_err/infer_union_array.er", 2, 1)
+    expect_compile_failure("tests/should_err/infer_union_array.er", 2, 1)
 }
 
 #[test]
 fn exec_inherit_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/inherit.er", 0, 1)
+    expect_compile_failure("tests/should_err/inherit.er", 0, 1)
 }
 
 #[test]
 fn exec_init_del_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/init_del.er", 0, 1)
+    expect_compile_failure("tests/should_err/init_del.er", 0, 1)
 }
 
 #[test]
 fn exec_invalid_interpol() -> Result<(), ()> {
-    expect_failure("tests/should_err/invalid_interpol.er", 0, 2)
+    expect_compile_failure("tests/should_err/invalid_interpol.er", 0, 2)
 }
 
 #[test]
 fn exec_invalid_param() -> Result<(), ()> {
-    expect_failure("tests/should_err/invalid_param.er", 0, 3)
+    expect_compile_failure("tests/should_err/invalid_param.er", 0, 3)
 }
 
 #[test]
 fn exec_move_check() -> Result<(), ()> {
-    expect_failure("examples/move_check.er", 1, 1)
+    expect_compile_failure("examples/move_check.er", 1, 1)
 }
 
 #[test]
 fn exec_or_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/or.er", 0, 1)
+    expect_compile_failure("tests/should_err/or.er", 0, 1)
 }
 
 #[test]
 fn exec_poly_type_spec_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/poly_type_spec.er", 0, 3)
+    expect_compile_failure("tests/should_err/poly_type_spec.er", 0, 3)
 }
 
 #[test]
@@ -684,129 +684,129 @@ fn exec_pyimport() -> Result<(), ()> {
     if cfg!(unix) {
         expect_end_with("examples/pyimport.er", 8, 111)
     } else {
-        expect_failure("examples/pyimport.er", 8, 1)
+        expect_compile_failure("examples/pyimport.er", 8, 1)
     }
 }
 
 #[test]
 fn exec_pyimport_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/pyimport.er", 0, 2)
+    expect_compile_failure("tests/should_err/pyimport.er", 0, 2)
 }
 
 #[test]
 fn exec_set() -> Result<(), ()> {
-    expect_failure("examples/set.er", 3, 1)
+    expect_compile_failure("examples/set.er", 3, 1)
 }
 
 #[test]
 fn exec_set_type_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/set_type.er", 0, 3)
+    expect_compile_failure("tests/should_err/set_type.er", 0, 3)
 }
 
 #[test]
 fn exec_side_effect() -> Result<(), ()> {
-    expect_failure("examples/side_effect.er", 5, 4)
+    expect_compile_failure("examples/side_effect.er", 5, 4)
 }
 
 #[test]
 fn exec_side_effect_test() -> Result<(), ()> {
-    expect_failure("tests/should_err/side_effect.er", 6, 5)
+    expect_compile_failure("tests/should_err/side_effect.er", 6, 5)
 }
 
 #[test]
 fn exec_structural_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/structural.er", 1, 11)
+    expect_compile_failure("tests/should_err/structural.er", 1, 11)
 }
 
 #[test]
 fn exec_subtyping_err() -> Result<(), ()> {
     // NOTE: The content of some errors is semantically redundant and can be reduced.
-    expect_failure("tests/should_err/subtyping.er", 3, 15)
+    expect_compile_failure("tests/should_err/subtyping.er", 3, 15)
 }
 
 #[test]
 fn exec_tuple_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/tuple.er", 0, 2)
+    expect_compile_failure("tests/should_err/tuple.er", 0, 2)
 }
 
 #[test]
 fn exec_trait_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/trait.er", 1, 1)
+    expect_compile_failure("tests/should_err/trait.er", 1, 1)
 }
 
 #[test]
 fn exec_callable() -> Result<(), ()> {
-    expect_failure("tests/should_err/callable.er", 0, 6)
+    expect_compile_failure("tests/should_err/callable.er", 0, 6)
 }
 
 #[test]
 fn exec_method_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/method.er", 0, 2)
+    expect_compile_failure("tests/should_err/method.er", 0, 2)
 }
 
 #[test]
 fn exec_move_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/move.er", 1, 2)
+    expect_compile_failure("tests/should_err/move.er", 1, 2)
 }
 
 #[test]
 fn exec_multiline_invalid_next() -> Result<(), ()> {
-    expect_failure("tests/should_err/multi_line_invalid_nest.er", 0, 1)
+    expect_compile_failure("tests/should_err/multi_line_invalid_nest.er", 0, 1)
 }
 
 #[test]
 fn exec_mut_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/mut.er", 0, 1)
+    expect_compile_failure("tests/should_err/mut.er", 0, 1)
 }
 
 #[test]
 fn exec_mut_list_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/mut_list.er", 0, 5)
+    expect_compile_failure("tests/should_err/mut_list.er", 0, 5)
 }
 
 #[test]
 fn exec_mut_dict_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/mut_dict.er", 0, 3)
+    expect_compile_failure("tests/should_err/mut_dict.er", 0, 3)
 }
 
 #[test]
 fn exec_quantified_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/quantified.er", 0, 3)
+    expect_compile_failure("tests/should_err/quantified.er", 0, 3)
 }
 
 #[test]
 fn exec_recursive_fn_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/recursive_fn.er", 0, 2)
+    expect_compile_failure("tests/should_err/recursive_fn.er", 0, 2)
 }
 
 #[test]
 fn exec_refinement_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/refinement.er", 0, 10)
+    expect_compile_failure("tests/should_err/refinement.er", 0, 10)
 }
 
 #[test]
 fn exec_refinement_class_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/refinement_class.er", 0, 2)
+    expect_compile_failure("tests/should_err/refinement_class.er", 0, 2)
 }
 
 #[test]
 fn exec_use_unit_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/use_unit.er", 0, 4)
+    expect_compile_failure("tests/should_err/use_unit.er", 0, 4)
 }
 
 #[test]
 fn exec_var_args_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/var_args.er", 0, 4)
+    expect_compile_failure("tests/should_err/var_args.er", 0, 4)
 }
 
 #[test]
 fn exec_var_kwargs_err() -> Result<(), ()> {
-    expect_failure("tests/should_err/var_kwargs.er", 0, 2)
+    expect_compile_failure("tests/should_err/var_kwargs.er", 0, 2)
 }
 
 #[test]
 fn exec_visibility() -> Result<(), ()> {
-    expect_failure("tests/should_err/visibility.er", 2, 7)
+    expect_compile_failure("tests/should_err/visibility.er", 2, 7)
 }
 
 #[test]

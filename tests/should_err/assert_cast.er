@@ -1,2 +1,2 @@
 s as Obj = "abc"
-assert s in (Int or NoneType) # ERR
+assert s in (Int or NoneType), "This is intended" # ERR at runtime

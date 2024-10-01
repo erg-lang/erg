@@ -145,26 +145,24 @@ pub(crate) fn expect_end_with(
     }
 }
 
-pub(crate) fn expect_failure(
+pub(crate) fn expect_compile_failure(
     file_path: &'static str,
     num_warns: usize,
     num_errs: usize,
 ) -> Result<(), ()> {
     match exec_file(file_path) {
-        Ok(stat) if stat.succeed() => {
-            println!("err[{file_path}]: should fail, but end with 0");
-            Err(())
-        }
         Ok(stat) => {
-            if stat.num_warns == num_warns {
-                Ok(())
-            } else {
+            if stat.num_warns != num_warns {
                 println!(
                     "err[{file_path}]: number of warnings should be {num_warns}, but got {}",
                     stat.num_warns
                 );
-                Err(())
             }
+            println!(
+                "err[{file_path}]: compilation should fail, but end with {}",
+                stat.code
+            );
+            Err(())
         }
         Err(errs) => {
             if errs.len() == num_errs {

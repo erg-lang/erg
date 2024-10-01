@@ -902,7 +902,8 @@ impl Context {
         namespace: &Context,
     ) -> Triple<VarInfo, TyCheckError> {
         let self_t = obj.t();
-        if let Some(sups) = self.get_nominal_super_type_ctxs(&self_t) {
+        // NOTE: get_nominal_super_type_ctxs({Nat}) == [<Nat>, ...], so we need to derefine
+        if let Some(sups) = self.get_nominal_super_type_ctxs(&self_t.derefine()) {
             for ctx in sups {
                 match ctx.rec_get_var_info(ident, AccessKind::BoundAttr, input, namespace) {
                     Triple::Ok(vi) => {
@@ -3055,9 +3056,10 @@ impl Context {
     }
 
     /// ```erg
-    /// get_nominal_super_type_ctx(Nat) == [<Nat>, <Int>, <Float>, ..., <Obj>, <Eq>, ...]
-    /// get_nominal_super_type_ctx({Nat}) == [<Type>, <Obj>, <Eq>, ...]
-    /// get_nominal_super_type_ctx(?T(:> Nat, <: Eq)) == == [<Eq>, ...]
+    /// get_nominal_super_type_ctxs(Nat) == [<Nat>, <Int>, <Float>, ..., <Obj>, <Eq>, ...]
+    /// # FIXME: ↓ should be [<Type>, <Obj>, <Eq>, ...]
+    /// get_nominal_super_type_ctxs({Nat}) == [<Nat>, <Int>, <Float>, ..., <Obj>, <Eq>, ...]
+    /// get_nominal_super_type_ctxs(?T(:> Nat, <: Eq)) == == [<Eq>, ...]
     /// ```
     pub fn get_nominal_super_type_ctxs<'a>(&'a self, t: &Type) -> Option<Vec<&'a TypeContext>> {
         match t {
@@ -3162,6 +3164,12 @@ impl Context {
     }
 
     // TODO: Never
+    /// ```erg
+    /// get_nominal_type_ctx(Int) == Some(<Int>)
+    /// get_nominal_type_ctx({Int}) == Some(<Int>) # FIXME: should be <Type>
+    /// get_nominal_type_ctx(Int -> Int) == Some(<FuncMetaType>)
+    /// get_nominal_type_ctx({ .x = Int }) == Some(<RecordMetaType>)
+    /// ```
     pub(crate) fn get_nominal_type_ctx<'a>(&'a self, typ: &Type) -> Option<&'a TypeContext> {
         match typ {
             Type::FreeVar(fv) if fv.is_linked() => {
@@ -3176,6 +3184,7 @@ impl Context {
                 }
             }
             Type::Refinement(refine) => {
+                // FIXME: Not good
                 if let Predicate::Equal {
                     rhs: TyParam::Value(ValueObj::Type(typ)),
                     ..
