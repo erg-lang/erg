@@ -1736,7 +1736,21 @@ impl Context {
                 }
             }
             // {.i = Int} and {.s = Str} == {.i = Int; .s = Str}
-            (Record(l), Record(r)) => Type::Record(l.clone().concat(r.clone())),
+            // {.i = Int} and {.i = Nat} == {.i = Nat}
+            // {i = Int} and {.i = Int} == {.i = Nat}
+            (Record(l), Record(r)) => {
+                let mut new = l.clone().concat(r.clone());
+                let duplicates = l.keys().filter(|&k| r.contains_key(k)).collect::<Set<_>>();
+                for k in duplicates {
+                    let v = &mut new[k];
+                    *v = self.intersection(&l[k], &r[k]);
+                    let (k, t) = new.get_key_value(k).unwrap();
+                    if k.vis.is_private() {
+                        new.insert(Field::public(k.symbol.clone()), t.clone());
+                    }
+                }
+                Type::Record(new)
+            }
             // {i = Int; j = Int} and not {i = Int} == {j = Int}
             // not {i = Int} and {i = Int; j = Int} == {j = Int}
             (other @ Record(rec), Not(t)) | (Not(t), other @ Record(rec)) => match t.as_ref() {

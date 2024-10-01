@@ -2075,6 +2075,22 @@ impl Context {
                     TypeObj::Builtin { t, .. } => Some(t),
                     TypeObj::Generated(t) => t.base_or_sup().map(|t| t.typ()),
                 };
+                let invalid_fields = if let Some(TypeObj::Builtin {
+                    t: Type::Record(rec),
+                    ..
+                }) = gen.additional()
+                {
+                    if let Err((fields, es)) =
+                        self.check_subtype_instance_attrs(sup.typ(), rec, call)
+                    {
+                        errs.extend(es);
+                        fields
+                    } else {
+                        Set::new()
+                    }
+                } else {
+                    Set::new()
+                };
                 // `Super.Requirement := {x = Int}` and `Self.Additional := {y = Int}`
                 // => `Self.Requirement := {x = Int; y = Int}`
                 let call_t = {
@@ -2089,8 +2105,15 @@ impl Context {
                                     errs.extend(es);
                                 }
                             }
+                            let param_t = if let Some(Type::Record(rec)) = param_t {
+                                let mut rec = rec.clone();
+                                rec.remove_entries(&invalid_fields);
+                                Some(Type::Record(rec))
+                            } else {
+                                param_t.cloned()
+                            };
                             let nd_params = param_t
-                                .map(|t| self.intersection(t, additional.typ()))
+                                .map(|pt| self.intersection(&pt, additional.typ()))
                                 .or(Some(additional.typ().clone()))
                                 .map_or(vec![], |t| vec![ParamTy::Pos(t)]);
                             (nd_params, None, vec![], None)
@@ -2121,8 +2144,15 @@ impl Context {
                     let (nd_params, var_params, d_params, kw_var_params) = if let Some(additional) =
                         gen.additional()
                     {
+                        let param_t = if let Some(Type::Record(rec)) = param_t {
+                            let mut rec = rec.clone();
+                            rec.remove_entries(&invalid_fields);
+                            Some(Type::Record(rec))
+                        } else {
+                            param_t.cloned()
+                        };
                         let nd_params = param_t
-                            .map(|t| self.intersection(t, additional.typ()))
+                            .map(|pt| self.intersection(&pt, additional.typ()))
                             .or(Some(additional.typ().clone()))
                             .map_or(vec![], |t| vec![ParamTy::Pos(t)]);
                         (nd_params, None, vec![], None)
@@ -2209,12 +2239,68 @@ impl Context {
         }
     }
 
+    fn check_subtype_instance_attrs(
+        &self,
+        sup: &Type,
+        rec: &Dict<Field, Type>,
+        call: Option<&ast::Call>,
+    ) -> Result<(), (Set<Field>, CompileErrors)> {
+        let mut errs = CompileErrors::empty();
+        let mut invalid_fields = Set::new();
+        let sup_ctx = self.get_nominal_type_ctx(sup);
+        let additional = call.and_then(|call| {
+            if let Some(ast::Expr::Record(record)) = call.args.get_with_key("Additional") {
+                Some(record)
+            } else {
+                None
+            }
+        });
+        for (field, sub_t) in rec.iter() {
+            let loc = additional
+                .as_ref()
+                .and_then(|record| {
+                    record
+                        .keys()
+                        .iter()
+                        .find(|id| id.inspect() == &field.symbol)
+                        .map(|name| name.loc())
+                })
+                .unwrap_or_default();
+            let varname = VarName::from_str(field.symbol.clone());
+            if let Some(sup_ctx) = sup_ctx {
+                if let Some(sup_vi) = sup_ctx.decls.get(&varname) {
+                    if !self.subtype_of(sub_t, &sup_vi.t) {
+                        invalid_fields.insert(field.clone());
+                        errs.push(CompileError::type_mismatch_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            loc,
+                            self.caused_by(),
+                            &field.symbol,
+                            None,
+                            &sup_vi.t,
+                            sub_t,
+                            None,
+                            None,
+                        ));
+                    }
+                }
+            }
+        }
+        if errs.is_empty() {
+            Ok(())
+        } else {
+            Err((invalid_fields, errs))
+        }
+    }
+
     fn register_instance_attrs(
         &self,
         ctx: &mut Context,
         rec: &Dict<Field, Type>,
         call: Option<&ast::Call>,
     ) -> CompileResult<()> {
+        let mut errs = CompileErrors::empty();
         let record = call.and_then(|call| {
             if let Some(ast::Expr::Record(record)) = call
                 .args
@@ -2248,16 +2334,20 @@ impl Context {
             );
             // self.index().register(&vi);
             if let Some(_ent) = ctx.decls.insert(varname.clone(), vi) {
-                return Err(CompileErrors::from(CompileError::duplicate_decl_error(
+                errs.push(CompileError::duplicate_decl_error(
                     self.cfg.input.clone(),
                     line!() as usize,
                     varname.loc(),
                     self.caused_by(),
                     varname.inspect(),
-                )));
+                ));
             }
         }
-        Ok(())
+        if errs.is_empty() {
+            Ok(())
+        } else {
+            Err(errs)
+        }
     }
 
     fn gen_class_new_method(

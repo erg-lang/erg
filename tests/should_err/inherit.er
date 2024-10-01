@@ -1,0 +1,9 @@
+@Inheritable
+Base = Class {
+    .value = Str;
+}
+
+C = Inherit Base, Additional := {
+    .value = Int # ERR
+}
+_ = C.new { .value = 10 }
