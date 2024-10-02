@@ -2,3 +2,6 @@ for! {"a": 1, "b": 2}.values(), s =>
     print! "key: " + s # ERR
 for! {"a": 1, "b": 2}.keys(), i =>
     print! i + 0 # ERR
+
+dic as {Nat: Int} = {1: -1}
+_ = dic[-1] # ERR

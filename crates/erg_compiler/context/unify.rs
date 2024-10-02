@@ -367,7 +367,8 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 if sub.len() == 1 && sup.len() == 1 {
                     let sub_key = sub.keys().next().unwrap();
                     let sup_key = sup.keys().next().unwrap();
-                    self.sub_unify_value(sub_key, sup_key)?;
+                    // contravariant
+                    self.sub_unify_value(sup_key, sub_key)?;
                     let sub_value = sub.values().next().unwrap();
                     let sup_value = sup.values().next().unwrap();
                     self.sub_unify_value(sub_value, sup_value)?;
@@ -698,6 +699,16 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 Ok(())
             }
             (TyParam::Dict(sub), TyParam::Dict(sup)) => {
+                if sub.len() == 1 && sup.len() == 1 {
+                    let sub_key = sub.keys().next().unwrap();
+                    let sup_key = sup.keys().next().unwrap();
+                    // contravariant
+                    self.sub_unify_tp(sup_key, sub_key, _variance, allow_divergence)?;
+                    let sub_value = sub.values().next().unwrap();
+                    let sup_value = sup.values().next().unwrap();
+                    self.sub_unify_tp(sub_value, sup_value, _variance, allow_divergence)?;
+                    return Ok(());
+                }
                 for (sub_k, sub_v) in sub.iter() {
                     if let Some(sup_v) = sup
                         .linear_get(sub_k)

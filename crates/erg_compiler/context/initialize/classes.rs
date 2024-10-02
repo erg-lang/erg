@@ -2370,7 +2370,7 @@ impl Context {
         let V = type_q(TY_V);
         let get_t = no_var_fn_met(
             dict! { K.clone() => V.clone() }.into(),
-            vec![kw(KW_KEY, K.clone())],
+            vec![kw(KW_KEY, Obj)],
             vec![kw_default(KW_DEFAULT, Def.clone(), NoneType)],
             or(V.clone(), Def),
         )
@@ -3855,19 +3855,15 @@ impl Context {
         );
         /* Dict! */
         let dict_mut_t = poly(MUT_DICT, vec![D.clone()]);
+        let dict_kv_t = poly(DICT, vec![dict! { K.clone() => V.clone() }.into()]);
+        let dict_mut_kv_t = poly(MUT_DICT, vec![dict! { K.clone() => V.clone() }.into()]);
         let mut dict_mut =
             Self::builtin_poly_class(MUT_DICT, vec![PS::named_nd(TY_D, mono(GENERIC_DICT))], 3);
         dict_mut.register_superclass(dict_t.clone(), &dict_);
         let K = type_q(TY_K);
         let V = type_q(TY_V);
         let insert_t = pr_met(
-            ref_mut(
-                dict_mut_t.clone(),
-                Some(poly(
-                    MUT_DICT,
-                    vec![D.clone() + dict! { K.clone() => V.clone() }.into()],
-                )),
-            ),
+            ref_mut(dict_mut_kv_t.clone(), None),
             vec![kw(KW_KEY, K.clone()), kw(KW_VALUE, V.clone())],
             None,
             vec![],
@@ -3876,30 +3872,16 @@ impl Context {
         .quantify();
         dict_mut.register_py_builtin(PROC_INSERT, insert_t, Some(FUNDAMENTAL_SETITEM), 12);
         let remove_t = pr_met(
-            ref_mut(
-                dict_mut_t.clone(),
-                Some(poly(
-                    MUT_DICT,
-                    vec![D
-                        .clone()
-                        .proj_call(FUNC_DIFF.into(), vec![dict! { K.clone() => Never }.into()])],
-                )),
-            ),
+            ref_mut(dict_mut_kv_t.clone(), None),
             vec![kw(KW_KEY, K.clone())],
             None,
             vec![],
-            proj_call(D.clone(), FUNDAMENTAL_GETITEM, vec![ty_tp(K.clone())]) | NoneType,
+            V.clone() | NoneType,
         )
         .quantify();
         dict_mut.register_py_builtin(PROC_REMOVE, remove_t, Some(FUNC_REMOVE), 19);
         let update_t = pr_met(
-            ref_mut(
-                dict_mut_t.clone(),
-                Some(poly(
-                    MUT_DICT,
-                    vec![D.clone() + dict! { K.clone() => V.clone() }.into()],
-                )),
-            ),
+            ref_mut(dict_mut_kv_t.clone(), None),
             vec![kw(
                 KW_ITERABLE,
                 poly(ITERABLE, vec![ty_tp(tuple_t(vec![K.clone(), V.clone()]))]),
@@ -3914,14 +3896,8 @@ impl Context {
         .quantify();
         dict_mut.register_py_builtin(PROC_UPDATE, update_t, Some(FUNC_UPDATE), 26);
         let merge_t = pr_met(
-            ref_mut(
-                dict_mut_t.clone(),
-                Some(poly(
-                    MUT_DICT,
-                    vec![D.proj_call(FUNC_CONCAT.into(), vec![D2.clone()])],
-                )),
-            ),
-            vec![kw(KW_OTHER, poly(DICT, vec![D2.clone()]))],
+            ref_mut(dict_mut_kv_t.clone(), None),
+            vec![kw(KW_OTHER, dict_kv_t.clone())],
             None,
             vec![],
             NoneType,
