@@ -3038,7 +3038,7 @@ impl Context {
                 self.convert_type_to_dict_type(t)
             }
             Type::Refinement(refine) => self.convert_type_to_dict_type(*refine.t),
-            Type::Poly { name, params } if &name[..] == "Dict" || &name[..] == "Dict!" => {
+            Type::Poly { name, params } if &name[..] == "Dict" => {
                 let dict = Dict::try_from(params[0].clone())?;
                 let mut new_dict = dict! {};
                 for (k, v) in dict.into_iter() {
@@ -3071,29 +3071,6 @@ impl Context {
                 } else {
                     Err(())
                 }
-            }
-            _ => Err(()),
-        }
-    }
-
-    pub(crate) fn convert_value_to_dict(
-        &self,
-        val: &ValueObj,
-    ) -> Result<Dict<ValueObj, ValueObj>, ()> {
-        match val {
-            ValueObj::Dict(dic) => Ok(dic.clone()),
-            ValueObj::Type(ty) if ty.typ().is_dict() || ty.typ().is_dict_mut() => {
-                let Ok(dict) = self
-                    .convert_type_to_dict_type(ty.typ().clone())
-                    .map(|dict| {
-                        dict.into_iter()
-                            .map(|(k, v)| (ValueObj::builtin_type(k), ValueObj::builtin_type(v)))
-                            .collect()
-                    })
-                else {
-                    return Err(());
-                };
-                Ok(dict)
             }
             _ => Err(()),
         }

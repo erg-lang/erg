@@ -1508,7 +1508,11 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                         return Ok(());
                     }
                     let sub = mem::take(&mut sub);
-                    let new_sup = self.ctx.intersection(&sup, maybe_sup);
+                    let new_sup = if let Some(new_sup) = self.ctx.min(&sup, maybe_sup).either() {
+                        new_sup.clone()
+                    } else {
+                        self.ctx.intersection(&sup, maybe_sup)
+                    };
                     self.sub_unify(&sub, &new_sup)?;
                     // ?T(:> Int, <: Int) ==> ?T == Int
                     // ?T(:> List(Int, 3), <: List(?T, ?N)) ==> ?T == List(Int, 3)

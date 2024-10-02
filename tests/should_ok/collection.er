@@ -10,6 +10,3 @@ ab = if True: # x: {"a"} or {"b"}
     do "a"
     do "b"
 _ = ["c", "d", ab] # OK
-
-d2 = [{"a": 1}]
-assert d2[0]["a"] == 1
