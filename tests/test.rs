@@ -721,7 +721,7 @@ fn exec_structural_err() -> Result<(), ()> {
 #[test]
 fn exec_subtyping_err() -> Result<(), ()> {
     // NOTE: The content of some errors is semantically redundant and can be reduced.
-    expect_compile_failure("tests/should_err/subtyping.er", 3, 13)
+    expect_compile_failure("tests/should_err/subtyping.er", 3, 15)
 }
 
 #[test]
