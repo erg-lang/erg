@@ -2694,7 +2694,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 );
                 errors.push(err);
             }
-            let Some(methods_list) = &mut self
+            let Some(methods_list) = self
                 .module
                 .context
                 .get_mut_nominal_type_ctx(&class)
@@ -2709,7 +2709,8 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 continue;
             };
             let methods_idx = methods_list.iter().position(|m| m.id == methods.id);
-            let Some(methods_ctx) = methods_idx.map(|idx| methods_list.remove(idx)) else {
+            // We can't remove the method ctx here because methods' information must be hold
+            let Some(methods_ctx) = methods_idx.map(|idx| methods_list[idx].clone()) else {
                 let err = LowerError::unreachable(
                     self.cfg.input.clone(),
                     erg_common::fn_name!(),
@@ -2773,6 +2774,16 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                             errors.extend(errs);
                         }
                     },
+                }
+            }
+            if let Some(methods_list) = self
+                .module
+                .context
+                .get_mut_nominal_type_ctx(&class)
+                .map(|ctx| &mut ctx.methods_list)
+            {
+                if let Some(idx) = methods_idx {
+                    methods_list.remove(idx);
                 }
             }
             if let Err(errs) = self.module.context.check_decls() {

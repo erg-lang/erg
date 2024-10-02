@@ -1411,7 +1411,7 @@ impl Context {
     }
 
     /// enumerates all the variables/methods in the current context & super contexts.
-    fn type_dir<'t>(&'t self, namespace: &'t Context) -> Dict<&VarName, &VarInfo> {
+    pub(crate) fn type_dir<'t>(&'t self, namespace: &'t Context) -> Dict<&VarName, &VarInfo> {
         let mut attrs = self.locals.iter().collect::<Dict<_, _>>();
         attrs.guaranteed_extend(
             self.params

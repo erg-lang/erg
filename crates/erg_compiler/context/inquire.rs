@@ -631,14 +631,14 @@ impl Context {
             .future_defined_locals
             .get_key_value(&ident.inspect()[..])
         {
-            if name.loc().is_real() && ident.loc() != name.loc() {
+            if name.loc().is_real() && ident.loc() < name.loc() {
                 return Triple::Err(TyCheckError::access_before_def_error(
                     input.clone(),
                     line!() as usize,
                     ident.loc(),
                     namespace.name.to_string(),
                     ident.inspect(),
-                    name.ln_begin().unwrap_or(100),
+                    name.ln_begin().unwrap_or(0),
                     self.get_similar_name(ident.inspect()),
                 ));
             } else if ident.loc() == name.loc() {
