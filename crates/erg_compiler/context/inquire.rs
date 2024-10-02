@@ -1362,23 +1362,18 @@ impl Context {
                 }
             }
         }
-        let mut checked = vec![];
-        // FIXME: tests/should_ok/collection.er
-        let obj_t = if obj.ref_t().lower_bounded().is_dict() {
-            obj.t()
-        } else {
-            obj.ref_t().lower_bounded()
-        };
-        for ctx in self.get_nominal_super_type_ctxs(&obj_t).ok_or_else(|| {
-            TyCheckError::type_not_found(
-                self.cfg.input.clone(),
-                line!() as usize,
-                obj.loc(),
-                self.caused_by(),
-                obj.ref_t(),
-            )
-        })? {
-            checked.push(&ctx.typ);
+        for ctx in self
+            .get_nominal_super_type_ctxs(obj.ref_t())
+            .ok_or_else(|| {
+                TyCheckError::type_not_found(
+                    self.cfg.input.clone(),
+                    line!() as usize,
+                    obj.loc(),
+                    self.caused_by(),
+                    obj.ref_t(),
+                )
+            })?
+        {
             if let Some(vi) = ctx.get_current_scope_non_param(&attr_name.name) {
                 self.validate_visibility(attr_name, vi, input, namespace)?;
                 return Ok(vi.clone());
@@ -1398,45 +1393,6 @@ impl Context {
                         return Err(e);
                     }
                     Triple::None => {}
-                }
-            }
-        }
-        if obj.ref_t() != &obj.ref_t().lower_bounded() {
-            for ctx in self
-                .get_nominal_super_type_ctxs(obj.ref_t())
-                .ok_or_else(|| {
-                    TyCheckError::type_not_found(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        obj.loc(),
-                        self.caused_by(),
-                        obj.ref_t(),
-                    )
-                })?
-            {
-                if checked.contains(&&ctx.typ) {
-                    continue;
-                }
-                if let Some(vi) = ctx.get_current_scope_non_param(&attr_name.name) {
-                    self.validate_visibility(attr_name, vi, input, namespace)?;
-                    return Ok(vi.clone());
-                }
-                for methods_ctx in ctx.methods_list.iter() {
-                    if let Some(vi) = methods_ctx.get_current_scope_non_param(&attr_name.name) {
-                        self.validate_visibility(attr_name, vi, input, namespace)?;
-                        return Ok(vi.clone());
-                    }
-                }
-                if let Some(ctx) = self.get_same_name_context(&ctx.name) {
-                    match ctx.rec_get_var_info(attr_name, AccessKind::BoundAttr, input, namespace) {
-                        Triple::Ok(t) => {
-                            return Ok(t);
-                        }
-                        Triple::Err(e) => {
-                            return Err(e);
-                        }
-                        Triple::None => {}
-                    }
                 }
             }
         }
