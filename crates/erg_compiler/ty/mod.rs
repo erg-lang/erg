@@ -4178,11 +4178,9 @@ impl Type {
                     sub
                 };
                 let sup = if sup.addr_eq(target) { Type::Obj } else { sup };
-                fv.do_avoiding_recursion(|| {
-                    let sub = sub.eliminate_subsup(target);
-                    let sup = sup.eliminate_subsup(target);
-                    self.update_tyvar(sub, sup, None, false);
-                });
+                let sub = sub.eliminate_subsup(target);
+                let sup = sup.eliminate_subsup(target);
+                self.update_tyvar(sub, sup, None, false);
                 self
             }
             Self::And(tys, idx) => Self::checked_and(
