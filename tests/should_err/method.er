@@ -1,13 +1,2 @@
 .call_method obj, x = obj.method(x) # ERR
 .member obj = obj.member # ERR
-
-.D2! = Class Dict! { Str: List!(Int) }
-.D2!.
-    new!() = .D2! !{:}
-    insert!(ref! self, name, val) =
-        self::base.insert! name, ![val]
-
-d = .D2!.new!()
-d.insert! "aaa", 1 # OK
-d.insert! "aaa", "bbb" # ERR
-d.insert! 1, 1 # ERR

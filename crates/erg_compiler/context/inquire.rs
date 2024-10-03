@@ -4045,7 +4045,7 @@ impl Context {
     pub fn is_trait(&self, typ: &Type) -> bool {
         match typ {
             Type::Never => false,
-            Type::FreeVar(fv) if fv.is_linked() => self.is_trait(&fv.crack()),
+            Type::FreeVar(fv) if fv.is_linked() => self.is_class(&fv.crack()),
             Type::FreeVar(_) => false,
             Type::And(tys, _) => tys.iter().any(|t| self.is_trait(t)),
             Type::Or(tys) => tys.iter().all(|t| self.is_trait(t)),

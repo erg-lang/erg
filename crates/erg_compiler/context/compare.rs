@@ -7,7 +7,7 @@ use erg_common::dict::Dict;
 use erg_common::set::Set;
 use erg_common::style::colors::DEBUG_ERROR;
 use erg_common::traits::StructuralEq;
-use erg_common::{assume_unreachable, log, set, set_recursion_limit};
+use erg_common::{assume_unreachable, log, set_recursion_limit};
 use erg_common::{Str, Triple};
 
 use crate::context::eval::UndoableLinkedList;
@@ -1457,7 +1457,6 @@ impl Context {
     /// union(List(Int, 2), List(Str, 2)) == List(Int or Str, 2)
     /// union(List(Int, 2), List(Str, 3)) == List(Int, 2) or List(Int, 3)
     /// union(List(Int, 2), List(Int, ?N)) == List(Int, ?N)
-    /// union(List(Int, 2), List(?T, 2)) == List(Int or ?T, 2)
     /// union({ .a = Int }, { .a = Str }) == { .a = Int or Str }
     /// union({ .a = Int }, { .a = Int; .b = Int }) == { .a = Int } or { .a = Int; .b = Int } # not to lost `b` information
     /// union((A and B) or C) == (A or C) and (B or C)
@@ -1567,8 +1566,6 @@ impl Context {
     /// union_tp(1, 1) => Some(1)
     /// union_tp(1, 2) => None
     /// union_tp(?N, 2) => Some(2) # REVIEW:
-    /// union_tp(_: Obj, 1) == Some(_: Obj)
-    /// union_tp(_: Nat, -1) == Some(_: Int)
     /// ```
     pub(crate) fn union_tp(&self, lhs: &TyParam, rhs: &TyParam) -> Option<TyParam> {
         match (lhs, rhs) {
@@ -1593,40 +1590,6 @@ impl Context {
                 }
                 Some(TyParam::List(tps))
             }
-            (TyParam::Tuple(l), TyParam::Tuple(r)) => {
-                let mut tps = vec![];
-                for (l, r) in l.iter().zip(r.iter()) {
-                    if let Some(tp) = self.union_tp(l, r) {
-                        tps.push(tp);
-                    } else {
-                        return None;
-                    }
-                }
-                Some(TyParam::Tuple(tps))
-            }
-            (TyParam::UnsizedList(l), TyParam::UnsizedList(r)) => {
-                Some(TyParam::unsized_list(self.union_tp(l, r)?))
-            }
-            (TyParam::Set(l), TyParam::Set(r)) if l.len() == 1 && r.len() == 1 => {
-                let l = l.iter().next().unwrap();
-                let r = r.iter().next().unwrap();
-                Some(TyParam::Set(set! { self.union_tp(l, r)? }))
-            }
-            (TyParam::Record(l), TyParam::Record(r)) if l.len() == 1 && r.len() == 1 => {
-                let mut tps = Dict::new();
-                for (l_k, l_v) in l.iter() {
-                    if let Some(r_v) = r.get(l_k) {
-                        if let Some(tp) = self.union_tp(l_v, r_v) {
-                            tps.insert(l_k.clone(), tp);
-                        } else {
-                            return None;
-                        }
-                    } else {
-                        return None;
-                    }
-                }
-                Some(TyParam::Record(tps))
-            }
             (fv @ TyParam::FreeVar(f), other) | (other, fv @ TyParam::FreeVar(f))
                 if f.is_unbound() =>
             {
@@ -1637,31 +1600,6 @@ impl Context {
                 } else {
                     None
                 }
-            }
-            (TyParam::Erased(t), other) | (other, TyParam::Erased(t)) => {
-                let other_t = self.get_tp_t(other).ok()?.derefine();
-                Some(TyParam::erased(self.union(t, &other_t)))
-            }
-            (
-                TyParam::App {
-                    name: ln,
-                    args: las,
-                },
-                TyParam::App {
-                    name: rn,
-                    args: ras,
-                },
-            ) if ln == rn => {
-                debug_assert_eq!(las.len(), ras.len());
-                let mut unified_args = vec![];
-                for (lp, rp) in las.iter().zip(ras.iter()) {
-                    if let Some(union) = self.union_tp(lp, rp) {
-                        unified_args.push(union);
-                    } else {
-                        return None;
-                    }
-                }
-                Some(TyParam::app(ln.clone(), unified_args))
             }
             (_, _) => {
                 if self.eq_tp(lhs, rhs) {
@@ -1873,12 +1811,6 @@ impl Context {
         }
     }
 
-    /// ```erg
-    /// intersection_tp(1, 1) => Some(1)
-    /// intersection_tp(1, 2) => None
-    /// intersection_tp(?N, 2) => Some(2) # REVIEW:
-    /// intersection_tp(_: Nat, 1) == Some(1)
-    /// intersection_tp(_: Str, 1) == None
     pub(crate) fn intersection_tp(&self, lhs: &TyParam, rhs: &TyParam) -> Option<TyParam> {
         match (lhs, rhs) {
             (TyParam::Value(ValueObj::Type(l)), TyParam::Value(ValueObj::Type(r))) => {
@@ -1902,40 +1834,6 @@ impl Context {
                 }
                 Some(TyParam::List(tps))
             }
-            (TyParam::Tuple(l), TyParam::Tuple(r)) => {
-                let mut tps = vec![];
-                for (l, r) in l.iter().zip(r.iter()) {
-                    if let Some(tp) = self.intersection_tp(l, r) {
-                        tps.push(tp);
-                    } else {
-                        return None;
-                    }
-                }
-                Some(TyParam::Tuple(tps))
-            }
-            (TyParam::UnsizedList(l), TyParam::UnsizedList(r)) => {
-                Some(TyParam::unsized_list(self.intersection_tp(l, r)?))
-            }
-            (TyParam::Set(l), TyParam::Set(r)) if l.len() == 1 && r.len() == 1 => {
-                let l = l.iter().next().unwrap();
-                let r = r.iter().next().unwrap();
-                Some(TyParam::Set(set! { self.intersection_tp(l, r)? }))
-            }
-            (TyParam::Record(l), TyParam::Record(r)) if l.len() == 1 && r.len() == 1 => {
-                let mut tps = Dict::new();
-                for (l_k, l_v) in l.iter() {
-                    if let Some(r_v) = r.get(l_k) {
-                        if let Some(tp) = self.intersection_tp(l_v, r_v) {
-                            tps.insert(l_k.clone(), tp);
-                        } else {
-                            return None;
-                        }
-                    } else {
-                        return None;
-                    }
-                }
-                Some(TyParam::Record(tps))
-            }
             (fv @ TyParam::FreeVar(f), other) | (other, fv @ TyParam::FreeVar(f))
                 if f.is_unbound() =>
             {
@@ -1946,36 +1844,6 @@ impl Context {
                 } else {
                     None
                 }
-            }
-            (TyParam::Erased(t), other) | (other, TyParam::Erased(t)) => {
-                let other_t = self.get_tp_t(other).ok()?.derefine();
-                let isec = self.intersection(t, &other_t);
-                if isec != Never {
-                    Some(other.clone())
-                } else {
-                    None
-                }
-            }
-            (
-                TyParam::App {
-                    name: ln,
-                    args: las,
-                },
-                TyParam::App {
-                    name: rn,
-                    args: ras,
-                },
-            ) if ln == rn => {
-                debug_assert_eq!(las.len(), ras.len());
-                let mut unified_args = vec![];
-                for (lp, rp) in las.iter().zip(ras.iter()) {
-                    if let Some(intersec) = self.intersection_tp(lp, rp) {
-                        unified_args.push(intersec);
-                    } else {
-                        return None;
-                    }
-                }
-                Some(TyParam::app(ln.clone(), unified_args))
             }
             (_, _) => {
                 if self.eq_tp(lhs, rhs) {

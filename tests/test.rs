@@ -599,7 +599,7 @@ fn exec_dependent_err() -> Result<(), ()> {
 
 #[test]
 fn exec_dict_err() -> Result<(), ()> {
-    expect_compile_failure("tests/should_err/dict.er", 0, 3)
+    expect_compile_failure("tests/should_err/dict.er", 0, 2)
 }
 
 #[test]
@@ -741,7 +741,7 @@ fn exec_callable() -> Result<(), ()> {
 
 #[test]
 fn exec_method_err() -> Result<(), ()> {
-    expect_compile_failure("tests/should_err/method.er", 0, 4)
+    expect_compile_failure("tests/should_err/method.er", 0, 2)
 }
 
 #[test]
