@@ -394,3 +394,40 @@ impl<K: Hash + Eq, V> Dict<K, V> {
         self.dict.entry(k)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::str::Str;
+
+    #[test]
+    fn test_dict() {
+        let mut dict = Dict::new();
+        dict.insert(Str::from("a"), 1);
+        dict.insert(Str::from("b"), 2);
+        dict.insert(Str::from("c"), 3);
+        assert_eq!(dict.len(), 3);
+        assert_eq!(dict.get(&Str::from("a")), Some(&1));
+        assert_eq!(dict.get(&Str::from("b")), Some(&2));
+        assert_eq!(dict.get(&Str::from("c")), Some(&3));
+        assert_eq!(dict.get(&Str::from("d")), None);
+        assert_eq!(dict.get("a"), Some(&1));
+        assert_eq!(dict.get("b"), Some(&2));
+        assert_eq!(dict.get("c"), Some(&3));
+        assert_eq!(dict.get("d"), None);
+        assert_eq!(dict.remove(&Str::from("a")), Some(1));
+        assert_eq!(dict.remove(&Str::from("a")), None);
+        assert_eq!(dict.len(), 2);
+        assert_eq!(dict.get(&Str::from("a")), None);
+        assert_eq!(dict.get(&Str::from("b")), Some(&2));
+        assert_eq!(dict.get(&Str::from("c")), Some(&3));
+        assert_eq!(dict.get(&Str::from("d")), None);
+        dict.clear();
+        assert_eq!(dict.len(), 0);
+        assert_eq!(dict.get(&Str::from("a")), None);
+        assert_eq!(dict.get(&Str::from("b")), None);
+        assert_eq!(dict.get(&Str::from("c")), None);
+        assert_eq!(dict.get(&Str::from("d")), None);
+    }
+}

@@ -3835,13 +3835,13 @@ impl Immutable for VarName {}
 
 impl PartialEq for VarName {
     fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
+        self.0.content == other.0.content
     }
 }
 
 impl std::hash::Hash for VarName {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.0.hash(state)
+        self.0.content.hash(state)
     }
 }
 
@@ -6308,5 +6308,28 @@ impl InlineModule {
 impl InlineModule {
     pub const fn new(input: Input, ast: AST, import: Call) -> Self {
         Self { input, ast, import }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use erg_common::dict::Dict;
+
+    #[test]
+    fn test_dict() {
+        let mut dict = Dict::new();
+        let a = Token::new(TokenKind::Symbol, "a", 1, 1);
+        let a = VarName::new(a);
+        let a2 = Token::new(TokenKind::Symbol, "a", 2, 3);
+        let a2 = VarName::new(a2);
+        dict.insert(a.clone(), 1);
+        assert_eq!(dict.len(), 1);
+        assert_eq!(dict.get(&a2), Some(&1));
+        assert_eq!(dict.get("a"), Some(&1));
+        assert_eq!(dict.get(&Str::from("a")), Some(&1));
+        assert_eq!(dict.remove(&a2), Some(1));
+        assert_eq!(dict.remove(&a2), None);
     }
 }
