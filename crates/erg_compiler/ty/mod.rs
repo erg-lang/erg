@@ -4172,6 +4172,12 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().eliminate_subsup(target),
             Self::FreeVar(ref fv) if fv.constraint_is_sandwiched() => {
                 let (sub, sup) = fv.get_subsup().unwrap();
+                let sub = if sub.addr_eq(target) {
+                    Type::Never
+                } else {
+                    sub
+                };
+                let sup = if sup.addr_eq(target) { Type::Obj } else { sup };
                 let sub = sub.eliminate_subsup(target);
                 let sup = sup.eliminate_subsup(target);
                 self.update_tyvar(sub, sup, None, false);
