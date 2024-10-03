@@ -2182,24 +2182,36 @@ impl Context {
                         gen.typ().clone(),
                     )
                 };
-                if let Err(es) = methods.register_fixed_auto_impl(
-                    "__call__",
-                    call_t,
-                    Immutable,
-                    Visibility::private(ctx.name.clone()),
-                    None,
-                ) {
-                    errs.extend(es);
-                }
-                // 必要なら、ユーザーが独自に上書きする
-                if let Err(es) = methods.register_auto_impl(
-                    "new",
-                    new_t,
-                    Immutable,
-                    Visibility::public(ctx.name.clone()),
-                    None,
-                ) {
-                    errs.extend(es);
+                if PYTHON_MODE {
+                    if let Err(es) = methods.register_auto_impl(
+                        "__call__",
+                        call_t,
+                        Immutable,
+                        Visibility::private(ctx.name.clone()),
+                        None,
+                    ) {
+                        errs.extend(es);
+                    }
+                } else {
+                    if let Err(es) = methods.register_fixed_auto_impl(
+                        "__call__",
+                        call_t,
+                        Immutable,
+                        Visibility::private(ctx.name.clone()),
+                        None,
+                    ) {
+                        errs.extend(es);
+                    }
+                    // 必要なら、ユーザーが独自に上書きする
+                    if let Err(es) = methods.register_auto_impl(
+                        "new",
+                        new_t,
+                        Immutable,
+                        Visibility::public(ctx.name.clone()),
+                        None,
+                    ) {
+                        errs.extend(es);
+                    }
                 }
                 ctx.methods_list.push(MethodContext::new(
                     DefId(0),

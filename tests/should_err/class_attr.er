@@ -7,3 +7,8 @@ _ = C.y # ERR
 c = C.new({.x = 1; .y = 2})
 _: Int = c.x
 _: Int = c.y
+
+D = Class()
+D.
+    x = y # ERR
+    y = 1
