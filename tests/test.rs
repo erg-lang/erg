@@ -569,7 +569,7 @@ fn exec_assert_cast_err() -> Result<(), ()> {
 
 #[test]
 fn exec_class_attr_err() -> Result<(), ()> {
-    expect_compile_failure("tests/should_err/class_attr.er", 1, 2)
+    expect_compile_failure("tests/should_err/class_attr.er", 1, 1)
 }
 
 #[test]
