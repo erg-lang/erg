@@ -21,6 +21,7 @@ use erg_compiler::erg_parser::parse::Parsable;
 use erg_compiler::erg_parser::token::TokenKind;
 use erg_compiler::hir::Expr;
 use erg_compiler::module::SharedCompilerResource;
+use erg_compiler::ty::constructors::{poly, ty_tp};
 use erg_compiler::ty::{HasType, ParamTy, Type};
 use erg_compiler::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
 use TokenKind::*;
@@ -639,6 +640,14 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     result.push(item);
                 }
             }
+        } else if let Some(receiver_t) = &receiver_t {
+            result.extend(self.magic_completion_items(
+                &comp_kind,
+                receiver_t,
+                &uri,
+                pos,
+                &mod_ctx.context,
+            )?);
         }
         for (name, vi) in contexts.into_iter().flat_map(|ctx| ctx.local_dir()) {
             if comp_kind.should_be_method() && vi.vis.is_private() {
@@ -710,6 +719,54 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         }
         _log!(self, "completion items: {}", result.len());
         Ok(Some(CompletionResponse::Array(result)))
+    }
+
+    fn magic_completion_items(
+        &self,
+        comp_kind: &CompletionKind,
+        receiver_t: &Type,
+        uri: &NormalizedUrl,
+        pos: Position,
+        ctx: &Context,
+    ) -> ELSResult<Vec<CompletionItem>> {
+        let mut items = vec![];
+        // magic completion
+        // `expr.if` => `if expr, do:`
+        // `expr.for!` => `for! expr, i =>`
+        if comp_kind.should_be_method() {
+            let Some(receiver) = self.get_receiver(uri, pos)? else {
+                return Ok(items);
+            };
+            let mut range = loc_to_range(receiver.loc()).unwrap();
+            let s_receiver = self.file_cache.get_ranged(uri, range)?.unwrap_or_default();
+            // receiver + `.`
+            range.end.character += 1;
+            let remove = TextEdit::new(range, "".into());
+            if ctx.subtype_of(receiver_t, &Type::Bool) {
+                let mut item_if =
+                    CompletionItem::new_simple("if".into(), "magic completion".into());
+                item_if.insert_text = Some(format!("if {s_receiver}, do:"));
+                item_if.additional_text_edits = Some(vec![remove.clone()]);
+                items.push(item_if);
+                let mut item_if =
+                    CompletionItem::new_simple("if!".into(), "magic completion".into());
+                item_if.insert_text = Some(format!("if! {s_receiver}, do!:"));
+                item_if.additional_text_edits = Some(vec![remove.clone()]);
+                items.push(item_if);
+                let mut item_while =
+                    CompletionItem::new_simple("while!".into(), "magic completion".into());
+                item_while.insert_text = Some(format!("while! do! {s_receiver}, do!:"));
+                item_while.additional_text_edits = Some(vec![remove]);
+                items.push(item_while);
+            } else if ctx.subtype_of(receiver_t, &poly("Iterable", vec![ty_tp(Type::Obj)])) {
+                let mut item_for =
+                    CompletionItem::new_simple("for!".into(), "magic completion".into());
+                item_for.insert_text = Some(format!("for! {s_receiver}, i =>"));
+                item_for.additional_text_edits = Some(vec![remove]);
+                items.push(item_for);
+            }
+        }
+        Ok(items)
     }
 
     pub(crate) fn handle_resolve_completion(
