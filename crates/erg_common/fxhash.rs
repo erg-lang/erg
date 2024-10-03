@@ -37,9 +37,11 @@ use core::mem::size_of;
 use core::ops::BitXor;
 use std::collections::{HashMap, HashSet};
 
+use ahash::AHasher;
+
 /// Type alias for a hashmap using the `fx` hash algorithm.
-pub type FxHashMap<K, V> = HashMap<K, V, BuildHasherDefault<FxHasher>>;
-pub type FxHashSet<T> = HashSet<T, BuildHasherDefault<FxHasher>>;
+pub type FxHashMap<K, V> = HashMap<K, V, BuildHasherDefault<AHasher>>;
+pub type FxHashSet<T> = HashSet<T, BuildHasherDefault<AHasher>>;
 
 /// A speedy hash algorithm for use within rustc. The hashmap in liballoc
 /// by default uses SipHash which isn't quite as speedy as we want. In the

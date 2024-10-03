@@ -103,7 +103,7 @@ pub fn fmt_indent(s: String, depth: usize) -> String {
 
 /// If you want to get a hash consisting of multiple objects, pass it as a tuple or array
 pub fn get_hash<T: std::hash::Hash>(t: &T) -> usize {
-    let mut s = fxhash::FxHasher::default();
+    let mut s = ahash::AHasher::default();
     t.hash(&mut s);
     let res = std::hash::Hasher::finish(&s);
     if cfg!(target_pointer_width = "64") {
