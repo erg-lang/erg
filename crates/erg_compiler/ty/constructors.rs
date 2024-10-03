@@ -91,8 +91,16 @@ pub fn tuple_t(args: Vec<Type>) -> Type {
     )
 }
 
+pub fn homo_tuple_t(t: Type) -> Type {
+    poly("HomogenousTuple", vec![TyParam::t(t)])
+}
+
 pub fn set_t(elem_t: Type, len: TyParam) -> Type {
     poly("Set", vec![TyParam::t(elem_t), len])
+}
+
+pub fn unknown_len_set_t(elem_t: Type) -> Type {
+    set_t(elem_t, TyParam::erased(Type::Nat))
 }
 
 pub fn set_mut(elem_t: Type, len: TyParam) -> Type {

@@ -4191,7 +4191,11 @@ impl Context {
             .unwrap_or(&Type::Obj);
         if self.related(base_def_t, assert_def_t) {
             // FIXME: Vec(_), List(Int, 2) -> Vec(2)
-            let casted = poly(base.qual_name(), guard.to.typarams());
+            let casted = if base.is_polymorphic() {
+                poly(base.qual_name(), guard.to.typarams())
+            } else {
+                *guard.to.clone()
+            };
             Ok(casted)
         } else {
             Err(TyCheckErrors::from(TyCheckError::invalid_type_cast_error(

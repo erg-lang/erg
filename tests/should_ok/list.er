@@ -43,3 +43,7 @@ l3 = [1, 2, 3, 4]
 assert l3.from(2) == [3, 4]
 assert l3.from(2).from(1) == [4]
 assert l3.from(5) == []
+
+l4 as List Obj = l3
+assert 1 in l4
+assert not "a" in l4

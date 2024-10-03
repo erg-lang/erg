@@ -2914,7 +2914,17 @@ impl Context {
             let err = TyCheckError::new(err.into(), self.cfg.input.clone(), self.caused_by());
             (Type::Failure, TyCheckErrors::from(err))
         })?;
-        self.instantiate_typespec(&t_spec)
+        match self.instantiate_typespec(&t_spec)? {
+            // FIXME:
+            Type::Mono(name) => match &name[..] {
+                "GenericList" => Ok(unknown_len_list_t(Obj)),
+                "GenericTuple" => Ok(homo_tuple_t(Obj)),
+                "GenericDict" => Ok(dict! { Obj => Obj }.into()),
+                "GenericSet" => Ok(unknown_len_set_t(Obj)),
+                _ => Ok(mono(name)),
+            },
+            other => Ok(other),
+        }
     }
 
     pub(crate) fn expr_to_value(&self, expr: ast::Expr) -> Failable<ValueObj> {

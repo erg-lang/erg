@@ -9,3 +9,7 @@ assert dic.diff({ "a": 1 }) == { "b": 2 }
 assert dic.get("a"+"b", 3) == 3
 rec = dic.as_record()
 assert rec.a == 1 and rec.b == 2
+
+gdic as {Obj: Obj} = dic
+assert "a" in gdic
+assert not 1 in gdic
