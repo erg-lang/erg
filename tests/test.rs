@@ -645,11 +645,6 @@ fn exec_infer_union_array() -> Result<(), ()> {
 }
 
 #[test]
-fn exec_inherit_err() -> Result<(), ()> {
-    expect_compile_failure("tests/should_err/inherit.er", 0, 1)
-}
-
-#[test]
 fn exec_init_del_err() -> Result<(), ()> {
     expect_compile_failure("tests/should_err/init_del.er", 0, 1)
 }

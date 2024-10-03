@@ -338,16 +338,6 @@ impl<K: Hash + Eq + Immutable, V> Dict<K, V> {
     {
         self.dict.remove_entry(k)
     }
-
-    pub fn remove_entries<'q, Q>(&mut self, keys: impl IntoIterator<Item = &'q Q>)
-    where
-        K: Borrow<Q>,
-        Q: Hash + Eq + ?Sized + 'q,
-    {
-        for k in keys {
-            self.remove_entry(k);
-        }
-    }
 }
 
 impl<K: Hash + Eq, V> Dict<K, V> {

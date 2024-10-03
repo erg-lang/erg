@@ -13,13 +13,3 @@ D.
 d: D = D.new(1)
 print! d
 assert D.const == 0
-
-@Inheritable
-Base = Class {
-    .value = Int
-}
-E = Inherit Base, Additional := {
-    .value = Nat
-}
-e = E.new { .value = 10 }
-discard e.value.times!
