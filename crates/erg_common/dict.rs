@@ -36,14 +36,23 @@ impl<K: Hash + Eq + Immutable, V: Hash + Eq> Eq for Dict<K, V> {}
 
 impl<K: Hash, V: Hash> Hash for Dict<K, V> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        let mut v = self
-            .iter()
-            .map(|(key, val)| (get_hash(key), key, val))
-            .collect::<Vec<_>>();
-        v.sort_by_key(|(h, _, _)| *h);
-        for (_, key, val) in v.iter() {
-            key.hash(state);
-            val.hash(state);
+        let len = self.len();
+        len.hash(state);
+        if len <= 1 {
+            for (key, val) in self.iter() {
+                key.hash(state);
+                val.hash(state);
+            }
+        } else {
+            let mut v = self
+                .iter()
+                .map(|(key, val)| (get_hash(key), val))
+                .collect::<Vec<_>>();
+            v.sort_unstable_by_key(|(h, _)| *h);
+            for (h, val) in v.iter() {
+                state.write_usize(*h);
+                val.hash(state);
+            }
         }
     }
 }

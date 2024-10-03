@@ -63,9 +63,12 @@ impl<T> Default for Set<T> {
 
 impl<T: Hash> Hash for Set<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        let mut v = self.iter().map(get_hash).collect::<Vec<_>>();
-        v.sort();
-        v.hash(state);
+        self.len().hash(state);
+        let sum = self
+            .iter()
+            .map(get_hash)
+            .fold(0usize, |acc, x| acc.wrapping_add(x));
+        sum.hash(state);
     }
 }
 
