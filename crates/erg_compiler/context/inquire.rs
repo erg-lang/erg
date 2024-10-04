@@ -989,7 +989,7 @@ impl Context {
             // (obj: Failure).foo: Failure
             Type::Failure => Triple::Ok(VarInfo::ILLEGAL),
             Type::FreeVar(fv) if fv.is_linked() => {
-                self.get_attr_info_from_attributive(&fv.crack(), ident, namespace)
+                self.get_attr_info_from_attributive(&fv.unwrap_linked(), ident, namespace)
             }
             Type::FreeVar(fv) if fv.get_super().is_some() => {
                 let sup = fv.get_super().unwrap();
@@ -1890,7 +1890,7 @@ impl Context {
             Type::FreeVar(fv) if fv.is_linked() => self.substitute_call(
                 obj,
                 attr_name,
-                &fv.crack(),
+                &fv.unwrap_linked(),
                 pos_args,
                 kw_args,
                 (var_args, kw_var_args),
@@ -3063,7 +3063,9 @@ impl Context {
     /// ```
     pub fn get_nominal_super_type_ctxs<'a>(&'a self, t: &Type) -> Option<Vec<&'a TypeContext>> {
         match t {
-            Type::FreeVar(fv) if fv.is_linked() => self.get_nominal_super_type_ctxs(&fv.crack()),
+            Type::FreeVar(fv) if fv.is_linked() => {
+                self.get_nominal_super_type_ctxs(&fv.unwrap_linked())
+            }
             Type::FreeVar(fv) => {
                 if let Some(sup) = fv.get_super() {
                     self.get_nominal_super_type_ctxs(&sup)
@@ -3173,7 +3175,7 @@ impl Context {
     pub(crate) fn get_nominal_type_ctx<'a>(&'a self, typ: &Type) -> Option<&'a TypeContext> {
         match typ {
             Type::FreeVar(fv) if fv.is_linked() => {
-                if let Some(res) = self.get_nominal_type_ctx(&fv.crack()) {
+                if let Some(res) = self.get_nominal_type_ctx(&fv.unwrap_linked()) {
                     return Some(res);
                 }
             }
@@ -3351,7 +3353,7 @@ impl Context {
     ) -> Option<&'a mut TypeContext> {
         match typ {
             Type::FreeVar(fv) if fv.is_linked() => {
-                if let Some(res) = self.get_mut_nominal_type_ctx(&fv.crack()) {
+                if let Some(res) = self.get_mut_nominal_type_ctx(&fv.unwrap_linked()) {
                     return Some(res);
                 }
             }
@@ -4022,7 +4024,7 @@ impl Context {
         match typ {
             Type::And(_, _) => false,
             Type::Never => true,
-            Type::FreeVar(fv) if fv.is_linked() => self.is_class(&fv.crack()),
+            Type::FreeVar(fv) if fv.is_linked() => self.is_class(&fv.unwrap_linked()),
             Type::FreeVar(_) => false,
             Type::Or(tys) => tys.iter().all(|t| self.is_class(t)),
             Type::Proj { lhs, rhs } => self
@@ -4045,7 +4047,7 @@ impl Context {
     pub fn is_trait(&self, typ: &Type) -> bool {
         match typ {
             Type::Never => false,
-            Type::FreeVar(fv) if fv.is_linked() => self.is_trait(&fv.crack()),
+            Type::FreeVar(fv) if fv.is_linked() => self.is_trait(&fv.unwrap_linked()),
             Type::FreeVar(_) => false,
             Type::And(tys, _) => tys.iter().any(|t| self.is_trait(t)),
             Type::Or(tys) => tys.iter().all(|t| self.is_trait(t)),

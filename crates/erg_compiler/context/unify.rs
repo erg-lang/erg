@@ -86,8 +86,8 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             }
         }
         match (maybe_sub, maybe_sup) {
-            (FreeVar(fv), _) if fv.is_linked() => self.occur(&fv.crack(), maybe_sup),
-            (_, FreeVar(fv)) if fv.is_linked() => self.occur(maybe_sub, &fv.crack()),
+            (FreeVar(fv), _) if fv.is_linked() => self.occur(&fv.unwrap_linked(), maybe_sup),
+            (_, FreeVar(fv)) if fv.is_linked() => self.occur(maybe_sub, &fv.unwrap_linked()),
             (Subr(subr), FreeVar(fv)) if fv.is_unbound() => {
                 for default_t in subr.default_params.iter().map(|pt| pt.typ()) {
                     self.occur_inner(default_t, maybe_sup)?;
@@ -229,8 +229,8 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
 
     fn occur_inner(&self, maybe_sub: &Type, maybe_sup: &Type) -> TyCheckResult<()> {
         match (maybe_sub, maybe_sup) {
-            (FreeVar(fv), _) if fv.is_linked() => self.occur_inner(&fv.crack(), maybe_sup),
-            (_, FreeVar(fv)) if fv.is_linked() => self.occur_inner(maybe_sub, &fv.crack()),
+            (FreeVar(fv), _) if fv.is_linked() => self.occur_inner(&fv.unwrap_linked(), maybe_sup),
+            (_, FreeVar(fv)) if fv.is_linked() => self.occur_inner(maybe_sub, &fv.unwrap_linked()),
             (FreeVar(sub), FreeVar(sup)) => {
                 if sub.addr_eq(sup) {
                     Err(TyCheckErrors::from(TyCheckError::subtyping_error(
@@ -2054,8 +2054,8 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     return None;
                 }
             }
-            (FreeVar(fv), _) if fv.is_linked() => return self.unify(&fv.crack(), rhs),
-            (_, FreeVar(fv)) if fv.is_linked() => return self.unify(lhs, &fv.crack()),
+            (FreeVar(fv), _) if fv.is_linked() => return self.unify(&fv.unwrap_linked(), rhs),
+            (_, FreeVar(fv)) if fv.is_linked() => return self.unify(lhs, &fv.unwrap_linked()),
             // TODO: unify(?T, ?U) ?
             (FreeVar(_), FreeVar(_)) => {}
             (FreeVar(fv), _) if fv.constraint_is_sandwiched() => {
