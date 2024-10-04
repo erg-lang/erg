@@ -44,6 +44,12 @@ impl From<LexError> for ErrorCore {
     }
 }
 
+impl LexError {
+    pub fn loc(&self) -> Location {
+        self.0.loc
+    }
+}
+
 #[cfg_attr(feature = "pylib", pyo3::pyclass)]
 #[derive(Debug)]
 pub struct LexErrors(Vec<LexError>);

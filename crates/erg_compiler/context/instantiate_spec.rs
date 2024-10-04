@@ -1899,7 +1899,8 @@ impl Context {
                     Err((tp, errs))
                 }
             }
-            other => type_feature_error!(
+            ast::ConstExpr::Dummy(_) => Ok(TyParam::Failure),
+            other @ ast::ConstExpr::Def(_) => type_feature_error!(
                 self,
                 other.loc(),
                 &format!("instantiating const expression {other}")

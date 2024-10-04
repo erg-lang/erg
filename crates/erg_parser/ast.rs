@@ -2180,6 +2180,13 @@ impl ConstAccessor {
             Self::Subscr(subscr) => Accessor::Subscr(subscr.downgrade()),
         }
     }
+
+    pub fn local_name(&self) -> Option<&str> {
+        match self {
+            Self::Local(local) => Some(local.inspect()),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -2856,13 +2863,14 @@ pub enum ConstExpr {
     BinOp(ConstBinOp),
     UnaryOp(ConstUnaryOp),
     TypeAsc(ConstTypeAsc),
+    Dummy(Dummy),
 }
 
-impl_nested_display_for_chunk_enum!(ConstExpr; Lit, Accessor, App, List, Set, Dict, Tuple, Record, BinOp, UnaryOp, Def, Lambda, Set, TypeAsc);
+impl_nested_display_for_chunk_enum!(ConstExpr; Lit, Accessor, App, List, Set, Dict, Tuple, Record, BinOp, UnaryOp, Def, Lambda, Set, TypeAsc, Dummy);
 impl_display_from_nested!(ConstExpr);
-impl_locational_for_enum!(ConstExpr; Lit, Accessor, App, List, Set, Dict, Tuple, Record, BinOp, UnaryOp, Def, Lambda, Set, TypeAsc);
-impl_into_py_for_enum!(ConstExpr; Lit, Accessor, App, List, Set, Dict, Tuple, Record, Def, Lambda, BinOp, UnaryOp, TypeAsc);
-impl_from_py_for_enum!(ConstExpr; Lit(Literal), Accessor(ConstAccessor), App(ConstApp), List(ConstList), Set(ConstSet), Dict(ConstDict), Tuple(ConstTuple), Record(ConstRecord), Def(ConstDef), Lambda(ConstLambda), BinOp(ConstBinOp), UnaryOp(ConstUnaryOp), TypeAsc(ConstTypeAsc));
+impl_locational_for_enum!(ConstExpr; Lit, Accessor, App, List, Set, Dict, Tuple, Record, BinOp, UnaryOp, Def, Lambda, Set, TypeAsc, Dummy);
+impl_into_py_for_enum!(ConstExpr; Lit, Accessor, App, List, Set, Dict, Tuple, Record, Def, Lambda, BinOp, UnaryOp, TypeAsc, Dummy);
+impl_from_py_for_enum!(ConstExpr; Lit(Literal), Accessor(ConstAccessor), App(ConstApp), List(ConstList), Set(ConstSet), Dict(ConstDict), Tuple(ConstTuple), Record(ConstRecord), Def(ConstDef), Lambda(ConstLambda), BinOp(ConstBinOp), UnaryOp(ConstUnaryOp), TypeAsc(ConstTypeAsc), Dummy(Dummy));
 
 impl TryFrom<&ParamPattern> for ConstExpr {
     type Error = ();
@@ -2904,6 +2912,7 @@ impl ConstExpr {
             Self::BinOp(binop) => Expr::BinOp(binop.downgrade()),
             Self::UnaryOp(unop) => Expr::UnaryOp(unop.downgrade()),
             Self::TypeAsc(type_asc) => Expr::TypeAscription(type_asc.downgrade()),
+            Self::Dummy(dummy) => Expr::Dummy(dummy),
         }
     }
 
@@ -2921,6 +2930,70 @@ impl ConstExpr {
 
     pub fn call_expr(self, args: ConstArgs) -> Self {
         Self::App(self.call(args))
+    }
+
+    pub fn local_name(&self) -> Option<&str> {
+        match self {
+            Self::Accessor(acc) => acc.local_name(),
+            Self::TypeAsc(type_asc) => type_asc.expr.local_name(),
+            _ => None,
+        }
+    }
+
+    pub fn map(self, mut f: impl FnMut(Self) -> Self) -> Self {
+        match self {
+            Self::Accessor(ConstAccessor::Attr(attr)) => {
+                let obj = f(*attr.obj);
+                obj.attr_expr(attr.name)
+            }
+            Self::BinOp(binop) => {
+                let lhs = f(*binop.lhs);
+                let rhs = f(*binop.rhs);
+                Self::BinOp(ConstBinOp::new(binop.op, lhs, rhs))
+            }
+            Self::UnaryOp(unop) => {
+                let expr = f(*unop.expr);
+                Self::UnaryOp(ConstUnaryOp::new(unop.op, expr))
+            }
+            Self::List(ConstList::Normal(normal)) => {
+                let elems = normal.elems.map(f);
+                Self::List(ConstList::Normal(ConstNormalList::new(
+                    normal.l_sqbr,
+                    normal.r_sqbr,
+                    elems,
+                    normal.guard.map(|x| *x),
+                )))
+            }
+            Self::Tuple(tuple) => {
+                let elems = tuple.elems.map(f);
+                Self::Tuple(ConstTuple::new(elems))
+            }
+            Self::Set(ConstSet::Normal(normal)) => {
+                let elems = normal.elems.map(f);
+                Self::Set(ConstSet::Normal(ConstNormalSet::new(
+                    normal.l_brace,
+                    normal.r_brace,
+                    elems,
+                )))
+            }
+            Self::Dict(ConstDict {
+                l_brace,
+                r_brace,
+                kvs,
+            }) => {
+                let kvs = kvs
+                    .into_iter()
+                    .map(|kv| ConstKeyValue::new(f(kv.key), f(kv.value)))
+                    .collect();
+                Self::Dict(ConstDict::new(l_brace, r_brace, kvs))
+            }
+            Self::App(app) => {
+                let obj = f(*app.obj);
+                let args = app.args.map(f);
+                Self::App(ConstApp::new(obj, app.attr_name, args))
+            }
+            _ => self,
+        }
     }
 }
 
@@ -3106,6 +3179,22 @@ impl ConstArgs {
                 .collect(),
             kw_var.map(|arg| PosArg::new(arg.expr.downgrade())),
             paren,
+        )
+    }
+
+    pub fn map(self, mut f: impl FnMut(ConstExpr) -> ConstExpr) -> Self {
+        Self::new(
+            self.pos_args
+                .into_iter()
+                .map(|arg| ConstPosArg::new(f(arg.expr)))
+                .collect(),
+            self.var_args.map(|arg| ConstPosArg::new(f(arg.expr))),
+            self.kw_args
+                .into_iter()
+                .map(|arg| ConstKwArg::new(arg.keyword, f(arg.expr)))
+                .collect(),
+            self.kw_var.map(|arg| ConstPosArg::new(f(arg.expr))),
+            self.paren,
         )
     }
 }
