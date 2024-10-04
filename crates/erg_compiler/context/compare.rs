@@ -166,9 +166,9 @@ impl Context {
             return (Absolutely, true);
         }
         match (lhs, rhs) {
-            (Obj, _) | (_, Never | Failure) => (Absolutely, true),
+            (Obj | Failure, _) | (_, Never | Failure) => (Absolutely, true),
             (_, Obj) if lhs.is_mono_value_class() => (Absolutely, false),
-            (Never | Failure, _) if rhs.is_mono_value_class() => (Absolutely, false),
+            (Never, _) if rhs.is_mono_value_class() => (Absolutely, false),
             (Complex | Float | Ratio | Int | Nat | Bool, Bool)
             | (Complex | Float | Ratio | Int | Nat, Nat)
             | (Complex | Float | Ratio | Int, Int)

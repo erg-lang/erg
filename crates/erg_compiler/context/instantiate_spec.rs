@@ -594,14 +594,16 @@ impl Context {
                         .get_singular_ctxs(&attr.obj.clone().downgrade(), self)
                         .map_err(|errs| (Type::Failure, errs.into()))?;
                     for ctx in ctxs {
-                        if let Ok(typ) = ctx.instantiate_local_poly_t(
+                        match ctx.instantiate_local_poly_t(
                             &attr.name,
                             &poly.args,
                             opt_decl_t,
                             tmp_tv_cache,
                             not_found_is_qvar,
                         ) {
-                            return Ok(typ);
+                            Ok(typ) => return Ok(typ),
+                            Err((Type::Failure, _)) => {}
+                            Err((typ, es)) => return Err((typ, es)),
                         }
                     }
                     Err((

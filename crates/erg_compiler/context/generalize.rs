@@ -683,9 +683,6 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                     args: new_args,
                 })
             }
-            TyParam::Failure if self.level == 0 => Err(TyCheckErrors::from(
-                TyCheckError::dummy_infer_error(self.ctx.cfg.input.clone(), fn_name!(), line!()),
-            )),
             TyParam::Mono(_) | TyParam::Failure => Ok(tp),
         }
     }

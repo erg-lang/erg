@@ -1391,7 +1391,8 @@ pub enum Type {
     },
     FreeVar(FreeTyVar), // a reference to the type of other expression, see docs/compiler/inference.md
     #[default]
-    Failure, // indicates a failure of type inference and behaves as `Never`.
+    /// for all T, `T <: Failure and T :> Failure`
+    Failure, // indicates a failure of type inference and behaves as `Any`.
     /// used to represent `TyParam` is not initialized (see `erg_compiler::context::instantiate_tp`)
     Uninited,
 }
