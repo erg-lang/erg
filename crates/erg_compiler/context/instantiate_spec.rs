@@ -1,5 +1,6 @@
 use std::option::Option; // conflicting to Type::Option
 
+use erg_common::consts::PYTHON_MODE;
 use erg_common::levenshtein::get_similar_name;
 #[allow(unused)]
 use erg_common::log;
@@ -682,6 +683,7 @@ impl Context {
             "Inf" => Ok(Type::Inf),
             "NegInf" => Ok(Type::NegInf),
             "Never" => Ok(Type::Never),
+            "Any" if PYTHON_MODE => Ok(Type::Failure),
             "ClassType" => Ok(Type::ClassType),
             "TraitType" => Ok(Type::TraitType),
             "Type" => Ok(Type::Type),
