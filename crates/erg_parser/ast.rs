@@ -872,6 +872,22 @@ impl Accessor {
         }
     }
 
+    pub fn full_name(&self) -> Option<Str> {
+        match self {
+            Self::Ident(ident) => Some(ident.inspect().clone()),
+            Self::Attr(attr) => Some(
+                format!(
+                    "{}{}{}",
+                    attr.obj.full_name()?,
+                    attr.ident.vis,
+                    attr.ident.inspect()
+                )
+                .into(),
+            ),
+            _ => None,
+        }
+    }
+
     pub fn is_const(&self) -> bool {
         match self {
             Self::Ident(ident) => ident.is_const(),
@@ -6099,6 +6115,15 @@ impl Expr {
     pub fn get_name(&self) -> Option<&Str> {
         match self {
             Expr::Accessor(acc) => acc.name(),
+            Expr::TypeAscription(ascription) => ascription.expr.get_name(),
+            _ => None,
+        }
+    }
+
+    pub fn full_name(&self) -> Option<Str> {
+        match self {
+            Expr::Accessor(acc) => acc.full_name(),
+            Expr::TypeAscription(ascription) => ascription.expr.full_name(),
             _ => None,
         }
     }

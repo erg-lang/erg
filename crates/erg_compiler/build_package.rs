@@ -691,7 +691,16 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
             return Ok(());
         }
         let path = Path::new(&__name__[..]);
-        let import_path = match cfg.input.resolve_path(path, cfg) {
+        let resolved = if call.additional_operation().unwrap().is_erg_import() {
+            cfg.input
+                .resolve_real_path(path, cfg)
+                .or_else(|| cfg.input.resolve_decl_path(path, cfg))
+        } else {
+            cfg.input
+                .resolve_decl_path(path, cfg)
+                .or_else(|| cfg.input.resolve_real_path(path, cfg))
+        };
+        let import_path = match resolved {
             Some(path) => path,
             None if ERG_MODE => {
                 for _ in 0..600 {
