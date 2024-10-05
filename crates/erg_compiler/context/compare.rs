@@ -7,7 +7,7 @@ use erg_common::dict::Dict;
 use erg_common::set::Set;
 use erg_common::style::colors::DEBUG_ERROR;
 use erg_common::traits::StructuralEq;
-use erg_common::{assume_unreachable, log, set, set_recursion_limit};
+use erg_common::{assume_unreachable, fmt_vec, log, set, set_recursion_limit};
 use erg_common::{Str, Triple};
 
 use crate::context::eval::UndoableLinkedList;
@@ -1548,7 +1548,13 @@ impl Context {
                     params: rps,
                 },
             ) if ln == rn => {
-                debug_assert_eq!(lps.len(), rps.len());
+                debug_assert_eq!(
+                    lps.len(),
+                    rps.len(),
+                    "[{}], [{}]",
+                    fmt_vec(lps),
+                    fmt_vec(rps)
+                );
                 let mut unified_params = vec![];
                 for (lp, rp) in lps.iter().zip(rps.iter()) {
                     if let Some(union) = self.union_tp(lp, rp) {

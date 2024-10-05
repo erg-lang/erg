@@ -562,7 +562,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         let mut new_tuple = vec![];
         let (elems, .., paren) = tuple.elems.deconstruct();
         let expect_ts = expect.transpose(elems.len());
-        for (elem, expect) in elems.into_iter().zip(expect_ts) {
+        for (elem, expect) in elems
+            .into_iter()
+            .zip(expect_ts.into_iter().chain(std::iter::repeat(None)))
+        {
             match self.lower_expr(elem.expr, expect.as_ref()) {
                 Ok(elem) => new_tuple.push(elem),
                 Err((expr, errs)) => {
