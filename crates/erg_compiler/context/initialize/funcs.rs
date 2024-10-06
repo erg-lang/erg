@@ -230,7 +230,7 @@ impl Context {
         let t_list = no_var_func(
             vec![],
             vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
-            list_t(T.clone(), TyParam::erased(Nat)),
+            out_list_t(T.clone(), TyParam::erased(Nat)),
         )
         .quantify();
         let t_log = func(
@@ -358,7 +358,7 @@ impl Context {
         let t_sorted = nd_func(
             vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
             None,
-            list_t(T.clone(), TyParam::erased(Nat)),
+            out_list_t(T.clone(), TyParam::erased(Nat)),
         )
         .quantify();
         let t_staticmethod = nd_func(vec![kw(KW_FUNC, F.clone())], None, F.clone()).quantify();

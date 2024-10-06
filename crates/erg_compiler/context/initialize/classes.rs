@@ -71,7 +71,7 @@ impl Context {
         obj.register_py_builtin(FUNDAMENTAL_DOC, ClassType, Some(FUNDAMENTAL_DOC), 11);
         obj.register_py_builtin(
             FUNDAMENTAL_DIR,
-            fn0_met(Obj, unknown_len_list_t(Str)),
+            fn0_met(Obj, out_unknown_len_list_t(Str)),
             Some(FUNDAMENTAL_DIR),
             12,
         );
@@ -534,7 +534,7 @@ impl Context {
                 BYTES,
                 or(
                     mono(BYTES),
-                    list_t(Type::from(value(0)..=value(255)), TyParam::erased(Nat)),
+                    out_list_t(Type::from(value(0)..=value(255)), TyParam::erased(Nat)),
                 ),
             )],
             vec![kw(
@@ -1028,7 +1028,7 @@ impl Context {
                 None,
                 vec![kw(KW_MAXSPLIT, Nat)],
                 None,
-                unknown_len_list_t(Str),
+                out_unknown_len_list_t(Str),
             ),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
@@ -1042,7 +1042,7 @@ impl Context {
                 None,
                 vec![kw(KW_KEEPENDS, Bool)],
                 None,
-                unknown_len_list_t(Str),
+                out_unknown_len_list_t(Str),
             ),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
@@ -1447,7 +1447,7 @@ impl Context {
         type_.register_superclass(Obj, &obj);
         type_.register_builtin_erg_impl(
             FUNC_MRO,
-            fn0_met(Type, list_t(Type, TyParam::erased(Nat))),
+            fn0_met(Type, out_list_t(Type, TyParam::erased(Nat))),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
@@ -1683,7 +1683,7 @@ impl Context {
         generic_list.register_trait_methods(mono(GENERIC_LIST), list_eq);
         let t_call = func1(
             poly(ITERABLE, vec![ty_tp(T.clone())]),
-            list_t(T.clone(), TyParam::erased(Nat)),
+            out_list_t(T.clone(), TyParam::erased(Nat)),
         )
         .quantify();
         generic_list.register_builtin_erg_impl(
@@ -1730,7 +1730,7 @@ impl Context {
             lis_t.clone(),
             vec![kw(KW_RHS, list_t(T.clone(), M.clone()))],
             vec![],
-            list_t(T.clone(), N.clone() + M.clone()),
+            out_list_t(T.clone(), N.clone() + M.clone()),
         )
         .quantify();
         list_.register_py_builtin(FUNC_CONCAT, t.clone(), Some(OP_ADD), 9);
@@ -1755,7 +1755,7 @@ impl Context {
             2,
         );
         list_add.register_builtin_erg_impl(OP_ADD, t, Immutable, Visibility::BUILTIN_PUBLIC);
-        let out_t = list_t(T.clone(), N.clone() + M.clone());
+        let out_t = out_list_t(T.clone(), N.clone() + M.clone());
         list_add.register_builtin_const(
             OUTPUT,
             Visibility::BUILTIN_PUBLIC,
@@ -1767,7 +1767,7 @@ impl Context {
             lis_t.clone(),
             vec![kw(KW_ELEM, T.clone())],
             vec![],
-            list_t(T.clone(), N.clone() + value(1usize)),
+            out_list_t(T.clone(), N.clone() + value(1usize)),
         )
         .quantify();
         list_.register_builtin_erg_impl(FUNC_PUSH, t, Immutable, Visibility::BUILTIN_PUBLIC);
@@ -1775,7 +1775,7 @@ impl Context {
             lis_t.clone(),
             vec![pos(singleton(Nat, M.clone()))],
             vec![],
-            list_t(T.clone(), N.clone() * M.clone()),
+            out_list_t(T.clone(), N.clone() * M.clone()),
         )
         .quantify();
         list_.register_builtin_erg_impl(
@@ -1812,7 +1812,7 @@ impl Context {
                 & fn1_kw_met(
                     list_t(T.clone(), N.clone()),
                     anon(poly(RANGE, vec![ty_tp(Int)]) | mono(SLICE)),
-                    unknown_len_list_t(T.clone()),
+                    out_unknown_len_list_t(T.clone()),
                 ))
             .quantify();
         let get_item = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
@@ -1831,7 +1831,7 @@ impl Context {
             list_t(T.clone(), N.clone()),
             vec![pos(Nat), kw(KW_ELEM, T.clone())],
             vec![],
-            list_t(T.clone(), N.clone() + value(1usize)),
+            out_list_t(T.clone(), N.clone() + value(1usize)),
         )
         .quantify();
         let list_insert = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
@@ -1851,7 +1851,7 @@ impl Context {
             list_t(T.clone(), N.clone()),
             vec![pos(Nat)],
             vec![],
-            list_t(T.clone(), N.clone() - value(1usize)),
+            out_list_t(T.clone(), N.clone() - value(1usize)),
         )
         .quantify();
         let list_remove_at = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
@@ -1870,7 +1870,7 @@ impl Context {
             list_t(T.clone(), N.clone()),
             vec![kw(KW_ELEM, T.clone())],
             vec![],
-            list_t(T.clone(), TyParam::erased(Nat)),
+            out_list_t(T.clone(), TyParam::erased(Nat)),
         )
         .quantify();
         let list_remove_all = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
@@ -1889,7 +1889,7 @@ impl Context {
             unknown_len_list_t(T.clone()),
             vec![kw(KW_NTH, Nat)],
             vec![],
-            unknown_len_list_t(T.clone()),
+            out_unknown_len_list_t(T.clone()),
         )
         .quantify();
         list_.register_builtin_py_impl(
@@ -1938,8 +1938,11 @@ impl Context {
         )));
         list_.register_builtin_const(FUNC_UNION, Visibility::BUILTIN_PUBLIC, None, union);
         // shape: (self: [Type; _]) -> [Nat; _]
-        let list_shape_t =
-            fn0_met(list_t(Type, TyParam::erased(Nat)), unknown_len_list_t(Nat)).quantify();
+        let list_shape_t = fn0_met(
+            list_t(Type, TyParam::erased(Nat)),
+            out_unknown_len_list_t(Nat),
+        )
+        .quantify();
         let shape = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_SHAPE,
             list_shape,
@@ -2015,8 +2018,8 @@ impl Context {
             list_t(T.clone(), TyParam::erased(Nat)),
             func1(T.clone(), Bool),
             tuple_t(vec![
-                list_t(T.clone(), TyParam::erased(Nat)),
-                list_t(T.clone(), TyParam::erased(Nat)),
+                out_list_t(T.clone(), TyParam::erased(Nat)),
+                out_list_t(T.clone(), TyParam::erased(Nat)),
             ]),
         );
         list_.register_py_builtin(FUNC_PARTITION, t.quantify(), Some(FUNC_PARTITION), 37);
@@ -2027,7 +2030,7 @@ impl Context {
                 KW_SAME_BUCKET,
                 or(func2(T.clone(), T.clone(), Bool), NoneType),
             )],
-            list_t(T.clone(), TyParam::erased(Nat)),
+            out_list_t(T.clone(), TyParam::erased(Nat)),
         );
         list_.register_py_builtin(FUNC_DEDUP, t.quantify(), Some(FUNC_DEDUP), 28);
         let sum_t = no_var_fn_met(
@@ -2060,7 +2063,7 @@ impl Context {
             list_t(T.clone(), TyParam::erased(Nat)),
             vec![],
             vec![],
-            list_t(T.clone(), TyParam::erased(Nat)),
+            out_list_t(T.clone(), TyParam::erased(Nat)),
         );
         let reversed = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_REVERSED,
@@ -2088,7 +2091,7 @@ impl Context {
         generic_set.register_trait_methods(mono(GENERIC_SET), set_eq);
         let t_call = func1(
             poly(ITERABLE, vec![ty_tp(T.clone())]),
-            set_t(T.clone(), TyParam::erased(Nat)),
+            out_set_t(T.clone(), TyParam::erased(Nat)),
         )
         .quantify();
         generic_set.register_builtin_erg_impl(
@@ -2109,6 +2112,7 @@ impl Context {
         let mut set_ =
             Self::builtin_poly_class(SET, vec![PS::t_nd(TY_T), PS::named_nd(TY_N, Nat)], 10);
         let set_t = set_t(T.clone(), TyParam::erased(Nat));
+        let out_set = out_set_t(T.clone(), TyParam::erased(Nat));
         set_.register_superclass(mono(GENERIC_SET), &generic_set);
         set_.register_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
             .unwrap();
@@ -2116,7 +2120,7 @@ impl Context {
             set_t.clone(),
             vec![kw(KW_RHS, set_t.clone())],
             vec![],
-            set_t.clone(),
+            out_set.clone(),
         )
         .quantify();
         set_.register_builtin_erg_impl(FUNC_CONCAT, t, Immutable, Visibility::BUILTIN_PUBLIC);
@@ -2244,7 +2248,7 @@ impl Context {
                 Visibility::BUILTIN_PUBLIC,
             );
         }
-        let dict_t = poly(DICT, vec![D.clone()]);
+        let dic_t = poly(DICT, vec![D.clone()]);
         let mut dict_ =
             // TODO: D <: GenericDict
             Self::builtin_poly_class(DICT, vec![PS::named_nd(TY_D, mono(GENERIC_DICT))], 10);
@@ -2259,11 +2263,10 @@ impl Context {
             None,
             ValueObj::builtin_class(poly(MUT_DICT, vec![D.clone()])),
         );
-        dict_.register_trait_methods(dict_t.clone(), dict_mutizable);
+        dict_.register_trait_methods(dic_t.clone(), dict_mutizable);
         // __getitem__: _: T -> D[T]
         let dict_getitem_out = proj_call(D.clone(), FUNDAMENTAL_GETITEM, vec![ty_tp(T.clone())]);
-        let dict_getitem_t =
-            fn1_met(dict_t.clone(), T.clone(), dict_getitem_out.clone()).quantify();
+        let dict_getitem_t = fn1_met(dic_t.clone(), T.clone(), dict_getitem_out.clone()).quantify();
         let get_item = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNDAMENTAL_GETITEM,
             __dict_getitem__,
@@ -2283,7 +2286,7 @@ impl Context {
             )
             .unwrap();
         let dict_keys_iterator = poly(DICT_KEYS, vec![ty_tp(proj_call(D.clone(), KEYS, vec![]))]);
-        let dict_keys_t = fn0_met(dict_t.clone(), dict_keys_iterator.clone()).quantify();
+        let dict_keys_t = fn0_met(dic_t.clone(), dict_keys_iterator.clone()).quantify();
         let keys = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             KEYS,
             dict_keys,
@@ -2299,7 +2302,7 @@ impl Context {
             2,
         );
         // Dict(D) -> DictKeys(D.keys())
-        let t = fn0_met(dict_t.clone(), dict_keys_iterator.clone()).quantify();
+        let t = fn0_met(dic_t.clone(), dict_keys_iterator.clone()).quantify();
         dict_iterable.register_builtin_py_impl(
             FUNC_ITER,
             t,
@@ -2313,7 +2316,7 @@ impl Context {
             None,
             ValueObj::builtin_class(dict_keys_iterator),
         );
-        dict_.register_trait_methods(dict_t.clone(), dict_iterable);
+        dict_.register_trait_methods(dic_t.clone(), dict_iterable);
         let mut dict_collection = Self::builtin_methods(
             Some(poly(
                 CONTAINER,
@@ -2324,13 +2327,13 @@ impl Context {
         // TODO: Obj => D.keys() (Structural { .__contains__ = ... })
         dict_collection.register_builtin_erg_impl(
             FUNDAMENTAL_CONTAINS,
-            fn1_met(dict_t.clone(), Obj, Bool).quantify(),
+            fn1_met(dic_t.clone(), Obj, Bool).quantify(),
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
-        dict_.register_trait_methods(dict_t.clone(), dict_collection);
+        dict_.register_trait_methods(dic_t.clone(), dict_collection);
         let dict_values_t = fn0_met(
-            dict_t.clone(),
+            dic_t.clone(),
             poly(
                 DICT_VALUES,
                 vec![ty_tp(proj_call(D.clone(), VALUES, vec![]))],
@@ -2345,7 +2348,7 @@ impl Context {
         )));
         dict_.register_builtin_const(VALUES, Visibility::BUILTIN_PUBLIC, None, values);
         let dict_items_t = fn0_met(
-            dict_t.clone(),
+            dic_t.clone(),
             poly(DICT_ITEMS, vec![ty_tp(proj_call(D.clone(), ITEMS, vec![]))]),
         )
         .quantify();
@@ -2357,7 +2360,7 @@ impl Context {
         )));
         dict_.register_builtin_const(ITEMS, Visibility::BUILTIN_PUBLIC, None, items);
         let as_record_t =
-            fn0_met(dict_t.clone(), proj_call(D.clone(), FUNC_AS_RECORD, vec![])).quantify();
+            fn0_met(dic_t.clone(), proj_call(D.clone(), FUNC_AS_RECORD, vec![])).quantify();
         let as_record = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_AS_RECORD,
             as_record,
@@ -2376,19 +2379,16 @@ impl Context {
         )
         .quantify();
         dict_.register_py_builtin(FUNC_GET, get_t, Some(FUNC_GET), 9);
-        let copy_t = fn0_met(ref_(dict_t.clone()), dict_t.clone()).quantify();
+        let copy_t = fn0_met(ref_(dic_t.clone()), dic_t.clone()).quantify();
         let mut dict_copy = Self::builtin_methods(Some(mono(COPY)), 1);
         dict_copy.register_py_builtin(FUNC_COPY, copy_t, Some(FUNC_COPY), 7);
-        dict_.register_trait_methods(dict_t.clone(), dict_copy);
+        dict_.register_trait_methods(dic_t.clone(), dict_copy);
         let D2 = mono_q_tp(TY_D2, instanceof(mono(GENERIC_DICT)));
         let other_dict_t = poly(DICT, vec![D2.clone()]);
         let dict_concat_t = fn1_met(
-            dict_t.clone(),
+            dic_t.clone(),
             other_dict_t.clone(),
-            poly(
-                DICT,
-                vec![D.clone().proj_call(FUNC_CONCAT.into(), vec![D2.clone()])],
-            ),
+            out_dict_t(D.clone().proj_call(FUNC_CONCAT.into(), vec![D2.clone()])),
         )
         .quantify();
         let concat = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
@@ -2399,12 +2399,9 @@ impl Context {
         )));
         dict_.register_builtin_const(FUNC_CONCAT, Visibility::BUILTIN_PUBLIC, None, concat);
         let dict_diff_t = fn1_met(
-            dict_t.clone(),
+            dic_t.clone(),
             other_dict_t.clone(),
-            poly(
-                DICT,
-                vec![D.clone().proj_call(FUNC_DIFF.into(), vec![D2.clone()])],
-            ),
+            out_dict_t(D.clone().proj_call(FUNC_DIFF.into(), vec![D2.clone()])),
         )
         .quantify();
         let diff = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
@@ -2543,7 +2540,7 @@ impl Context {
                 None,
                 vec![kw(KW_KEEPENDS, Bool)],
                 None,
-                unknown_len_list_t(mono(BYTES)),
+                out_unknown_len_list_t(mono(BYTES)),
             ),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
@@ -3596,17 +3593,14 @@ impl Context {
             .register_trait(self, mono(CONTEXT_MANAGER))
             .unwrap();
         /* List! */
-        let list_mut_t = poly(MUT_LIST, vec![ty_tp(T.clone()), N.clone()]);
+        let list_mut_t = list_mut(T.clone(), N.clone());
         let mut list_mut_ =
             Self::builtin_poly_class(MUT_LIST, vec![PS::t_nd(TY_T), PS::default(TY_N, Nat)], 2);
         list_mut_.register_superclass(lis_t.clone(), &list_);
         let t = pr_met(
             ref_mut(
                 list_mut_t.clone(),
-                Some(poly(
-                    MUT_LIST,
-                    vec![ty_tp(T.clone()), N.clone() + value(1usize)],
-                )),
+                Some(list_mut(T.clone(), N.clone() + value(1usize))),
             ),
             vec![kw(KW_ELEM, T.clone())],
             None,
@@ -3622,7 +3616,7 @@ impl Context {
         let t_extend = pr_met(
             ref_mut(
                 list_mut_t.clone(),
-                Some(poly(MUT_LIST, vec![ty_tp(T.clone()), TyParam::erased(Nat)])),
+                Some(list_mut(T.clone(), TyParam::erased(Nat))),
             ),
             vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
             None,
@@ -3634,10 +3628,7 @@ impl Context {
         let t_insert = pr_met(
             ref_mut(
                 list_mut_t.clone(),
-                Some(poly(
-                    MUT_LIST,
-                    vec![ty_tp(T.clone()), N.clone() + value(1usize)],
-                )),
+                Some(list_mut(T.clone(), N.clone() + value(1usize))),
             ),
             vec![kw(KW_INDEX, Nat), kw(KW_ELEM, T.clone())],
             None,
@@ -3649,10 +3640,7 @@ impl Context {
         let t_remove = pr_met(
             ref_mut(
                 list_mut_t.clone(),
-                Some(poly(
-                    MUT_LIST,
-                    vec![ty_tp(T.clone()), N.clone() - value(1usize)],
-                )),
+                Some(list_mut(T.clone(), N.clone() - value(1usize))),
             ),
             vec![kw(KW_X, T.clone())],
             None,
@@ -3664,10 +3652,7 @@ impl Context {
         let t_pop = pr_met(
             ref_mut(
                 list_mut_t.clone(),
-                Some(poly(
-                    MUT_LIST,
-                    vec![ty_tp(T.clone()), N.clone() - value(1usize)],
-                )),
+                Some(list_mut(T.clone(), N.clone() - value(1usize))),
             ),
             vec![],
             None,
@@ -3677,10 +3662,7 @@ impl Context {
         .quantify();
         list_mut_.register_py_builtin(PROC_POP, t_pop, Some(FUNC_POP), 52);
         let t_clear = pr0_met(
-            ref_mut(
-                list_mut_t.clone(),
-                Some(poly(MUT_LIST, vec![ty_tp(T.clone()), value(0usize)])),
-            ),
+            ref_mut(list_mut_t.clone(), Some(list_mut(T.clone(), value(0usize)))),
             NoneType,
         )
         .quantify();
@@ -3859,7 +3841,7 @@ impl Context {
         let dict_mut_kv_t = poly(MUT_DICT, vec![dict! { K.clone() => V.clone() }.into()]);
         let mut dict_mut =
             Self::builtin_poly_class(MUT_DICT, vec![PS::named_nd(TY_D, mono(GENERIC_DICT))], 3);
-        dict_mut.register_superclass(dict_t.clone(), &dict_);
+        dict_mut.register_superclass(dic_t.clone(), &dict_);
         let K = type_q(TY_K);
         let V = type_q(TY_V);
         let insert_t = pr_met(
@@ -4527,7 +4509,7 @@ impl Context {
         );
         self.register_builtin_type(set_t, set_, vis.clone(), Const, Some(SET));
         self.register_builtin_type(g_dict_t, generic_dict, vis.clone(), Const, Some(DICT));
-        self.register_builtin_type(dict_t, dict_, vis.clone(), Const, Some(DICT));
+        self.register_builtin_type(dic_t, dict_, vis.clone(), Const, Some(DICT));
         self.register_builtin_type(mono(BYTES), bytes, vis.clone(), Const, Some(BYTES));
         self.register_builtin_type(mono(RECORD), record, vis.clone(), Const, Some(RECORD));
         self.register_builtin_type(

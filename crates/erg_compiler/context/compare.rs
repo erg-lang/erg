@@ -189,10 +189,14 @@ impl Context {
                     ..
                 }),
             ) if &n[..] == "GenericProc" => (Absolutely, true),
-            (Mono(l), Poly { name: r, .. }) if &l[..] == "GenericList" && &r[..] == "List" => {
+            (Mono(l), Poly { .. })
+                if &l[..] == "GenericList" && (rhs.is_list() || rhs.is_list_mut()) =>
+            {
                 (Absolutely, true)
             }
-            (Mono(l), Poly { name: r, .. }) if &l[..] == "GenericDict" && &r[..] == "Dict" => {
+            (Mono(l), Poly { .. })
+                if &l[..] == "GenericDict" && (rhs.is_dict() || rhs.is_dict_mut()) =>
+            {
                 (Absolutely, true)
             }
             (Mono(l), Mono(r))
@@ -633,23 +637,21 @@ impl Context {
             (ty @ (Type | ClassType | TraitType), Subr(subr)) => {
                 self.supertype_of(ty, &subr.return_t)
             }
-            (Type | ClassType | TraitType, Poly { name, params }) if &name[..] == "Set" => {
+            (Type | ClassType | TraitType, Poly { params, .. }) if rhs.is_set() => {
                 self.convert_tp_into_value(params[0].clone()).is_ok()
             }
-            (Type | ClassType, Poly { name, params }) if &name[..] == "Range" => {
+            (Type | ClassType, Poly { params, .. }) if rhs.is_range() => {
                 self.convert_tp_into_value(params[0].clone()).is_ok()
             }
-            (ty @ (Type | ClassType | TraitType), Poly { name, params })
-                if &name[..] == "List" || &name[..] == "UnsizedList" || &name[..] == "Set" =>
+            (ty @ (Type | ClassType | TraitType), Poly { params, .. })
+                if rhs.is_list() || rhs.is_list_mut() || rhs.is_unsized_list() || rhs.is_set() =>
             {
                 let Ok(elem_t) = self.convert_tp_into_type(params[0].clone()) else {
                     return false;
                 };
                 self.supertype_of(ty, &elem_t)
             }
-            (ty @ (Type | ClassType | TraitType), Poly { name, params })
-                if &name[..] == "Tuple" =>
-            {
+            (ty @ (Type | ClassType | TraitType), Poly { params, .. }) if rhs.is_tuple() => {
                 // Type :> Tuple Ts == Type :> Ts
                 // e.g. Type :> Tuple [Int, Str] == false
                 //      Type :> Tuple [Type, Type] == true
@@ -667,7 +669,9 @@ impl Context {
                 }
                 true
             }
-            (ty @ (Type | ClassType | TraitType), Poly { name, params }) if &name[..] == "Dict" => {
+            (ty @ (Type | ClassType | TraitType), Poly { params, .. })
+                if rhs.is_dict() || rhs.is_dict_mut() =>
+            {
                 // Type :> Dict T == Type :> T
                 // e.g.
                 //      Type :> Dict {"a": 1} == false
@@ -870,7 +874,7 @@ impl Context {
                     return false;
                 }
                 // [Int; 2] :> [Int; 3]
-                if &ln[..] == "List" || &ln[..] == "Set" {
+                if lhs.is_list() || lhs.is_set() {
                     let Ok(lt) = self.convert_tp_into_type(lparams[0].clone()) else {
                         return false;
                     };
@@ -1463,6 +1467,8 @@ impl Context {
     /// union((A and B) or C) == (A or C) and (B or C)
     /// union(Never, Int) == Int
     /// union(Obj, Int) == Obj
+    /// union(List({1, 2}, 2), List({3, 4}, 2)) == List({1, 2, 3, 4}, 2)
+    /// union(List!(Str, _), List!(Never, 0)) == List!(Str, _)
     /// ```
     pub(crate) fn union(&self, lhs: &Type, rhs: &Type) -> Type {
         if lhs == rhs {
@@ -1537,7 +1543,6 @@ impl Context {
             }
             (t, Type::Never) | (Type::Never, t) => t.clone(),
             // REVIEW: variance?
-            // List({1, 2}, 2), List({3, 4}, 2) ==> List({1, 2, 3, 4}, 2)
             (
                 Type::Poly {
                     name: ln,
@@ -2605,7 +2610,7 @@ impl Context {
             return None;
         }
         match &refine.t.qual_name()[..] {
-            "List" => self.get_tp_t(rhs).ok().map(|t| t.derefine()),
+            "List" | "List!" => self.get_tp_t(rhs).ok().map(|t| t.derefine()),
             _ => None,
         }
     }

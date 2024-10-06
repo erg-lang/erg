@@ -3484,9 +3484,9 @@ impl Context {
         // In many cases, it is still better to determine the type variable than if the target is not found.
         let coerced = self.coerce_tp(lhs.clone(), t_loc)?;
         if lhs != coerced {
-            let proj = proj_call(coerced, attr_name, args);
+            let proj = proj_call(coerced.clone(), attr_name, args);
             self.eval_t_params(proj, level, t_loc)
-                .inspect(|_t| lhs.destructive_coerce())
+                .inspect(|_t| lhs.destructive_link(&coerced))
                 .map_err(|(_, errs)| errs)
         } else {
             let proj = proj_call(lhs, attr_name, args);

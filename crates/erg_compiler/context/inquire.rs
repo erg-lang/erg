@@ -903,7 +903,7 @@ impl Context {
                 }
                 if let Triple::Ok(vi) = self.get_attr_info(obj, ident, input, namespace, expect) {
                     drop(list);
-                    obj.ref_t().coerce(None);
+                    obj.ref_t().destructive_link(&coerced);
                     return Triple::Ok(vi);
                 }
             }
@@ -3188,6 +3188,8 @@ impl Context {
     /// get_nominal_type_ctx({Int}) == Some(<Int>) # FIXME: should be <Type>
     /// get_nominal_type_ctx(Int -> Int) == Some(<FuncMetaType>)
     /// get_nominal_type_ctx({ .x = Int }) == Some(<RecordMetaType>)
+    /// get_nominal_type_ctx(?T(<: Int)) == Some(<Int>)
+    /// get_nominal_type_ctx(?T(:> Int)) == None # you need to coerce it to Int
     /// ```
     pub(crate) fn get_nominal_type_ctx<'a>(&'a self, typ: &Type) -> Option<&'a TypeContext> {
         match typ {

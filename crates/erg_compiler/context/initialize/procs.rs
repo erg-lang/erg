@@ -30,7 +30,7 @@ impl Context {
         let t_dir = no_var_proc(
             vec![],
             vec![kw("object", ref_(Obj))],
-            list_t(Str, TyParam::erased(Nat)),
+            out_list_t(Str, TyParam::erased(Nat)),
         );
         let t_print = proc(
             vec![],

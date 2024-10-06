@@ -1115,6 +1115,7 @@ impl TyParam {
         }
     }
 
+    /// see also: `Type::coerce`
     pub fn coerce(&self, list: Option<&UndoableLinkedList>) {
         if let Some(list) = list {
             self.undoable_coerce(list);

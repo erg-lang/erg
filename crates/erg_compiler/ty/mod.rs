@@ -2709,6 +2709,15 @@ impl Type {
         }
     }
 
+    pub fn is_unsized_list(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_unsized_list(),
+            Self::Poly { name, .. } => &name[..] == "UnsizedList",
+            Self::Refinement(refine) => refine.t.is_unsized_list(),
+            _ => false,
+        }
+    }
+
     pub fn is_guard(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_guard(),
@@ -2778,6 +2787,15 @@ impl Type {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_dict_mut(),
             Self::Poly { name, .. } => &name[..] == "Dict!",
             Self::Refinement(refine) => refine.t.is_dict_mut(),
+            _ => false,
+        }
+    }
+
+    pub fn is_range(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_range(),
+            Self::Poly { name, .. } => &name[..] == "Range",
+            Self::Refinement(refine) => refine.t.is_range(),
             _ => false,
         }
     }
@@ -3527,6 +3545,7 @@ impl Type {
     /// ```erg
     /// ?T(:> ?U(:> Int)).coerce(): ?T == ?U == Int
     /// ```
+    /// TODO: ?T(:> Int) or ?U(>: Int) == Int
     pub fn destructive_coerce(&self) {
         match self {
             Type::FreeVar(fv) if fv.is_linked() => {
@@ -4932,6 +4951,16 @@ impl Type {
                 fv.link(&to_);
             }
             Self::Refinement(refine) => refine.t.destructive_link(to),
+            Self::And(tys, _) => {
+                for ty in tys {
+                    ty.destructive_link(to);
+                }
+            }
+            Self::Or(tys) => {
+                for ty in tys {
+                    ty.destructive_link(to);
+                }
+            }
             _ => {
                 if DEBUG_MODE {
                     panic!("{self} is not a free variable");
@@ -4959,6 +4988,16 @@ impl Type {
                 fv.undoable_link(&to_);
             }
             Self::Refinement(refine) => refine.t.undoable_link(to, list),
+            Self::And(tys, _) => {
+                for ty in tys {
+                    ty.undoable_link(to, list);
+                }
+            }
+            Self::Or(tys) => {
+                for ty in tys {
+                    ty.undoable_link(to, list);
+                }
+            }
             _ => {
                 if DEBUG_MODE {
                     panic!("{self} is not a free variable")

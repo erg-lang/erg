@@ -1,5 +1,6 @@
 use std::convert::TryInto;
 
+use erg_common::consts::PYTHON_MODE;
 use erg_common::dict;
 use erg_common::fresh::FRESH_GEN;
 
@@ -66,12 +67,28 @@ pub fn list_mut(elem_t: Type, len: TyParam) -> Type {
     poly("List!", vec![TyParam::t(elem_t), len])
 }
 
+pub fn out_list_t(elem_t: Type, len: TyParam) -> Type {
+    if PYTHON_MODE {
+        list_mut(elem_t, len)
+    } else {
+        list_t(elem_t, len)
+    }
+}
+
 pub fn unknown_len_list_t(elem_t: Type) -> Type {
     list_t(elem_t, TyParam::erased(Type::Nat))
 }
 
 pub fn unknown_len_list_mut(elem_t: Type) -> Type {
     list_mut(elem_t, TyParam::erased(Type::Nat))
+}
+
+pub fn out_unknown_len_list_t(elem_t: Type) -> Type {
+    if PYTHON_MODE {
+        unknown_len_list_mut(elem_t)
+    } else {
+        unknown_len_list_t(elem_t)
+    }
 }
 
 pub fn str_dict_t(value: Type) -> Type {
@@ -107,8 +124,28 @@ pub fn set_mut(elem_t: Type, len: TyParam) -> Type {
     poly("Set!", vec![TyParam::t(elem_t), len])
 }
 
+pub fn out_set_t(elem_t: Type, len: TyParam) -> Type {
+    if PYTHON_MODE {
+        set_mut(elem_t, len)
+    } else {
+        set_t(elem_t, len)
+    }
+}
+
 pub fn dict_t(dict: TyParam) -> Type {
     poly("Dict", vec![dict])
+}
+
+pub fn dict_mut(dict: TyParam) -> Type {
+    poly("Dict!", vec![dict])
+}
+
+pub fn out_dict_t(dict: TyParam) -> Type {
+    if PYTHON_MODE {
+        dict_mut(dict)
+    } else {
+        dict_t(dict)
+    }
 }
 
 #[inline]

@@ -25,17 +25,17 @@ use Variance::*;
 
 use super::eval::{Substituter, UndoableLinkedList};
 
-pub struct Generalizer {
-    level: usize,
+pub struct Generalizer<'c> {
+    ctx: &'c Context,
     variance: Variance,
     qnames: Set<Str>,
     structural_inner: bool,
 }
 
-impl Generalizer {
-    pub fn new(level: usize) -> Self {
+impl<'c> Generalizer<'c> {
+    pub fn new(ctx: &'c Context) -> Self {
         Self {
-            level,
+            ctx,
             variance: Covariant,
             qnames: set! {},
             structural_inner: false,
@@ -55,7 +55,7 @@ impl Generalizer {
                 self.generalize_tp(tp, uninit)
             }
             // TODO: Polymorphic generalization
-            TyParam::FreeVar(fv) if fv.level() > Some(self.level) => {
+            TyParam::FreeVar(fv) if fv.level() > Some(self.ctx.level) => {
                 let constr = self.generalize_constraint(&fv);
                 fv.update_constraint(constr, true);
                 fv.generalize();
@@ -173,7 +173,7 @@ impl Generalizer {
             FreeVar(fv) if fv.is_linked() => self.generalize_t(fv.unwrap_linked(), uninit),
             FreeVar(fv) if fv.is_generalized() => Type::FreeVar(fv),
             // TODO: Polymorphic generalization
-            FreeVar(fv) if fv.level().unwrap() > self.level => {
+            FreeVar(fv) if fv.level().unwrap() > self.ctx.level => {
                 fv.generalize();
                 if uninit {
                     return Type::FreeVar(fv);
@@ -294,16 +294,24 @@ impl Generalizer {
                 let ands = ands
                     .into_iter()
                     .map(|t| self.generalize_t(t, uninit))
-                    .collect();
-                Type::checked_and(ands, idx)
+                    .collect::<Vec<_>>();
+                let isec = ands
+                    .into_iter()
+                    .fold(Obj, |acc, t| self.ctx.intersection(&acc, &t));
+                if let Some(idx) = idx {
+                    isec.with_default_intersec_index(idx)
+                } else {
+                    isec
+                }
             }
             Or(ors) => {
                 // not `self.union` because types are generalized
                 let ors = ors
                     .into_iter()
                     .map(|t| self.generalize_t(t, uninit))
-                    .collect();
-                Type::checked_or(ors)
+                    .collect::<Set<_>>();
+                ors.into_iter()
+                    .fold(Never, |acc, t| self.ctx.union(&acc, &t))
             }
             Not(l) => not(self.generalize_t(*l, uninit)),
             Structural(ty) => {
@@ -1304,7 +1312,7 @@ impl Context {
     /// Quantification occurs only once in function types.
     /// Therefore, this method is called only once at the top level, and `generalize_t_inner` is called inside.
     pub(crate) fn generalize_t(&self, free_type: Type) -> Type {
-        let mut generalizer = Generalizer::new(self.level);
+        let mut generalizer = Generalizer::new(self);
         let maybe_unbound_t = generalizer.generalize_t(free_type, false);
         if maybe_unbound_t.is_subr() && maybe_unbound_t.has_qvar() {
             maybe_unbound_t.quantify()
@@ -1320,6 +1328,16 @@ impl Context {
         dereferencer.deref_tyvar(t.clone()).unwrap_or(t)
     }
 
+    /// Fix type variables at their lower bound
+    /// ```erg
+    /// i: ?T(:> Int)
+    /// assert i.Real == 1 # ?T is coerced
+    /// i: (Int)
+    /// ```
+    ///
+    /// ```erg
+    /// ?T(:> ?U(:> Int)).coerce(): ?T == ?U == Int
+    /// ```
     pub(crate) fn coerce(&self, t: Type, t_loc: &impl Locational) -> TyCheckResult<Type> {
         let qnames = set! {};
         let mut dereferencer = Dereferencer::new(self, Covariant, true, &qnames, t_loc);

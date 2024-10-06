@@ -2152,14 +2152,17 @@ impl Context {
         unifier.sub_unify(maybe_sub, maybe_sup).or_else(|err| {
             log!(err "{err}");
             maybe_sub.coerce(unifier.undoable);
-            maybe_sub.coerce(unifier.undoable);
-            let maybe_sub = self
+            // maybe_sup.coerce(unifier.undoable);
+            let new_sub = self
                 .eval_t_params(maybe_sub.clone(), self.level, loc)
                 .map_err(|(_, errs)| errs)?;
-            let maybe_sup = self
+            if new_sub != Never && &new_sub != maybe_sub {
+                maybe_sub.link(&new_sub, unifier.undoable);
+            }
+            let new_sup = self
                 .eval_t_params(maybe_sup.clone(), self.level, loc)
                 .map_err(|(_, errs)| errs)?;
-            unifier.sub_unify(&maybe_sub, &maybe_sup)
+            unifier.sub_unify(&new_sub, &new_sup)
         })
     }
 
