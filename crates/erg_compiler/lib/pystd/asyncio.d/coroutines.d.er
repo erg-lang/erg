@@ -1,0 +1,2 @@
+.iscoroutinefunction: (obj: Obj) -> Bool
+.iscoroutine: (obj: Obj) -> Bool

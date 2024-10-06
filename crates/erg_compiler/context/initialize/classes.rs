@@ -4023,6 +4023,12 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PRIVATE,
         );
+        let coro_t = poly(COROUTINE, vec![ty_tp(T.clone())]);
+        let mut coroutine = Self::builtin_poly_class(COROUTINE, vec![PS::t_nd(TY_T)], 2);
+        coroutine.register_superclass(mono(SUBROUTINE), &subr);
+        coroutine
+            .register_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
+            .unwrap();
         // TODO: non-builtin
         /* Dimension */
         let Ty = type_q("Ty");
@@ -4644,6 +4650,7 @@ impl Context {
         self.register_builtin_type(set_mut_t, set_mut_, vis.clone(), Const, Some(SET));
         self.register_builtin_type(mono(SUBROUTINE), subr, vis.clone(), Const, Some(SUBROUTINE));
         self.register_builtin_type(generator_t, generator, vis.clone(), Const, Some(GENERATOR));
+        self.register_builtin_type(coro_t, coroutine, vis.clone(), Const, Some(FUNC_COROUTINE));
         self.register_builtin_type(dimension_t, dimension, vis.clone(), Const, Some(DIMENSION));
         self.register_builtin_type(
             mono(BASE_EXCEPTION),

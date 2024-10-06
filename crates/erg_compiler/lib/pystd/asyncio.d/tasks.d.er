@@ -1,0 +1,5 @@
+.Task!: ClassType
+
+.current_task!: (loop := Obj) => Task!
+.gather!: (*coros: GenericCallable) => NoneType
+.sleep!: (delay: Float) => NoneType

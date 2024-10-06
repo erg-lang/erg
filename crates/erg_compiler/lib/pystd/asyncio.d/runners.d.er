@@ -1,0 +1,8 @@
+.Runner!: ClassType
+.Runner!.
+    run!: (self: Runner!, coro: GenericCallable, debug := Bool) => NoneType
+    close!: (self: Runner!) => NoneType
+    get_loop!: (self: Runner!) => NoneType
+
+# TODO: return value
+.run!: (coro: GenericCallable, debug := Bool) => NoneType

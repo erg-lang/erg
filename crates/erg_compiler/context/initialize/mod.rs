@@ -553,6 +553,8 @@ const FUNC_NEARLY_EQ: &str = "nearly_eq";
 const FUNC_RESOLVE_PATH: &str = "ResolvePath";
 const FUNC_RESOLVE_DECL_PATH: &str = "ResolveDeclPath";
 const FUNC_PROD: &str = "prod";
+const COROUTINE: &str = "Coroutine";
+const FUNC_COROUTINE: &str = "coroutine";
 
 const OP_EQ: &str = "__eq__";
 const OP_HASH: &str = "__hash__";

@@ -1,0 +1,11 @@
+.Future!: ClassType
+.Future!.
+    result: (self: Ref Future!) -> Obj
+    exception: (self: Ref Future!) -> Exception
+    done: (self: Ref Future!) -> Bool
+    cancelled: (self: Ref Future!) -> Bool
+    set_result!: (self: RefMut Future!, result: Obj) => NoneType
+    set_exception!: (self: RefMut Future!, exception: Exception) => NoneType
+    cancel!: (self: RefMut Future!, msg := Str) => Bool
+
+.isfuture: (obj: Obj) -> Bool

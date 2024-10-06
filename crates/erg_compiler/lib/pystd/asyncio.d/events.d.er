@@ -1,0 +1,8 @@
+.Handle!: ClassType
+
+.TimerHandle!: ClassType
+.TimerHandle! <: Handle!
+
+.AbstractServer!: ClassType
+.AbstractEventLoop!: ClassType
+.AbstractEventLoopPolicy!: ClassType

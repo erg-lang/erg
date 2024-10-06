@@ -1,0 +1,19 @@
+{.BaseEventLoop!; .Server!} = import "base_events"
+{.iscoroutine;. iscoroutinefunction;} = pyimport "coroutines"
+{
+    .AbstractEventLoop!;
+    .AbstractEventLoopPolicy!;
+    .AbstractServer!;
+    .Handle!;
+    .TimerHandle!;
+} = pyimport "events"
+{
+    .LifoQueue!;
+    .PriorityQueue!;
+    .Queue!;
+    .QueueEmpty;
+    .QueueFull;
+} = pyimport "queues"
+{.Runner!; .run!;} = pyimport "runners"
+{.Task!; .current_task!; .gather!; .sleep!;} = pyimport "tasks"
+{.to_thread!;} = pyimport "threads"

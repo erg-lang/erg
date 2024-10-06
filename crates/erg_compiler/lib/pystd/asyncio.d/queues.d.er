@@ -1,0 +1,13 @@
+.QueueEmpty: ClassType
+.QueueEmpty <: BaseException
+
+.QueueFull: ClassType
+.QueueFull <: BaseException
+
+.Queue!: ClassType
+
+.PriorityQueue!: ClassType
+.PriorityQueue! <: Queue!
+
+.LifoQueue!: ClassType
+.LifoQueue! <: Queue!
