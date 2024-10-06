@@ -697,6 +697,12 @@ impl Context {
             if let Some(parent) = self.get_mut_outer() {
                 return parent.rec_get_mut_var_info(ident, acc_kind);
             }
+        } else {
+            for method_ctx in self.methods_list.iter_mut() {
+                if let Some(vi) = method_ctx.rec_get_mut_var_info(ident, acc_kind) {
+                    return Some(vi);
+                }
+            }
         }
         None
     }
@@ -723,6 +729,17 @@ impl Context {
                     }
                 }
                 _ => {}
+            }
+        }
+        for method_ctx in self.methods_list.iter() {
+            match method_ctx.rec_get_decl_info(ident, acc_kind, input, namespace) {
+                Triple::Ok(vi) => {
+                    return Triple::Ok(vi);
+                }
+                Triple::Err(e) => {
+                    return Triple::Err(e);
+                }
+                Triple::None => {}
             }
         }
         if acc_kind.is_local() {

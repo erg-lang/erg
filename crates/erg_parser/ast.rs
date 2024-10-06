@@ -5318,6 +5318,10 @@ impl Params {
         self.len() == 0
     }
 
+    pub fn is_method(&self) -> bool {
+        !self.non_defaults.is_empty() && self.non_defaults[0].inspect().is_some_and(|n| n == "self")
+    }
+
     pub fn add_guard(&mut self, guard: GuardClause) {
         self.guards.push(guard);
     }
@@ -5414,6 +5418,10 @@ impl SubrSignature {
 
     pub fn is_const(&self) -> bool {
         self.ident.is_const()
+    }
+
+    pub fn is_method(&self) -> bool {
+        self.params.is_method()
     }
 
     pub fn vis(&self) -> &VisModifierSpec {

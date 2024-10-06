@@ -269,8 +269,13 @@ impl Context {
     ) -> Failable<Type> {
         let mut errs = TyCheckErrors::empty();
         // -> Result<Type, (Type, TyCheckErrors)> {
+        let kind = if sig.is_method() {
+            AccessKind::UnboundAttr
+        } else {
+            AccessKind::Name
+        };
         let opt_decl_sig_t = match self
-            .rec_get_decl_info(&sig.ident, AccessKind::Name, &self.cfg.input, self)
+            .rec_get_decl_info(&sig.ident, kind, &self.cfg.input, self)
             .ok()
             .map(|vi| vi.t)
         {
