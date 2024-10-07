@@ -34,6 +34,14 @@ use crate::server::{DefaultFeatures, ELSResult, RedirectableStdout, Server};
 use crate::server::{ASK_AUTO_SAVE_ID, HEALTH_CHECKER_ID};
 use crate::util::{self, NormalizedUrl};
 
+pub fn is_parent_alive(parent_pid: i32) -> bool {
+    unsafe {
+        // sig 0: check if the process exists
+        let alive = libc::kill(parent_pid, 0);
+        alive == 0
+    }
+}
+
 #[derive(Debug)]
 pub enum BuildASTError {
     NoFile,
@@ -546,6 +554,11 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             },
             "start_client_health_checker_sender",
         );
+        let parent_pid = self
+            .init_params
+            .process_id
+            .map(|x| x as i32)
+            .unwrap_or_else(|| unsafe { libc::getppid() });
         spawn_new_thread(
             move || {
                 loop {
@@ -562,7 +575,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                             // _log!(self, "Restart the server");
                             // send_error_info("Something went wrong, ELS has been restarted").unwrap();
                             // self_.restart();
-                            panic!("Client health check timed out");
+                            if !is_parent_alive(parent_pid) {
+                                lsp_log!("Client seems to be dead");
+                                panic!("Client seems to be dead");
+                            }
                         }
                     }
                 }
