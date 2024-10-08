@@ -694,10 +694,7 @@ impl Context {
             "Type" => Ok(Type::Type),
             "Self" => self.rec_get_self_t().ok_or_else(|| {
                 TyCheckErrors::from(TyCheckError::self_type_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    ident.loc(),
-                    self.caused_by(),
+                    self.error_info(line!(), ident.loc()),
                 ))
             }),
             "True" | "False" | "None" => Err(TyCheckErrors::from(TyCheckError::not_a_type_error(

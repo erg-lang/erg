@@ -31,7 +31,7 @@ use Type::*;
 use crate::context::instantiate_spec::ConstTemplate;
 use crate::context::{Context, RegistrationMode, TraitImpl, TyVarCache, Variance};
 use crate::error::{
-    binop_to_dname, ordinal_num, readable_name, unaryop_to_dname, FailableOption,
+    binop_to_dname, ordinal_num, readable_name, unaryop_to_dname, ErrorInfo, FailableOption,
     SingleTyCheckResult, TyCheckError, TyCheckErrors, TyCheckResult,
 };
 use crate::varinfo::{AbsLocation, Mutability, VarInfo, VarKind};
@@ -460,10 +460,7 @@ impl Context {
             return Err((
                 None,
                 TyCheckErrors::from(TyCheckError::default_param_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    kw_args[0].loc(),
-                    self.caused_by(),
+                    self.error_info(line!(), kw_args[0].loc()),
                     "match",
                 )),
             ));
@@ -499,10 +496,7 @@ impl Context {
                 return Err((
                     None,
                     TyCheckErrors::from(TyCheckError::default_param_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        pos_args[i + 1].loc(),
-                        self.caused_by(),
+                        self.error_info(line!(), pos_args[i + 1].loc()),
                         "match",
                     )),
                 ));
@@ -511,10 +505,7 @@ impl Context {
                 return Err((
                     None,
                     TyCheckErrors::from(TyCheckError::param_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        pos_args[i + 1].loc(),
-                        self.caused_by(),
+                        self.error_info(line!(), pos_args[i + 1].loc()),
                         1,
                         lambda.params.len(),
                     )),
@@ -548,10 +539,7 @@ impl Context {
                 eprintln!("match error: {err}");
             }
             errs.push(TyCheckError::match_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                pos_args[0].loc(),
-                self.caused_by(),
+                self.error_info(line!(), pos_args[0].loc()),
                 match_target_expr_t,
                 &union_pat_t,
                 arm_ts,
@@ -568,11 +556,8 @@ impl Context {
             .and_then(|branch| branch.typ().return_t().cloned())
         else {
             errs.push(TyCheckError::args_missing_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                pos_args[0].loc(),
+                self.error_info(line!(), pos_args[0].loc()),
                 "match",
-                self.caused_by(),
                 vec![Str::ever("obj")],
             ));
             return Err((None, errs));
@@ -1272,10 +1257,7 @@ impl Context {
                 .iter()
                 .map(|pt| pt.clone().map_type(&mut |t| self.readable_type(t)));
             Err(TyCheckError::overload_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                loc.loc(),
-                self.caused_by(),
+                self.error_info(line!(), loc.loc()),
                 non_default_params,
                 default_params,
                 intersecs.iter(),
@@ -1865,10 +1847,7 @@ impl Context {
         };
         let other = self.readable_type(other.clone());
         TyCheckErrors::from(TyCheckError::type_mismatch_error(
-            self.cfg.input.clone(),
-            line!() as usize,
-            loc,
-            self.caused_by(),
+            self.error_info(line!(), loc),
             &name,
             None,
             &mono("Callable"),
@@ -2227,10 +2206,7 @@ impl Context {
                     &poly("Iterable", vec![TyParam::t(Obj)]),
                 ) {
                     let err = TyCheckError::type_mismatch_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        var_args.loc(),
-                        self.caused_by(),
+                        self.error_info(line!(), var_args.loc()),
                         "_",
                         None,
                         &poly("Iterable", vec![TyParam::t(Obj)]),
@@ -2247,10 +2223,7 @@ impl Context {
                     &poly("Mapping", vec![TyParam::t(Obj), TyParam::t(Obj)]),
                 ) {
                     let err = TyCheckError::type_mismatch_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        kw_var_args.loc(),
-                        self.caused_by(),
+                        self.error_info(line!(), kw_var_args.loc()),
                         "_",
                         None,
                         &poly("Mapping", vec![TyParam::t(Obj), TyParam::t(Obj)]),
@@ -2263,11 +2236,8 @@ impl Context {
             }
             if missing_params.is_empty() && (var_args.is_some() || kw_var_args.is_some()) {
                 return Err(TyCheckErrors::from(TyCheckError::too_many_args_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    callee.loc(),
+                    self.error_info(line!(), callee.loc()),
                     &callee.to_string(),
-                    self.caused_by(),
                     params_len,
                     pos_args.len(),
                     kw_args.len(),
@@ -2275,11 +2245,8 @@ impl Context {
             }
             if !missing_params.is_empty() && var_args.is_none() && kw_var_args.is_none() {
                 return Err(TyCheckErrors::from(TyCheckError::args_missing_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    callee.loc(),
+                    self.error_info(line!(), callee.loc()),
                     &callee.to_string(),
-                    self.caused_by(),
                     missing_params,
                 )));
             }
@@ -2447,11 +2414,8 @@ impl Context {
                 subr_ty.non_default_params.len() + subr_ty.default_params.len()
             };
             TyCheckErrors::from(TyCheckError::too_many_args_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                callee.loc(),
+                self.error_info(line!(), callee.loc()),
                 &callee.to_string(),
-                self.caused_by(),
                 params_len,
                 pos_args.len(),
                 kw_args.len(),
@@ -2461,22 +2425,16 @@ impl Context {
                 let similar =
                     levenshtein::get_similar_name(subr_ty.param_names(), arg.keyword.inspect());
                 TyCheckError::unexpected_kw_arg_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    arg.loc(),
+                    self.error_info(line!(), arg.loc()),
                     &callee.to_string(),
-                    self.caused_by(),
                     arg.keyword.inspect(),
                     similar,
                 )
             });
             let duplicated_arg_errors = duplicated_args.into_iter().map(|arg| {
                 TyCheckError::multiple_args_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    arg.loc(),
+                    self.error_info(line!(), arg.loc()),
                     &callee.to_string(),
-                    self.caused_by(),
                     arg.keyword.inspect(),
                 )
             });
@@ -2498,11 +2456,8 @@ impl Context {
         if let Some(name) = param.name() {
             if passed_params.contains(name) {
                 return Err(TyCheckErrors::from(TyCheckError::multiple_args_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    callee.loc(),
+                    self.error_info(line!(), callee.loc()),
                     &callee.to_string(),
-                    self.caused_by(),
                     name,
                 )));
             } else {
@@ -2534,10 +2489,12 @@ impl Context {
                         .map(|e| {
                             log!("err: {e}");
                             TyCheckError::type_mismatch_error(
-                                self.cfg.input.clone(),
-                                line!() as usize,
-                                e.core.loc,
-                                e.caused_by,
+                                ErrorInfo {
+                                    input: self.cfg.input.clone(),
+                                    errno: line!() as usize,
+                                    loc: e.core.loc,
+                                    caused_by: e.caused_by,
+                                },
                                 &name[..],
                                 Some(nth),
                                 &param_t,
@@ -2576,10 +2533,12 @@ impl Context {
                     errs.into_iter()
                         .map(|e| {
                             TyCheckError::type_mismatch_error(
-                                self.cfg.input.clone(),
-                                line!() as usize,
-                                e.core.loc,
-                                e.caused_by,
+                                ErrorInfo {
+                                    input: self.cfg.input.clone(),
+                                    errno: line!() as usize,
+                                    loc: e.core.loc,
+                                    caused_by: e.caused_by,
+                                },
                                 &name[..],
                                 Some(nth),
                                 param_t,
@@ -2606,11 +2565,8 @@ impl Context {
         let kw_name = arg.keyword.inspect();
         if passed_params.contains(&kw_name[..]) {
             return Err(TyCheckErrors::from(TyCheckError::multiple_args_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                callee.loc(),
+                self.error_info(line!(), callee.loc()),
                 &callee.to_string(),
-                self.caused_by(),
                 arg.keyword.inspect(),
             )));
         }
@@ -2638,10 +2594,12 @@ impl Context {
                         errs.into_iter()
                             .map(|e| {
                                 TyCheckError::type_mismatch_error(
-                                    self.cfg.input.clone(),
-                                    line!() as usize,
-                                    e.core.loc,
-                                    e.caused_by,
+                                    ErrorInfo {
+                                        input: self.cfg.input.clone(),
+                                        errno: line!() as usize,
+                                        loc: e.core.loc,
+                                        caused_by: e.caused_by,
+                                    },
                                     &name[..],
                                     Some(nth),
                                     &param_t,
@@ -2659,11 +2617,8 @@ impl Context {
             let similar =
                 levenshtein::get_similar_name(subr_ty.param_names(), arg.keyword.inspect());
             return Err(TyCheckErrors::from(TyCheckError::unexpected_kw_arg_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                arg.keyword.loc(),
+                self.error_info(line!(), arg.keyword.loc()),
                 &callee.to_string(),
-                self.caused_by(),
                 kw_name,
                 similar,
             )));

@@ -282,13 +282,7 @@ impl<'c> Substituter<'c> {
 
     fn substitute_type(&mut self, qt: Type, stp: TyParam) -> EvalResult<()> {
         let st = self.ctx.convert_tp_into_type(stp).map_err(|tp| {
-            EvalError::not_a_type_error(
-                self.ctx.cfg.input.clone(),
-                line!() as usize,
-                ().loc(),
-                self.ctx.caused_by(),
-                &tp.to_string(),
-            )
+            EvalError::not_a_type_error(self.ctx.error_info(line!(), ().loc()), &tp.to_string())
         })?;
         if !qt.is_undoable_linked_var() && qt.is_generalized() && qt.is_free_var() {
             qt.undoable_link(&st, &self.undoable_linked);
@@ -300,12 +294,9 @@ impl<'c> Substituter<'c> {
                 qt.undoable_link(&union, &self.undoable_linked);
             } else {
                 return Err(EvalError::unification_error(
-                    self.ctx.cfg.input.clone(),
-                    line!() as usize,
+                    self.ctx.error_info(line!(), ().loc()),
                     &qt,
                     &st,
-                    ().loc(),
-                    self.ctx.caused_by(),
                 )
                 .into());
             }
@@ -370,16 +361,9 @@ impl<'c> Substituter<'c> {
             _ => Ok(()),
         }
     }
-
     fn overwrite_type(&mut self, qt: Type, stp: TyParam) -> EvalResult<()> {
         let st = self.ctx.convert_tp_into_type(stp).map_err(|tp| {
-            EvalError::not_a_type_error(
-                self.ctx.cfg.input.clone(),
-                line!() as usize,
-                ().loc(),
-                self.ctx.caused_by(),
-                &tp.to_string(),
-            )
+            EvalError::not_a_type_error(self.ctx.error_info(line!(), ().loc()), &tp.to_string())
         })?;
         if qt.is_undoable_linked_var() {
             qt.undoable_link(&st, &self.undoable_linked);
@@ -3491,11 +3475,8 @@ impl Context {
         } else {
             let proj = proj_call(lhs, attr_name, args);
             Err(EvalErrors::from(EvalError::no_candidate_error(
-                self.cfg.input.clone(),
-                line!() as usize,
+                self.error_info(line!(), t_loc.loc()),
                 &proj,
-                t_loc.loc(),
-                self.caused_by(),
                 self.get_no_candidate_hint(&proj),
             )))
         }

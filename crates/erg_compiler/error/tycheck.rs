@@ -1,3 +1,5 @@
+#![allow(clippy::just_underscores_and_digits)]
+
 use std::fmt::Display;
 
 use erg_common::error::{ErrorCore, ErrorKind::*, Location, SubMessage};
@@ -79,10 +81,12 @@ impl TyCheckError {
     }
 
     pub fn no_type_spec_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         name: &str,
     ) -> Self {
         let name = readable_name(name);
@@ -134,12 +138,13 @@ impl TyCheckError {
         )
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn type_mismatch_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         name: &str,
         nth_param: Option<usize>,
         expect: &Type,
@@ -196,12 +201,13 @@ impl TyCheckError {
         )
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn return_type_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         name: &str,
         expect: &Type,
         found: &Type,
@@ -255,10 +261,12 @@ impl TyCheckError {
     }
 
     pub fn uninitialized_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         name: &str,
         t: &Type,
     ) -> Self {
@@ -281,10 +289,12 @@ impl TyCheckError {
     }
 
     pub fn argument_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         expect: usize,
         found: usize,
     ) -> Self {
@@ -329,10 +339,12 @@ impl TyCheckError {
     }
 
     pub fn param_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         expect: usize,
         found: usize,
     ) -> Self {
@@ -377,10 +389,12 @@ impl TyCheckError {
     }
 
     pub fn default_param_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         name: &str,
     ) -> Self {
         Self::new(
@@ -402,10 +416,12 @@ impl TyCheckError {
     }
 
     pub fn default_param_not_found_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         param_name: &str,
         similar_name: Option<&str>,
     ) -> Self {
@@ -442,10 +458,12 @@ impl TyCheckError {
     }
 
     pub fn match_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         expr_t: &Type,
         union_pat_t: &Type,
         arm_ts: Vec<Type>,
@@ -475,10 +493,12 @@ impl TyCheckError {
     }
 
     pub fn infer_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         expr: &str,
     ) -> Self {
         Self::new(
@@ -507,13 +527,14 @@ impl TyCheckError {
         Self::new(ErrorCore::unreachable(fn_name, line), input, "".to_owned())
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn too_many_args_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         callee_name: &str,
-        caused_by: String,
         params_len: usize,
         pos_args_len: usize,
         kw_args_len: usize,
@@ -563,11 +584,13 @@ passed keyword args:    {kw_args_len}"
     }
 
     pub fn args_missing_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         callee_name: &str,
-        caused_by: String,
         missing_params: Vec<Str>,
     ) -> Self {
         let name = StyledStr::new(readable_name(callee_name), Some(WARN), Some(ATTR));
@@ -592,11 +615,13 @@ passed keyword args:    {kw_args_len}"
     }
 
     pub fn multiple_args_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         callee_name: &str,
-        caused_by: String,
         arg_name: &str,
     ) -> Self {
         let name = StyledStr::new(readable_name(callee_name), Some(WARN), Some(ATTR));
@@ -620,11 +645,13 @@ passed keyword args:    {kw_args_len}"
     }
 
     pub fn unexpected_kw_arg_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         callee_name: &str,
-        caused_by: String,
         param_name: &str,
         similar_name: Option<&str>,
     ) -> Self {
@@ -661,12 +688,14 @@ passed keyword args:    {kw_args_len}"
     }
 
     pub fn unification_error(
-        input: Input,
-        errno: usize,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         lhs_t: &Type,
         rhs_t: &Type,
-        loc: Location,
-        caused_by: String,
     ) -> Self {
         let mut lhs_typ = StyledStrings::default();
         switch_lang!(
@@ -707,12 +736,14 @@ passed keyword args:    {kw_args_len}"
     }
 
     pub fn re_unification_error(
-        input: Input,
-        errno: usize,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         lhs_t: &Type,
         rhs_t: &Type,
-        loc: Location,
-        caused_by: String,
     ) -> Self {
         let mut lhs_typ = StyledStrings::default();
         switch_lang!(
@@ -753,12 +784,14 @@ passed keyword args:    {kw_args_len}"
     }
 
     pub fn subtyping_error(
-        input: Input,
-        errno: usize,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         sub_t: &Type,
         sup_t: &Type,
-        loc: Location,
-        caused_by: String,
     ) -> Self {
         let mut sub_type = StyledStrings::default();
         switch_lang!(
@@ -806,12 +839,14 @@ passed keyword args:    {kw_args_len}"
     }
 
     pub fn invariant_error(
-        input: Input,
-        errno: usize,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         sub_t: &Type,
         sup_t: &Type,
-        loc: Location,
-        caused_by: String,
     ) -> Self {
         let mut sub_type = StyledStrings::default();
         switch_lang!(
@@ -859,12 +894,14 @@ passed keyword args:    {kw_args_len}"
     }
 
     pub fn pred_unification_error(
-        input: Input,
-        errno: usize,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         sub_pred: &Predicate,
         super_pred: &Predicate,
-        loc: Location,
-        caused_by: String,
     ) -> Self {
         let mut lhs_uni = StyledStrings::default();
         switch_lang!(
@@ -905,11 +942,13 @@ passed keyword args:    {kw_args_len}"
     }
 
     pub fn no_candidate_error(
-        input: Input,
-        errno: usize,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         proj: &Type,
-        loc: Location,
-        caused_by: String,
         hint: Option<String>,
     ) -> Self {
         Self::new(
@@ -958,10 +997,12 @@ passed keyword args:    {kw_args_len}"
     }
 
     pub fn method_definition_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         name: &str,
         hint: Option<String>,
     ) -> Self {
@@ -1008,10 +1049,12 @@ passed keyword args:    {kw_args_len}"
 
     #[allow(clippy::too_many_arguments)]
     pub fn trait_member_type_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         member_name: &str,
         trait_type: &Type,
         expect: &Type,
@@ -1066,14 +1109,16 @@ passed keyword args:    {kw_args_len}"
 
     #[allow(clippy::too_many_arguments)]
     pub fn trait_member_not_defined_error(
-        input: Input,
-        errno: usize,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         member_name: &str,
         trait_type: &Type,
         class_type: &Type,
         hint: Option<String>,
-        loc: Location,
     ) -> Self {
         let member_name = member_name.with_color_and_attr(WARN, ATTR);
         Self::new(
@@ -1094,16 +1139,17 @@ passed keyword args:    {kw_args_len}"
         )
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn not_in_trait_error(
-        input: Input,
-        errno: usize,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         member_name: &str,
         trait_type: &Type,
         class_type: &Type,
         hint: Option<String>,
-        loc: Location,
     ) -> Self {
         let member_name = member_name.with_color_and_attr(WARN, ATTR);
         Self::new(
@@ -1125,11 +1171,13 @@ passed keyword args:    {kw_args_len}"
     }
 
     pub fn tyvar_not_defined_error(
-        input: Input,
-        errno: usize,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         name: &str,
-        loc: Location,
-        caused_by: String,
     ) -> Self {
         let found = name.with_color_and_attr(ERR, ATTR);
         Self::new(
@@ -1282,11 +1330,13 @@ passed keyword args:    {kw_args_len}"
     }
 
     pub fn tp_to_type_error(
-        input: Input,
-        errno: usize,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         tp: &TyParam,
-        loc: Location,
-        caused_by: String,
     ) -> Self {
         Self::new(
             ErrorCore::new(
@@ -1307,10 +1357,12 @@ passed keyword args:    {kw_args_len}"
     }
 
     pub fn implicit_widening_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         before: &Type,
         after: &Type,
     ) -> Self {
@@ -1342,10 +1394,12 @@ passed keyword args:    {kw_args_len}"
     }
 
     pub fn overload_error<'a>(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         pos_args: impl Iterator<Item = ParamTy>,
         kw_args: impl Iterator<Item = ParamTy>,
         found: impl Iterator<Item = &'a Type>,
@@ -1368,7 +1422,14 @@ passed keyword args:    {kw_args_len}"
         )
     }
 
-    pub fn self_type_error(input: Input, errno: usize, loc: Location, caused_by: String) -> Self {
+    pub fn self_type_error(
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
+    ) -> Self {
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::only_loc(loc)],
@@ -1390,11 +1451,13 @@ passed keyword args:    {kw_args_len}"
 
 impl TyCheckWarning {
     pub fn unnecessary_tyvar_warning(
-        input: Input,
-        errno: usize,
-        loc: Location,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         name: &str,
-        caused_by: String,
     ) -> Self {
         Self::new(
             ErrorCore::new(

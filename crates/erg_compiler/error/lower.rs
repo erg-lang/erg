@@ -369,10 +369,12 @@ impl LowerError {
     }
 
     pub fn no_type_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         name: &str,
         similar_name: Option<&str>,
     ) -> Self {
@@ -406,10 +408,12 @@ impl LowerError {
     }
 
     pub fn not_a_type_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         name: &str,
     ) -> Self {
         let name = readable_name(name);
@@ -442,10 +446,12 @@ impl LowerError {
     }
 
     pub fn sealed_trait_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         name: &str,
     ) -> Self {
         let name = readable_name(name);
@@ -469,10 +475,12 @@ impl LowerError {
     }
 
     pub fn type_not_found(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         typ: &Type,
     ) -> Self {
         let typ = StyledString::new(typ.to_string(), Some(ERR), Some(ATTR));
@@ -501,10 +509,12 @@ impl LowerError {
     }
 
     pub fn no_attr_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         obj_t: &Type,
         name: &str,
         similar_name: Option<&str>,
@@ -536,12 +546,13 @@ impl LowerError {
         )
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn detailed_no_attr_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         obj_t: &Type,
         name: &str,
         similar_name: Option<&str>,
@@ -576,12 +587,13 @@ impl LowerError {
         )
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn singular_no_attr_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         obj_name: &str,
         obj_t: &Type,
         name: &str,
@@ -616,10 +628,12 @@ impl LowerError {
     }
 
     pub fn shadow_special_namespace_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         name: &str,
     ) -> Self {
         let name = StyledStr::new(readable_name(name), Some(WARN), Some(ATTR));
@@ -642,10 +656,12 @@ impl LowerError {
     }
 
     pub fn reassign_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         name: &str,
     ) -> Self {
         let name = StyledStr::new(readable_name(name), Some(WARN), Some(ATTR));
@@ -709,10 +725,12 @@ impl LowerError {
     }
 
     pub fn visibility_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         name: &str,
         vis: Visibility,
     ) -> Self {
@@ -737,12 +755,14 @@ impl LowerError {
     }
 
     pub fn override_error<S: Into<String>>(
-        input: Input,
-        errno: usize,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         name: &str,
-        name_loc: Location,
         superclass: &Type,
-        caused_by: S,
     ) -> Self {
         let name = StyledString::new(name, Some(ERR), Some(ATTR));
         let superclass = StyledString::new(format!("{superclass}"), Some(WARN), Some(ATTR));
@@ -787,7 +807,7 @@ impl LowerError {
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::ambiguous_new(
-                    name_loc,
+                    loc,
                     vec![sub_msg.to_string()],
                     hint,
                 )],
@@ -807,19 +827,21 @@ impl LowerError {
                 ),
                 errno,
                 NameError,
-                name_loc,
+                loc,
             ),
             input,
-            caused_by.into(),
+            caused_by,
         )
     }
 
     pub fn inheritance_error(
-        input: Input,
-        errno: usize,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         class: String,
-        loc: Location,
-        caused_by: String,
     ) -> Self {
         Self::new(
             ErrorCore::new(
@@ -840,11 +862,13 @@ impl LowerError {
     }
 
     pub fn file_error(
-        input: Input,
-        errno: usize,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         desc: String,
-        loc: Location,
-        caused_by: String,
         hint: Option<String>,
     ) -> Self {
         Self::new(
@@ -861,11 +885,13 @@ impl LowerError {
     }
 
     pub fn module_env_error(
-        input: Input,
-        errno: usize,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         mod_name: &str,
-        loc: Location,
-        caused_by: String,
     ) -> Self {
         let desc = switch_lang!(
             "japanese" => format!("{mod_name}モジュールはお使いの環境をサポートしていません"),
@@ -877,11 +903,13 @@ impl LowerError {
     }
 
     pub fn import_error(
-        input: Input,
-        errno: usize,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         desc: String,
-        loc: Location,
-        caused_by: String,
         similar_erg_mod: Option<Str>,
         similar_py_mod: Option<Str>,
     ) -> Self {
@@ -1043,10 +1071,12 @@ impl LowerError {
     }
 
     pub fn inner_typedef_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
     ) -> Self {
         Self::new(
             ErrorCore::new(
@@ -1066,7 +1096,14 @@ impl LowerError {
         )
     }
 
-    pub fn declare_error(input: Input, errno: usize, loc: Location, caused_by: String) -> Self {
+    pub fn declare_error(
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
+    ) -> Self {
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::only_loc(loc)],
@@ -1085,12 +1122,13 @@ impl LowerError {
         )
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn invalid_type_cast_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         name: &str,
         base: &Type,
         cast_to: &Type,
@@ -1118,10 +1156,12 @@ impl LowerError {
     }
 
     pub fn set_homogeneity_error(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
     ) -> Self {
         LowerError::syntax_error(
             input,
@@ -1150,11 +1190,13 @@ impl LowerError {
 
 impl LowerWarning {
     pub fn unused_warning(
-        input: Input,
-        errno: usize,
-        loc: Location,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         name: &str,
-        caused_by: String,
     ) -> Self {
         let name = StyledString::new(readable_name(name), Some(WARN), Some(ATTR));
         Self::new(
@@ -1176,10 +1218,12 @@ impl LowerWarning {
     }
 
     pub fn union_return_type_warning(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         fn_name: &str,
         typ: &Type,
     ) -> Self {
@@ -1209,10 +1253,12 @@ impl LowerWarning {
     }
 
     pub fn builtin_exists_warning(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         name: &str,
     ) -> Self {
         let name = StyledStr::new(readable_name(name), Some(WARN), Some(ATTR));
@@ -1234,7 +1280,14 @@ impl LowerWarning {
         )
     }
 
-    pub fn use_cast_warning(input: Input, errno: usize, loc: Location, caused_by: String) -> Self {
+    pub fn use_cast_warning(
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
+    ) -> Self {
         Self::new(
             ErrorCore::new(
                 vec![SubMessage::only_loc(loc)],
@@ -1254,10 +1307,12 @@ impl LowerWarning {
     }
 
     pub fn same_name_instance_attr_warning(
-        input: Input,
-        errno: usize,
-        loc: Location,
-        caused_by: String,
+        ErrorInfo {
+            input,
+            errno,
+            loc,
+            caused_by,
+        }: ErrorInfo,
         name: &str,
     ) -> Self {
         let name = StyledStr::new(readable_name(name), Some(WARN), Some(ATTR));

@@ -8,7 +8,7 @@ use erg_common::error::{
     ErrorCore, ErrorDisplay, ErrorKind::*, Location, MultiErrorDisplay, SubMessage,
 };
 use erg_common::io::Input;
-use erg_common::style::{Attribute, Color, StyledStr, StyledString, StyledStrings, Theme, THEME};
+use erg_common::style::{Attribute, Color, StyledStr, StyledString, StyledStrings, THEME};
 use erg_common::traits::{Locational, NoTypeDisplay, Stream};
 use erg_common::{impl_display_and_error, impl_stream, switch_lang};
 
@@ -178,11 +178,18 @@ pub fn readable_name(name: &str) -> &str {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ErrorInfo {
+    pub input: Input,
+    pub errno: usize,
+    pub loc: Location,
+    pub caused_by: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CompileError {
     pub core: Box<ErrorCore>, // ErrorCore is large, so box it
     pub input: Input,
     pub caused_by: String,
-    pub theme: Theme,
 }
 
 impl_display_and_error!(CompileError);
@@ -199,7 +206,6 @@ impl From<std::io::Error> for CompileError {
             )),
             input: Input::str("".into()),
             caused_by: "".to_owned(),
-            theme: THEME,
         }
     }
 }
@@ -210,7 +216,6 @@ impl From<ParserRunnerError> for CompileError {
             core: Box::new(err.core),
             input: err.input,
             caused_by: "".to_owned(),
-            theme: THEME,
         }
     }
 }
@@ -279,7 +284,6 @@ impl CompileError {
             core: Box::new(core),
             input,
             caused_by,
-            theme: THEME,
         }
     }
 

@@ -31,7 +31,7 @@ use crate::ty::{
 };
 
 use crate::context::{ClassDefType, Context, ContextKind, DefaultInfo, RegistrationMode};
-use crate::error::{concat_result, readable_name, Failable};
+use crate::error::{concat_result, readable_name, ErrorInfo, Failable};
 use crate::error::{
     CompileError, CompileErrors, CompileResult, TyCheckError, TyCheckErrors, TyCheckResult,
 };
@@ -636,11 +636,8 @@ impl Context {
                     .skip(subr_t.non_default_params.len())
                     .collect::<Vec<_>>();
                 errs.push(TyCheckError::too_many_args_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    excessive_params.loc(),
+                    self.error_info(line!(), excessive_params.loc()),
                     "<lambda>", // TODO:
-                    self.caused_by(),
                     subr_t.non_default_params.len(),
                     params.non_defaults.len(),
                     params.defaults.len(),
@@ -803,10 +800,12 @@ impl Context {
                             self.readable_type(body_t.clone())
                         };
                         TyCheckError::return_type_error(
-                            self.cfg.input.clone(),
-                            line!() as usize,
-                            e.core.get_loc_with_fallback(),
-                            e.caused_by,
+                            ErrorInfo {
+                                input: self.cfg.input.clone(),
+                                errno: line!() as usize,
+                                loc: e.core.get_loc_with_fallback(),
+                                caused_by: e.caused_by,
+                            },
                             readable_name(name.inspect()),
                             &expect,
                             &found,

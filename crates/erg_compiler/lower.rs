@@ -2677,10 +2677,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             if let Some(class_root) = self.module.context.get_nominal_type_ctx(&class) {
                 if !class_root.kind.is_class() {
                     let err = LowerError::method_definition_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        methods.loc(),
-                        self.module.context.caused_by(),
+                        self.module.context.error_info(line!(), methods.loc()),
                         &class.qual_name(),
                         None,
                     );
@@ -3142,14 +3139,11 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             };
             for unverified in unverified_names {
                 errors.push(LowerError::not_in_trait_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    self.module.context.caused_by(),
+                    self.module.context.error_info(line!(), unverified.loc()),
                     unverified.inspect(),
                     &impl_trait,
                     class,
                     None,
-                    unverified.loc(),
                 ));
             }
             self.errs.extend(errors);
@@ -3184,10 +3178,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                         .context
                         .get_simple_type_mismatch_hint(&replaced_decl_t, def_t);
                     errors.push(LowerError::trait_member_type_error(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        name.loc(),
-                        self.module.context.caused_by(),
+                        self.module.context.error_info(line!(), name.loc()),
                         name.inspect(),
                         impl_trait,
                         &decl_vi.t,
@@ -3197,14 +3188,11 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 }
             } else {
                 errors.push(LowerError::trait_member_not_defined_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    self.module.context.caused_by(),
+                    self.module.context.error_info(line!(), t_spec.loc()),
                     decl_name.inspect(),
                     impl_trait,
                     class,
                     None,
-                    t_spec.loc(),
                 ));
             }
         }
@@ -3366,12 +3354,11 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                         && ctx.super_classes.iter().all(|class| class != &spec_t)
                     {
                         let errs = LowerError::subtyping_error(
-                            self.cfg.input.clone(),
-                            line!() as usize,
+                            self.module
+                                .context
+                                .error_info(line!(), Location::concat(&expr, &tasc.t_spec)),
                             expr.ref_t(), // FIXME:
                             &spec_t,
-                            Location::concat(&expr, &tasc.t_spec),
-                            self.module.context.caused_by(),
                         );
                         errors.push(errs);
                     }

@@ -41,6 +41,7 @@ use erg_parser::token::Token;
 
 use crate::context::instantiate::TyVarCache;
 use crate::context::instantiate_spec::ConstTemplate;
+use crate::error::ErrorInfo;
 use crate::error::{TyCheckError, TyCheckErrors};
 use crate::hir::Identifier;
 use crate::module::SharedModuleGraph;
@@ -1189,6 +1190,15 @@ impl Context {
         String::from(&self.name[..])
     }
 
+    pub fn error_info(&self, errno: u32, loc: Location) -> ErrorInfo {
+        ErrorInfo {
+            input: self.cfg.input.clone(),
+            errno: errno as usize,
+            loc,
+            caused_by: self.caused_by(),
+        }
+    }
+
     /// use `get_outer_scope` for getting the outer scope
     pub(crate) fn get_outer(&self) -> Option<&Context> {
         self.outer.as_ref().map(|x| x.as_ref())
@@ -1395,10 +1405,7 @@ impl Context {
         let mut uninited_errs = TyCheckErrors::empty();
         for (name, vi) in self.decls.iter() {
             uninited_errs.push(TyCheckError::uninitialized_error(
-                self.cfg.input.clone(),
-                line!() as usize,
-                name.loc(),
-                self.caused_by(),
+                self.error_info(line!(), name.loc()),
                 name.inspect(),
                 &vi.t,
             ));
