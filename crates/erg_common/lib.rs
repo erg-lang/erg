@@ -22,6 +22,7 @@ pub mod opcode308;
 pub mod opcode309;
 pub mod opcode310;
 pub mod opcode311;
+pub mod opcode312;
 pub mod pathutil;
 pub mod python_util;
 pub mod random;

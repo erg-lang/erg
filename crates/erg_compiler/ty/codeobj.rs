@@ -14,6 +14,7 @@ use erg_common::opcode308::Opcode308;
 use erg_common::opcode309::Opcode309;
 use erg_common::opcode310::Opcode310;
 use erg_common::opcode311::{BinOpCode, Opcode311};
+use erg_common::opcode312::Opcode312;
 use erg_common::python_util::{env_magic_number, exec_pyc_code, PythonVersion};
 use erg_common::serialize::*;
 use erg_common::Str;
@@ -609,6 +610,7 @@ impl CodeObj {
                     Some(9) => self.read_instr_309(op, arg, idx, &mut instrs),
                     Some(10) => self.read_instr_310(op, arg, idx, &mut instrs),
                     Some(11) => self.read_instr_311(op, arg, idx, &mut instrs),
+                    Some(12) => self.read_instr_312(op, arg, idx, &mut instrs),
                     _ => {}
                 }
                 idx += 2;
@@ -628,6 +630,9 @@ impl CodeObj {
             self.dump_additional_info(op, arg, idx, instrs);
         }
         match op308 {
+            Opcode308::LOAD_ATTR => {
+                write!(instrs, "{arg} ({})", self.names[arg]).unwrap();
+            }
             Opcode308::STORE_DEREF | Opcode308::LOAD_DEREF => {
                 write!(
                     instrs,
@@ -676,6 +681,9 @@ impl CodeObj {
             self.dump_additional_info(op, arg, idx, instrs);
         }
         match op309 {
+            Opcode309::LOAD_ATTR => {
+                write!(instrs, "{arg} ({})", self.names[arg]).unwrap();
+            }
             Opcode309::STORE_DEREF | Opcode309::LOAD_DEREF => {
                 write!(
                     instrs,
@@ -724,6 +732,9 @@ impl CodeObj {
             self.dump_additional_info(op, arg, idx, instrs);
         }
         match op310 {
+            Opcode310::LOAD_ATTR => {
+                write!(instrs, "{arg} ({})", self.names[arg]).unwrap();
+            }
             Opcode310::STORE_DEREF | Opcode310::LOAD_DEREF => {
                 write!(
                     instrs,
@@ -774,6 +785,9 @@ impl CodeObj {
             self.dump_additional_info(op, arg, idx, instrs);
         }
         match op311 {
+            Opcode311::LOAD_ATTR => {
+                write!(instrs, "{arg} ({})", self.names[arg]).unwrap();
+            }
             Opcode311::STORE_DEREF | Opcode311::LOAD_DEREF => {
                 write!(instrs, "{arg} ({})", self.varnames[arg]).unwrap();
             }
@@ -815,6 +829,54 @@ impl CodeObj {
         instrs.push('\n');
     }
 
+    fn read_instr_312(&self, op: &u8, arg: usize, idx: usize, instrs: &mut String) {
+        let op312 = Opcode312::try_from(*op).unwrap_or_else(|_| panic!("{op}?"));
+        let s_op = op312.to_string();
+        write!(instrs, "{idx:>15} {s_op:<26}").unwrap();
+        if let Ok(op) = CommonOpcode::try_from(*op) {
+            self.dump_additional_info(op, arg, idx, instrs);
+        }
+        match op312 {
+            Opcode312::LOAD_ATTR => {
+                write!(instrs, "{arg} ({})", self.names[arg>>1]).unwrap();
+            }
+            Opcode312::STORE_DEREF | Opcode312::LOAD_DEREF => {
+                write!(instrs, "{arg} ({})", self.varnames[arg]).unwrap();
+            }
+            Opcode312::MAKE_CELL | Opcode312::LOAD_CLOSURE => {
+                write!(instrs, "{arg} ({})", self.varnames[arg]).unwrap();
+            }
+            Opcode312::POP_JUMP_FORWARD_IF_FALSE | Opcode312::POP_JUMP_FORWARD_IF_TRUE => {
+                write!(instrs, "{arg} (to {})", idx + arg * 2 + 2).unwrap();
+            }
+            Opcode312::JUMP_FORWARD => {
+                write!(instrs, "{arg} (to {})", idx + arg * 2 + 2).unwrap();
+            }
+            Opcode312::JUMP_BACKWARD => {
+                write!(instrs, "{arg} (to {})", idx - arg * 2 + 2).unwrap();
+            }
+            | Opcode312::CALL
+            | Opcode312::COPY
+            | Opcode312::SWAP
+            | Opcode312::COPY_FREE_VARS => {
+                write!(instrs, "{arg}").unwrap();
+            }
+            Opcode312::KW_NAMES => {
+                write!(instrs, "{arg} ({})", self.consts[arg]).unwrap();
+            }
+            Opcode312::BINARY_OP => {
+                write!(
+                    instrs,
+                    "{arg} ({:?})",
+                    BinOpCode::try_from(arg as u8).unwrap()
+                )
+                .unwrap();
+            }
+            _ => {}
+        }
+        instrs.push('\n');
+    }
+
     fn dump_additional_info(&self, op: CommonOpcode, arg: usize, idx: usize, instrs: &mut String) {
         match op {
             CommonOpcode::COMPARE_OP => {
@@ -833,8 +895,6 @@ impl CodeObj {
             | CommonOpcode::LOAD_NAME
             | CommonOpcode::STORE_GLOBAL
             | CommonOpcode::LOAD_GLOBAL
-            | CommonOpcode::STORE_ATTR
-            | CommonOpcode::LOAD_ATTR
             | CommonOpcode::LOAD_METHOD
             | CommonOpcode::IMPORT_NAME
             | CommonOpcode::IMPORT_FROM => {

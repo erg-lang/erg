@@ -48,7 +48,7 @@ pub enum CommonOpcode {
     BUILD_LIST = 103,
     BUILD_SET = 104,
     BUILD_MAP = 105, // build a Dict object
-    LOAD_ATTR = 106,
+    // LOAD_ATTR = 106,
     COMPARE_OP = 107,
     IMPORT_NAME = 108,
     IMPORT_FROM = 109,
@@ -115,7 +115,7 @@ impl TryFrom<u8> for CommonOpcode {
             103 => BUILD_LIST,
             104 => BUILD_SET,
             105 => BUILD_MAP,
-            106 => LOAD_ATTR,
+            // 106 => LOAD_ATTR,
             107 => COMPARE_OP,
             108 => IMPORT_NAME,
             109 => IMPORT_FROM,

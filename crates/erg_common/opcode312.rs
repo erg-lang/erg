@@ -1,22 +1,26 @@
-//! defines `Opcode311` (represents CPython 3.11 bytecode opcodes).
+//! defines `Opcode312` (represents CPython 3.12 bytecode opcodes).
 //!
-//! Opcode311(CPython 3.11バイトコードオペコードを表す)を定義する
+//! Opcode312(CPython 3.12バイトコードオペコードを表す)を定義する
 
 #![allow(dead_code)]
 #![allow(non_camel_case_types)]
 
 use crate::impl_u8_enum;
 
-impl_u8_enum! {Opcode311;
+impl_u8_enum! {Opcode312;
     CACHE = 0,
     POP_TOP = 1,
     PUSH_NULL = 2,
+    INTERPRETER_EXIT = 3,
+    END_FOR = 4,
+    END_SEND = 5,
     NOP = 9,
-    UNARY_POSITIVE = 10,
     UNARY_NEGATIVE = 11,
     UNARY_NOT = 12,
     UNARY_INVERT = 15,
     BINARY_SUBSCR = 25,
+    BINARY_SLICE = 26,
+    STORE_SLICE = 27,
     GET_LEN = 30,
     MATCH_MAPPING = 31,
     MATCH_SEQUENCE = 32,
@@ -36,13 +40,10 @@ impl_u8_enum! {Opcode311;
     PRINT_EXPR = 70,
     LOAD_BUILD_CLASS = 71,
     LOAD_ASSERTION_ERROR = 74,
-    LIST_TO_TUPLE = 82,
+    RETURN_GENERATOR = 75,
     RETURN_VALUE = 83,
-    IMPORT_STAR = 84,
     SETUP_ANNOTATIONS = 85,
-    YIELD_VALUE = 86,
     ASYNC_GEN_WRAP = 87,
-    PREP_RERAISE_STAR = 88,
     POP_EXCEPT = 89,
     /* ↓ These opcodes take an arg */
     STORE_NAME = 90,
@@ -51,6 +52,7 @@ impl_u8_enum! {Opcode311;
     FOR_ITER = 93,
     UNPACK_EX = 94,
     STORE_ATTR = 95,
+    DELETE_ATTR = 96,
     STORE_GLOBAL = 97,
     DELETE_GLOBAL = 98,
     SWAP = 99,
@@ -65,8 +67,6 @@ impl_u8_enum! {Opcode311;
     IMPORT_NAME = 108,
     IMPORT_FROM = 109,
     JUMP_FORWARD = 110,
-    JUMP_IF_FALSE_OR_POP = 111,
-    JUMP_IF_TRUE_OR_POP = 112,
     POP_JUMP_FORWARD_IF_FALSE = 114,
     POP_JUMP_FORWARD_IF_TRUE = 115,
     LOAD_GLOBAL = 116,
@@ -74,14 +74,20 @@ impl_u8_enum! {Opcode311;
     CONTAINS_OP = 118,
     RERAISE = 119,
     COPY = 120,
+    RETURN_CONST = 121,
     BINARY_OP = 122,
     SEND = 123,
     LOAD_FAST = 124,
     STORE_FAST = 125,
     DELETE_FAST = 126,
+    LOAD_FAST_CHECK = 127,
+    POP_JUMP_IF_NOT_NONE = 128,
+    POP_JUMP_IF_NONE = 129,
     RAISE_VARARGS = 130,
     CALL_FUNCTION = 131,
     MAKE_FUNCTION = 132,
+    BUILD_SLICE = 133,
+    JUMP_BACKWARD_NO_INTERRUPT = 134,
     MAKE_CELL = 135,
     LOAD_CLOSURE = 136,
     LOAD_DEREF = 137,
@@ -99,16 +105,16 @@ impl_u8_enum! {Opcode311;
     FORMAT_VALUE = 155,
     BUILD_CONST_KEY_MAP = 156,
     BUILD_STRING = 157,
-    LOAD_METHOD = 160,
     LIST_EXTEND = 162,
     SET_UPDATE = 163,
     DICT_MERGE = 164,
     DICT_UPDATE = 165,
-    PRECALL = 166,
     CALL = 171,
     KW_NAMES = 172,
-    POP_JUMP_BACKWARD_IF_FALSE = 175,
-    POP_JUMP_BACKWARD_IF_TRUE = 176,
+    CALL_INTRINSIC_1 = 173,
+    CALL_INTRINSIC_2 = 174,
+    LOAD_FROM_DICT_OR_GLOBALS = 175,
+    LOAD_FROM_DICT_OR_DEREF = 176,
     // Erg-specific opcodes (must have a unary `ERG_`)
     // Define in descending order from 219, 255
     ERG_POP_NTH = 196,
@@ -156,31 +162,16 @@ impl_u8_enum! {Opcode311;
     NOT_IMPLEMENTED = 255,
 }
 
-impl_u8_enum! {BinOpCode;
-    Add = 0,
-    And = 1, // &
-    FloorDiv = 2,
-    LShift = 3,
-    MatrixMultiply = 4,
-    Multiply = 5,
-    Remainder = 6,
-    Or = 7, // |
-    Power = 8,
-    RShift = 9,
-    Subtract = 10,
-    TrueDivide = 11,
-    Xor = 12,
-    InplaceAdd = 13,
-    InplaceAnd = 14,
-    InplaceFloorDiv = 15,
-    InplaceLShift = 16,
-    InplaceMatrixMultiply = 17,
-    InplaceMultiply = 18,
-    InplaceRemainder = 19,
-    InplaceOr = 20,
-    InplacePower = 21,
-    InplaceRShift = 22,
-    InplaceSubtract = 23,
-    InplaceTrueDivide = 24,
-    InplaceXor = 25,
+impl_u8_enum!{IntrinsicOp;
+    PRINT = 1,
+    IMPORT_STAR = 2,
+    STOPITERATION_ERROR = 3,
+    ASYNC_GEN_WRAP = 4,
+    UNARY_POSITIVE = 5,
+    LIST_TO_TUPLE = 6,
+    TYPEVAR = 7,
+    PARAMSPEC = 8,
+    TYPEVARTUPLE = 9,
+    SUBSCRIPT_GENERIC = 10,
+    TYPEALIAS = 11,
 }

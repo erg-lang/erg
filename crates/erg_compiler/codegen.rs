@@ -15,6 +15,7 @@ use erg_common::opcode308::Opcode308;
 use erg_common::opcode309::Opcode309;
 use erg_common::opcode310::Opcode310;
 use erg_common::opcode311::{BinOpCode, Opcode311};
+use erg_common::opcode312::{Opcode312, IntrinsicOp};
 use erg_common::option_enum_unwrap;
 use erg_common::python_util::{env_python_version, PythonVersion};
 use erg_common::traits::{Locational, Stream};
@@ -795,7 +796,8 @@ impl PyCodeGenerator {
             }
             StoreLoadKind::Local | StoreLoadKind::LocalConst => match acc_kind {
                 Name => LOAD_NAME as u8,
-                UnboundAttr => LOAD_ATTR as u8,
+                UnboundAttr => Opcode311::LOAD_ATTR as u8,
+                BoundAttr if self.py_version.minor == Some(12) => Opcode311::LOAD_ATTR as u8,
                 BoundAttr => LOAD_METHOD as u8,
             },
         }
@@ -926,8 +928,13 @@ impl PyCodeGenerator {
         self.write_instr(IMPORT_NAME);
         self.write_arg(name.idx);
         self.stack_inc();
-        self.write_instr(IMPORT_STAR);
-        self.write_arg(0);
+        if self.py_version.minor == Some(12) {
+            self.write_instr(Opcode312::CALL_INTRINSIC_1);
+            self.write_arg(IntrinsicOp::IMPORT_STAR as usize);
+        } else {
+            self.write_instr(IMPORT_STAR);
+            self.write_arg(0);
+        }
         self.stack_dec_n(3);
     }
 
@@ -965,7 +972,12 @@ impl PyCodeGenerator {
             .unwrap_or_else(|| self.register_attr(escaped));
         let instr = self.select_load_instr(name.kind, UnboundAttr);
         self.write_instr(instr);
-        self.write_arg(name.idx);
+        let idx = if self.py_version.minor == Some(12) {
+            name.idx << 1
+        } else {
+            name.idx
+        };
+        self.write_arg(idx);
         if self.py_version.minor >= Some(11) {
             self.write_bytes(&[0; 8]);
         }
@@ -979,10 +991,22 @@ impl PyCodeGenerator {
             .unwrap_or_else(|| self.register_method(escaped));
         let instr = self.select_load_instr(name.kind, acc_kind);
         self.write_instr(instr);
-        self.write_arg(name.idx);
-        if self.py_version.minor >= Some(11) {
-            self.stack_inc(); // instead of PUSH_NULL
-            self.write_bytes(&[0; 20]);
+        let idx = if self.py_version.minor == Some(12) {
+            name.idx << 1
+        } else {
+            name.idx
+        };
+        self.write_arg(idx);
+        match self.py_version.minor {
+            Some(12) => {
+                self.stack_inc(); // instead of PUSH_NULL
+                self.write_bytes(&[0; 18]);
+            },
+            Some(11) => {
+                self.stack_inc(); // instead of PUSH_NULL
+                self.write_bytes(&[0; 20]);
+            }
+            _ => {}
         }
     }
 
@@ -1173,13 +1197,23 @@ impl PyCodeGenerator {
     }
 
     fn emit_precall_and_call(&mut self, argc: usize) {
-        self.write_instr(Opcode311::PRECALL);
-        self.write_arg(argc);
-        self.write_arg(0);
-        self.write_arg(0);
+        if self.py_version.minor == Some(11) {
+            self.write_instr(Opcode311::PRECALL);
+            self.write_arg(argc);
+            self.write_arg(0);
+            self.write_arg(0);
+        }
         self.write_instr(Opcode311::CALL);
         self.write_arg(argc);
-        self.write_bytes(&[0; 8]);
+        match self.py_version.minor {
+            Some(12) => {
+                self.write_bytes(&[0; 6]);
+            }
+            Some(11) => {
+                self.write_bytes(&[0; 8]);
+            }
+            _ => {}
+        }
         self.stack_dec();
     }
 
@@ -1823,7 +1857,7 @@ impl PyCodeGenerator {
                 self.write_arg(0);
                 self.emit_expr(*bin.rhs);
                 let arg = match self.py_version.minor {
-                    Some(11) => self.lasti() - idx - 4,
+                    Some(12 | 11) => self.lasti() - idx - 4,
                     _ => self.lasti(),
                 };
                 self.fill_jump(idx + 1, arg);
@@ -1839,7 +1873,7 @@ impl PyCodeGenerator {
                 self.write_arg(0);
                 self.emit_expr(*bin.rhs);
                 let arg = match self.py_version.minor {
-                    Some(11) => self.lasti() - idx - 4,
+                    Some(12 | 11) => self.lasti() - idx - 4,
                     _ => self.lasti(),
                 };
                 self.fill_jump(idx + 1, arg);
@@ -2054,10 +2088,12 @@ impl PyCodeGenerator {
             | TokenKind::Closed
             | TokenKind::Open
             | TokenKind::ContainsOp => {
-                self.write_instr(Opcode311::PRECALL);
-                self.write_arg(2);
-                self.write_arg(0);
-                self.write_arg(0);
+                if self.py_version.minor == Some(11) {
+                    self.write_instr(Opcode311::PRECALL);
+                    self.write_arg(2);
+                    self.write_arg(0);
+                    self.write_arg(0);
+                }
                 Opcode311::CALL
             }
             _ => {
@@ -2206,7 +2242,7 @@ impl PyCodeGenerator {
             self.write_arg(0);
             // else block
             let idx_else_begin = match self.py_version.minor {
-                Some(11) => self.lasti() - idx_pop_jump_if_false - 4,
+                Some(12 | 11) => self.lasti() - idx_pop_jump_if_false - 4,
                 Some(7..=10) => self.lasti(),
                 _ => self.lasti(),
             };
@@ -2282,7 +2318,7 @@ impl PyCodeGenerator {
         self.write_instr(EXTENDED_ARG);
         self.write_arg(0);
         match self.py_version.minor {
-            Some(11) => {
+            Some(12 | 11) => {
                 self.write_instr(Opcode311::JUMP_BACKWARD);
                 self.write_arg(0);
                 self.fill_jump(idx + 1, self.lasti() - idx_for_iter);
@@ -2347,7 +2383,7 @@ impl PyCodeGenerator {
         self.fill_jump(idx + 1, arg);
         self.stack_dec();
         let idx_end = match self.py_version.minor {
-            Some(11) => self.lasti() - idx_while - 3,
+            Some(12 | 11) => self.lasti() - idx_while - 3,
             _ => self.lasti(),
         };
         self.fill_jump(idx_while + 1, idx_end);
@@ -2381,7 +2417,7 @@ impl PyCodeGenerator {
             self.stack_dec();
             for pop_jump_point in pop_jump_points {
                 let idx = match self.py_version.minor {
-                    Some(11) => self.lasti() - pop_jump_point,
+                    Some(12 | 11) => self.lasti() - pop_jump_point,
                     Some(10) => self.lasti() + 4,
                     _ => self.lasti() + 4,
                 };
@@ -2742,7 +2778,7 @@ impl PyCodeGenerator {
             "if" | "if!" => self.emit_if_instr(args),
             "match" | "match!" => self.emit_match_instr(args, true),
             "with!" => match self.py_version.minor {
-                Some(11) => self.emit_with_instr_311(args),
+                Some(12 | 11) => self.emit_with_instr_311(args),
                 Some(10) => self.emit_with_instr_310(args),
                 Some(9) => self.emit_with_instr_309(args),
                 Some(8) => self.emit_with_instr_308(args),
@@ -2804,6 +2840,10 @@ impl PyCodeGenerator {
         } else {
             UnboundAttr
         };
+        if self.py_version.minor == Some(12) {
+            self.emit_push_null();
+            self.stack_dec();
+        }
         self.emit_expr(obj);
         self.emit_load_method_instr(method_name, kind);
         if is_type {
@@ -2822,8 +2862,13 @@ impl PyCodeGenerator {
         if pos_len > 0 {
             self.write_instr(Opcode310::LIST_EXTEND);
             self.write_arg(1);
-            self.write_instr(Opcode310::LIST_TO_TUPLE);
-            self.write_arg(0);
+            if self.py_version.minor == Some(12) {
+                self.write_instr(Opcode312::CALL_INTRINSIC_1);
+                self.write_arg(IntrinsicOp::LIST_TO_TUPLE as usize);
+            } else {
+                self.write_instr(Opcode310::LIST_TO_TUPLE);
+                self.write_arg(0);
+            }
         }
         self.stack_dec();
     }
@@ -3059,7 +3104,7 @@ impl PyCodeGenerator {
         self.write_arg(1);
         self.stack_dec();
         let idx = match self.py_version.minor {
-            Some(11) => self.lasti() - pop_jump_point - 4,
+            Some(12 | 11) => self.lasti() - pop_jump_point - 4,
             Some(10) => self.lasti(),
             Some(_) => self.lasti(),
             _ => todo!(),
@@ -3932,6 +3977,10 @@ impl PyCodeGenerator {
                 Some(Identifier::private("#path")),
             )],
         );
+        if self.py_version.minor == Some(12) {
+            self.emit_push_null();
+            self.stack_dec();
+        }
         self.emit_load_name_instr(Identifier::private("#path"));
         self.emit_load_method_instr(Identifier::static_public("append"), BoundAttr);
         self.emit_load_const(erg_core_path().to_str().unwrap());

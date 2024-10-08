@@ -1,6 +1,6 @@
-//! defines `Opcode` (represents Python bytecode opcodes).
+//! defines `Opcode310` (represents CPython 3.10 bytecode opcodes).
 //!
-//! Opcode(Pythonバイトコードオペコードを表す)を定義する
+//! Opcode310(CPython 3.10バイトコードオペコードを表す)を定義する
 
 #![allow(dead_code)]
 #![allow(non_camel_case_types)]
