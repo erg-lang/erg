@@ -109,10 +109,12 @@ dependencies = [
  "erg_compiler",
  "erg_linter",
  "erg_proc_macros",
+ "libc",
  "lsp-types",
  "molc",
  "serde",
  "serde_json",
+ "windows",
 ]
 
 [[package]]

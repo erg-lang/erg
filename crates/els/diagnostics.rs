@@ -34,6 +34,38 @@ use crate::server::{DefaultFeatures, ELSResult, RedirectableStdout, Server};
 use crate::server::{ASK_AUTO_SAVE_ID, HEALTH_CHECKER_ID};
 use crate::util::{self, NormalizedUrl};
 
+#[cfg(unix)]
+pub fn is_process_alive(pid: i32) -> bool {
+    unsafe {
+        // sig 0: check if the process exists
+        let alive = libc::kill(pid, 0);
+        alive == 0
+    }
+}
+#[cfg(windows)]
+pub fn is_process_alive(pid: i32) -> bool {
+    unsafe {
+        use windows::Win32::System::Threading::{
+            GetExitCodeProcess, OpenProcess, PROCESS_QUERY_INFORMATION,
+        };
+
+        const STILL_ACTIVE: u32 = 0x103u32;
+
+        let Ok(handle) = OpenProcess(PROCESS_QUERY_INFORMATION, false, pid as u32) else {
+            return false;
+        };
+        let mut code = 0;
+        let Ok(_) = GetExitCodeProcess(handle, &mut code) else {
+            return false;
+        };
+        code == STILL_ACTIVE
+    }
+}
+#[cfg(all(not(windows), not(unix)))]
+pub fn is_process_alive(_pid: i32) -> bool {
+    false
+}
+
 #[derive(Debug)]
 pub enum BuildASTError {
     NoFile,
@@ -523,6 +555,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         if self.stdout_redirect.is_some() {
             return;
         }
+        let Some(client_pid) = self.init_params.process_id.map(|x| x as i32) else {
+            return;
+        };
         let _self = self.clone();
         // FIXME: close this thread when the server is restarted
         spawn_new_thread(
@@ -562,7 +597,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                             // _log!(self, "Restart the server");
                             // send_error_info("Something went wrong, ELS has been restarted").unwrap();
                             // self_.restart();
-                            panic!("Client health check timed out");
+                            if !is_process_alive(client_pid) {
+                                lsp_log!("Client seems to be dead");
+                                panic!("Client seems to be dead");
+                            }
                         }
                     }
                 }
