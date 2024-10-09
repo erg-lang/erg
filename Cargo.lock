@@ -114,6 +114,7 @@ dependencies = [
  "molc",
  "serde",
  "serde_json",
+ "windows",
 ]
 
 [[package]]

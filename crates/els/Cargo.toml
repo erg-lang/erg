@@ -30,7 +30,11 @@ molc = { version = "0.3" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.85"
 lsp-types = { version = "0.93.2", features = ["proposed"] }
+
+[target.'cfg(unix)'.dependencies]
 libc = "0.2"
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = ["Win32_System_Threading"] }
 
 [dev-dependencies]
 erg_proc_macros = { workspace = true }
