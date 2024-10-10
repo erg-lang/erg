@@ -1,4 +1,5 @@
 use erg_common::consts::ERG_MODE;
+use erg_common::error::Location;
 use erg_common::shared::MappedRwLockReadGuard;
 use erg_common::traits::Locational;
 use erg_common::Str;
@@ -819,5 +820,174 @@ impl<'a> HIRVisitor<'a> {
     fn get_tasc_info(&self, tasc: &TypeAscription, token: &Token) -> Option<VarInfo> {
         self.get_expr_info(&tasc.expr, token)
             .or_else(|| self.get_expr_info(&tasc.spec.expr, token))
+    }
+
+    pub fn get_parent(&self, expr_loc: Location) -> Option<&Expr> {
+        for chunk in self.hir.module.iter() {
+            if let Some(parent) = self.get_parent_expr(chunk, expr_loc) {
+                return Some(parent);
+            }
+        }
+        None
+    }
+
+    #[allow(clippy::only_used_in_recursion)]
+    fn get_parent_expr<'p>(&self, maybe_parent: &'p Expr, expr_loc: Location) -> Option<&'p Expr> {
+        let loc = maybe_parent.loc();
+        #[allow(clippy::double_comparisons)]
+        if loc < expr_loc || loc > expr_loc {
+            return None;
+        }
+        match maybe_parent {
+            Expr::BinOp(bin) => (bin.lhs.loc() == expr_loc || bin.rhs.loc() == expr_loc)
+                .then_some(maybe_parent)
+                .or_else(|| {
+                    self.get_parent_expr(&bin.lhs, expr_loc)
+                        .or_else(|| self.get_parent_expr(&bin.rhs, expr_loc))
+                }),
+            Expr::UnaryOp(unary) => (unary.expr.loc() == expr_loc)
+                .then_some(maybe_parent)
+                .or_else(|| self.get_parent_expr(&unary.expr, expr_loc)),
+            Expr::Accessor(Accessor::Attr(attr)) => (attr.obj.loc() == expr_loc
+                || attr.ident.loc() == expr_loc)
+                .then_some(maybe_parent)
+                .or_else(|| self.get_parent_expr(&attr.obj, expr_loc)),
+            Expr::Call(call) => {
+                if call.obj.loc() == expr_loc || call.args.iter().any(|arg| arg.loc() == expr_loc) {
+                    return Some(maybe_parent);
+                }
+                if let Some(expr) = self.get_parent_expr(&call.obj, expr_loc) {
+                    return Some(expr);
+                }
+                for arg in call.args.pos_args.iter() {
+                    if let Some(parent) = self.get_parent_expr(&arg.expr, expr_loc) {
+                        return Some(parent);
+                    }
+                }
+                if let Some(var) = &call.args.var_args {
+                    if let Some(parent) = self.get_parent_expr(&var.expr, expr_loc) {
+                        return Some(parent);
+                    }
+                }
+                for arg in call.args.kw_args.iter() {
+                    if let Some(parent) = self.get_parent_expr(&arg.expr, expr_loc) {
+                        return Some(parent);
+                    }
+                }
+                if let Some(kw_var) = &call.args.kw_var {
+                    if let Some(parent) = self.get_parent_expr(&kw_var.expr, expr_loc) {
+                        return Some(parent);
+                    }
+                }
+                None
+            }
+            Expr::Def(def) => {
+                if def.body.block.iter().any(|chunk| chunk.loc() == expr_loc) {
+                    return Some(maybe_parent);
+                }
+                for chunk in def.body.block.iter() {
+                    if let Some(parent) = self.get_parent_expr(chunk, expr_loc) {
+                        return Some(parent);
+                    }
+                }
+                None
+            }
+            Expr::Lambda(lambda) => {
+                if lambda.body.iter().any(|chunk| chunk.loc() == expr_loc) {
+                    return Some(maybe_parent);
+                }
+                for chunk in lambda.body.iter() {
+                    if let Some(parent) = self.get_parent_expr(chunk, expr_loc) {
+                        return Some(parent);
+                    }
+                }
+                None
+            }
+            Expr::TypeAsc(type_asc) => {
+                if type_asc.expr.loc() == expr_loc {
+                    return Some(maybe_parent);
+                }
+                if let Some(parent) = self.get_parent_expr(&type_asc.expr, expr_loc) {
+                    return Some(parent);
+                }
+                None
+            }
+            Expr::ClassDef(class_def) => {
+                if class_def.all_methods().any(|chunk| chunk.loc() == expr_loc) {
+                    return Some(maybe_parent);
+                }
+                for chunk in class_def.all_methods() {
+                    if let Some(parent) = self.get_parent_expr(chunk, expr_loc) {
+                        return Some(parent);
+                    }
+                }
+                None
+            }
+            Expr::List(List::Normal(list)) => {
+                if list.elems.iter().any(|elem| elem.loc() == expr_loc) {
+                    return Some(maybe_parent);
+                }
+                for elem in list.elems.pos_args.iter() {
+                    if let Some(parent) = self.get_parent_expr(&elem.expr, expr_loc) {
+                        return Some(parent);
+                    }
+                }
+                None
+            }
+            Expr::Set(Set::Normal(set)) => {
+                if set.elems.iter().any(|elem| elem.loc() == expr_loc) {
+                    return Some(maybe_parent);
+                }
+                for elem in set.elems.pos_args.iter() {
+                    if let Some(parent) = self.get_parent_expr(&elem.expr, expr_loc) {
+                        return Some(parent);
+                    }
+                }
+                None
+            }
+            Expr::Tuple(Tuple::Normal(tuple)) => {
+                if tuple.elems.iter().any(|elem| elem.loc() == expr_loc) {
+                    return Some(maybe_parent);
+                }
+                for elem in tuple.elems.pos_args.iter() {
+                    if let Some(parent) = self.get_parent_expr(&elem.expr, expr_loc) {
+                        return Some(parent);
+                    }
+                }
+                None
+            }
+            Expr::Dict(Dict::Normal(dict)) => {
+                if dict
+                    .kvs
+                    .iter()
+                    .any(|kv| kv.key.loc() == expr_loc || kv.value.loc() == expr_loc)
+                {
+                    return Some(maybe_parent);
+                }
+                for kv in dict.kvs.iter() {
+                    if let Some(parent) = self.get_parent_expr(&kv.key, expr_loc) {
+                        return Some(parent);
+                    }
+                    if let Some(parent) = self.get_parent_expr(&kv.value, expr_loc) {
+                        return Some(parent);
+                    }
+                }
+                None
+            }
+            Expr::Record(record) => {
+                if record.attrs.iter().any(|field| field.loc() == expr_loc) {
+                    return Some(maybe_parent);
+                }
+                for field in record.attrs.iter() {
+                    for chunk in field.body.block.iter() {
+                        if let Some(parent) = self.get_parent_expr(chunk, expr_loc) {
+                            return Some(parent);
+                        }
+                    }
+                }
+                None
+            }
+            _ => None,
+        }
     }
 }

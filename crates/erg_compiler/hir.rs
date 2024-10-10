@@ -416,6 +416,7 @@ impl Args {
             .map(|pos| &pos.expr)
             .chain(self.var_args.iter().map(|var| &var.expr))
             .chain(self.kw_args.iter().map(|kw| &kw.expr))
+            .chain(self.kw_var.iter().map(|kw| &kw.expr))
     }
 }
 

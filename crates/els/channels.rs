@@ -6,17 +6,19 @@ use erg_compiler::erg_parser::parse::Parsable;
 use lsp_types::request::{
     CallHierarchyIncomingCalls, CallHierarchyOutgoingCalls, CallHierarchyPrepare,
     CodeActionRequest, CodeActionResolveRequest, CodeLensRequest, Completion,
-    DocumentSymbolRequest, ExecuteCommand, FoldingRangeRequest, GotoDefinition, GotoImplementation,
-    GotoImplementationParams, HoverRequest, InlayHintRequest, InlayHintResolveRequest, References,
-    ResolveCompletionItem, SemanticTokensFullRequest, SignatureHelpRequest, WillRenameFiles,
-    WorkspaceSymbol,
+    DocumentHighlightRequest, DocumentSymbolRequest, ExecuteCommand, FoldingRangeRequest,
+    GotoDefinition, GotoImplementation, GotoImplementationParams, GotoTypeDefinition,
+    GotoTypeDefinitionParams, HoverRequest, InlayHintRequest, InlayHintResolveRequest, References,
+    ResolveCompletionItem, SelectionRangeRequest, SemanticTokensFullRequest, SignatureHelpRequest,
+    WillRenameFiles, WorkspaceSymbol,
 };
 use lsp_types::{
     CallHierarchyIncomingCallsParams, CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams,
     CodeAction, CodeActionParams, CodeLensParams, CompletionItem, CompletionParams,
-    DocumentSymbolParams, ExecuteCommandParams, FoldingRangeParams, GotoDefinitionParams,
-    HoverParams, InlayHint, InlayHintParams, ReferenceParams, RenameFilesParams,
-    SemanticTokensParams, SignatureHelpParams, WorkspaceSymbolParams,
+    DocumentHighlightParams, DocumentSymbolParams, ExecuteCommandParams, FoldingRangeParams,
+    GotoDefinitionParams, HoverParams, InlayHint, InlayHintParams, ReferenceParams,
+    RenameFilesParams, SelectionRangeParams, SemanticTokensParams, SignatureHelpParams,
+    WorkspaceSymbolParams,
 };
 
 use crate::server::Server;
@@ -38,6 +40,7 @@ pub struct SendChannels {
     completion: mpsc::Sender<WorkerMessage<CompletionParams>>,
     resolve_completion: mpsc::Sender<WorkerMessage<CompletionItem>>,
     goto_definition: mpsc::Sender<WorkerMessage<GotoDefinitionParams>>,
+    goto_type_definition: mpsc::Sender<WorkerMessage<GotoTypeDefinitionParams>>,
     goto_implementation: mpsc::Sender<WorkerMessage<GotoImplementationParams>>,
     semantic_tokens_full: mpsc::Sender<WorkerMessage<SemanticTokensParams>>,
     inlay_hint: mpsc::Sender<WorkerMessage<InlayHintParams>>,
@@ -56,6 +59,8 @@ pub struct SendChannels {
     call_hierarchy_incoming: mpsc::Sender<WorkerMessage<CallHierarchyIncomingCallsParams>>,
     call_hierarchy_outgoing: mpsc::Sender<WorkerMessage<CallHierarchyOutgoingCallsParams>>,
     folding_range: mpsc::Sender<WorkerMessage<FoldingRangeParams>>,
+    selection_range: mpsc::Sender<WorkerMessage<SelectionRangeParams>>,
+    document_highlight: mpsc::Sender<WorkerMessage<DocumentHighlightParams>>,
     pub(crate) health_check: mpsc::Sender<WorkerMessage<()>>,
 }
 
@@ -64,6 +69,7 @@ impl SendChannels {
         let (tx_completion, rx_completion) = mpsc::channel();
         let (tx_resolve_completion, rx_resolve_completion) = mpsc::channel();
         let (tx_goto_definition, rx_goto_definition) = mpsc::channel();
+        let (tx_goto_type_definition, rx_goto_type_definition) = mpsc::channel();
         let (tx_goto_implementation, rx_goto_implementation) = mpsc::channel();
         let (tx_semantic_tokens_full, rx_semantic_tokens_full) = mpsc::channel();
         let (tx_inlay_hint, rx_inlay_hint) = mpsc::channel();
@@ -82,12 +88,15 @@ impl SendChannels {
         let (tx_call_hierarchy_incoming, rx_call_hierarchy_incoming) = mpsc::channel();
         let (tx_call_hierarchy_outgoing, rx_call_hierarchy_outgoing) = mpsc::channel();
         let (tx_folding_range, rx_folding_range) = mpsc::channel();
+        let (tx_selection_range, rx_selection_range) = mpsc::channel();
+        let (tx_document_highlight, rx_document_highlight) = mpsc::channel();
         let (tx_health_check, rx_health_check) = mpsc::channel();
         (
             Self {
                 completion: tx_completion,
                 resolve_completion: tx_resolve_completion,
                 goto_definition: tx_goto_definition,
+                goto_type_definition: tx_goto_type_definition,
                 goto_implementation: tx_goto_implementation,
                 semantic_tokens_full: tx_semantic_tokens_full,
                 inlay_hint: tx_inlay_hint,
@@ -106,12 +115,15 @@ impl SendChannels {
                 call_hierarchy_incoming: tx_call_hierarchy_incoming,
                 call_hierarchy_outgoing: tx_call_hierarchy_outgoing,
                 folding_range: tx_folding_range,
+                selection_range: tx_selection_range,
+                document_highlight: tx_document_highlight,
                 health_check: tx_health_check,
             },
             ReceiveChannels {
                 completion: rx_completion,
                 resolve_completion: rx_resolve_completion,
                 goto_definition: rx_goto_definition,
+                goto_type_definition: rx_goto_type_definition,
                 goto_implementation: rx_goto_implementation,
                 semantic_tokens_full: rx_semantic_tokens_full,
                 inlay_hint: rx_inlay_hint,
@@ -130,6 +142,8 @@ impl SendChannels {
                 call_hierarchy_incoming: rx_call_hierarchy_incoming,
                 call_hierarchy_outgoing: rx_call_hierarchy_outgoing,
                 folding_range: rx_folding_range,
+                selection_range: rx_selection_range,
+                document_highlight: rx_document_highlight,
                 health_check: rx_health_check,
             },
         )
@@ -139,6 +153,8 @@ impl SendChannels {
         let _ = self.completion.send(WorkerMessage::Kill);
         let _ = self.resolve_completion.send(WorkerMessage::Kill);
         let _ = self.goto_definition.send(WorkerMessage::Kill);
+        let _ = self.goto_type_definition.send(WorkerMessage::Kill);
+        let _ = self.goto_implementation.send(WorkerMessage::Kill);
         let _ = self.semantic_tokens_full.send(WorkerMessage::Kill);
         let _ = self.inlay_hint.send(WorkerMessage::Kill);
         let _ = self.inlay_hint_resolve.send(WorkerMessage::Kill);
@@ -156,6 +172,8 @@ impl SendChannels {
         let _ = self.call_hierarchy_incoming.send(WorkerMessage::Kill);
         let _ = self.call_hierarchy_outgoing.send(WorkerMessage::Kill);
         let _ = self.folding_range.send(WorkerMessage::Kill);
+        let _ = self.selection_range.send(WorkerMessage::Kill);
+        let _ = self.document_highlight.send(WorkerMessage::Kill);
         let _ = self.health_check.send(WorkerMessage::Kill);
     }
 }
@@ -165,6 +183,7 @@ pub struct ReceiveChannels {
     pub(crate) completion: mpsc::Receiver<WorkerMessage<CompletionParams>>,
     pub(crate) resolve_completion: mpsc::Receiver<WorkerMessage<CompletionItem>>,
     pub(crate) goto_definition: mpsc::Receiver<WorkerMessage<GotoDefinitionParams>>,
+    pub(crate) goto_type_definition: mpsc::Receiver<WorkerMessage<GotoTypeDefinitionParams>>,
     pub(crate) goto_implementation: mpsc::Receiver<WorkerMessage<GotoImplementationParams>>,
     pub(crate) semantic_tokens_full: mpsc::Receiver<WorkerMessage<SemanticTokensParams>>,
     pub(crate) inlay_hint: mpsc::Receiver<WorkerMessage<InlayHintParams>>,
@@ -185,6 +204,8 @@ pub struct ReceiveChannels {
     pub(crate) call_hierarchy_outgoing:
         mpsc::Receiver<WorkerMessage<CallHierarchyOutgoingCallsParams>>,
     pub(crate) folding_range: mpsc::Receiver<WorkerMessage<FoldingRangeParams>>,
+    pub(crate) selection_range: mpsc::Receiver<WorkerMessage<SelectionRangeParams>>,
+    pub(crate) document_highlight: mpsc::Receiver<WorkerMessage<DocumentHighlightParams>>,
     pub(crate) health_check: mpsc::Receiver<WorkerMessage<()>>,
 }
 
@@ -223,6 +244,11 @@ impl_sendable!(Completion, CompletionParams, completion);
 impl_sendable!(ResolveCompletionItem, CompletionItem, resolve_completion);
 impl_sendable!(GotoDefinition, GotoDefinitionParams, goto_definition);
 impl_sendable!(
+    GotoTypeDefinition,
+    GotoTypeDefinitionParams,
+    goto_type_definition
+);
+impl_sendable!(
     GotoImplementation,
     GotoImplementationParams,
     goto_implementation
@@ -260,3 +286,9 @@ impl_sendable!(
     call_hierarchy_outgoing
 );
 impl_sendable!(FoldingRangeRequest, FoldingRangeParams, folding_range);
+impl_sendable!(SelectionRangeRequest, SelectionRangeParams, selection_range);
+impl_sendable!(
+    DocumentHighlightRequest,
+    DocumentHighlightParams,
+    document_highlight
+);

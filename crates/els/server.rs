@@ -37,9 +37,10 @@ use molc::{FakeClient, LangServer};
 use lsp_types::request::{
     CallHierarchyIncomingCalls, CallHierarchyOutgoingCalls, CallHierarchyPrepare,
     CodeActionRequest, CodeActionResolveRequest, CodeLensRequest, Completion,
-    DocumentSymbolRequest, ExecuteCommand, FoldingRangeRequest, GotoDefinition, GotoImplementation,
-    HoverRequest, InlayHintRequest, InlayHintResolveRequest, References, Rename, Request,
-    ResolveCompletionItem, SemanticTokensFullRequest, SignatureHelpRequest, WillRenameFiles,
+    DocumentHighlightRequest, DocumentSymbolRequest, ExecuteCommand, FoldingRangeRequest,
+    GotoDefinition, GotoImplementation, GotoTypeDefinition, HoverRequest, InlayHintRequest,
+    InlayHintResolveRequest, References, Rename, Request, ResolveCompletionItem,
+    SelectionRangeRequest, SemanticTokensFullRequest, SignatureHelpRequest, WillRenameFiles,
     WorkspaceSymbol,
 };
 use lsp_types::{
@@ -49,10 +50,11 @@ use lsp_types::{
     ExecuteCommandOptions, FoldingRangeProviderCapability, HoverProviderCapability,
     ImplementationProviderCapability, InitializeParams, InitializeResult, InlayHintOptions,
     InlayHintServerCapabilities, NumberOrString, OneOf, Position, ProgressParams,
-    ProgressParamsValue, SemanticTokenType, SemanticTokensFullOptions, SemanticTokensLegend,
-    SemanticTokensOptions, SemanticTokensServerCapabilities, ServerCapabilities,
-    SignatureHelpOptions, WorkDoneProgress, WorkDoneProgressBegin, WorkDoneProgressCreateParams,
-    WorkDoneProgressEnd, WorkDoneProgressOptions,
+    ProgressParamsValue, SelectionRangeProviderCapability, SemanticTokenType,
+    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions,
+    SemanticTokensServerCapabilities, ServerCapabilities, SignatureHelpOptions,
+    TypeDefinitionProviderCapability, WorkDoneProgress, WorkDoneProgressBegin,
+    WorkDoneProgressCreateParams, WorkDoneProgressEnd, WorkDoneProgressOptions,
 };
 
 use serde::{Deserialize, Serialize};
@@ -454,6 +456,8 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         capabilities.rename_provider = Some(OneOf::Left(true));
         capabilities.references_provider = Some(OneOf::Left(true));
         capabilities.definition_provider = Some(OneOf::Left(true));
+        capabilities.type_definition_provider =
+            Some(TypeDefinitionProviderCapability::Simple(true));
         capabilities.implementation_provider = Some(ImplementationProviderCapability::Simple(true));
         capabilities.hover_provider = self
             .disabled_features
@@ -533,6 +537,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         capabilities.document_symbol_provider = Some(OneOf::Left(true));
         capabilities.call_hierarchy_provider = Some(CallHierarchyServerCapability::Simple(true));
         capabilities.folding_range_provider = Some(FoldingRangeProviderCapability::Simple(true));
+        capabilities.selection_range_provider =
+            Some(SelectionRangeProviderCapability::Simple(true));
+        capabilities.document_highlight_provider = Some(OneOf::Left(true));
         capabilities
     }
 
@@ -562,6 +569,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         self.start_service::<GotoDefinition>(
             receivers.goto_definition,
             Self::handle_goto_definition,
+        );
+        self.start_service::<GotoTypeDefinition>(
+            receivers.goto_type_definition,
+            Self::handle_goto_type_definition,
         );
         self.start_service::<GotoImplementation>(
             receivers.goto_implementation,
@@ -619,6 +630,14 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         self.start_service::<FoldingRangeRequest>(
             receivers.folding_range,
             Self::handle_folding_range,
+        );
+        self.start_service::<SelectionRangeRequest>(
+            receivers.selection_range,
+            Self::handle_selection_range,
+        );
+        self.start_service::<DocumentHighlightRequest>(
+            receivers.document_highlight,
+            Self::handle_document_highlight,
         );
         self.start_client_health_checker(receivers.health_check);
     }
@@ -847,6 +866,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             Completion::METHOD => self.parse_send::<Completion>(id, msg),
             ResolveCompletionItem::METHOD => self.parse_send::<ResolveCompletionItem>(id, msg),
             GotoDefinition::METHOD => self.parse_send::<GotoDefinition>(id, msg),
+            GotoTypeDefinition::METHOD => self.parse_send::<GotoTypeDefinition>(id, msg),
             GotoImplementation::METHOD => self.parse_send::<GotoImplementation>(id, msg),
             HoverRequest::METHOD => self.parse_send::<HoverRequest>(id, msg),
             References::METHOD => self.parse_send::<References>(id, msg),
@@ -873,6 +893,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             }
             CallHierarchyPrepare::METHOD => self.parse_send::<CallHierarchyPrepare>(id, msg),
             FoldingRangeRequest::METHOD => self.parse_send::<FoldingRangeRequest>(id, msg),
+            SelectionRangeRequest::METHOD => self.parse_send::<SelectionRangeRequest>(id, msg),
+            DocumentHighlightRequest::METHOD => {
+                self.parse_send::<DocumentHighlightRequest>(id, msg)
+            }
             other => self.send_error(Some(id), -32600, format!("{other} is not supported")),
         }
     }
