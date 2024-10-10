@@ -2799,7 +2799,9 @@ impl PyCodeGenerator {
             return self.emit_call_fake_method(obj, func_name, method_name, args);
         }
         let is_type = method_name.ref_t().is_poly_meta_type();
-        let kind = if self.py_version.minor >= Some(11) || method_name.vi.t.is_method() {
+        let kind = if self.py_version.minor >= Some(11)
+            || (method_name.vi.t.is_method() && args.kw_args.is_empty())
+        {
             BoundAttr
         } else {
             UnboundAttr

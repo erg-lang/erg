@@ -14,12 +14,14 @@ D.
     new y = Self { .y; }
     @staticmethod
     foo x = x + 1
+    bar self, x := 1 = self.y + x
     one = Self.new 1
 D|<: Eq|.
     `==` self, other = self.y == other.y
 
 d = D.new 1
 assert d.foo(1) == 2
+assert d.bar(x:=2) == 3
 
 c = C.new { .x = D.new(1) }
 assert c.x.y == 1
