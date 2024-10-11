@@ -2,6 +2,7 @@
 use std::borrow::Borrow;
 use std::fmt;
 use std::fmt::Write as _;
+use std::hash::{Hash, Hasher};
 
 use erg_common::consts::ERG_MODE;
 use erg_common::error::Location;
@@ -2559,11 +2560,26 @@ impl ConstBlock {
 }
 
 #[pyclass(get_all, set_all)]
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug)]
 pub struct ConstDefBody {
     pub op: Token,
     pub block: ConstBlock,
     pub id: DefId,
+}
+
+impl PartialEq for ConstDefBody {
+    fn eq(&self, other: &Self) -> bool {
+        self.op == other.op && self.block == other.block
+    }
+}
+
+impl Eq for ConstDefBody {}
+
+impl Hash for ConstDefBody {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.op.hash(state);
+        self.block.hash(state);
+    }
 }
 
 impl_locational!(ConstDefBody, lossy op, block);
@@ -2613,12 +2629,28 @@ impl ConstDef {
 }
 
 #[pyclass]
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug)]
 pub struct ConstLambda {
     pub sig: Box<LambdaSignature>,
     pub op: Token,
     pub body: ConstBlock,
     pub id: DefId,
+}
+
+impl PartialEq for ConstLambda {
+    fn eq(&self, other: &Self) -> bool {
+        self.sig == other.sig && self.op == other.op && self.body == other.body
+    }
+}
+
+impl Eq for ConstLambda {}
+
+impl Hash for ConstLambda {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.sig.hash(state);
+        self.op.hash(state);
+        self.body.hash(state);
+    }
 }
 
 impl NestedDisplay for ConstLambda {
@@ -5495,6 +5527,8 @@ impl LambdaSignature {
     }
 }
 
+/// Definition ID.
+/// IDs are comparable, but `Def`s with different IDs are equal if the node contents are the same.
 #[pyclass(subclass)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct DefId(pub usize);
@@ -5506,13 +5540,29 @@ impl DefId {
 }
 
 #[pyclass(get_all, set_all)]
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug)]
 pub struct Lambda {
     pub sig: LambdaSignature,
     /// for detecting func/proc
     pub op: Token,
     pub body: Block,
     pub id: DefId,
+}
+
+impl PartialEq for Lambda {
+    fn eq(&self, other: &Self) -> bool {
+        self.sig == other.sig && self.op == other.op && self.body == other.body
+    }
+}
+
+impl Eq for Lambda {}
+
+impl Hash for Lambda {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.sig.hash(state);
+        self.op.hash(state);
+        self.body.hash(state);
+    }
 }
 
 impl NestedDisplay for Lambda {
@@ -5762,7 +5812,7 @@ impl DefKind {
 }
 
 #[pyclass(get_all, set_all)]
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug)]
 pub struct DefBody {
     pub op: Token,
     pub block: Block,
@@ -5770,6 +5820,21 @@ pub struct DefBody {
 }
 
 impl_locational!(DefBody, lossy op, block);
+
+impl PartialEq for DefBody {
+    fn eq(&self, other: &Self) -> bool {
+        self.op == other.op && self.block == other.block
+    }
+}
+
+impl Eq for DefBody {}
+
+impl Hash for DefBody {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.op.hash(state);
+        self.block.hash(state);
+    }
+}
 
 #[pymethods]
 impl DefBody {
@@ -5896,13 +5961,33 @@ impl ReDef {
 ///     f(a) = ...
 /// ```
 #[pyclass]
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct Methods {
     pub id: DefId,
     pub class: TypeSpec,
     pub class_as_expr: Box<Expr>,
     pub vis: VisModifierSpec, // `.` or `::`
     pub attrs: ClassAttrs,
+}
+
+impl PartialEq for Methods {
+    fn eq(&self, other: &Self) -> bool {
+        self.class == other.class
+            && self.class_as_expr == other.class_as_expr
+            && self.vis == other.vis
+            && self.attrs == other.attrs
+    }
+}
+
+impl Eq for Methods {}
+
+impl Hash for Methods {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.class.hash(state);
+        self.class_as_expr.hash(state);
+        self.vis.hash(state);
+        self.attrs.hash(state);
+    }
 }
 
 impl NestedDisplay for Methods {

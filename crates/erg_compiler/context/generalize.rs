@@ -1529,7 +1529,11 @@ impl Context {
     /// Resolution should start at a deeper level.
     /// For example, if it is a lambda function, the body should be checked before the signature.
     /// However, a binop call error, etc., is more important then binop operands.
-    fn resolve_expr_t(&self, expr: &mut hir::Expr, qnames: &Set<Str>) -> TyCheckResult<()> {
+    pub(crate) fn resolve_expr_t(
+        &self,
+        expr: &mut hir::Expr,
+        qnames: &Set<Str>,
+    ) -> TyCheckResult<()> {
         match expr {
             hir::Expr::Literal(_) => Ok(()),
             hir::Expr::Accessor(acc) => {

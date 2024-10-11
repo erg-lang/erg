@@ -3606,7 +3606,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
     /// The meaning of TypeAscription changes between chunk and expr.
     /// For example, `x: Int`, as expr, is `x` itself,
     /// but as chunk, it declares that `x` is of type `Int`, and is valid even before `x` is defined.
-    pub fn lower_chunk(
+    pub(crate) fn lower_chunk(
         &mut self,
         chunk: ast::Expr,
         expect: Option<&Type>,
@@ -3630,6 +3630,24 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 self.lower_decl(tasc).map_err(|es| (None, es))?,
             )),
             other => self.lower_expr(other, expect),
+        }
+    }
+
+    pub fn lower_and_resolve_chunk(
+        &mut self,
+        chunk: ast::Expr,
+        expect: Option<&Type>,
+    ) -> FailableOption<hir::Expr> {
+        match self.lower_chunk(chunk, expect) {
+            Ok(mut chunk) => {
+                let _ = self.module.context.resolve_expr_t(&mut chunk, &set! {});
+                Ok(chunk)
+            }
+            Err((Some(mut chunk), errs)) => {
+                let _ = self.module.context.resolve_expr_t(&mut chunk, &set! {});
+                Err((Some(chunk), errs))
+            }
+            Err((None, errs)) => Err((None, errs)),
         }
     }
 

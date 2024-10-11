@@ -8,6 +8,7 @@ use erg_compiler::erg_parser::ast::Module;
 use erg_compiler::hir;
 use erg_compiler::hir::HIR;
 use erg_compiler::lower::ASTLowerer;
+use erg_compiler::ty::HasType;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ASTDiff {
@@ -67,6 +68,29 @@ impl ASTDiff {
     pub const fn is_nop(&self) -> bool {
         matches!(self, Self::Nop)
     }
+
+    pub fn update(self, mut old: impl DerefMut<Target = ast::Module>) {
+        match self {
+            Self::Addition(idx, expr) => {
+                if idx > old.len() {
+                    old.push(expr);
+                } else {
+                    old.insert(idx, expr);
+                }
+            }
+            Self::Deletion(usize) => {
+                if old.get(usize).is_some() {
+                    old.remove(usize);
+                }
+            }
+            Self::Modification(idx, expr) => {
+                if let Some(old_expr) = old.get_mut(idx) {
+                    *old_expr = expr;
+                }
+            }
+            Self::Nop => {}
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -93,12 +117,10 @@ impl HIRDiff {
         match diff {
             ASTDiff::Deletion(idx) => Some(Self::Deletion(idx)),
             ASTDiff::Addition(idx, expr) => {
-                let expr = lowerer
-                    .lower_chunk(expr, None)
-                    .map_err(|_err| {
-                        // crate::_log!(self, "err: {err}");
-                    })
-                    .ok()?;
+                let expr = match lowerer.lower_and_resolve_chunk(expr, None) {
+                    Ok(expr) => expr,
+                    Err((opt_expr, _err)) => opt_expr?,
+                };
                 Some(Self::Addition(idx, expr))
             }
             ASTDiff::Modification(idx, expr) => {
@@ -110,12 +132,10 @@ impl HIRDiff {
                         lowerer.unregister(name);
                     }
                 }
-                let expr = lowerer
-                    .lower_chunk(expr, None)
-                    .map_err(|_err| {
-                        // crate::_log!(self, "err: {err}");
-                    })
-                    .ok()?;
+                let expr = match lowerer.lower_and_resolve_chunk(expr, None) {
+                    Ok(expr) => expr,
+                    Err((opt_expr, _err)) => opt_expr?,
+                };
                 Some(Self::Modification(idx, expr))
             }
             ASTDiff::Nop => Some(Self::Nop),
@@ -143,5 +163,24 @@ impl HIRDiff {
             }
             Self::Nop => {}
         }
+    }
+
+    pub fn fix(ast: &ast::Module, hir: &mut hir::Module, lowerer: &mut ASTLowerer) -> usize {
+        let mut fixed = 0;
+        for (ast_chunk, chunk) in ast.iter().zip(hir.iter_mut()) {
+            if ast_chunk.name() != chunk.name() {
+                continue;
+            }
+            if chunk.ref_t().contains_failure() {
+                match lowerer.lower_and_resolve_chunk(ast_chunk.clone(), None) {
+                    Ok(expr) | Err((Some(expr), _)) => {
+                        *chunk = expr;
+                        fixed += 1;
+                    }
+                    _ => {}
+                }
+            }
+        }
+        fixed
     }
 }

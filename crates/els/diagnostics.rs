@@ -289,10 +289,16 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         }
         if let Some((mut lowerer, mut irs)) = self.steal_lowerer(&uri) {
             if let Some((hir_diff, hir)) =
-                HIRDiff::new(ast_diff, &mut lowerer).zip(irs.hir.as_mut())
+                HIRDiff::new(ast_diff.clone(), &mut lowerer).zip(irs.hir.as_mut())
             {
                 crate::_log!(self, "hir_diff: {hir_diff}");
                 hir_diff.update(hir);
+                if let Some(ast) = irs.ast.as_mut() {
+                    ast_diff.update(ast);
+                }
+            }
+            if let Some(hir) = irs.hir.as_mut() {
+                HIRDiff::fix(&new, &mut hir.module, &mut lowerer);
             }
             self.restore_lowerer(uri, lowerer, irs);
         }

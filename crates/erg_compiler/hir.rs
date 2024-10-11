@@ -3008,7 +3008,7 @@ impl Expr {
         match self {
             Self::Literal(_) => "literal",
             Self::Accessor(_) => "accessor",
-            Self::List(_) => "array",
+            Self::List(_) => "list",
             Self::Tuple(_) => "tuple",
             Self::Dict(_) => "dict",
             Self::Set(_) => "set",
