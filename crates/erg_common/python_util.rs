@@ -573,24 +573,50 @@ fn which_python_from_toml() -> Option<String> {
         if line.starts_with("[tool.erg.python]") || line.starts_with("[tool.pylyzer.python]") {
             line.clear();
             reader.read_line(&mut line).ok()?;
-            return Some(
-                line.split('#')
-                    .next()
-                    .unwrap()
-                    .trim_start_matches("path = ")
-                    .trim_matches('"')
-                    .trim()
-                    .to_string(),
-            );
+            let attr = line.split('#').next().unwrap();
+            if attr.starts_with("path =") {
+                return Some(
+                    attr.trim_start_matches("path =")
+                        .trim_matches('"')
+                        .trim()
+                        .to_string(),
+                );
+            }
         }
         line.clear();
     }
     None
 }
 
+fn get_poetry_virtualenv_path() -> Option<String> {
+    let out = if cfg!(windows) {
+        Command::new("cmd")
+            .arg("/C")
+            .arg("poetry env info -p")
+            .output()
+            .ok()?
+    } else {
+        Command::new("sh")
+            .arg("-c")
+            .arg("poetry env info -p")
+            .output()
+            .ok()?
+    };
+    let path = String::from_utf8(out.stdout).ok()?;
+    Path::new(path.trim())
+        .exists()
+        .then_some(path.trim().to_string())
+}
+
 pub fn opt_which_python() -> Result<String, String> {
     if let Some(path) = which_python_from_toml() {
         return Ok(path);
+    }
+    if Path::new("./.venv/bin/python").is_file() {
+        let path = canonicalize("./.venv/bin/python").unwrap();
+        return Ok(path.to_string_lossy().to_string());
+    } else if let Some(path) = get_poetry_virtualenv_path() {
+        return Ok(format!("{path}/bin/python"));
     }
     let (cmd, python) = if cfg!(windows) {
         ("where", "python")

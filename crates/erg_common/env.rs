@@ -81,8 +81,22 @@ fn _sys_path() -> impl Iterator<Item = PathBuf> {
     })
 }
 fn _python_site_packages() -> impl Iterator<Item = PathBuf> {
-    get_sys_path(None)
-        .unwrap_or_default()
+    let paths = if Path::new("./.venv/lib").is_dir() {
+        let mut paths = vec![];
+        for entry in Path::new("./.venv/lib").read_dir().unwrap().flatten() {
+            if entry.file_type().unwrap().is_dir() {
+                let mut path = entry.path();
+                path.push("site-packages");
+                if path.is_dir() {
+                    paths.push(path);
+                }
+            }
+        }
+        paths
+    } else {
+        get_sys_path(None).unwrap_or_default()
+    };
+    paths
         .into_iter()
         .filter(|p| p.ends_with("site-packages"))
         .map(|p| {
