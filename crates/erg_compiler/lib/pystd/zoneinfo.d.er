@@ -1,9 +1,18 @@
-.available_zones: Set Str, _
+.available_timezones: () -> Set(Str, _)
+.reset_tzpath!: (to := Sequence(Str) or PathLike) => NoneType
 .TZPATH: [Str; _]
+
+.ZoneInfoNotFoundError: ClassType
+.ZoneInfoNotFoundError <: Exception
+
+.InvalidTZPathWarning: ClassType
+.InvalidTZPathWarning <: Warning
 
 .ZoneInfo: ClassType
 .ZoneInfo.
     key: Str
     __call__: (key: Str) -> .ZoneInfo
     from_file: (fobj: FileLike, key := Str) -> .ZoneInfo
+    no_cache: (key: Str) -> .ZoneInfo
+    clear_cache!: () => NoneType
     __str__: (self: .ZoneInfo) -> Str

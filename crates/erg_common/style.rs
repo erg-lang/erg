@@ -162,6 +162,20 @@ impl Color {
             Color::White => WHITE,
         }
     }
+
+    pub fn decolor(colored: &str) -> &str {
+        colored
+            .trim_end_matches(RESET)
+            .trim_start_matches(BLACK)
+            .trim_start_matches(BLUE)
+            .trim_start_matches(CYAN)
+            .trim_start_matches(GRAY)
+            .trim_start_matches(GREEN)
+            .trim_start_matches(MAGENTA)
+            .trim_start_matches(RED)
+            .trim_start_matches(YELLOW)
+            .trim_start_matches(WHITE)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Hash)]
@@ -180,6 +194,14 @@ impl Attribute {
             Attribute::Bold => BOLD,
             Attribute::Reversed => REVERSED,
         }
+    }
+
+    pub fn deattr(attributed: &str) -> &str {
+        attributed
+            .trim_end_matches(ATTR_RESET)
+            .trim_start_matches(UNDERLINE)
+            .trim_start_matches(BOLD)
+            .trim_start_matches(REVERSED)
     }
 }
 
@@ -346,6 +368,10 @@ impl<'a> StyledStr<'a> {
             color,
             attribute,
         }
+    }
+
+    pub fn destyle(styled: &str) -> &str {
+        Attribute::deattr(Color::decolor(styled))
     }
 }
 
