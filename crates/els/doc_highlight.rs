@@ -31,13 +31,13 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 if let Some(range) = loc_to_range(vi.def_loc.loc) {
                     res.push(DocumentHighlight {
                         range,
-                        kind: Some(DocumentHighlightKind::TEXT),
+                        kind: Some(DocumentHighlightKind::WRITE),
                     });
                 }
                 for reference in self.get_refs_from_abs_loc(&vi.def_loc) {
                     res.push(DocumentHighlight {
                         range: reference.range,
-                        kind: Some(DocumentHighlightKind::TEXT),
+                        kind: Some(DocumentHighlightKind::READ),
                     });
                 }
             }
