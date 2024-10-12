@@ -4,10 +4,14 @@ use erg_common::trim_eliminate_top_indent;
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::erg_parser::parse::Parsable;
 use erg_compiler::erg_parser::token::{Token, TokenCategory, TokenKind};
+use erg_compiler::hir::Expr;
+use erg_compiler::ty::HasType;
 use erg_compiler::varinfo::{AbsLocation, VarInfo};
 
 use lsp_types::{Hover, HoverContents, HoverParams, MarkedString, Url};
 
+#[allow(unused)]
+use crate::_log;
 use crate::server::{ELSResult, RedirectableStdout, Server};
 use crate::util::{self, NormalizedUrl};
 
@@ -173,6 +177,48 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                             contents.push(typ);
                         }
                     }
+                }
+            }
+            if let Some(visitor) = self.get_visitor(&uri) {
+                let url = match visitor.get_min_expr(pos) {
+                    Some(Expr::Def(def)) => def
+                        .sig
+                        .ref_t()
+                        .module_path()
+                        .and_then(|path| Url::from_file_path(path).ok()),
+                    Some(Expr::Call(call)) => {
+                        call.call_signature_t().return_t().and_then(|ret_t| {
+                            ret_t
+                                .module_path()
+                                .and_then(|path| Url::from_file_path(path).ok())
+                        })
+                    }
+                    Some(expr) => expr
+                        .ref_t()
+                        .module_path()
+                        .or_else(|| {
+                            expr.ref_t()
+                                .inner_ts()
+                                .into_iter()
+                                .find_map(|t| t.module_path())
+                        })
+                        .and_then(|path| Url::from_file_path(path).ok()),
+                    _ => None,
+                };
+                if let Some(url) = url {
+                    let path = url.to_file_path().unwrap().with_extension("");
+                    let name = if path.ends_with("__init__") || path.ends_with("__init__.d") {
+                        path.parent()
+                            .unwrap()
+                            .file_stem()
+                            .unwrap()
+                            .to_string_lossy()
+                    } else {
+                        path.file_stem().unwrap().to_string_lossy()
+                    };
+                    contents.push(MarkedString::from_markdown(format!(
+                        "Go to [{name}]({url})",
+                    )));
                 }
             }
         } else {

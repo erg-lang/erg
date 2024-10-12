@@ -1891,6 +1891,7 @@ impl HasType for Type {
                 )
                 .chain(sub.var_params.as_deref().map(|pt| pt.typ().clone()))
                 .chain(sub.non_default_params.iter().map(|pt| pt.typ().clone()))
+                .chain(sub.kw_var_params.as_deref().map(|pt| pt.typ().clone()))
                 .chain([*sub.return_t.clone()])
                 .collect(),
             Self::Callable { param_ts, .. } => param_ts.clone(),

@@ -87,11 +87,16 @@ pub enum DefaultFeatures {
     Diagnostics,
     FindReferences,
     GotoDefinition,
+    GotoTypeDefinition,
     Hover,
     InlayHint,
     Rename,
     SemanticTokens,
     SignatureHelp,
+    DocumentHighlight,
+    DocumentLink,
+    FoldingRange,
+    SelectionRange,
     /* ELS specific features */
     SmartCompletion,
     DeepCompletion,
@@ -116,8 +121,19 @@ impl From<&str> for DefaultFeatures {
             "gotodefinition" | "gotoDefinition" | "goto-definition" => {
                 DefaultFeatures::GotoDefinition
             }
+            "gototypedefinition" | "gotoTypeDefinition" | "goto-type-definition" => {
+                DefaultFeatures::GotoTypeDefinition
+            }
             "signaturehelp" | "signatureHelp" | "signature-help" | "code-signature" => {
                 DefaultFeatures::SignatureHelp
+            }
+            "documenthighlight" | "documentHighlight" | "document-highlight" => {
+                DefaultFeatures::DocumentHighlight
+            }
+            "documentlink" | "documentLink" | "document-link" => DefaultFeatures::DocumentLink,
+            "foldingrange" | "foldingRange" | "folding-range" => DefaultFeatures::FoldingRange,
+            "selectionrange" | "selectionRange" | "selection-range" => {
+                DefaultFeatures::SelectionRange
             }
             "smartcompletion" | "smartCompletion" | "smart-completion" => {
                 DefaultFeatures::SmartCompletion
@@ -452,7 +468,14 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let mut comp_options = CompletionOptions::default();
         comp_options.trigger_characters = Some(TRIGGER_CHARS.map(String::from).to_vec());
         comp_options.resolve_provider = Some(true);
-        capabilities.completion_provider = Some(comp_options);
+        capabilities.completion_provider = if self
+            .disabled_features
+            .contains(&DefaultFeatures::Completion)
+        {
+            None
+        } else {
+            Some(comp_options)
+        };
         capabilities.rename_provider = Some(OneOf::Left(true));
         capabilities.references_provider = Some(OneOf::Left(true));
         capabilities.definition_provider = Some(OneOf::Left(true));
@@ -530,20 +553,40 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     work_done_progress: None,
                 },
             });
-        capabilities.code_lens_provider = Some(CodeLensOptions {
-            resolve_provider: Some(false),
-        });
+        capabilities.code_lens_provider =
+            if self.disabled_features.contains(&DefaultFeatures::CodeLens) {
+                None
+            } else {
+                Some(CodeLensOptions {
+                    resolve_provider: Some(false),
+                })
+            };
         capabilities.workspace_symbol_provider = Some(OneOf::Left(true));
         capabilities.document_symbol_provider = Some(OneOf::Left(true));
-        capabilities.document_link_provider = Some(DocumentLinkOptions {
-            resolve_provider: Some(false),
-            work_done_progress_options: Default::default(),
-        });
+        capabilities.document_link_provider = if self
+            .disabled_features
+            .contains(&DefaultFeatures::DocumentLink)
+        {
+            None
+        } else {
+            Some(DocumentLinkOptions {
+                resolve_provider: Some(false),
+                work_done_progress_options: Default::default(),
+            })
+        };
         capabilities.call_hierarchy_provider = Some(CallHierarchyServerCapability::Simple(true));
-        capabilities.folding_range_provider = Some(FoldingRangeProviderCapability::Simple(true));
+        capabilities.folding_range_provider = Some(FoldingRangeProviderCapability::Simple(
+            self.disabled_features
+                .contains(&DefaultFeatures::FoldingRange)
+                .not(),
+        ));
         capabilities.selection_range_provider =
             Some(SelectionRangeProviderCapability::Simple(true));
-        capabilities.document_highlight_provider = Some(OneOf::Left(true));
+        capabilities.document_highlight_provider = Some(OneOf::Left(
+            self.disabled_features
+                .contains(&DefaultFeatures::DocumentHighlight)
+                .not(),
+        ));
         capabilities
     }
 

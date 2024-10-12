@@ -1517,10 +1517,16 @@ impl Call {
         }
     }
 
+    pub fn call_signature_t(&self) -> &Type {
+        if let Some(attr) = self.attr_name.as_ref() {
+            attr.ref_t()
+        } else {
+            self.obj.ref_t()
+        }
+    }
+
     pub fn is_method_call(&self) -> bool {
-        self.signature_t()
-            .map(|t| t.self_t().is_some())
-            .unwrap_or(false)
+        self.call_signature_t().self_t().is_some()
     }
 
     pub fn additional_operation(&self) -> Option<OperationKind> {
