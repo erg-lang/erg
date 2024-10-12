@@ -173,20 +173,14 @@ impl Scheduler {
     /// Only pending tasks can be cancelled
     /// TODO: cancel executing tasks
     pub fn cancel(&self, id: TaskID) -> Option<Task> {
-        let idx = self
-            .pending
-            .borrow()
-            .iter()
-            .position(|task| task.id == id)?;
-        self.pending.borrow_mut().remove(idx)
+        let mut lock = self.pending.borrow_mut();
+        let idx = lock.iter().position(|task| task.id == id)?;
+        lock.remove(idx)
     }
 
     pub fn finish(&self, id: TaskID) -> Option<Task> {
-        let idx = self
-            .executing
-            .borrow()
-            .iter()
-            .position(|task| task.id == id)?;
-        Some(self.executing.borrow_mut().remove(idx))
+        let mut lock = self.executing.borrow_mut();
+        let idx = lock.iter().position(|task| task.id == id)?;
+        Some(lock.remove(idx))
     }
 }

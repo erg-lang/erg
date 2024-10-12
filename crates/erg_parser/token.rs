@@ -541,6 +541,10 @@ impl Token {
         )
     }
 
+    pub fn is_str(&self) -> bool {
+        matches!(self.kind, StrLit | DocComment)
+    }
+
     pub const fn is_block_op(&self) -> bool {
         self.category().is_block_op()
     }

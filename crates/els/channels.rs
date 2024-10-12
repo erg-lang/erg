@@ -6,19 +6,19 @@ use erg_compiler::erg_parser::parse::Parsable;
 use lsp_types::request::{
     CallHierarchyIncomingCalls, CallHierarchyOutgoingCalls, CallHierarchyPrepare,
     CodeActionRequest, CodeActionResolveRequest, CodeLensRequest, Completion,
-    DocumentHighlightRequest, DocumentSymbolRequest, ExecuteCommand, FoldingRangeRequest,
-    GotoDefinition, GotoImplementation, GotoImplementationParams, GotoTypeDefinition,
-    GotoTypeDefinitionParams, HoverRequest, InlayHintRequest, InlayHintResolveRequest, References,
-    ResolveCompletionItem, SelectionRangeRequest, SemanticTokensFullRequest, SignatureHelpRequest,
-    WillRenameFiles, WorkspaceSymbol,
+    DocumentHighlightRequest, DocumentLinkRequest, DocumentSymbolRequest, ExecuteCommand,
+    FoldingRangeRequest, GotoDefinition, GotoImplementation, GotoImplementationParams,
+    GotoTypeDefinition, GotoTypeDefinitionParams, HoverRequest, InlayHintRequest,
+    InlayHintResolveRequest, References, ResolveCompletionItem, SelectionRangeRequest,
+    SemanticTokensFullRequest, SignatureHelpRequest, WillRenameFiles, WorkspaceSymbol,
 };
 use lsp_types::{
     CallHierarchyIncomingCallsParams, CallHierarchyOutgoingCallsParams, CallHierarchyPrepareParams,
     CodeAction, CodeActionParams, CodeLensParams, CompletionItem, CompletionParams,
-    DocumentHighlightParams, DocumentSymbolParams, ExecuteCommandParams, FoldingRangeParams,
-    GotoDefinitionParams, HoverParams, InlayHint, InlayHintParams, ReferenceParams,
-    RenameFilesParams, SelectionRangeParams, SemanticTokensParams, SignatureHelpParams,
-    WorkspaceSymbolParams,
+    DocumentHighlightParams, DocumentLinkParams, DocumentSymbolParams, ExecuteCommandParams,
+    FoldingRangeParams, GotoDefinitionParams, HoverParams, InlayHint, InlayHintParams,
+    ReferenceParams, RenameFilesParams, SelectionRangeParams, SemanticTokensParams,
+    SignatureHelpParams, WorkspaceSymbolParams,
 };
 
 use crate::server::Server;
@@ -61,6 +61,7 @@ pub struct SendChannels {
     folding_range: mpsc::Sender<WorkerMessage<FoldingRangeParams>>,
     selection_range: mpsc::Sender<WorkerMessage<SelectionRangeParams>>,
     document_highlight: mpsc::Sender<WorkerMessage<DocumentHighlightParams>>,
+    document_link: mpsc::Sender<WorkerMessage<DocumentLinkParams>>,
     pub(crate) health_check: mpsc::Sender<WorkerMessage<()>>,
 }
 
@@ -90,6 +91,7 @@ impl SendChannels {
         let (tx_folding_range, rx_folding_range) = mpsc::channel();
         let (tx_selection_range, rx_selection_range) = mpsc::channel();
         let (tx_document_highlight, rx_document_highlight) = mpsc::channel();
+        let (tx_document_link, rx_document_link) = mpsc::channel();
         let (tx_health_check, rx_health_check) = mpsc::channel();
         (
             Self {
@@ -117,6 +119,7 @@ impl SendChannels {
                 folding_range: tx_folding_range,
                 selection_range: tx_selection_range,
                 document_highlight: tx_document_highlight,
+                document_link: tx_document_link,
                 health_check: tx_health_check,
             },
             ReceiveChannels {
@@ -144,6 +147,7 @@ impl SendChannels {
                 folding_range: rx_folding_range,
                 selection_range: rx_selection_range,
                 document_highlight: rx_document_highlight,
+                document_link: rx_document_link,
                 health_check: rx_health_check,
             },
         )
@@ -206,6 +210,7 @@ pub struct ReceiveChannels {
     pub(crate) folding_range: mpsc::Receiver<WorkerMessage<FoldingRangeParams>>,
     pub(crate) selection_range: mpsc::Receiver<WorkerMessage<SelectionRangeParams>>,
     pub(crate) document_highlight: mpsc::Receiver<WorkerMessage<DocumentHighlightParams>>,
+    pub(crate) document_link: mpsc::Receiver<WorkerMessage<DocumentLinkParams>>,
     pub(crate) health_check: mpsc::Receiver<WorkerMessage<()>>,
 }
 
@@ -292,3 +297,4 @@ impl_sendable!(
     DocumentHighlightParams,
     document_highlight
 );
+impl_sendable!(DocumentLinkRequest, DocumentLinkParams, document_link);

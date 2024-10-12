@@ -739,6 +739,7 @@ impl Context {
         ContextProvider::has(self, name)
     }
 
+    /// NOTE: Actually, this can be used for searching variables, attributes, etc.
     pub fn get_type_info(&self, typ: &Type) -> Option<(&VarName, &VarInfo)> {
         let namespace = typ.namespace();
         let ctx = self.get_namespace(&namespace)?;
