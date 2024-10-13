@@ -237,7 +237,7 @@ pub struct VarInfo {
     pub ctx: ContextKind,
     pub py_name: Option<Str>,
     pub def_loc: AbsLocation,
-    pub alias_of: Option<AliasInfo>,
+    pub alias_of: Option<Box<AliasInfo>>,
 }
 
 impl fmt::Display for VarInfo {
@@ -329,7 +329,7 @@ impl VarInfo {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub const fn maybe_alias(
+    pub fn maybe_alias(
         t: Type,
         muty: Mutability,
         vis: Visibility,
@@ -349,7 +349,7 @@ impl VarInfo {
             ctx,
             py_name,
             def_loc,
-            alias_of,
+            alias_of: alias_of.map(Box::new),
         }
     }
 

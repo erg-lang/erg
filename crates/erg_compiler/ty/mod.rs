@@ -214,6 +214,8 @@ pub enum ParamTy {
     Pos(Type),
     Kw { name: Str, ty: Type },
     KwWithDefault { name: Str, ty: Type, default: Type },
+    Star,
+    Slash,
 }
 
 impl fmt::Display for ParamTy {
@@ -224,6 +226,8 @@ impl fmt::Display for ParamTy {
             Self::KwWithDefault { name, ty, default } => {
                 write!(f, "{name}: {ty} := {default}")
             }
+            Self::Star => write!(f, "*"),
+            Self::Slash => write!(f, "/"),
         }
     }
 }
@@ -250,14 +254,14 @@ impl ParamTy {
 
     pub fn name(&self) -> Option<&Str> {
         match self {
-            Self::Pos(_) => None,
+            Self::Pos(_) | Self::Star | Self::Slash => None,
             Self::Kw { name, .. } | Self::KwWithDefault { name, .. } => Some(name),
         }
     }
 
     pub fn name_mut(&mut self) -> Option<&mut Str> {
         match self {
-            Self::Pos(_) => None,
+            Self::Pos(_) | Self::Star | Self::Slash => None,
             Self::Kw { name, .. } | Self::KwWithDefault { name, .. } => Some(name),
         }
     }
@@ -265,12 +269,13 @@ impl ParamTy {
     pub const fn typ(&self) -> &Type {
         match self {
             Self::Pos(ty) | Self::Kw { ty, .. } | Self::KwWithDefault { ty, .. } => ty,
+            Self::Star | Self::Slash => unreachable!(),
         }
     }
 
     pub const fn default_typ(&self) -> Option<&Type> {
         match self {
-            Self::Pos(_) | Self::Kw { .. } => None,
+            Self::Pos(_) | Self::Kw { .. } | Self::Star | Self::Slash => None,
             Self::KwWithDefault { default, .. } => Some(default),
         }
     }
@@ -278,12 +283,13 @@ impl ParamTy {
     pub fn typ_mut(&mut self) -> &mut Type {
         match self {
             Self::Pos(ty) | Self::Kw { ty, .. } | Self::KwWithDefault { ty, .. } => ty,
+            Self::Star | Self::Slash => unreachable!(),
         }
     }
 
     pub fn default_typ_mut(&mut self) -> Option<&mut Type> {
         match self {
-            Self::Pos(_) | Self::Kw { .. } => None,
+            Self::Pos(_) | Self::Kw { .. } | Self::Star | Self::Slash => None,
             Self::KwWithDefault { default, .. } => Some(default),
         }
     }
@@ -297,6 +303,7 @@ impl ParamTy {
                 ty: f(ty),
                 default,
             },
+            Self::Star | Self::Slash => Self::Slash,
         }
     }
 
@@ -320,6 +327,7 @@ impl ParamTy {
                 ty: f(ty)?,
                 default,
             }),
+            other => Ok(other),
         }
     }
 
@@ -342,6 +350,7 @@ impl ParamTy {
             Self::Pos(ty) => (None, ty, None),
             Self::Kw { name, ty } => (Some(name), ty, None),
             Self::KwWithDefault { name, ty, default } => (Some(name), ty, Some(default)),
+            Self::Star | Self::Slash => unreachable!(),
         }
     }
 }
@@ -1209,8 +1218,7 @@ pub enum CastTarget {
         name: Str,
         loc: Location,
     },
-    // NOTE: `Expr(Expr)` causes a bad memory access error
-    Expr(Box<Expr>),
+    Expr(Expr),
 }
 
 impl PartialEq for CastTarget {
@@ -1262,14 +1270,14 @@ impl CastTarget {
     }
 
     pub fn expr(expr: Expr) -> Self {
-        Self::Expr(Box::new(expr))
+        Self::Expr(expr)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GuardType {
     pub namespace: Str,
-    pub target: CastTarget,
+    pub target: Box<CastTarget>,
     pub to: Box<Type>,
 }
 
@@ -1297,13 +1305,13 @@ impl GuardType {
     pub fn new(namespace: Str, target: CastTarget, to: Type) -> Self {
         Self {
             namespace,
-            target,
+            target: Box::new(target),
             to: Box::new(to),
         }
     }
 
     pub fn replace_param(mut self, target: &str, to: &str) -> Self {
-        match &mut self.target {
+        match self.target.as_mut() {
             CastTarget::Arg { name, .. } if name == target => *name = Str::rc(to),
             _ => {}
         }
@@ -4163,7 +4171,7 @@ impl Type {
             Self::Structural(ty) => ty.derefine().structuralize(),
             Self::Guard(guard) => Self::Guard(GuardType::new(
                 guard.namespace.clone(),
-                guard.target.clone(),
+                *guard.target.clone(),
                 guard.to.derefine(),
             )),
             Self::Bounded { sub, sup } => Self::Bounded {
@@ -4307,7 +4315,7 @@ impl Type {
             Self::Structural(ty) => ty.eliminate_recursion(target).structuralize(),
             Self::Guard(guard) => Self::Guard(GuardType::new(
                 guard.namespace,
-                guard.target.clone(),
+                *guard.target.clone(),
                 guard.to.eliminate_recursion(target),
             )),
             Self::Bounded { sub, sup } => Self::Bounded {
@@ -4476,7 +4484,7 @@ impl Type {
             Self::Structural(ty) => ty.map(f).structuralize(),
             Self::Guard(guard) => Self::Guard(GuardType::new(
                 guard.namespace,
-                guard.target.clone(),
+                *guard.target.clone(),
                 guard.to.map(f),
             )),
             Self::Bounded { sub, sup } => Self::Bounded {
@@ -4575,7 +4583,7 @@ impl Type {
             Self::Structural(ty) => ty._replace_tp(target, to).structuralize(),
             Self::Guard(guard) => Self::Guard(GuardType::new(
                 guard.namespace,
-                guard.target.clone(),
+                *guard.target.clone(),
                 guard.to._replace_tp(target, to),
             )),
             Self::Bounded { sub, sup } => Self::Bounded {
@@ -4654,7 +4662,7 @@ impl Type {
             Self::Structural(ty) => ty.map_tp(f).structuralize(),
             Self::Guard(guard) => Self::Guard(GuardType::new(
                 guard.namespace,
-                guard.target.clone(),
+                *guard.target.clone(),
                 guard.to.map_tp(f),
             )),
             Self::Bounded { sub, sup } => Self::Bounded {
@@ -4753,7 +4761,7 @@ impl Type {
             Self::Structural(ty) => Ok(ty.try_map_tp(f)?.structuralize()),
             Self::Guard(guard) => Ok(Self::Guard(GuardType::new(
                 guard.namespace,
-                guard.target.clone(),
+                *guard.target.clone(),
                 guard.to.try_map_tp(f)?,
             ))),
             Self::Bounded { sub, sup } => Ok(Self::Bounded {
@@ -4870,7 +4878,7 @@ impl Type {
             Self::Quantified(quant) => quant.normalize().quantify(),
             Self::Guard(guard) => Self::Guard(GuardType::new(
                 guard.namespace,
-                guard.target,
+                *guard.target,
                 guard.to.normalize(),
             )),
             Self::Bounded { sub, sup } => Self::Bounded {

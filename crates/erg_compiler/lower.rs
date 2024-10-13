@@ -1496,7 +1496,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 1 if kind.is_if() => {
                     let guard = GuardType::new(
                         guard.namespace.clone(),
-                        guard.target.clone(),
+                        *guard.target.clone(),
                         self.module.context.complement(&guard.to),
                     );
                     self.replace_or_push_guard(guard);
@@ -1728,12 +1728,15 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         };
         let args = vec![hir::PosArg::new(hir::Expr::Record(args))];
         let attr_name = ast::Identifier::new(
-            VisModifierSpec::Public(Token::new(
-                TokenKind::Dot,
-                Str::ever("."),
-                pack.connector.ln_begin().unwrap_or(0),
-                pack.connector.col_begin().unwrap_or(0),
-            )),
+            VisModifierSpec::Public(
+                Token::new(
+                    TokenKind::Dot,
+                    Str::ever("."),
+                    pack.connector.ln_begin().unwrap_or(0),
+                    pack.connector.col_begin().unwrap_or(0),
+                )
+                .loc(),
+            ),
             ast::VarName::new(Token::new(
                 TokenKind::Symbol,
                 Str::ever("new"),
@@ -2329,7 +2332,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                             hir::Expr::Dummy(hir::Dummy::empty())
                         }
                     };
-                    Some(hir::TypeSpecWithOp::new(ts, expr, spec_t))
+                    Some(hir::TypeSpecWithOp::new(*ts, expr, spec_t))
                 } else {
                     None
                 };
@@ -2490,7 +2493,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                             hir::Expr::Dummy(hir::Dummy::empty())
                         }
                     };
-                    Some(hir::TypeSpecWithOp::new(ts, expr, spec_t))
+                    Some(hir::TypeSpecWithOp::new(*ts, expr, spec_t))
                 } else {
                     None
                 };
@@ -2572,7 +2575,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                             hir::Expr::Dummy(hir::Dummy::empty())
                         }
                     };
-                    Some(hir::TypeSpecWithOp::new(ts, expr, spec_t))
+                    Some(hir::TypeSpecWithOp::new(*ts, expr, spec_t))
                 } else {
                     None
                 };
@@ -2624,7 +2627,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                             hir::Expr::Dummy(hir::Dummy::empty())
                         }
                     };
-                    Some(hir::TypeSpecWithOp::new(ts, expr, spec_t))
+                    Some(hir::TypeSpecWithOp::new(*ts, expr, spec_t))
                 } else {
                     None
                 };
@@ -2901,12 +2904,15 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 match attr {
                     ast::ClassAttr::Def(def) => {
                         if methods.vis.is_public() {
-                            def.sig.ident_mut().unwrap().vis = VisModifierSpec::Public(Token::new(
-                                TokenKind::Dot,
-                                ".",
-                                def.sig.ln_begin().unwrap_or(0),
-                                def.sig.col_begin().unwrap_or(0),
-                            ));
+                            def.sig.ident_mut().unwrap().vis = VisModifierSpec::Public(
+                                Token::new(
+                                    TokenKind::Dot,
+                                    ".",
+                                    def.sig.ln_begin().unwrap_or(0),
+                                    def.sig.col_begin().unwrap_or(0),
+                                )
+                                .loc(),
+                            );
                         }
                         if let Err(es) = self.module.context.register_def(def) {
                             errors.extend(es);

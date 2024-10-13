@@ -127,7 +127,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 }
             };
             let expr = self.fake_lower_expr(*ts.t_spec_as_expr.clone())?;
-            Some(hir::TypeSpecWithOp::new(ts, expr, spec_t))
+            Some(hir::TypeSpecWithOp::new(*ts, expr, spec_t))
         } else {
             None
         };
@@ -365,7 +365,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 let ident = hir::Identifier::bare(ident);
                 let t_spec = if let Some(ts) = var.t_spec {
                     let expr = self.fake_lower_expr(*ts.t_spec_as_expr.clone())?;
-                    Some(hir::TypeSpecWithOp::new(ts, expr, Type::Failure))
+                    Some(hir::TypeSpecWithOp::new(*ts, expr, Type::Failure))
                 } else {
                     None
                 };
@@ -387,7 +387,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                         .instantiate_typespec(&ts.t_spec)
                         .map_err(|(_, es)| es)?;
                     let expr = self.fake_lower_expr(*ts.t_spec_as_expr.clone())?;
-                    Some(hir::TypeSpecWithOp::new(ts, expr, spec_t))
+                    Some(hir::TypeSpecWithOp::new(*ts, expr, spec_t))
                 } else {
                     None
                 };

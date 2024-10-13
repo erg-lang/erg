@@ -328,7 +328,7 @@ impl<'c> Generalizer<'c> {
             }
             Guard(grd) => {
                 let to = self.generalize_t(*grd.to, uninit);
-                guard(grd.namespace, grd.target, to)
+                guard(grd.namespace, *grd.target, to)
             }
             Bounded { sub, sup } => {
                 let sub = self.generalize_t(*sub, uninit);
@@ -1114,7 +1114,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
             }
             Guard(grd) => {
                 let to = self.deref_tyvar(*grd.to)?;
-                Ok(guard(grd.namespace, grd.target, to))
+                Ok(guard(grd.namespace, *grd.target, to))
             }
             Bounded { sub, sup } => {
                 let sub = self.deref_tyvar(*sub)?;

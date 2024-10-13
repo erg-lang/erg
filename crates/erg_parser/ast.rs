@@ -330,14 +330,34 @@ impl KwArg {
 }
 
 #[pyclass]
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug)]
 pub struct Args {
     pub pos_args: Vec<PosArg>,
     pub var_args: Option<Box<PosArg>>,
     pub kw_args: Vec<KwArg>,
     pub kw_var_args: Option<Box<PosArg>>,
     // these are for ELS
-    pub paren: Option<(Token, Token)>,
+    pub paren: Option<(Location, Location)>,
+}
+
+impl PartialEq for Args {
+    fn eq(&self, other: &Self) -> bool {
+        self.pos_args == other.pos_args
+            && self.var_args == other.var_args
+            && self.kw_args == other.kw_args
+            && self.kw_var_args == other.kw_var_args
+    }
+}
+
+impl Eq for Args {}
+
+impl Hash for Args {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.pos_args.hash(state);
+        self.var_args.hash(state);
+        self.kw_args.hash(state);
+        self.kw_var_args.hash(state);
+    }
 }
 
 impl NestedDisplay for Args {
@@ -394,7 +414,7 @@ impl Args {
         Option<PosArg>,
         Vec<KwArg>,
         Option<PosArg>,
-        Option<(Token, Token)>,
+        Option<(Location, Location)>,
     ) {
         (
             self.pos_args,
@@ -435,7 +455,7 @@ impl Args {
         var_args: Option<PosArg>,
         kw_args: Vec<KwArg>,
         kw_var_args: Option<PosArg>,
-        paren: Option<(Token, Token)>,
+        paren: Option<(Location, Location)>,
     ) -> Self {
         Self {
             pos_args,
@@ -469,7 +489,7 @@ impl Args {
     }
 
     #[staticmethod]
-    pub fn pos_only(pos_arg: Vec<PosArg>, paren: Option<(Token, Token)>) -> Self {
+    pub fn pos_only(pos_arg: Vec<PosArg>, paren: Option<(Location, Location)>) -> Self {
         Self::new(pos_arg, None, vec![], None, paren)
     }
 
@@ -528,7 +548,7 @@ impl Args {
         self.kw_var_args = Some(Box::new(arg));
     }
 
-    pub fn set_parens(&mut self, paren: (Token, Token)) {
+    pub fn set_parens(&mut self, paren: (Location, Location)) {
         self.paren = Some(paren);
     }
 
@@ -752,9 +772,9 @@ impl_locational_for_enum!(TypeAppArgsKind; SubtypeOf, Args);
 #[pyclass(get_all, set_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TypeAppArgs {
-    pub l_vbar: Token,
+    pub l_vbar: Location,
     pub args: TypeAppArgsKind,
-    pub r_vbar: Token,
+    pub r_vbar: Location,
 }
 
 impl NestedDisplay for TypeAppArgs {
@@ -769,7 +789,7 @@ impl_locational!(TypeAppArgs, l_vbar, args, r_vbar);
 #[pymethods]
 impl TypeAppArgs {
     #[staticmethod]
-    pub const fn new(l_vbar: Token, args: TypeAppArgsKind, r_vbar: Token) -> Self {
+    pub const fn new(l_vbar: Location, args: TypeAppArgsKind, r_vbar: Location) -> Self {
         Self {
             l_vbar,
             args,
@@ -833,14 +853,14 @@ impl Accessor {
         ))
     }
 
-    pub const fn public(dot: Token, symbol: Token) -> Self {
+    pub const fn public(dot: Location, symbol: Token) -> Self {
         Self::Ident(Identifier::new(
             VisModifierSpec::Public(dot),
             VarName::new(symbol),
         ))
     }
 
-    pub const fn explicit_local(dcolon: Token, symbol: Token) -> Self {
+    pub const fn explicit_local(dcolon: Location, symbol: Token) -> Self {
         Self::Ident(Identifier::new(
             VisModifierSpec::ExplicitPrivate(dcolon),
             VarName::new(symbol),
@@ -1097,7 +1117,7 @@ impl_into_py_for_enum!(Tuple; Normal);
 impl_from_py_for_enum!(Tuple; Normal(NormalTuple));
 
 impl Tuple {
-    pub fn paren(&self) -> Option<&(Token, Token)> {
+    pub fn paren(&self) -> Option<&(Location, Location)> {
         match self {
             Self::Normal(tuple) => tuple.elems.paren.as_ref(),
         }
@@ -3096,13 +3116,33 @@ impl ConstKwArg {
 }
 
 #[pyclass]
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug)]
 pub struct ConstArgs {
     pub pos_args: Vec<ConstPosArg>,
     pub var_args: Option<Box<ConstPosArg>>,
     pub kw_args: Vec<ConstKwArg>,
     pub kw_var: Option<Box<ConstPosArg>>,
-    paren: Option<(Token, Token)>,
+    pub paren: Option<(Location, Location)>,
+}
+
+impl PartialEq for ConstArgs {
+    fn eq(&self, other: &Self) -> bool {
+        self.pos_args == other.pos_args
+            && self.var_args == other.var_args
+            && self.kw_args == other.kw_args
+            && self.kw_var == other.kw_var
+    }
+}
+
+impl Eq for ConstArgs {}
+
+impl Hash for ConstArgs {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.pos_args.hash(state);
+        self.var_args.hash(state);
+        self.kw_args.hash(state);
+        self.kw_var.hash(state);
+    }
 }
 
 impl NestedDisplay for ConstArgs {
@@ -3140,7 +3180,7 @@ impl ConstArgs {
         var_args: Option<ConstPosArg>,
         kw_args: Vec<ConstKwArg>,
         kw_var: Option<ConstPosArg>,
-        paren: Option<(Token, Token)>,
+        paren: Option<(Location, Location)>,
     ) -> Self {
         Self {
             pos_args,
@@ -3152,7 +3192,7 @@ impl ConstArgs {
     }
 
     #[staticmethod]
-    pub fn pos_only(pos_args: Vec<ConstPosArg>, paren: Option<(Token, Token)>) -> Self {
+    pub fn pos_only(pos_args: Vec<ConstPosArg>, paren: Option<(Location, Location)>) -> Self {
         Self::new(pos_args, None, vec![], None, paren)
     }
 
@@ -3188,7 +3228,7 @@ impl ConstArgs {
         Option<ConstPosArg>,
         Vec<ConstKwArg>,
         Option<ConstPosArg>,
-        Option<(Token, Token)>,
+        Option<(Location, Location)>,
     ) {
         (
             self.pos_args,
@@ -3423,7 +3463,7 @@ impl DefaultParamTySpec {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SubrTypeSpec {
     pub bounds: TypeBoundSpecs,
-    pub lparen: Option<Token>,
+    pub paren: Option<Location>,
     pub non_defaults: Vec<ParamTySpec>,
     pub var_params: Option<Box<ParamTySpec>>,
     pub defaults: Vec<DefaultParamTySpec>,
@@ -3454,7 +3494,7 @@ impl Locational for SubrTypeSpec {
     fn loc(&self) -> Location {
         if !self.bounds.is_empty() {
             Location::concat(&self.bounds[0], self.return_t.as_ref())
-        } else if let Some(lparen) = &self.lparen {
+        } else if let Some(lparen) = &self.paren {
             Location::concat(lparen, self.return_t.as_ref())
         } else if let Some(nd_param) = self.non_defaults.first() {
             Location::concat(nd_param, self.return_t.as_ref())
@@ -3472,7 +3512,7 @@ impl SubrTypeSpec {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         bounds: TypeBoundSpecs,
-        lparen: Option<Token>,
+        paren: Option<Location>,
         non_defaults: Vec<ParamTySpec>,
         var_params: Option<ParamTySpec>,
         defaults: Vec<DefaultParamTySpec>,
@@ -3482,7 +3522,7 @@ impl SubrTypeSpec {
     ) -> Self {
         Self {
             bounds,
-            lparen,
+            paren,
             non_defaults,
             var_params: var_params.map(Box::new),
             defaults,
@@ -3498,7 +3538,8 @@ impl SubrTypeSpec {
 pub struct ListTypeSpec {
     pub sqbrs: Option<(Token, Token)>,
     pub ty: Box<TypeSpec>,
-    pub len: ConstExpr,
+    // use Box to reduce the size
+    pub len: Box<ConstExpr>,
 }
 
 impl fmt::Display for ListTypeSpec {
@@ -3512,7 +3553,7 @@ impl Locational for ListTypeSpec {
         if let Some((lsqbr, rsqbr)) = &self.sqbrs {
             Location::concat(lsqbr, rsqbr)
         } else {
-            Location::concat(self.ty.as_ref(), &self.len)
+            Location::concat(self.ty.as_ref(), self.len.as_ref())
         }
     }
 }
@@ -3521,7 +3562,7 @@ impl ListTypeSpec {
     pub fn new(ty: TypeSpec, len: ConstExpr, sqbrs: Option<(Token, Token)>) -> Self {
         Self {
             ty: Box::new(ty),
-            len,
+            len: Box::new(len),
             sqbrs,
         }
     }
@@ -3531,7 +3572,7 @@ impl ListTypeSpec {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SetWithLenTypeSpec {
     pub ty: Box<TypeSpec>,
-    pub len: ConstExpr,
+    pub len: Box<ConstExpr>,
 }
 
 impl fmt::Display for SetWithLenTypeSpec {
@@ -3546,16 +3587,30 @@ impl SetWithLenTypeSpec {
     pub fn new(ty: TypeSpec, len: ConstExpr) -> Self {
         Self {
             ty: Box::new(ty),
-            len,
+            len: Box::new(len),
         }
     }
 }
 
 #[pyclass(get_all)]
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct TupleTypeSpec {
-    pub parens: Option<(Token, Token)>,
+    pub parens: Option<(Location, Location)>,
     pub tys: Vec<TypeSpec>,
+}
+
+impl PartialEq for TupleTypeSpec {
+    fn eq(&self, other: &Self) -> bool {
+        self.tys == other.tys
+    }
+}
+
+impl Eq for TupleTypeSpec {}
+
+impl Hash for TupleTypeSpec {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.tys.hash(state);
+    }
 }
 
 impl fmt::Display for TupleTypeSpec {
@@ -3566,8 +3621,8 @@ impl fmt::Display for TupleTypeSpec {
 
 impl Locational for TupleTypeSpec {
     fn loc(&self) -> Location {
-        if let Some((lparen, rparen)) = &self.parens {
-            Location::concat(lparen, rparen)
+        if let Some((l, r)) = &self.parens {
+            Location::concat(l, r)
         } else if let Some((first, last)) = self.tys.first().zip(self.tys.last()) {
             Location::concat(first, last)
         } else {
@@ -3577,7 +3632,7 @@ impl Locational for TupleTypeSpec {
 }
 
 impl TupleTypeSpec {
-    pub const fn new(parens: Option<(Token, Token)>, tys: Vec<TypeSpec>) -> Self {
+    pub const fn new(parens: Option<(Location, Location)>, tys: Vec<TypeSpec>) -> Self {
         Self { parens, tys }
     }
 }
@@ -3585,7 +3640,7 @@ impl TupleTypeSpec {
 #[pyclass(get_all)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DictTypeSpec {
-    pub braces: Option<(Token, Token)>,
+    pub braces: Option<Location>,
     pub kvs: Vec<(TypeSpec, TypeSpec)>,
 }
 
@@ -3601,8 +3656,8 @@ impl fmt::Display for DictTypeSpec {
 
 impl Locational for DictTypeSpec {
     fn loc(&self) -> Location {
-        if let Some((lparen, rparen)) = &self.braces {
-            Location::concat(lparen, rparen)
+        if let Some(loc) = self.braces {
+            loc
         } else if !self.kvs.is_empty() {
             let (first, _) = self.kvs.first().unwrap();
             let (_, last) = self.kvs.last().unwrap();
@@ -3614,7 +3669,7 @@ impl Locational for DictTypeSpec {
 }
 
 impl DictTypeSpec {
-    pub const fn new(braces: Option<(Token, Token)>, kvs: Vec<(TypeSpec, TypeSpec)>) -> Self {
+    pub const fn new(braces: Option<Location>, kvs: Vec<(TypeSpec, TypeSpec)>) -> Self {
         Self { braces, kvs }
     }
 }
@@ -3622,7 +3677,7 @@ impl DictTypeSpec {
 #[pyclass(get_all)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordTypeSpec {
-    pub braces: Option<(Token, Token)>,
+    pub braces: Option<Location>,
     pub attrs: Vec<(Identifier, TypeSpec)>,
 }
 
@@ -3638,8 +3693,8 @@ impl fmt::Display for RecordTypeSpec {
 
 impl Locational for RecordTypeSpec {
     fn loc(&self) -> Location {
-        if let Some((lparen, rparen)) = &self.braces {
-            Location::concat(lparen, rparen)
+        if let Some(loc) = self.braces {
+            loc
         } else if !self.attrs.is_empty() {
             let (first, _) = self.attrs.first().unwrap();
             let (_, last) = self.attrs.last().unwrap();
@@ -3651,7 +3706,7 @@ impl Locational for RecordTypeSpec {
 }
 
 impl RecordTypeSpec {
-    pub const fn new(braces: Option<(Token, Token)>, attrs: Vec<(Identifier, TypeSpec)>) -> Self {
+    pub const fn new(braces: Option<Location>, attrs: Vec<(Identifier, TypeSpec)>) -> Self {
         Self { braces, attrs }
     }
 }
@@ -3661,7 +3716,7 @@ impl RecordTypeSpec {
 pub struct RefinementTypeSpec {
     pub var: Token,
     pub typ: Box<TypeSpec>,
-    pub pred: ConstExpr,
+    pub pred: Box<ConstExpr>,
 }
 
 impl fmt::Display for RefinementTypeSpec {
@@ -3672,7 +3727,7 @@ impl fmt::Display for RefinementTypeSpec {
 
 impl Locational for RefinementTypeSpec {
     fn loc(&self) -> Location {
-        Location::concat(&self.var, &self.pred)
+        Location::concat(&self.var, self.pred.as_ref())
     }
 }
 
@@ -3681,7 +3736,7 @@ impl RefinementTypeSpec {
         Self {
             var,
             typ: Box::new(typ),
-            pred,
+            pred: Box::new(pred),
         }
     }
 }
@@ -3712,10 +3767,11 @@ pub enum TypeSpec {
     Not(Box<TypeSpec>),
     Or(Box<TypeSpec>, Box<TypeSpec>),
     Enum(ConstArgs),
+    // use Box to reduce the size of enum
     Interval {
         op: Token,
-        lhs: ConstExpr,
-        rhs: ConstExpr,
+        lhs: Box<ConstExpr>,
+        rhs: Box<ConstExpr>,
     },
     Subr(SubrTypeSpec),
     TypeApp {
@@ -3776,7 +3832,7 @@ impl Locational for TypeSpec {
             Self::Dict(dict) => dict.loc(),
             Self::Record(rec) => rec.loc(),
             Self::Enum(set) => set.loc(),
-            Self::Interval { lhs, rhs, .. } => Location::concat(lhs, rhs),
+            Self::Interval { lhs, rhs, .. } => Location::concat(lhs.as_ref(), rhs.as_ref()),
             Self::Subr(s) => s.loc(),
             Self::TypeApp { spec, args } => Location::concat(spec.as_ref(), args),
             Self::Refinement(r) => r.loc(),
@@ -3798,8 +3854,12 @@ impl TypeSpec {
         Self::Or(Box::new(lhs), Box::new(rhs))
     }
 
-    pub const fn interval(op: Token, lhs: ConstExpr, rhs: ConstExpr) -> Self {
-        Self::Interval { op, lhs, rhs }
+    pub fn interval(op: Token, lhs: ConstExpr, rhs: ConstExpr) -> Self {
+        Self::Interval {
+            op,
+            lhs: Box::new(lhs),
+            rhs: Box::new(rhs),
+        }
     }
 
     pub fn type_app(spec: TypeSpec, args: TypeAppArgs) -> Self {
@@ -4157,13 +4217,43 @@ impl NestedDisplay for VisRestriction {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub enum VisModifierSpec {
     Private,
     Auto,
-    Public(Token),
-    ExplicitPrivate(Token),
+    Public(Location),
+    ExplicitPrivate(Location),
     Restricted(VisRestriction),
+}
+
+impl PartialEq for VisModifierSpec {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Private, Self::Private)
+            | (Self::Auto, Self::Auto)
+            | (Self::Public(_), Self::Public(_))
+            | (Self::ExplicitPrivate(_), Self::ExplicitPrivate(_)) => true,
+            (Self::Restricted(a), Self::Restricted(b)) => a == b,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for VisModifierSpec {}
+
+impl Hash for VisModifierSpec {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Self::Private => 0.hash(state),
+            Self::Auto => 1.hash(state),
+            Self::Public(_) => 2.hash(state),
+            Self::ExplicitPrivate(_) => 3.hash(state),
+            Self::Restricted(rest) => {
+                4.hash(state);
+                rest.hash(state);
+            }
+        }
+    }
 }
 
 #[cfg(feature = "pylib")]
@@ -4312,7 +4402,7 @@ impl Identifier {
     #[staticmethod]
     pub fn public(name: Str) -> Self {
         Self::new(
-            VisModifierSpec::Public(Token::from_str(TokenKind::Dot, ".")),
+            VisModifierSpec::Public(Location::Unknown),
             VarName::from_str(name),
         )
     }
@@ -4351,7 +4441,7 @@ impl Identifier {
     #[staticmethod]
     pub fn public_with_line(dot: Token, name: Str, line: u32) -> Self {
         Self::new(
-            VisModifierSpec::Public(dot),
+            VisModifierSpec::Public(dot.loc()),
             VarName::from_str_and_line(name, line),
         )
     }
@@ -4359,14 +4449,14 @@ impl Identifier {
     #[staticmethod]
     pub fn public_with_loc(dot: Token, name: Str, loc: Location) -> Self {
         Self::new(
-            VisModifierSpec::Public(dot),
+            VisModifierSpec::Public(dot.loc()),
             VarName::from_str_and_loc(name, loc),
         )
     }
 
     #[staticmethod]
     pub fn public_from_token(dot: Token, symbol: Token) -> Self {
-        Self::new(VisModifierSpec::Public(dot), VarName::new(symbol))
+        Self::new(VisModifierSpec::Public(dot.loc()), VarName::new(symbol))
     }
 
     #[staticmethod]
@@ -4378,7 +4468,7 @@ impl Identifier {
 impl Identifier {
     pub fn static_public(name: &'static str) -> Self {
         Self::new(
-            VisModifierSpec::Public(Token::from_str(TokenKind::Dot, ".")),
+            VisModifierSpec::Public(Location::Unknown),
             VarName::from_static(name),
         )
     }
@@ -4413,11 +4503,24 @@ impl Identifier {
 }
 
 #[pyclass(get_all, set_all)]
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug)]
 pub struct VarListPattern {
-    l_sqbr: Token,
+    sqbrs: Location,
     pub(crate) elems: Vars,
-    r_sqbr: Token,
+}
+
+impl PartialEq for VarListPattern {
+    fn eq(&self, other: &Self) -> bool {
+        self.elems == other.elems
+    }
+}
+
+impl Eq for VarListPattern {}
+
+impl Hash for VarListPattern {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.elems.hash(state);
+    }
 }
 
 impl fmt::Display for VarListPattern {
@@ -4426,7 +4529,7 @@ impl fmt::Display for VarListPattern {
     }
 }
 
-impl_locational!(VarListPattern, l_sqbr, r_sqbr);
+impl_locational!(VarListPattern, sqbrs);
 
 impl Stream<VarSignature> for VarListPattern {
     #[inline]
@@ -4444,20 +4547,30 @@ impl Stream<VarSignature> for VarListPattern {
 }
 
 impl VarListPattern {
-    pub const fn new(l_sqbr: Token, elems: Vars, r_sqbr: Token) -> Self {
-        Self {
-            l_sqbr,
-            elems,
-            r_sqbr,
-        }
+    pub const fn new(sqbrs: Location, elems: Vars) -> Self {
+        Self { sqbrs, elems }
     }
 }
 
 #[pyclass(get_all, set_all)]
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug)]
 pub struct VarTuplePattern {
-    pub(crate) paren: Option<(Token, Token)>,
+    pub(crate) paren: Option<(Location, Location)>,
     pub(crate) elems: Vars,
+}
+
+impl PartialEq for VarTuplePattern {
+    fn eq(&self, other: &Self) -> bool {
+        self.elems == other.elems
+    }
+}
+
+impl Eq for VarTuplePattern {}
+
+impl Hash for VarTuplePattern {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.elems.hash(state);
+    }
 }
 
 impl fmt::Display for VarTuplePattern {
@@ -4491,7 +4604,7 @@ impl Stream<VarSignature> for VarTuplePattern {
 }
 
 impl VarTuplePattern {
-    pub const fn new(paren: Option<(Token, Token)>, elems: Vars) -> Self {
+    pub const fn new(paren: Option<(Location, Location)>, elems: Vars) -> Self {
         Self { paren, elems }
     }
 }
@@ -4544,11 +4657,24 @@ impl VarRecordAttrs {
 }
 
 #[pyclass(get_all, set_all)]
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug)]
 pub struct VarRecordPattern {
-    l_brace: Token,
+    braces: Location,
     pub(crate) attrs: VarRecordAttrs,
-    r_brace: Token,
+}
+
+impl PartialEq for VarRecordPattern {
+    fn eq(&self, other: &Self) -> bool {
+        self.attrs == other.attrs
+    }
+}
+
+impl Eq for VarRecordPattern {}
+
+impl Hash for VarRecordPattern {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.attrs.hash(state);
+    }
 }
 
 impl fmt::Display for VarRecordPattern {
@@ -4557,22 +4683,19 @@ impl fmt::Display for VarRecordPattern {
     }
 }
 
-impl_locational!(VarRecordPattern, l_brace, r_brace);
+impl_locational!(VarRecordPattern, braces);
 
 impl VarRecordPattern {
-    pub const fn new(l_brace: Token, attrs: VarRecordAttrs, r_brace: Token) -> Self {
-        Self {
-            l_brace,
-            attrs,
-            r_brace,
-        }
+    pub const fn new(braces: Location, attrs: VarRecordAttrs) -> Self {
+        Self { attrs, braces }
     }
 }
 
 #[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VarDataPackPattern {
-    pub class: TypeSpec,
+    // use Box to reduce the size
+    pub class: Box<TypeSpec>,
     pub class_as_expr: Box<Expr>,
     pub args: VarRecordPattern,
 }
@@ -4586,9 +4709,9 @@ impl fmt::Display for VarDataPackPattern {
 impl_locational!(VarDataPackPattern, class, args);
 
 impl VarDataPackPattern {
-    pub const fn new(class: TypeSpec, class_as_expr: Box<Expr>, args: VarRecordPattern) -> Self {
+    pub fn new(class: TypeSpec, class_as_expr: Box<Expr>, args: VarRecordPattern) -> Self {
         Self {
-            class,
+            class: Box::new(class),
             class_as_expr,
             args,
         }
@@ -4681,11 +4804,11 @@ impl VarPattern {
     }
 }
 
-#[pyclass(get_all, set_all)]
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct VarSignature {
     pub pat: VarPattern,
-    pub t_spec: Option<TypeSpecWithOp>,
+    pub t_spec: Option<Box<TypeSpecWithOp>>,
 }
 
 impl NestedDisplay for VarSignature {
@@ -4698,7 +4821,7 @@ impl_display_from_nested!(VarSignature);
 
 impl Locational for VarSignature {
     fn loc(&self) -> Location {
-        if let Some(t_spec) = &self.t_spec {
+        if let Some(t_spec) = self.t_spec.as_deref() {
             Location::concat(&self.pat, t_spec)
         } else {
             self.pat.loc()
@@ -4723,8 +4846,30 @@ impl VarSignature {
     }
 
     #[staticmethod]
-    pub const fn new(pat: VarPattern, t_spec: Option<TypeSpecWithOp>) -> Self {
-        Self { pat, t_spec }
+    pub fn new(pat: VarPattern, t_spec: Option<TypeSpecWithOp>) -> Self {
+        Self {
+            pat,
+            t_spec: t_spec.map(Box::new),
+        }
+    }
+
+    #[getter]
+    pub fn pat(&self) -> VarPattern {
+        self.pat.clone()
+    }
+
+    #[getter]
+    pub fn t_spec(&self) -> Option<TypeSpecWithOp> {
+        self.t_spec.as_deref().cloned()
+    }
+
+    #[setter]
+    pub fn set_pat(&mut self, pat: VarPattern) {
+        self.pat = pat;
+    }
+    #[setter]
+    pub fn set_t_spec(&mut self, t_spec: Option<TypeSpecWithOp>) {
+        self.t_spec = t_spec.map(Box::new);
     }
 
     pub fn is_const(&self) -> bool {
@@ -4898,7 +5043,7 @@ impl TryFrom<&ParamTuplePattern> for Expr {
         for elem in value.elems.non_defaults.iter() {
             new.push(PosArg::new(Expr::try_from(&elem.pat)?));
         }
-        let elems = Args::pos_only(new, value.elems.parens.clone());
+        let elems = Args::pos_only(new, value.elems.parens);
         Ok(Expr::Tuple(Tuple::Normal(NormalTuple::new(elems))))
     }
 }
@@ -4911,7 +5056,7 @@ impl TryFrom<&ParamTuplePattern> for ConstExpr {
         for elem in value.elems.non_defaults.iter() {
             new.push(ConstPosArg::new(ConstExpr::try_from(&elem.pat)?));
         }
-        let elems = ConstArgs::pos_only(new, value.elems.parens.clone());
+        let elems = ConstArgs::pos_only(new, value.elems.parens);
         Ok(ConstExpr::Tuple(ConstTuple::new(elems)))
     }
 }
@@ -5207,7 +5352,7 @@ impl Locational for GuardClause {
 }
 
 #[pyclass]
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug)]
 pub struct Params {
     pub non_defaults: Vec<NonDefaultParamSignature>,
     pub var_params: Option<Box<NonDefaultParamSignature>>,
@@ -5215,7 +5360,29 @@ pub struct Params {
     pub kw_var_params: Option<Box<NonDefaultParamSignature>>,
     /// match conditions
     pub guards: Vec<GuardClause>,
-    pub parens: Option<(Token, Token)>,
+    pub parens: Option<(Location, Location)>,
+}
+
+impl PartialEq for Params {
+    fn eq(&self, other: &Self) -> bool {
+        self.non_defaults == other.non_defaults
+            && self.var_params == other.var_params
+            && self.defaults == other.defaults
+            && self.kw_var_params == other.kw_var_params
+            && self.guards == other.guards
+    }
+}
+
+impl Eq for Params {}
+
+impl Hash for Params {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.non_defaults.hash(state);
+        self.var_params.hash(state);
+        self.defaults.hash(state);
+        self.kw_var_params.hash(state);
+        self.guards.hash(state);
+    }
 }
 
 impl fmt::Display for Params {
@@ -5285,7 +5452,7 @@ type RawParams = (
     Vec<DefaultParamSignature>,
     Option<Box<NonDefaultParamSignature>>,
     Vec<GuardClause>,
-    Option<(Token, Token)>,
+    Option<(Location, Location)>,
 );
 
 #[pymethods]
@@ -5297,7 +5464,7 @@ impl Params {
         var_params: Option<NonDefaultParamSignature>,
         defaults: Vec<DefaultParamSignature>,
         kw_var_params: Option<NonDefaultParamSignature>,
-        parens: Option<(Token, Token)>,
+        parens: Option<(Location, Location)>,
     ) -> Self {
         Self {
             non_defaults,
@@ -5388,14 +5555,14 @@ impl Params {
 }
 
 /// 引数を取るならTypeでもSubr扱い
-#[pyclass(get_all, set_all)]
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SubrSignature {
     pub decorators: HashSet<Decorator>,
     pub ident: Identifier,
     pub bounds: TypeBoundSpecs,
     pub params: Params,
-    pub return_t_spec: Option<TypeSpecWithOp>,
+    pub return_t_spec: Option<Box<TypeSpecWithOp>>,
 }
 
 impl NestedDisplay for SubrSignature {
@@ -5428,15 +5595,59 @@ impl Locational for SubrSignature {
         if !self.bounds.is_empty() {
             Location::concat(&self.ident, &self.bounds)
         } else if let Some(return_t) = &self.return_t_spec {
-            Location::concat(&self.ident, return_t)
+            Location::concat(&self.ident, return_t.as_ref())
         } else {
             Location::concat(&self.ident, &self.params)
         }
     }
 }
 
+#[pymethods]
 impl SubrSignature {
-    pub const fn new(
+    #[getter]
+    pub fn decorators(&self) -> HashSet<Decorator> {
+        self.decorators.clone()
+    }
+    #[getter]
+    pub fn ident(&self) -> Identifier {
+        self.ident.clone()
+    }
+    #[getter]
+    pub fn bounds(&self) -> TypeBoundSpecs {
+        self.bounds.clone()
+    }
+    #[getter]
+    pub fn params(&self) -> Params {
+        self.params.clone()
+    }
+    #[getter]
+    pub fn return_t_spec(&self) -> Option<TypeSpecWithOp> {
+        self.return_t_spec.as_deref().cloned()
+    }
+    #[setter]
+    pub fn set_decorators(&mut self, decorators: HashSet<Decorator>) {
+        self.decorators = decorators;
+    }
+    #[setter]
+    pub fn set_ident(&mut self, ident: Identifier) {
+        self.ident = ident;
+    }
+    #[setter]
+    pub fn set_bounds(&mut self, bounds: TypeBoundSpecs) {
+        self.bounds = bounds;
+    }
+    #[setter]
+    pub fn set_params(&mut self, params: Params) {
+        self.params = params;
+    }
+    #[setter]
+    pub fn set_return_t_spec(&mut self, return_t_spec: Option<TypeSpecWithOp>) {
+        self.return_t_spec = return_t_spec.map(Box::new);
+    }
+}
+
+impl SubrSignature {
+    pub fn new(
         decorators: HashSet<Decorator>,
         ident: Identifier,
         bounds: TypeBoundSpecs,
@@ -5448,7 +5659,7 @@ impl SubrSignature {
             ident,
             bounds,
             params,
-            return_t_spec,
+            return_t_spec: return_t_spec.map(Box::new),
         }
     }
 
@@ -5465,12 +5676,12 @@ impl SubrSignature {
     }
 }
 
-#[pyclass(get_all, set_all)]
+#[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct LambdaSignature {
     pub bounds: TypeBoundSpecs,
     pub params: Params,
-    pub return_t_spec: Option<TypeSpecWithOp>,
+    pub return_t_spec: Option<Box<TypeSpecWithOp>>,
 }
 
 impl fmt::Display for LambdaSignature {
@@ -5498,7 +5709,7 @@ impl Locational for LambdaSignature {
     fn loc(&self) -> Location {
         if !self.bounds.is_empty() {
             Location::concat(&self.params, &self.bounds)
-        } else if let Some(return_t) = &self.return_t_spec {
+        } else if let Some(return_t) = self.return_t_spec.as_deref() {
             Location::concat(&self.params, return_t)
         } else if self.params.is_empty() && self.params.parens.is_none() {
             Location::Unknown
@@ -5508,21 +5719,49 @@ impl Locational for LambdaSignature {
     }
 }
 
+#[pymethods]
 impl LambdaSignature {
-    pub const fn new(
+    #[getter]
+    pub fn bounds(&self) -> TypeBoundSpecs {
+        self.bounds.clone()
+    }
+    #[getter]
+    pub fn params(&self) -> Params {
+        self.params.clone()
+    }
+    #[getter]
+    pub fn return_t_spec(&self) -> Option<TypeSpecWithOp> {
+        self.return_t_spec.as_deref().cloned()
+    }
+    #[setter]
+    pub fn set_bounds(&mut self, bounds: TypeBoundSpecs) {
+        self.bounds = bounds;
+    }
+    #[setter]
+    pub fn set_params(&mut self, params: Params) {
+        self.params = params;
+    }
+    #[setter]
+    pub fn set_return_t_spec(&mut self, return_t_spec: Option<TypeSpecWithOp>) {
+        self.return_t_spec = return_t_spec.map(Box::new);
+    }
+}
+
+impl LambdaSignature {
+    pub fn new(
         params: Params,
         return_t_spec: Option<TypeSpecWithOp>,
         bounds: TypeBoundSpecs,
     ) -> Self {
         Self {
             params,
-            return_t_spec,
+            return_t_spec: return_t_spec.map(Box::new),
             bounds,
         }
     }
 
     pub fn do_sig(do_symbol: &Token) -> Self {
-        let parens = Some((do_symbol.clone(), do_symbol.clone()));
+        let parens = Some((do_symbol.loc(), do_symbol.loc()));
         Self::new(
             Params::new(vec![], None, vec![], None, parens),
             None,
@@ -5676,8 +5915,8 @@ impl Signature {
 
     pub fn t_spec_op_mut(&mut self) -> Option<&mut TypeSpecWithOp> {
         match self {
-            Self::Var(v) => v.t_spec.as_mut(),
-            Self::Subr(c) => c.return_t_spec.as_mut(),
+            Self::Var(v) => v.t_spec.as_deref_mut(),
+            Self::Subr(c) => c.return_t_spec.as_deref_mut(),
         }
     }
 
@@ -5929,7 +6168,7 @@ impl Def {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ReDef {
     pub attr: Accessor,
-    pub t_spec: Option<TypeSpecWithOp>,
+    pub t_spec: Option<Box<TypeSpecWithOp>>,
     pub expr: Box<Expr>,
 }
 
@@ -5951,7 +6190,7 @@ impl ReDef {
     pub fn new(attr: Accessor, t_spec: Option<TypeSpecWithOp>, expr: Expr) -> Self {
         Self {
             attr,
-            t_spec,
+            t_spec: t_spec.map(Box::new),
             expr: Box::new(expr),
         }
     }
@@ -6526,11 +6765,11 @@ impl InlineModule {
 mod tests {
     use super::*;
 
-    use erg_common::dict::Dict;
+    use erg_common::dict::Dict as HashMap;
 
     #[test]
     fn test_dict() {
-        let mut dict = Dict::new();
+        let mut dict = HashMap::new();
         let a = Token::new(TokenKind::Symbol, "a", 1, 1);
         let a = VarName::new(a);
         let a2 = Token::new(TokenKind::Symbol, "a", 2, 3);
@@ -6542,5 +6781,40 @@ mod tests {
         assert_eq!(dict.get(&Str::from("a")), Some(&1));
         assert_eq!(dict.remove(&a2), Some(1));
         assert_eq!(dict.remove(&a2), None);
+    }
+
+    #[test]
+    fn check_structs_size() {
+        use std::mem::size_of;
+
+        println!("Expr: {}", size_of::<Expr>());
+        println!("Literal: {}", size_of::<Literal>());
+        println!("Accessor: {}", size_of::<Accessor>());
+        println!("List: {}", size_of::<List>());
+        println!("Tuple: {}", size_of::<Tuple>());
+        println!("Dict: {}", size_of::<Dict>());
+        println!("Record: {}", size_of::<Record>());
+        println!("BinOp: {}", size_of::<BinOp>());
+        println!("UnaryOp: {}", size_of::<UnaryOp>());
+        println!("Call: {}", size_of::<Call>());
+        println!("Lambda: {}", size_of::<Lambda>());
+        println!("Def: {}", size_of::<Def>());
+        println!("ClassDef: {}", size_of::<ClassDef>());
+        println!("Signature: {}", size_of::<Signature>());
+        println!("VarSignature: {}", size_of::<VarSignature>());
+        println!("Identifier: {}", size_of::<Identifier>());
+        println!("SubrSignature: {}", size_of::<SubrSignature>());
+        println!("TypeBoundSpecs: {}", size_of::<TypeBoundSpecs>());
+        println!("Params: {}", size_of::<Params>());
+        println!("TypeSpecWithOp: {}", size_of::<TypeSpecWithOp>());
+        println!("TypeSpec: {}", size_of::<TypeSpec>());
+        println!("PatchDef: {}", size_of::<PatchDef>());
+        println!("ReDef: {}", size_of::<ReDef>());
+        println!("TypeAsc: {}", size_of::<TypeAscription>());
+        println!("Code: {}", size_of::<Block>());
+        println!("Compound: {}", size_of::<Block>());
+        println!("Import: {}", size_of::<Accessor>());
+        println!("Dummy: {}", size_of::<Dummy>());
+        println!("Module: {}", size_of::<Module>());
     }
 }

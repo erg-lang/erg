@@ -1513,7 +1513,7 @@ impl Context {
             (Guard(l), Guard(r)) => {
                 if l.namespace == r.namespace && l.target == r.target {
                     let to = self.union(&l.to, &r.to);
-                    Guard(GuardType::new(l.namespace.clone(), l.target.clone(), to))
+                    Guard(GuardType::new(l.namespace.clone(), *l.target.clone(), to))
                 } else {
                     or(lhs.clone(), rhs.clone())
                 }
@@ -1803,7 +1803,7 @@ impl Context {
             (Guard(l), Guard(r)) => {
                 if l.namespace == r.namespace && l.target == r.target {
                     let to = self.intersection(&l.to, &r.to);
-                    Guard(GuardType::new(l.namespace.clone(), l.target.clone(), to))
+                    Guard(GuardType::new(l.namespace.clone(), *l.target.clone(), to))
                 } else {
                     and(lhs.clone(), rhs.clone())
                 }
@@ -2200,7 +2200,7 @@ impl Context {
             Refinement(r) => Type::Refinement(r.clone().invert()),
             Guard(guard) => Type::Guard(GuardType::new(
                 guard.namespace.clone(),
-                guard.target.clone(),
+                *guard.target.clone(),
                 self.complement(&guard.to),
             )),
             Or(ors) => ors

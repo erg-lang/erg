@@ -293,7 +293,7 @@ impl Context {
                     ctx: self.kind.clone(),
                     def_loc: self.absolutize(sig.loc()),
                     py_name,
-                    alias_of,
+                    alias_of: alias_of.map(Box::new),
                     ..VarInfo::const_default_private()
                 });
             }
@@ -329,7 +329,7 @@ impl Context {
                 vi.py_name = py_name;
             }
             if vi.alias_of.is_none() {
-                vi.alias_of = alias_of;
+                vi.alias_of = alias_of.map(Box::new);
             }
             self.locals.insert(ident.name.clone(), vi.clone());
             if let Ok(value) = self.convert_singular_type_into_value(vi.t.clone()) {
@@ -781,7 +781,7 @@ impl Context {
         }
         let spec_ret_t = registered_t.return_t.as_ref();
         // spec_ret_t.lower();
-        let unify_return_result = if let Some(t_spec) = sig.return_t_spec.as_ref() {
+        let unify_return_result = if let Some(t_spec) = sig.return_t_spec.as_deref() {
             self.force_sub_unify(body_t, spec_ret_t, t_spec, None)
         } else {
             self.force_sub_unify(body_t, spec_ret_t, body_loc, None)
@@ -2842,12 +2842,12 @@ impl Context {
             if !self.name.starts_with(&guard.namespace[..]) {
                 continue;
             }
-            if let CastTarget::Expr(target) = &guard.target {
-                if expr == target.as_ref() {
+            if let CastTarget::Expr(target) = guard.target.as_ref() {
+                if expr == target {
                     return Some(*guard.to.clone());
                 }
                 // { r.x in Int } =>  { r in Structural { .x = Int } }
-                else if let ast::Expr::Accessor(ast::Accessor::Attr(attr)) = target.as_ref() {
+                else if let ast::Expr::Accessor(ast::Accessor::Attr(attr)) = target {
                     if attr.obj.as_ref() == expr {
                         let mut rec = Dict::new();
                         let vis = self.instantiate_vis_modifier(&attr.ident.vis).ok()?;
@@ -2867,7 +2867,7 @@ impl Context {
         args: Option<&hir::Args>,
         overwritten: &mut Vec<(VarName, VarInfo)>,
     ) -> TyCheckResult<()> {
-        match &guard.target {
+        match guard.target.as_ref() {
             CastTarget::Var { name, .. } => {
                 if !self.name.starts_with(&guard.namespace[..]) {
                     return Ok(());

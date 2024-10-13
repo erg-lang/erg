@@ -1,3 +1,4 @@
+use erg_common::error::Location;
 use erg_common::traits::{Locational, Stream};
 use erg_common::{fn_name, log, set};
 
@@ -133,7 +134,8 @@ impl Parser {
                         }
                     }
                 }
-                let pat = VarListPattern::new(lis.l_sqbr, vars, lis.r_sqbr);
+                let sqbrs = Location::concat(&lis.l_sqbr, &lis.r_sqbr);
+                let pat = VarListPattern::new(sqbrs, vars);
                 debug_exit_info!(self);
                 Ok(pat)
             }
@@ -190,8 +192,9 @@ impl Parser {
                     .collect::<ParseResult<Vec<_>>>()
                     .map_err(|_| self.stack_dec(fn_name!()))?;
                 let attrs = VarRecordAttrs::new(pats);
+                let braces = Location::concat(&rec.l_brace, &rec.r_brace);
                 debug_exit_info!(self);
-                Ok(VarRecordPattern::new(rec.l_brace, attrs, rec.r_brace))
+                Ok(VarRecordPattern::new(braces, attrs))
             }
             Record::Mixed(rec) => {
                 let pats = rec
@@ -207,8 +210,9 @@ impl Parser {
                     .collect::<ParseResult<Vec<_>>>()
                     .map_err(|_| self.stack_dec(fn_name!()))?;
                 let attrs = VarRecordAttrs::new(pats);
+                let braces = Location::concat(&rec.l_brace, &rec.r_brace);
                 debug_exit_info!(self);
-                Ok(VarRecordPattern::new(rec.l_brace, attrs, rec.r_brace))
+                Ok(VarRecordPattern::new(braces, attrs))
             }
         }
     }

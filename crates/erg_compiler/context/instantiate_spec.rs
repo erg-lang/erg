@@ -2311,19 +2311,18 @@ impl Context {
         match return_t {
             Type::Guard(GuardType {
                 namespace,
-                target: CastTarget::Expr(expr),
+                target,
                 to,
-            }) => {
+            }) if matches!(target.as_ref(), CastTarget::Expr(_)) => {
+                let CastTarget::Expr(expr) = *target else {
+                    unreachable!()
+                };
                 let target = if let Some(nth) = params.position(|p| Some(p) == expr.get_name()) {
                     CastTarget::arg(nth, expr.get_name().unwrap().clone(), ().loc())
                 } else {
                     CastTarget::Expr(expr)
                 };
-                Type::Guard(GuardType {
-                    namespace,
-                    target,
-                    to,
-                })
+                Type::Guard(GuardType::new(namespace, target, *to))
             }
             _ => return_t,
         }
@@ -2913,7 +2912,7 @@ impl Context {
                 }
                 VisRestriction::SubtypeOf(typ) => {
                     let t = self.instantiate_typespec(typ).map_err(|(_, es)| es)?;
-                    Ok(VisibilityModifier::SubtypeRestricted(t))
+                    Ok(VisibilityModifier::SubtypeRestricted(Box::new(t)))
                 }
             },
         }

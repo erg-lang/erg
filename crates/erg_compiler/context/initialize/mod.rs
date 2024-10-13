@@ -1236,10 +1236,10 @@ impl Context {
             if let ContextKind::GluePatch(tr_impl) = &ctx.kind {
                 if let Some(mut impls) = self.trait_impls().get_mut(&tr_impl.sup_trait.qual_name())
                 {
-                    impls.insert(tr_impl.clone());
+                    impls.insert(*tr_impl.clone());
                 } else {
                     self.trait_impls()
-                        .register(tr_impl.sup_trait.qual_name(), set![tr_impl.clone()]);
+                        .register(tr_impl.sup_trait.qual_name(), set![*tr_impl.clone()]);
                 }
             }
             self.patches.insert(name, ctx);

@@ -17,7 +17,8 @@ pub enum VisibilityModifier {
     Public,
     Private,
     Restricted(Set<Str>),
-    SubtypeRestricted(Type),
+    // use Box to reduce the size of enum
+    SubtypeRestricted(Box<Type>),
 }
 
 impl fmt::Display for VisibilityModifier {

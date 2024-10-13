@@ -1,5 +1,6 @@
 /// defines High-level Intermediate Representation
 use std::fmt;
+use std::hash::{Hash, Hasher};
 
 use erg_common::consts::ERG_MODE;
 use erg_common::dict::Dict as HashMap;
@@ -166,13 +167,33 @@ impl KwArg {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct Args {
     pub pos_args: Vec<PosArg>,
     pub var_args: Option<Box<PosArg>>,
     pub kw_args: Vec<KwArg>,
     pub kw_var: Option<Box<PosArg>>,
-    pub paren: Option<(Token, Token)>,
+    pub paren: Option<(Location, Location)>,
+}
+
+impl PartialEq for Args {
+    fn eq(&self, other: &Self) -> bool {
+        self.pos_args == other.pos_args
+            && self.var_args == other.var_args
+            && self.kw_args == other.kw_args
+            && self.kw_var == other.kw_var
+    }
+}
+
+impl Eq for Args {}
+
+impl Hash for Args {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.pos_args.hash(state);
+        self.var_args.hash(state);
+        self.kw_args.hash(state);
+        self.kw_var.hash(state);
+    }
 }
 
 impl NestedDisplay for Args {
@@ -256,7 +277,7 @@ impl Args {
         var_args: Option<PosArg>,
         kw_args: Vec<KwArg>,
         kw_var: Option<PosArg>,
-        paren: Option<(Token, Token)>,
+        paren: Option<(Location, Location)>,
     ) -> Self {
         Self {
             pos_args,
@@ -267,7 +288,7 @@ impl Args {
         }
     }
 
-    pub fn values(exprs: Vec<Expr>, paren: Option<(Token, Token)>) -> Self {
+    pub fn values(exprs: Vec<Expr>, paren: Option<(Location, Location)>) -> Self {
         Self::pos_only(exprs.into_iter().map(PosArg::new).collect(), paren)
     }
 
@@ -275,11 +296,11 @@ impl Args {
         Self::pos_only(vec![pos_arg], None)
     }
 
-    pub fn pos_only(pos_args: Vec<PosArg>, paren: Option<(Token, Token)>) -> Self {
+    pub fn pos_only(pos_args: Vec<PosArg>, paren: Option<(Location, Location)>) -> Self {
         Self::new(pos_args, None, vec![], None, paren)
     }
 
-    pub fn var_args(var_args: PosArg, paren: Option<(Token, Token)>) -> Self {
+    pub fn var_args(var_args: PosArg, paren: Option<(Location, Location)>) -> Self {
         Self::new(vec![], Some(var_args), vec![], None, paren)
     }
 
@@ -1699,7 +1720,7 @@ pub struct VarSignature {
     pub ident: Identifier,
     /// if this flag is `true`, the variable is stored as `global`
     pub global: bool,
-    pub t_spec: Option<TypeSpecWithOp>,
+    pub t_spec: Option<Box<TypeSpecWithOp>>,
 }
 
 impl NestedDisplay for VarSignature {
@@ -1731,19 +1752,19 @@ impl HasType for VarSignature {
 }
 
 impl VarSignature {
-    pub const fn new(ident: Identifier, t_spec: Option<TypeSpecWithOp>) -> Self {
+    pub fn new(ident: Identifier, t_spec: Option<TypeSpecWithOp>) -> Self {
         Self {
             ident,
             global: false,
-            t_spec,
+            t_spec: t_spec.map(Box::new),
         }
     }
 
-    pub const fn global(ident: Identifier, t_spec: Option<TypeSpecWithOp>) -> Self {
+    pub fn global(ident: Identifier, t_spec: Option<TypeSpecWithOp>) -> Self {
         Self {
             ident,
             global: true,
-            t_spec,
+            t_spec: t_spec.map(Box::new),
         }
     }
 
@@ -1913,14 +1934,36 @@ impl NoTypeDisplay for GuardClause {
 
 impl_display_from_nested!(GuardClause);
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug)]
 pub struct Params {
     pub non_defaults: Vec<NonDefaultParamSignature>,
     pub var_params: Option<Box<NonDefaultParamSignature>>,
     pub defaults: Vec<DefaultParamSignature>,
     pub kw_var_params: Option<Box<NonDefaultParamSignature>>,
     pub guards: Vec<GuardClause>,
-    pub parens: Option<(Token, Token)>,
+    pub parens: Option<(Location, Location)>,
+}
+
+impl PartialEq for Params {
+    fn eq(&self, other: &Self) -> bool {
+        self.non_defaults == other.non_defaults
+            && self.var_params == other.var_params
+            && self.defaults == other.defaults
+            && self.kw_var_params == other.kw_var_params
+            && self.guards == other.guards
+    }
+}
+
+impl Eq for Params {}
+
+impl Hash for Params {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.non_defaults.hash(state);
+        self.var_params.hash(state);
+        self.defaults.hash(state);
+        self.kw_var_params.hash(state);
+        self.guards.hash(state);
+    }
 }
 
 impl fmt::Display for Params {
@@ -2004,7 +2047,7 @@ type RawParams = (
     Option<Box<NonDefaultParamSignature>>,
     Vec<DefaultParamSignature>,
     Option<Box<NonDefaultParamSignature>>,
-    Option<(Token, Token)>,
+    Option<(Location, Location)>,
 );
 
 type RefRawParams<'a> = (
@@ -2012,7 +2055,7 @@ type RefRawParams<'a> = (
     &'a Option<Box<NonDefaultParamSignature>>,
     &'a Vec<DefaultParamSignature>,
     &'a Option<Box<NonDefaultParamSignature>>,
-    &'a Option<(Token, Token)>,
+    &'a Option<(Location, Location)>,
 );
 
 impl Params {
@@ -2022,7 +2065,7 @@ impl Params {
         defaults: Vec<DefaultParamSignature>,
         kw_var_params: Option<Box<NonDefaultParamSignature>>,
         guards: Vec<GuardClause>,
-        parens: Option<(Token, Token)>,
+        parens: Option<(Location, Location)>,
     ) -> Self {
         Self {
             non_defaults,
@@ -2113,7 +2156,7 @@ pub struct SubrSignature {
     pub ident: Identifier,
     pub bounds: TypeBoundSpecs,
     pub params: Params,
-    pub return_t_spec: Option<TypeSpecWithOp>,
+    pub return_t_spec: Option<Box<TypeSpecWithOp>>,
     pub captured_names: Vec<Identifier>,
 }
 
@@ -2157,7 +2200,7 @@ impl_display_from_nested!(SubrSignature);
 impl Locational for SubrSignature {
     // TODO: decorators
     fn loc(&self) -> Location {
-        if let Some(return_t_spec) = &self.return_t_spec {
+        if let Some(return_t_spec) = self.return_t_spec.as_deref() {
             Location::concat(&self.ident, return_t_spec)
         } else {
             let params = self.params.loc();
@@ -2189,7 +2232,7 @@ impl HasType for SubrSignature {
 }
 
 impl SubrSignature {
-    pub const fn new(
+    pub fn new(
         decorators: HashSet<Decorator>,
         ident: Identifier,
         bounds: TypeBoundSpecs,
@@ -2202,7 +2245,7 @@ impl SubrSignature {
             ident,
             bounds,
             params,
-            return_t_spec,
+            return_t_spec: return_t_spec.map(Box::new),
             captured_names,
         }
     }
@@ -2374,8 +2417,8 @@ impl Signature {
 
     pub fn t_spec_with_op(&self) -> Option<&TypeSpecWithOp> {
         match self {
-            Self::Var(v) => v.t_spec.as_ref(),
-            Self::Subr(s) => s.return_t_spec.as_ref(),
+            Self::Var(v) => v.t_spec.as_deref(),
+            Self::Subr(s) => s.return_t_spec.as_deref(),
             Self::Glob(_) => None,
         }
     }
@@ -2592,7 +2635,7 @@ impl Methods {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ClassDef {
-    pub obj: GenTypeObj,
+    pub obj: Box<GenTypeObj>,
     pub sig: Signature,
     pub require_or_sup: Option<Box<Expr>>,
     /// The type of `new` that is automatically defined if not defined
@@ -2654,7 +2697,7 @@ impl ClassDef {
         methods_list: Vec<Methods>,
     ) -> Self {
         Self {
-            obj,
+            obj: Box::new(obj),
             sig,
             require_or_sup: require_or_sup.map(Box::new),
             need_to_gen_new,
@@ -3258,5 +3301,54 @@ impl HIR {
             dependencies: self.dependencies.concat(deps),
             ..self
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::mem::size_of;
+
+    #[test]
+    fn check_structs_size() {
+        println!("Expr: {}", size_of::<Expr>());
+        println!("Literal: {}", size_of::<Literal>());
+        println!("Accessor: {}", size_of::<Accessor>());
+        println!("List: {}", size_of::<List>());
+        println!("Tuple: {}", size_of::<Tuple>());
+        println!("Dict: {}", size_of::<Dict>());
+        println!("Record: {}", size_of::<Record>());
+        println!("BinOp: {}", size_of::<BinOp>());
+        println!("UnaryOp: {}", size_of::<UnaryOp>());
+        println!("Call: {}", size_of::<Call>());
+        println!("Lambda: {}", size_of::<Lambda>());
+        println!("Def: {}", size_of::<Def>());
+        println!("ClassDef: {}", size_of::<ClassDef>());
+        println!("GenTypeObj: {}", size_of::<GenTypeObj>());
+        println!("Signature: {}", size_of::<Signature>());
+        println!("VarSignature: {}", size_of::<VarSignature>());
+        println!("Identifier: {}", size_of::<Identifier>());
+        println!("VarInfo: {}", size_of::<VarInfo>());
+        println!("Visibility: {}", size_of::<crate::ty::Visibility>());
+        println!("VarKind: {}", size_of::<crate::varinfo::VarKind>());
+        println!("ContextKind: {}", size_of::<crate::context::ContextKind>());
+        println!("TraitImpl: {}", size_of::<crate::context::TraitImpl>());
+        println!("SubrSignature: {}", size_of::<SubrSignature>());
+        println!("TypeBoundSpecs: {}", size_of::<TypeBoundSpecs>());
+        println!("Params: {}", size_of::<Params>());
+        println!("TypeSpecWithOp: {}", size_of::<TypeSpecWithOp>());
+        println!("TypeSpec: {}", size_of::<TypeSpec>());
+        println!("GlobSignature: {}", size_of::<GlobSignature>());
+        println!("PatchDef: {}", size_of::<PatchDef>());
+        println!("ReDef: {}", size_of::<ReDef>());
+        println!("TypeAsc: {}", size_of::<TypeAscription>());
+        println!("Code: {}", size_of::<Block>());
+        println!("Compound: {}", size_of::<Block>());
+        println!("Import: {}", size_of::<Accessor>());
+        println!("Dummy: {}", size_of::<Dummy>());
+        println!("Module: {}", size_of::<Module>());
+        println!("HIR: {}", size_of::<HIR>());
+        println!("Type: {}", size_of::<Type>());
     }
 }

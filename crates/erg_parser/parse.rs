@@ -759,7 +759,7 @@ impl Parser {
         };
         let r_vbar = expect_pop!(self, VBar);
         debug_exit_info!(self);
-        Ok(TypeAppArgs::new(l_vbar, args, r_vbar))
+        Ok(TypeAppArgs::new(l_vbar.loc(), args, r_vbar.loc()))
     }
 
     fn try_reduce_restriction(&mut self) -> ParseResult<VisRestriction> {
@@ -824,7 +824,7 @@ impl Parser {
                 let dot = self.lpop();
                 let maybe_symbol = self.lpop();
                 if maybe_symbol.is(Symbol) {
-                    Accessor::public(dot, maybe_symbol)
+                    Accessor::public(dot.loc(), maybe_symbol)
                 } else {
                     let err = self.skip_and_throw_syntax_err(line!(), caused_by!());
                     self.errs.push(err);
@@ -842,7 +842,7 @@ impl Parser {
                     Accessor::restricted(rest, symbol)
                 } else {
                     let symbol = expect_pop!(self, Symbol);
-                    Accessor::explicit_local(dbl_colon, symbol)
+                    Accessor::explicit_local(dbl_colon.loc(), symbol)
                 }
             }
             _ => {
@@ -1097,9 +1097,9 @@ impl Parser {
         };
         match self.peek_kind() {
             Some(RParen) => {
-                rp = Some(self.lpop());
+                rp = self.lpop();
                 debug_exit_info!(self);
-                return Ok(Args::pos_only(vec![], Some((lp.unwrap(), rp.unwrap()))));
+                return Ok(Args::pos_only(vec![], Some((lp.unwrap().loc(), rp.loc()))));
             }
             Some(RBrace | RSqBr | Dedent) => {
                 debug_exit_info!(self);
@@ -1162,7 +1162,7 @@ impl Parser {
                     }
                     if style.needs_parens() && self.cur_is(RParen) {
                         let rp = self.lpop();
-                        args.set_parens((lp.unwrap(), rp));
+                        args.set_parens((lp.unwrap().loc(), rp.loc()));
                         break;
                     }
                     if !args.kw_is_empty() {
@@ -1193,7 +1193,7 @@ impl Parser {
                 Some(RParen) => {
                     if let Some(lp) = lp {
                         let rp = self.lpop();
-                        args.set_parens((lp, rp));
+                        args.set_parens((lp.loc(), rp.loc()));
                     } else {
                         // e.g. f(g 1)
                         let (pos_args, var_args, kw_args, kw_var, _) = args.deconstruct();
@@ -1220,7 +1220,7 @@ impl Parser {
                                 self.skip();
                             }
                             let rp = expect_pop!(self, fail_next RParen);
-                            args.set_parens((lp.unwrap(), rp));
+                            args.set_parens((lp.unwrap().loc(), rp.loc()));
                         }
                         break;
                     }
@@ -1900,7 +1900,7 @@ impl Parser {
                             }
                         }
                         Newline => {
-                            let vis = VisModifierSpec::ExplicitPrivate(dcolon);
+                            let vis = VisModifierSpec::ExplicitPrivate(dcolon.loc());
                             let maybe_class = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                             let defs = self
                                 .try_reduce_class_attr_defs(maybe_class, vis)
@@ -1927,7 +1927,7 @@ impl Parser {
                             return Ok(expr);
                         }
                         LBrace => {
-                            let vis = VisModifierSpec::ExplicitPrivate(dcolon);
+                            let vis = VisModifierSpec::ExplicitPrivate(dcolon.loc());
                             let maybe_class = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                             self.restore(token);
                             let container = self
@@ -1984,7 +1984,7 @@ impl Parser {
                             }
                         }
                         Newline => {
-                            let vis = VisModifierSpec::Public(dot);
+                            let vis = VisModifierSpec::Public(dot.loc());
                             let maybe_class = enum_unwrap!(stack.pop(), Some:(ExprOrOp::Expr:(_)));
                             let defs = self
                                 .try_reduce_class_attr_defs(maybe_class, vis)
@@ -2232,14 +2232,14 @@ impl Parser {
                                 .map_err(|_| self.stack_dec(fn_name!()))?
                             {
                                 let ident = Identifier::new(
-                                    VisModifierSpec::Public(vis),
+                                    VisModifierSpec::Public(vis.loc()),
                                     VarName::new(symbol),
                                 );
                                 let call = Call::new(obj, Some(ident), args);
                                 stack.push(ExprOrOp::Expr(Expr::Call(call)));
                             } else {
                                 let ident = Identifier::new(
-                                    VisModifierSpec::Public(vis),
+                                    VisModifierSpec::Public(vis.loc()),
                                     VarName::new(symbol),
                                 );
                                 stack.push(ExprOrOp::Expr(obj.attr_expr(ident)));
@@ -2565,7 +2565,7 @@ impl Parser {
                 };
                 if self.cur_is(RParen) {
                     let rparen = self.lpop();
-                    let args = Args::pos_only(vec![], Some((lparen, rparen)));
+                    let args = Args::pos_only(vec![], Some((lparen.loc(), rparen.loc())));
                     let unit = Tuple::Normal(NormalTuple::new(args));
                     debug_exit_info!(self);
                     return Ok(Expr::Tuple(unit));
@@ -2610,7 +2610,7 @@ impl Parser {
                     }
                 };
                 if let Expr::Tuple(Tuple::Normal(tup)) = &mut expr {
-                    tup.elems.paren = Some((lparen, rparen));
+                    tup.elems.paren = Some((lparen.loc(), rparen.loc()));
                 }
                 debug_exit_info!(self);
                 Ok(expr)
@@ -2738,8 +2738,10 @@ impl Parser {
                     let token = self.lpop();
                     match token.kind {
                         Symbol => {
-                            let ident =
-                                Identifier::new(VisModifierSpec::Public(vis), VarName::new(token));
+                            let ident = Identifier::new(
+                                VisModifierSpec::Public(vis.loc()),
+                                VarName::new(token),
+                            );
                             obj = obj.attr_expr(ident);
                         }
                         NatLit => {
@@ -2788,7 +2790,7 @@ impl Parser {
                     match token.kind {
                         Symbol => {
                             let ident = Identifier::new(
-                                VisModifierSpec::ExplicitPrivate(vis),
+                                VisModifierSpec::ExplicitPrivate(vis.loc()),
                                 VarName::new(token),
                             );
                             obj = obj.attr_expr(ident);
@@ -2800,7 +2802,7 @@ impl Parser {
                                 .map_err(|_| self.stack_dec(fn_name!()))?;
                             match args {
                                 BraceContainer::Record(args) => {
-                                    let vis = VisModifierSpec::ExplicitPrivate(vis);
+                                    let vis = VisModifierSpec::ExplicitPrivate(vis.loc());
                                     obj = Expr::DataPack(DataPack::new(obj, vis, args));
                                 }
                                 other => {
@@ -3756,8 +3758,10 @@ impl Parser {
                         .transpose()
                         .map_err(|_| self.stack_dec(fn_name!()))?
                     {
-                        let ident =
-                            Identifier::new(VisModifierSpec::Public(vis), VarName::new(symbol));
+                        let ident = Identifier::new(
+                            VisModifierSpec::Public(vis.loc()),
+                            VarName::new(symbol),
+                        );
                         let mut call = Expr::Call(Call::new(obj, Some(ident), args));
                         while let Some(res) = self.opt_reduce_args(false) {
                             let args = res.map_err(|_| self.stack_dec(fn_name!()))?;

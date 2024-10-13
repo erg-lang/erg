@@ -2392,8 +2392,8 @@ impl Context {
                 }
             }
             Type::Guard(grd) => match self.eval_t_params(*grd.to, level, t_loc) {
-                Ok(to) => Ok(guard(grd.namespace, grd.target, to)),
-                Err((to, es)) => Err((guard(grd.namespace, grd.target, to), es)),
+                Ok(to) => Ok(guard(grd.namespace, *grd.target, to)),
+                Err((to, es)) => Err((guard(grd.namespace, *grd.target, to), es)),
             },
             mono_type_pattern!() => Ok(substituted),
         }

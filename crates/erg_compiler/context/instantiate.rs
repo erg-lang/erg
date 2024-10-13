@@ -985,7 +985,7 @@ impl Context {
                 let to = self.instantiate_t_inner(*guard.to, tmp_tv_cache, loc)?;
                 Ok(Type::Guard(GuardType::new(
                     guard.namespace,
-                    guard.target,
+                    *guard.target,
                     to,
                 )))
             }

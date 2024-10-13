@@ -1137,7 +1137,7 @@ impl PyCodeGenerator {
                 // Since Erg does not allow the coexistence of private and public variables with the same name, there is no problem in this trick.
                 let is_record = a.obj.ref_t().is_record();
                 if is_record {
-                    a.ident.raw.vis = VisModifierSpec::Public(DOT);
+                    a.ident.raw.vis = VisModifierSpec::Public(Location::Unknown);
                 }
                 if let Some(varname) = debind(&a.ident) {
                     a.ident.raw.vis = VisModifierSpec::Private;
@@ -1389,7 +1389,7 @@ impl PyCodeGenerator {
         self.emit_push_null();
         let ident = class_def.sig.ident().clone();
         let require_or_sup = class_def.require_or_sup.clone().map(|x| *x);
-        let obj = class_def.obj.clone();
+        let obj = *class_def.obj.clone();
         self.write_instr(LOAD_BUILD_CLASS);
         self.write_arg(0);
         self.stack_inc();
@@ -3636,7 +3636,7 @@ impl PyCodeGenerator {
                     let dot = if field.vis.is_private() {
                         VisModifierSpec::Private
                     } else {
-                        VisModifierSpec::Public(DOT)
+                        VisModifierSpec::Public(Location::Unknown)
                     };
                     let attr = erg_parser::ast::Identifier::new(
                         dot,

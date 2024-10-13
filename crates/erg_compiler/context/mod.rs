@@ -441,7 +441,8 @@ pub enum ContextKind {
     StructuralTrait,
     Patch(Type),
     StructuralPatch(Type),
-    GluePatch(TraitImpl), // TODO: deprecate (integrate into Patch)
+    // use Box to reduce the size of enum
+    GluePatch(Box<TraitImpl>), // TODO: deprecate (integrate into Patch)
     Module,
     Instant,
     Record,
@@ -1080,7 +1081,7 @@ impl Context {
         Self::poly(
             name.into(),
             cfg,
-            ContextKind::GluePatch(TraitImpl::new(base, impls, None)),
+            ContextKind::GluePatch(Box::new(TraitImpl::new(base, impls, None))),
             params,
             None,
             shared,

@@ -339,7 +339,7 @@ impl Desugarer {
                     *t_op.t_spec_as_expr = desugar(*t_op.t_spec_as_expr.clone());
                 }
                 let attr = Self::perform_desugar_acc(desugar, redef.attr);
-                Expr::ReDef(ReDef::new(attr, redef.t_spec, expr))
+                Expr::ReDef(ReDef::new(attr, redef.t_spec.map(|x| *x), expr))
             }
             Expr::Lambda(mut lambda) => {
                 let mut chunks = vec![];
@@ -589,10 +589,10 @@ impl Desugarer {
             let pat = ParamPattern::Tuple(ParamTuplePattern::new(sig.params));
             Params::single(NonDefaultParamSignature::new(pat, None))
         };
-        let sig = LambdaSignature::new(params, return_t_spec.clone(), sig.bounds);
+        let sig = LambdaSignature::new(params, return_t_spec.as_deref().cloned(), sig.bounds);
         let new_branch = Lambda::new(sig, op, def.body.block, def.body.id);
         call.args.push_pos(PosArg::new(Expr::Lambda(new_branch)));
-        (call, return_t_spec)
+        (call, return_t_spec.map(|x| *x))
     }
 
     // TODO: procedural match
@@ -609,7 +609,8 @@ impl Desugarer {
             Params::single(NonDefaultParamSignature::new(pat, None))
         };
         let match_symbol = Expr::static_local("match");
-        let sig = LambdaSignature::new(params, prev_sig.return_t_spec, prev_sig.bounds);
+        let return_t_spec = prev_sig.return_t_spec.map(|x| *x);
+        let sig = LambdaSignature::new(params, return_t_spec, prev_sig.bounds);
         let first_branch = Lambda::new(sig, op.clone(), previous.body.block, previous.body.id);
         let Signature::Subr(sig) = def.sig else {
             unreachable!()
@@ -620,7 +621,7 @@ impl Desugarer {
             let pat = ParamPattern::Tuple(ParamTuplePattern::new(sig.params));
             Params::single(NonDefaultParamSignature::new(pat, None))
         };
-        let return_t_spec = sig.return_t_spec;
+        let return_t_spec = sig.return_t_spec.map(|x| *x);
         let sig = LambdaSignature::new(params, return_t_spec.clone(), sig.bounds);
         let second_branch = Lambda::new(sig, op, def.body.block, def.body.id);
         let first_arg = if params_len == 1 {
@@ -708,7 +709,8 @@ impl Desugarer {
                 body,
             } => match &v.pat {
                 VarPattern::Tuple(tup) => {
-                    let (buf_name, buf_sig) = self.gen_buf_name_and_sig(v.loc(), v.t_spec);
+                    let (buf_name, buf_sig) =
+                        self.gen_buf_name_and_sig(v.loc(), v.t_spec.map(|x| *x));
                     let body = self.desugar_pattern_in_body(body);
                     let buf_def = Def::new(buf_sig, body);
                     new.push(Expr::Def(buf_def));
@@ -721,7 +723,8 @@ impl Desugarer {
                     }
                 }
                 VarPattern::List(lis) => {
-                    let (buf_name, buf_sig) = self.gen_buf_name_and_sig(v.loc(), v.t_spec);
+                    let (buf_name, buf_sig) =
+                        self.gen_buf_name_and_sig(v.loc(), v.t_spec.map(|x| *x));
                     let body = self.desugar_pattern_in_body(body);
                     let buf_def = Def::new(buf_sig, body);
                     new.push(Expr::Def(buf_def));
@@ -734,7 +737,8 @@ impl Desugarer {
                     }
                 }
                 VarPattern::Record(rec) => {
-                    let (buf_name, buf_sig) = self.gen_buf_name_and_sig(v.loc(), v.t_spec);
+                    let (buf_name, buf_sig) =
+                        self.gen_buf_name_and_sig(v.loc(), v.t_spec.map(|x| *x));
                     let body = self.desugar_pattern_in_body(body);
                     let buf_def = Def::new(buf_sig, body);
                     new.push(Expr::Def(buf_def));
@@ -743,8 +747,11 @@ impl Desugarer {
                     }
                 }
                 VarPattern::DataPack(pack) => {
-                    let t_spec =
-                        TypeSpecWithOp::new(COLON, pack.class.clone(), *pack.class_as_expr.clone());
+                    let t_spec = TypeSpecWithOp::new(
+                        COLON,
+                        *pack.class.clone(),
+                        *pack.class_as_expr.clone(),
+                    );
                     let (buf_name, buf_sig) = self.gen_buf_name_and_sig(
                         v.loc(),
                         Some(t_spec), // TODO: これだとvの型指定の意味がなくなる
@@ -946,7 +953,7 @@ impl Desugarer {
             }
             VarPattern::DataPack(pack) => {
                 let t_spec =
-                    TypeSpecWithOp::new(COLON, pack.class.clone(), *pack.class_as_expr.clone());
+                    TypeSpecWithOp::new(COLON, *pack.class.clone(), *pack.class_as_expr.clone());
                 let (buf_name, buf_sig) = self.gen_buf_name_and_sig(sig.loc(), Some(t_spec));
                 let buf_def = Def::new(buf_sig, body);
                 new_module.push(Expr::Def(buf_def));
@@ -1257,12 +1264,9 @@ impl Desugarer {
                     );
                 }
                 if param.t_spec.is_none() {
-                    let t_spec =
-                        TypeSpec::Tuple(TupleTypeSpec::new(tup.elems.parens.clone(), ty_specs));
-                    let t_spec_as_expr = Expr::from(NormalTuple::new(Args::pos_only(
-                        ty_exprs,
-                        tup.elems.parens.clone(),
-                    )));
+                    let t_spec = TypeSpec::Tuple(TupleTypeSpec::new(tup.elems.parens, ty_specs));
+                    let t_spec_as_expr =
+                        Expr::from(NormalTuple::new(Args::pos_only(ty_exprs, tup.elems.parens)));
                     param.t_spec = Some(TypeSpecWithOp::new(COLON, t_spec, t_spec_as_expr));
                 }
                 param.pat = buf_param;
@@ -1341,7 +1345,7 @@ impl Desugarer {
                     let mut tys = vec![];
                     for ParamRecordAttr { lhs, rhs } in rec.elems.iter() {
                         let lhs = Identifier {
-                            vis: VisModifierSpec::Public(Token::DUMMY),
+                            vis: VisModifierSpec::Public(Location::Unknown),
                             ..lhs.clone()
                         };
                         let infer = Token::new_fake(TokenKind::Try, "?", line, 0, 0);
@@ -1368,7 +1372,7 @@ impl Desugarer {
                         ));
                     }
                     let t_spec = TypeSpec::Record(RecordTypeSpec::new(
-                        Some((rec.l_brace.clone(), rec.r_brace.clone())),
+                        Some(Location::concat(&rec.l_brace, &rec.r_brace)),
                         tys,
                     ));
                     let t_spec_as_expr = Expr::from(NormalRecord::new(
@@ -1477,11 +1481,9 @@ impl Desugarer {
                     );
                 }
                 if sig.t_spec.is_none() {
-                    let t_spec = TypeSpec::Tuple(TupleTypeSpec::new(tup.elems.parens.clone(), tys));
-                    let t_spec_as_expr = Expr::from(NormalTuple::new(Args::pos_only(
-                        ty_exprs,
-                        tup.elems.parens.clone(),
-                    )));
+                    let t_spec = TypeSpec::Tuple(TupleTypeSpec::new(tup.elems.parens, tys));
+                    let t_spec_as_expr =
+                        Expr::from(NormalTuple::new(Args::pos_only(ty_exprs, tup.elems.parens)));
                     sig.t_spec = Some(TypeSpecWithOp::new(COLON, t_spec, t_spec_as_expr));
                 }
                 sig.pat = buf_sig;
@@ -1542,7 +1544,7 @@ impl Desugarer {
                 let mut tys = vec![];
                 for ParamRecordAttr { lhs, rhs } in rec.elems.iter_mut() {
                     let lhs = Identifier {
-                        vis: VisModifierSpec::Public(Token::DUMMY),
+                        vis: VisModifierSpec::Public(Location::Unknown),
                         ..lhs.clone()
                     };
                     let gs =
@@ -1572,7 +1574,7 @@ impl Desugarer {
                 }
                 if sig.t_spec.is_none() {
                     let t_spec = TypeSpec::Record(RecordTypeSpec::new(
-                        Some((rec.l_brace.clone(), rec.r_brace.clone())),
+                        Some(Location::concat(&rec.l_brace, &rec.r_brace)),
                         tys,
                     ));
                     let t_spec_as_expr = Expr::from(NormalRecord::new(

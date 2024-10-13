@@ -242,7 +242,12 @@ impl<'a> HIRVisitor<'a> {
         None
     }
 
-    fn return_expr_if_same<'e>(&'e self, expr: &'e Expr, l: &Token, r: Position) -> Option<&Expr> {
+    fn return_expr_if_same<'e>(
+        &'e self,
+        expr: &'e Expr,
+        l: &impl Locational,
+        r: Position,
+    ) -> Option<&Expr> {
         if !self.search.matches(expr) {
             return None;
         }

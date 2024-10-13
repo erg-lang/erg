@@ -1,3 +1,4 @@
+use erg_common::error::Location;
 use erg_common::switch_lang;
 use erg_common::traits::{Locational, Stream};
 
@@ -435,7 +436,7 @@ impl Parser {
 
     fn dict_to_dict_type_spec(dict: Dict) -> Result<DictTypeSpec, ParseError> {
         let (l, r) = dict.braces();
-        let braces = (l.clone(), r.clone());
+        let braces = Location::concat(l, r);
         let kvs = match dict {
             Dict::Normal(dic) => {
                 let mut kvs = vec![];
@@ -456,7 +457,7 @@ impl Parser {
 
     fn record_to_record_type_spec(record: Record) -> Result<RecordTypeSpec, ParseError> {
         let (l, r) = record.braces();
-        let braces = (l.clone(), r.clone());
+        let braces = Location::concat(l, r);
         let attrs = match record {
             Record::Normal(rec) => rec
                 .attrs
@@ -552,7 +553,7 @@ impl Parser {
                     let mut args = bin.args.into_iter();
                     let lhs = Self::validate_const_expr(*args.next().unwrap())?;
                     let rhs = Self::validate_const_expr(*args.next().unwrap())?;
-                    Ok(TypeSpec::Interval { op, lhs, rhs })
+                    Ok(TypeSpec::interval(op, lhs, rhs))
                 } else if bin.op.kind == TokenKind::AndOp {
                     let mut args = bin.args.into_iter();
                     let lhs = Self::expr_to_type_spec(*args.next().unwrap())?;

@@ -61,7 +61,8 @@ impl DummyStdin {
 pub enum InputKind {
     File(PathBuf),
     REPL,
-    DummyREPL(DummyStdin),
+    // use Box to reduce the size
+    DummyREPL(Box<DummyStdin>),
     /// same content as cfg.command
     Pipe(String),
     /// from command option | eval
@@ -172,7 +173,7 @@ impl Input {
     }
 
     pub fn dummy_repl(stdin: DummyStdin) -> Self {
-        Self::new(InputKind::DummyREPL(stdin), random())
+        Self::new(InputKind::DummyREPL(Box::new(stdin)), random())
     }
 
     pub const fn is_repl(&self) -> bool {
