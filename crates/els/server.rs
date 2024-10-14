@@ -266,9 +266,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub fn new(cfg: ErgConfig, stdout_redirect: Option<mpsc::Sender<Value>>) -> Self {
         let flags = Flags::default();
         let cfg = Self::register_packages(cfg);
+        let shared = SharedCompilerResource::new(cfg.copy());
         Self {
-            comp_cache: CompletionCache::new(cfg.copy(), flags.clone()),
-            shared: SharedCompilerResource::new(cfg.copy()),
+            comp_cache: CompletionCache::new(cfg.copy(), flags.clone(), shared.clone()),
+            shared,
             cfg,
             home: normalize_path(std::env::current_dir().unwrap_or_default()),
             erg_path: erg_path().clone(), // already normalized

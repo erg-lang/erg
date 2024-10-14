@@ -350,6 +350,7 @@ fn load_modules<'a>(
     cache: Cache,
     root: &Path,
     mods: impl Iterator<Item = &'a str>,
+    shared: SharedCompilerResource,
 ) {
     let src = mods.fold("".to_string(), |acc, module| {
         acc + &format!("_ = pyimport \"{module}\"\n")
@@ -358,7 +359,6 @@ fn load_modules<'a>(
         input: Input::str(src.clone()),
         ..cfg
     };
-    let shared = SharedCompilerResource::new(cfg.clone());
     let mut checker = PackageBuilder::inherit(cfg, shared.clone());
     let _res = checker.build(src, "exec");
     let mut cache = cache.borrow_mut();
@@ -384,7 +384,7 @@ fn load_modules<'a>(
 }
 
 impl CompletionCache {
-    pub fn new(cfg: ErgConfig, flags: Flags) -> Self {
+    pub fn new(cfg: ErgConfig, flags: Flags, shared: SharedCompilerResource) -> Self {
         let cache = Shared::new(Dict::default());
         let clone = cache.clone();
         spawn_new_thread(
@@ -436,6 +436,7 @@ impl CompletionCache {
                     clone.clone(),
                     erg_pystd_path(),
                     major_mods.into_iter().chain(py_specific_mods),
+                    shared,
                 );
                 // TODO: load modules from site-packages
                 flags

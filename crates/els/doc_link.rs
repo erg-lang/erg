@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use erg_common::spawn::safe_yield;
 use erg_common::Str;
 use erg_compiler::artifact::BuildRunnable;
 use erg_compiler::erg_parser::ast::{ClassAttr, Expr, Literal};
@@ -14,10 +15,14 @@ use crate::_log;
 use crate::server::{ELSResult, RedirectableStdout, Server};
 use crate::util::NormalizedUrl;
 
-/// programming related words are not considered usual words (e.g. `if`, `while`)
+fn is_not_symbol(word: &str) -> bool {
+    word.chars()
+        .all(|c| c.is_ascii_digit() || c.is_ascii_punctuation())
+}
+
 fn is_usual_word(word: &str) -> bool {
     matches!(
-        word,
+        word.to_ascii_lowercase().as_str(),
         "a" | "the"
             | "an"
             | "is"
@@ -89,6 +94,12 @@ fn is_usual_word(word: &str) -> bool {
             | "whether"
             | "so"
             | "although"
+            | "if"
+            | "unless"
+            | "because"
+            | "for"
+            | "since"
+            | "while"
     )
 }
 
@@ -98,6 +109,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         params: DocumentLinkParams,
     ) -> ELSResult<Option<Vec<DocumentLink>>> {
         _log!(self, "document link requested: {params:?}");
+        while !self.flags.builtin_modules_loaded() {
+            safe_yield();
+        }
         let uri = NormalizedUrl::new(params.text_document.uri);
         let mut res = vec![];
         res.extend(self.get_document_link(&uri));
@@ -138,9 +152,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let mut col = comment.token.col_begin;
         for li in comment.token.content.split('\n') {
             let li = Str::rc(li);
-            let words = li.split_with(&[" ", "'", "\"", "`"]);
+            let words = li.split_with(&[" ", "'", "\"", "`", "(", ")", "[", "]", "{", "}"]);
             for word in words {
-                if word.trim().is_empty() || is_usual_word(word) {
+                if word.trim().is_empty() || is_usual_word(word) || is_not_symbol(word) {
                     col += word.len() as u32 + 1;
                     continue;
                 }
@@ -164,7 +178,9 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                         data: None,
                     });
                 } else if let Some((_, vi)) = mod_ctx.context.get_type_info(&typ) {
-                    res.push(self.gen_doc_link_from_vi(word, range, vi));
+                    if let Some(doc) = self.gen_doc_link_from_vi(word, range, vi) {
+                        res.push(doc);
+                    }
                 }
                 col += word.len() as u32 + 1;
             }
@@ -174,31 +190,20 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         res
     }
 
-    fn gen_doc_link_from_vi(&self, name: &str, range: Range, vi: &VarInfo) -> DocumentLink {
+    fn gen_doc_link_from_vi(&self, name: &str, range: Range, vi: &VarInfo) -> Option<DocumentLink> {
         let mut target = if let Some(path) = vi.t.module_path() {
-            Url::from_file_path(path).ok()
+            Url::from_file_path(path).ok()?
         } else {
-            vi.def_loc
-                .module
-                .as_ref()
-                .and_then(|path| Url::from_file_path(path).ok())
+            Url::from_file_path(vi.def_loc.module.as_ref()?).ok()?
         };
-        if let Some(target) = target.as_mut() {
-            target.set_fragment(
-                vi.def_loc
-                    .loc
-                    .ln_begin()
-                    .map(|l| format!("L{l}"))
-                    .as_deref(),
-            );
-        }
+        target.set_fragment(Some(&format!("L{}", vi.def_loc.loc.ln_begin()?)));
         let tooltip = format!("{name}: {}", vi.t);
-        DocumentLink {
+        Some(DocumentLink {
             range,
-            target,
+            target: Some(target),
             tooltip: Some(tooltip),
             data: None,
-        }
+        })
     }
 
     #[allow(clippy::only_used_in_recursion)]
@@ -265,8 +270,14 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let mut lines = vec![];
         if let Ok(code) = self.file_cache.get_entire_code(uri) {
             for (line, li) in code.lines().enumerate() {
-                if let Some(li) = li.strip_prefix("#") {
-                    let token = Token::new(TokenKind::DocComment, Str::rc(li), line as u32 + 1, 1);
+                if let Some(com) = li.trim().strip_prefix("#") {
+                    let col = li.len() - com.len();
+                    let token = Token::new(
+                        TokenKind::DocComment,
+                        Str::rc(com),
+                        line as u32 + 1,
+                        col as u32,
+                    );
                     lines.push(Literal::new(token));
                 }
             }
