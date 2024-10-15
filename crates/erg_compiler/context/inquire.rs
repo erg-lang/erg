@@ -3866,6 +3866,31 @@ impl Context {
         ))
     }
 
+    pub fn partial_get_methods_by_name(
+        &self,
+        partial_attr: &Identifier,
+    ) -> Vec<(&Str, &Vec<MethodPair>)> {
+        let mut res = vec![];
+        for candidates in self
+            .method_to_traits
+            .iter()
+            .filter(|(key, _)| key.starts_with(&partial_attr.inspect()[..]))
+        {
+            res.push(candidates);
+        }
+        for candidates in self
+            .method_to_classes
+            .iter()
+            .filter(|(key, _)| key.starts_with(&partial_attr.inspect()[..]))
+        {
+            res.push(candidates);
+        }
+        if let Some(outer) = self.get_outer_scope_or_builtins() {
+            res.extend(outer.partial_get_methods_by_name(partial_attr));
+        }
+        res
+    }
+
     // (Int -> Bool, Float -> Bool) => Int or Float -> Bool
     fn get_union_method_type(&self, candidates: &[MethodPair]) -> Option<Type> {
         let fst = candidates.first()?;

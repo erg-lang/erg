@@ -569,8 +569,8 @@ impl RegistrationMode {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MethodPair {
-    definition_type: Type,
-    method_info: VarInfo,
+    pub definition_type: Type,
+    pub method_info: VarInfo,
 }
 
 impl fmt::Display for MethodPair {

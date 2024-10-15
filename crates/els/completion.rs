@@ -1,9 +1,10 @@
 use std::path::Path;
 
+use erg_compiler::erg_parser::ast::Identifier;
 use serde_json::Value;
 
 use erg_common::config::ErgConfig;
-use erg_common::consts::PYTHON_MODE;
+use erg_common::consts::{ERG_MODE, PYTHON_MODE};
 use erg_common::dict::Dict;
 use erg_common::env::erg_pystd_path;
 use erg_common::impl_u8_enum;
@@ -641,7 +642,8 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     result.push(item);
                 }
             }
-        } else if let Some(receiver_t) = &receiver_t {
+        }
+        if let Some(receiver_t) = &receiver_t {
             result.extend(self.magic_completion_items(
                 &comp_kind,
                 receiver_t,
@@ -649,6 +651,16 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 pos,
                 &mod_ctx.context,
             )?);
+        }
+        if receiver_t.as_ref().map_or(true, |t| t == &Type::Never) {
+            let pos = params.text_document_position.position;
+            if let Some(attr) = self.file_cache.get_symbol(&uri, pos) {
+                result.extend(self.get_attr_completion_by_name(
+                    &comp_kind,
+                    attr.inspect(),
+                    &mod_ctx.context,
+                )?);
+            }
         }
         for (name, vi) in contexts.into_iter().flat_map(|ctx| ctx.local_dir()) {
             if comp_kind.should_be_method() && vi.vis.is_private() {
@@ -722,6 +734,28 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         Ok(Some(CompletionResponse::Array(result)))
     }
 
+    fn get_attr_completion_by_name(
+        &self,
+        comp_kind: &CompletionKind,
+        attr: &str,
+        ctx: &Context,
+    ) -> ELSResult<Vec<CompletionItem>> {
+        let mut items = vec![];
+        if comp_kind.should_be_method() {
+            let attr = Identifier::public(erg_common::Str::rc(attr));
+            for (name, methods) in ctx.partial_get_methods_by_name(&attr) {
+                for method in methods {
+                    let detail =
+                        format!("{} (of {})", method.method_info.t, method.definition_type);
+                    let mut item = CompletionItem::new_simple(name.to_string(), detail);
+                    item.kind = Some(comp_item_kind(&method.method_info.t, Mutability::Immutable));
+                    items.push(item);
+                }
+            }
+        }
+        Ok(items)
+    }
+
     fn magic_completion_items(
         &self,
         comp_kind: &CompletionKind,
@@ -746,23 +780,40 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             if ctx.subtype_of(receiver_t, &Type::Bool) {
                 let mut item_if =
                     CompletionItem::new_simple("if".into(), "magic completion".into());
-                item_if.insert_text = Some(format!("if {s_receiver}, do:"));
+                let code = if PYTHON_MODE {
+                    format!("if {s_receiver}:")
+                } else {
+                    format!("if {s_receiver}, do:")
+                };
+                item_if.insert_text = Some(code);
                 item_if.additional_text_edits = Some(vec![remove.clone()]);
                 items.push(item_if);
-                let mut item_if =
-                    CompletionItem::new_simple("if!".into(), "magic completion".into());
-                item_if.insert_text = Some(format!("if! {s_receiver}, do!:"));
-                item_if.additional_text_edits = Some(vec![remove.clone()]);
-                items.push(item_if);
+                if ERG_MODE {
+                    let mut item_if =
+                        CompletionItem::new_simple("if!".into(), "magic completion".into());
+                    item_if.insert_text = Some(format!("if! {s_receiver}, do!:"));
+                    item_if.additional_text_edits = Some(vec![remove.clone()]);
+                    items.push(item_if);
+                }
                 let mut item_while =
                     CompletionItem::new_simple("while!".into(), "magic completion".into());
-                item_while.insert_text = Some(format!("while! do! {s_receiver}, do!:"));
+                let code = if PYTHON_MODE {
+                    format!("while {s_receiver}:")
+                } else {
+                    format!("while! do! {s_receiver}, do!:")
+                };
+                item_while.insert_text = Some(code);
                 item_while.additional_text_edits = Some(vec![remove]);
                 items.push(item_while);
             } else if ctx.subtype_of(receiver_t, &poly("Iterable", vec![ty_tp(Type::Obj)])) {
                 let mut item_for =
                     CompletionItem::new_simple("for!".into(), "magic completion".into());
-                item_for.insert_text = Some(format!("for! {s_receiver}, i =>"));
+                let code = if PYTHON_MODE {
+                    format!("for i in {s_receiver}:")
+                } else {
+                    format!("for! {s_receiver}, i =>")
+                };
+                item_for.insert_text = Some(code);
                 item_for.additional_text_edits = Some(vec![remove]);
                 items.push(item_for);
             }
