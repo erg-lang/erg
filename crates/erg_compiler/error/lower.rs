@@ -507,16 +507,8 @@ impl LowerError {
         caused_by: String,
         obj_t: &Type,
         name: &str,
-        similar_name: Option<&str>,
+        hint: Option<String>,
     ) -> Self {
-        let hint = similar_name.map(|n| {
-            switch_lang!(
-                "japanese" => format!("似た名前の属性があります: {n}"),
-                "simplified_chinese" => format!("具有相同名称的属性: {n}"),
-                "traditional_chinese" => format!("具有相同名稱的屬性: {n}"),
-                "english" => format!("has a similar name attribute: {n}"),
-            )
-        });
         let found = StyledString::new(name, Some(ERR), Some(ATTR));
         Self::new(
             ErrorCore::new(

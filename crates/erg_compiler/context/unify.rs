@@ -1748,7 +1748,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                             self.ctx.caused_by(),
                             sub,
                             &sup_field.symbol,
-                            self.ctx.get_similar_attr(sub, &sup_field.symbol),
+                            self.ctx.get_no_attr_hint(sub, &sup_field.symbol),
                         )));
                     }
                 }

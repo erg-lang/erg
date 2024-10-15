@@ -5,7 +5,6 @@ use std::path::{Path, PathBuf};
 use erg_common::consts::{DEBUG_MODE, ERG_MODE, PYTHON_MODE};
 use erg_common::error::{ErrorCore, Location, SubMessage};
 use erg_common::io::Input;
-use erg_common::levenshtein;
 use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, NoTypeDisplay, Stream};
@@ -14,6 +13,7 @@ use erg_common::Str;
 use erg_common::{
     dict, fmt_option, fmt_slice, get_hash, log, option_enum_unwrap, set, switch_lang,
 };
+use erg_common::{fmt_vec, levenshtein};
 
 use erg_parser::ast::{self, Identifier, VarName};
 use erg_parser::token::Token;
@@ -1292,6 +1292,31 @@ impl Context {
         }
     }
 
+    pub(crate) fn get_no_attr_hint(&self, self_t: &Type, attr: &str) -> Option<String> {
+        self.get_similar_attr(self_t, attr).map(|n| {
+            switch_lang!(
+                "japanese" => format!("似た名前の属性があります: {n}"),
+                "simplified_chinese" => format!("具有相同名称的属性: {n}"),
+                "traditional_chinese" => format!("具有相同名稱的屬性: {n}"),
+                "english" => format!("has a similar name attribute: {n}"),
+            )
+        }).or_else(|| {
+            let unions = self_t.union_types()?;
+            let mismatches = unions.iter().filter(|t| {
+                !self.exists_attr(t, attr)
+            }).collect::<Vec<_>>();
+            if !mismatches.is_empty() && unions.len() != mismatches.len() {
+                return Some(switch_lang!(
+                    "japanese" => format!("{}型でないことを確かめる必要があります", fmt_vec(&mismatches)),
+                    "simplified_chinese" => format!("需要确认不是{}类型", fmt_vec(&mismatches)),
+                    "traditional_chinese" => format!("需要確認不是{}類型", fmt_vec(&mismatches)),
+                    "english" => format!("You need to confirm that the receiver is not type of {}", fmt_vec(&mismatches)),
+                ));
+            }
+            None
+        })
+    }
+
     // Note that the method may be static.
     fn search_method_info(
         &self,
@@ -1525,7 +1550,7 @@ impl Context {
             namespace.name.to_string(),
             obj.ref_t(),
             attr_name.inspect(),
-            self.get_similar_attr(obj.ref_t(), attr_name.inspect()),
+            self.get_no_attr_hint(obj.ref_t(), attr_name.inspect()),
         ))
     }
 
@@ -1661,7 +1686,7 @@ impl Context {
             namespace.name.to_string(),
             obj.ref_t(),
             attr_name.inspect(),
-            self.get_similar_attr(obj.ref_t(), attr_name.inspect()),
+            self.get_no_attr_hint(obj.ref_t(), attr_name.inspect()),
         ))
     }
 
@@ -2852,7 +2877,7 @@ impl Context {
                 namespace.into(),
                 self_t,
                 name.inspect(),
-                self.get_similar_attr(self_t, name.inspect()),
+                self.get_no_attr_hint(self_t, name.inspect()),
             ))
         }
     }
@@ -2862,6 +2887,10 @@ impl Context {
             self.dir().into_iter().map(|(vn, _)| &vn.inspect()[..]),
             name,
         )
+    }
+
+    pub(crate) fn exists_name(&self, name: &str) -> bool {
+        self.dir().iter().any(|(vn, _)| vn.inspect() == name)
     }
 
     pub(crate) fn get_similar_name_and_info(&self, name: &str) -> Option<(&VarInfo, &str)> {
@@ -2895,6 +2924,18 @@ impl Context {
             }
         }
         None
+    }
+
+    pub(crate) fn exists_attr<'a>(&'a self, self_t: &'a Type, name: &str) -> bool {
+        let Some(ctxs) = self.get_nominal_super_type_ctxs(self_t) else {
+            return false;
+        };
+        for ctx in ctxs {
+            if ctx.exists_name(name) {
+                return true;
+            }
+        }
+        false
     }
 
     pub(crate) fn get_similar_attr_and_info<'a>(
