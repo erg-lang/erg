@@ -100,7 +100,7 @@ fn _parse_test_from_code(
     };
     let lexer = Lexer::new(input.clone());
     let mut parser = ParserRunner::new(cfg);
-    match parser.parse_token_stream(lexer.lex().map_err(|errs| {
+    match parser.parse_token_stream(lexer.lex().map_err(|(_, errs)| {
         ErrorArtifact::new(
             ParserRunnerErrors::empty(),
             ParserRunnerErrors::convert(&input, errs),

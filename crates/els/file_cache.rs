@@ -3,7 +3,6 @@ use std::fs::File;
 use std::io::Read;
 use std::sync::mpsc::Sender;
 
-use erg_common::vfs::VFS;
 use lsp_types::{
     DidChangeTextDocumentParams, FileOperationFilter, FileOperationPattern,
     FileOperationPatternKind, FileOperationRegistrationOptions, OneOf, Position, Range,
@@ -14,13 +13,14 @@ use lsp_types::{
 use serde_json::Value;
 
 use erg_common::dict::Dict;
+use erg_common::lsp_log;
 use erg_common::set::Set;
 use erg_common::shared::Shared;
 use erg_common::traits::DequeStream;
+use erg_common::vfs::VFS;
 use erg_compiler::erg_parser::lex::Lexer;
 use erg_compiler::erg_parser::token::{Token, TokenCategory, TokenKind, TokenStream};
 
-use crate::_log;
 use crate::server::{ELSResult, RedirectableStdout};
 use crate::util::{self, NormalizedUrl};
 
@@ -279,7 +279,13 @@ impl FileCache {
                 return;
             }
         }
-        let token_stream = Lexer::from_str(code.clone()).lex().ok();
+        let token_stream = match Lexer::from_str(code.clone()).lex() {
+            Ok(ts) => Some(ts),
+            Err((ts, es)) => {
+                lsp_log!("failed to lex: {es}");
+                Some(ts)
+            }
+        };
         let ver = ver.unwrap_or({
             if let Some(entry) = entry {
                 entry.ver
@@ -308,7 +314,13 @@ impl FileCache {
         let start = util::pos_to_byte_index(&code, old.start);
         let end = util::pos_to_byte_index(&code, old.end);
         code.replace_range(start..end, new_code);
-        let token_stream = Lexer::from_str(code.clone()).lex().ok();
+        let token_stream = match Lexer::from_str(code.clone()).lex() {
+            Ok(ts) => Some(ts),
+            Err((ts, es)) => {
+                lsp_log!("failed to lex: {es}");
+                Some(ts)
+            }
+        };
         VFS.update(uri.to_file_path().unwrap(), code.clone());
         entry.code = code;
         // entry.ver += 1;
@@ -341,7 +353,13 @@ impl FileCache {
             code.replace_range(start..end, &change.text);
         }
         VFS.update(uri.to_file_path().unwrap(), code.clone());
-        let token_stream = Lexer::from_str(code.clone()).lex().ok();
+        let token_stream = match Lexer::from_str(code.clone()).lex() {
+            Ok(ts) => Some(ts),
+            Err((ts, es)) => {
+                lsp_log!("failed to lex: {es}");
+                Some(ts)
+            }
+        };
         entry.code = code;
         entry.ver = params.text_document.version;
         entry.token_stream = token_stream;
@@ -356,15 +374,15 @@ impl FileCache {
     pub fn rename_files(&mut self, params: &RenameFilesParams) -> ELSResult<()> {
         for file in &params.files {
             let Ok(old_uri) = NormalizedUrl::parse(&file.old_uri) else {
-                _log!(self, "failed to parse old uri: {}", file.old_uri);
+                lsp_log!("failed to parse old uri: {}", file.old_uri);
                 continue;
             };
             let Ok(new_uri) = NormalizedUrl::parse(&file.new_uri) else {
-                _log!(self, "failed to parse new uri: {}", file.new_uri);
+                lsp_log!("failed to parse new uri: {}", file.new_uri);
                 continue;
             };
             let Some(entry) = self.files.borrow_mut().remove(&old_uri) else {
-                _log!(self, "failed to find old uri: {}", file.old_uri);
+                lsp_log!("failed to find old uri: {}", file.old_uri);
                 continue;
             };
             VFS.rename(

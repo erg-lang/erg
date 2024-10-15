@@ -16,13 +16,13 @@ use crate::token::{Token, TokenCategory, TokenKind, TokenStream};
 use TokenKind::*;
 
 pub trait Lexable {
-    fn lex(code: String) -> Result<TokenStream, LexErrors>;
+    fn lex(code: String) -> Result<TokenStream, (TokenStream, LexErrors)>;
 }
 
 pub struct SimpleLexer {}
 
 impl Lexable for SimpleLexer {
-    fn lex(code: String) -> Result<TokenStream, LexErrors> {
+    fn lex(code: String) -> Result<TokenStream, (TokenStream, LexErrors)> {
         Lexer::from_str(code).lex()
     }
 }
@@ -83,7 +83,7 @@ impl Runnable for LexerRunner {
         let lexer = Lexer::from_str(self.cfg_mut().input.read());
         let ts = lexer
             .lex()
-            .map_err(|errs| LexerRunnerErrors::convert(self.input(), errs))?;
+            .map_err(|(_, errs)| LexerRunnerErrors::convert(self.input(), errs))?;
         if cfg!(feature = "debug") {
             println!("{ts:?}");
         } else {
@@ -97,13 +97,13 @@ impl Runnable for LexerRunner {
         if cfg!(feature = "debug") {
             let ts = lexer
                 .lex()
-                .map_err(|errs| LexerRunnerErrors::convert(self.input(), errs))?;
+                .map_err(|(_, errs)| LexerRunnerErrors::convert(self.input(), errs))?;
             println!("{ts:?}");
             Ok(ts.to_string())
         } else {
             Ok(lexer
                 .lex()
-                .map_err(|errs| LexerRunnerErrors::convert(self.input(), errs))?
+                .map_err(|(_, errs)| LexerRunnerErrors::convert(self.input(), errs))?
                 .to_string())
         }
     }
@@ -213,7 +213,7 @@ impl Lexer /*<'a>*/ {
         }
     }
 
-    pub fn lex(self) -> Result<TokenStream, LexErrors> {
+    pub fn lex(self) -> Result<TokenStream, (TokenStream, LexErrors)> {
         let mut result = TokenStream::empty();
         let mut errs = LexErrors::empty();
         for i in self {
@@ -227,7 +227,7 @@ impl Lexer /*<'a>*/ {
         if errs.is_empty() {
             Ok(result)
         } else {
-            Err(errs)
+            Err((result, errs))
         }
     }
 

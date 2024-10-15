@@ -107,7 +107,7 @@ pub struct SimpleParser {}
 
 impl Parsable for SimpleParser {
     fn parse(code: String) -> Result<CompleteArtifact, IncompleteArtifact> {
-        let ts = Lexer::from_str(code).lex()?;
+        let ts = Lexer::from_str(code).lex().map_err(|(_, es)| es)?;
         let mut parser = Parser::new(ts);
         let mut desugarer = Desugarer::new();
         let artifact = parser
@@ -218,7 +218,7 @@ pub struct Parser {
 
 impl Parsable for Parser {
     fn parse(code: String) -> Result<CompleteArtifact, IncompleteArtifact<Module, ParseErrors>> {
-        let ts = Lexer::from_str(code).lex()?;
+        let ts = Lexer::from_str(code).lex().map_err(|(_, es)| es)?;
         Parser::new(ts).parse()
     }
 }
@@ -486,7 +486,7 @@ impl ParserRunner {
     ) -> Result<CompleteArtifact, IncompleteArtifact<Module, ParserRunnerErrors>> {
         let ts = Lexer::new(Input::new(InputKind::Str(src), self.cfg.input.id()))
             .lex()
-            .map_err(|errs| ParserRunnerErrors::convert(self.input(), errs))?;
+            .map_err(|(_, errs)| ParserRunnerErrors::convert(self.input(), errs))?;
         Parser::new(ts)
             .parse()
             .map_err(|iart| iart.map_errs(|errs| ParserRunnerErrors::convert(self.input(), errs)))
