@@ -859,6 +859,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
             // ?T(:> Nat, <: Sub(Str)) ==> Error!
             // ?T(:> {1, "a"}, <: Eq(?T(:> {1, "a"}, ...)) ==> Error!
             FreeVar(fv) if fv.constraint_is_sandwiched() => {
+                let fv_hash = get_hash(&fv);
                 let (sub_t, super_t) = fv.get_subsup().unwrap();
                 if self.level <= fv.level().unwrap() {
                     // we need to force linking to avoid infinite loop
@@ -881,7 +882,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                             false
                         }
                     };
-                    let res = self.validate_subsup(sub_t, super_t, &fv);
+                    let res = self.validate_subsup(sub_t, super_t, fv_hash);
                     if dummy {
                         fv.undo();
                     } else {
@@ -1129,7 +1130,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
         &mut self,
         sub_t: Type,
         super_t: Type,
-        fv: &Free<Type>,
+        fv_hash: usize,
     ) -> TyCheckResult<Type> {
         // TODO: Subr, ...
         match (sub_t, super_t) {
@@ -1174,7 +1175,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 }
                 Ok(poly(rn, tps))
             }
-            (sub_t, super_t) => self.validate_simple_subsup(sub_t, super_t, fv),
+            (sub_t, super_t) => self.validate_simple_subsup(sub_t, super_t, fv_hash),
         }
     }
 
@@ -1182,9 +1183,9 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
         &mut self,
         sub_t: Type,
         super_t: Type,
-        fv: &Free<Type>,
+        fv_hash: usize,
     ) -> TyCheckResult<Type> {
-        let opt_res = self.ctx.shared().gen_cache.get(fv);
+        let opt_res = self.ctx.shared().gen_cache.get(&fv_hash);
         if opt_res.is_none() && self.ctx.is_class(&sub_t) && self.ctx.is_trait(&super_t) {
             self.ctx
                 .check_trait_impl(&sub_t, &super_t, self.qnames, self.loc)?;
@@ -1195,7 +1196,7 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 is_subtype,
                 impl_trait: true,
             };
-            self.ctx.shared().gen_cache.insert(fv.clone(), res);
+            self.ctx.shared().gen_cache.insert(fv_hash, res);
             is_subtype
         });
         let sub_t = self.deref_tyvar(sub_t)?;

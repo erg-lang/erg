@@ -16,7 +16,6 @@ use erg_parser::ast::Module;
 use crate::build_package::CheckStatus;
 use crate::context::ModuleContext;
 use crate::hir::HIR;
-use crate::ty::free::FreeTyVar;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ModId(usize);
@@ -416,18 +415,18 @@ pub struct GeneralizationResult {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct SharedGeneralizationCache(Shared<Dict<FreeTyVar, GeneralizationResult>>);
+pub struct SharedGeneralizationCache(Shared<Dict<usize, GeneralizationResult>>);
 
 impl SharedGeneralizationCache {
     pub fn new() -> Self {
         Self(Shared::new(Dict::new()))
     }
 
-    pub fn insert(&self, key: FreeTyVar, res: GeneralizationResult) {
+    pub fn insert(&self, key: usize, res: GeneralizationResult) {
         self.0.borrow_mut().insert(key, res);
     }
 
-    pub fn get(&self, key: &FreeTyVar) -> Option<GeneralizationResult> {
+    pub fn get(&self, key: &usize) -> Option<GeneralizationResult> {
         self.0.borrow().linear_get(key).cloned()
     }
 }
