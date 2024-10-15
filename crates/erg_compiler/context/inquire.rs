@@ -544,7 +544,7 @@ impl Context {
         // NG: expr_t: Nat, union_pat_t: {1, 2}
         // OK: expr_t: Int, union_pat_t: {1} or 'T
         if let Err(err) = self.sub_unify(match_target_expr_t, &union_pat_t, &pos_args[0], None) {
-            if cfg!(feature = "debug") {
+            if DEBUG_MODE {
                 eprintln!("match error: {err}");
             }
             errs.push(TyCheckError::match_error(
@@ -1354,7 +1354,7 @@ impl Context {
             if let Some(fv) = obj.ref_t().as_free() {
                 if let Some((_sub, sup)) = fv.get_subsup() {
                     // avoid recursion
-                    *subr_t.mut_self_t().unwrap() = Never;
+                    *subr_t.mut_self_t().unwrap() = Failure;
                     let vis = self
                         .instantiate_vis_modifier(&attr_name.vis)
                         .unwrap_or(VisibilityModifier::Public);
@@ -3379,8 +3379,10 @@ impl Context {
                 }
             }
             Type::Proj { lhs, rhs } => {
-                if let Ok(typ) = self.eval_proj(*lhs.clone(), rhs.clone(), self.level, &()) {
-                    return self.get_nominal_type_ctx(&typ);
+                if let Ok(evaled) = self.eval_proj(*lhs.clone(), rhs.clone(), self.level, &()) {
+                    if typ != &evaled {
+                        return self.get_nominal_type_ctx(&evaled);
+                    }
                 }
             }
             Type::ProjCall {
@@ -3388,14 +3390,16 @@ impl Context {
                 attr_name,
                 args,
             } => {
-                if let Ok(typ) = self.eval_proj_call_t(
+                if let Ok(evaled) = self.eval_proj_call_t(
                     *lhs.clone(),
                     attr_name.clone(),
                     args.clone(),
                     self.level,
                     &(),
                 ) {
-                    return self.get_nominal_type_ctx(&typ);
+                    if typ != &evaled {
+                        return self.get_nominal_type_ctx(&evaled);
+                    }
                 }
             }
             other => {
@@ -3462,8 +3466,10 @@ impl Context {
                 }
             }
             Type::Proj { lhs, rhs } => {
-                if let Ok(typ) = self.eval_proj(*lhs.clone(), rhs.clone(), self.level, &()) {
-                    return self.get_mut_nominal_type_ctx(&typ);
+                if let Ok(evaled) = self.eval_proj(*lhs.clone(), rhs.clone(), self.level, &()) {
+                    if typ != &evaled {
+                        return self.get_mut_nominal_type_ctx(&evaled);
+                    }
                 }
             }
             Type::ProjCall {
@@ -3471,14 +3477,16 @@ impl Context {
                 attr_name,
                 args,
             } => {
-                if let Ok(typ) = self.eval_proj_call_t(
+                if let Ok(evaled) = self.eval_proj_call_t(
                     *lhs.clone(),
                     attr_name.clone(),
                     args.clone(),
                     self.level,
                     &(),
                 ) {
-                    return self.get_mut_nominal_type_ctx(&typ);
+                    if typ != &evaled {
+                        return self.get_mut_nominal_type_ctx(&evaled);
+                    }
                 }
             }
             other => {

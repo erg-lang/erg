@@ -73,32 +73,32 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
     /// occur(?T, ?T.Output) ==> OK
     /// occur(?T, ?T or Int) ==> Error
     /// ```
-    fn occur(&self, maybe_sub: &Type, maybe_sup: &Type) -> TyCheckResult<()> {
-        if maybe_sub == maybe_sup {
+    fn occur(&self, maybe_sub: &Type, maybe_super: &Type) -> TyCheckResult<()> {
+        if maybe_sub == maybe_super {
             return Ok(());
         } else if let Some(sup) = maybe_sub.get_super() {
-            if &sup == maybe_sup {
+            if &sup == maybe_super {
                 return Ok(());
             }
-        } else if let Some(sub) = maybe_sup.get_sub() {
+        } else if let Some(sub) = maybe_super.get_sub() {
             if &sub == maybe_sub {
                 return Ok(());
             }
         }
-        match (maybe_sub, maybe_sup) {
-            (FreeVar(fv), _) if fv.is_linked() => self.occur(&fv.unwrap_linked(), maybe_sup),
+        match (maybe_sub, maybe_super) {
+            (FreeVar(fv), _) if fv.is_linked() => self.occur(&fv.unwrap_linked(), maybe_super),
             (_, FreeVar(fv)) if fv.is_linked() => self.occur(maybe_sub, &fv.unwrap_linked()),
             (Subr(subr), FreeVar(fv)) if fv.is_unbound() => {
                 for default_t in subr.default_params.iter().map(|pt| pt.typ()) {
-                    self.occur_inner(default_t, maybe_sup)?;
+                    self.occur_inner(default_t, maybe_super)?;
                 }
                 if let Some(var_params) = subr.var_params.as_ref() {
-                    self.occur_inner(var_params.typ(), maybe_sup)?;
+                    self.occur_inner(var_params.typ(), maybe_super)?;
                 }
                 for non_default_t in subr.non_default_params.iter().map(|pt| pt.typ()) {
-                    self.occur_inner(non_default_t, maybe_sup)?;
+                    self.occur_inner(non_default_t, maybe_super)?;
                 }
-                self.occur_inner(&subr.return_t, maybe_sup)?;
+                self.occur_inner(&subr.return_t, maybe_super)?;
                 Ok(())
             }
             (FreeVar(fv), Subr(subr)) if fv.is_unbound() => {
@@ -173,7 +173,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     self.ctx.cfg.input.clone(),
                     line!() as usize,
                     maybe_sub,
-                    maybe_sup,
+                    maybe_super,
                     self.loc.loc(),
                     self.ctx.caused_by(),
                 )))
@@ -194,7 +194,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     self.ctx.cfg.input.clone(),
                     line!() as usize,
                     maybe_sub,
-                    maybe_sup,
+                    maybe_super,
                     self.loc.loc(),
                     self.ctx.caused_by(),
                 )))
@@ -1035,11 +1035,11 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
     /// sub_unify(Nat, Add(?R)): (?R => Nat, Nat.Output => Nat)
     /// sub_unify([?T; 0], Mutate): (/* OK */)
     /// ```
-    fn sub_unify(&self, maybe_sub: &Type, maybe_sup: &Type) -> TyCheckResult<()> {
-        log!(info "trying {}sub_unify:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}", self.undoable.map_or("", |_| "undoable_"));
+    fn sub_unify(&self, maybe_sub: &Type, maybe_super: &Type) -> TyCheckResult<()> {
+        log!(info "trying {}sub_unify:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_super}", self.undoable.map_or("", |_| "undoable_"));
         if self.recursion_limit.fetch_sub(1, Ordering::SeqCst) == 0 {
             self.recursion_limit.store(128, Ordering::SeqCst);
-            log!(err "recursion limit exceeded: {maybe_sub} / {maybe_sup}");
+            log!(err "recursion limit exceeded: {maybe_sub} / {maybe_super}");
             return Err(TyCheckError::recursion_limit(
                 self.ctx.cfg.input.clone(),
                 line!() as usize,
@@ -1051,20 +1051,21 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
         }
         // In this case, there is no new information to be gained
         // この場合、特に新しく得られる情報はない
-        if maybe_sub == &Type::Never || maybe_sup == &Type::Obj || maybe_sup.addr_eq(maybe_sub) {
-            log!(info "no-op:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
+        if maybe_sub == &Type::Never || maybe_super == &Type::Obj || maybe_super.addr_eq(maybe_sub)
+        {
+            log!(info "no-op:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_super}");
             return Ok(());
         }
         // API definition was failed and inspection is useless after this
-        if maybe_sub == &Type::Failure || maybe_sup == &Type::Failure {
-            log!(info "no-op:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
+        if maybe_sub == &Type::Failure || maybe_super == &Type::Failure {
+            log!(info "no-op:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_super}");
             return Ok(());
         }
-        self.occur(maybe_sub, maybe_sup)
-            .inspect_err(|_e| log!(err "occur error: {maybe_sub} / {maybe_sup}"))?;
-        let maybe_sub_is_sub = self.ctx.subtype_of(maybe_sub, maybe_sup);
+        self.occur(maybe_sub, maybe_super)
+            .inspect_err(|_e| log!(err "occur error: {maybe_sub} / {maybe_super}"))?;
+        let maybe_sub_is_sub = self.ctx.subtype_of(maybe_sub, maybe_super);
         if !maybe_sub_is_sub {
-            log!(err "{maybe_sub} !<: {maybe_sup}");
+            log!(err "{maybe_sub} !<: {maybe_super}");
             return Err(TyCheckErrors::from(TyCheckError::type_mismatch_error(
                 self.ctx.cfg.input.clone(),
                 line!() as usize,
@@ -1072,21 +1073,22 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 self.ctx.caused_by(),
                 self.param_name.as_ref().unwrap_or(&Str::ever("_")),
                 None,
-                maybe_sup,
+                maybe_super,
                 maybe_sub,
                 self.ctx.get_candidates(maybe_sub),
-                self.ctx.get_simple_type_mismatch_hint(maybe_sup, maybe_sub),
+                self.ctx
+                    .get_simple_type_mismatch_hint(maybe_super, maybe_sub),
             )));
-        } else if maybe_sub.has_no_unbound_var() && maybe_sup.has_no_unbound_var() {
-            log!(info "no-op:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
+        } else if maybe_sub.has_no_unbound_var() && maybe_super.has_no_unbound_var() {
+            log!(info "no-op:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_super}");
             return Ok(());
         }
-        match (maybe_sub, maybe_sup) {
+        match (maybe_sub, maybe_super) {
             (FreeVar(sub_fv), _) if sub_fv.is_linked() => {
-                self.sub_unify(&sub_fv.unwrap_linked(), maybe_sup)?;
+                self.sub_unify(&sub_fv.unwrap_linked(), maybe_super)?;
             }
-            (_, FreeVar(sup_fv)) if sup_fv.is_linked() => {
-                self.sub_unify(maybe_sub, &sup_fv.unwrap_linked())?;
+            (_, FreeVar(super_fv)) if super_fv.is_linked() => {
+                self.sub_unify(maybe_sub, &super_fv.unwrap_linked())?;
             }
             // lfv's sup can be shrunk (take min), rfv's sub can be expanded (take union)
             // lfvのsupは縮小可能(minを取る)、rfvのsubは拡大可能(unionを取る)
@@ -1095,34 +1097,35 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             // sub_unify(?T[0](:> Never, <: Str), ?U[1](:> Never, <: Int)): (?T[0](:> Never, <: Str and Int) --> Error!)
             // sub_unify(?T[0](:> Int, <: Add()), ?U[1](:> Never, <: Mul())): (?T[0](:> Int, <: Add() and Mul()))
             // sub_unify(?T[0](:> Str, <: Obj), ?U[1](:> Int, <: Obj)): (/* ?U[1] --> ?T[0](:> Str or Int) */)
-            (FreeVar(sub_fv), FreeVar(sup_fv))
-                if sub_fv.constraint_is_sandwiched() && sup_fv.constraint_is_sandwiched() =>
+            (FreeVar(sub_fv), FreeVar(super_fv))
+                if sub_fv.constraint_is_sandwiched() && super_fv.constraint_is_sandwiched() =>
             {
-                if !self.change_generalized && (sub_fv.is_generalized() || sup_fv.is_generalized())
+                if !self.change_generalized
+                    && (sub_fv.is_generalized() || super_fv.is_generalized())
                 {
-                    log!(info "generalized:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
+                    log!(info "generalized:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_super}");
                     return Ok(());
                 }
                 let (lsub, lsup) = sub_fv.get_subsup().unwrap();
-                let (rsub, rsup) = sup_fv.get_subsup().unwrap();
+                let (rsub, rsup) = super_fv.get_subsup().unwrap();
                 // sub: ?T(:> ?U)
                 // sup: ?U
                 // => ?T == ?U
-                if &lsub == maybe_sup {
-                    maybe_sub.link(maybe_sup, self.undoable);
+                if &lsub == maybe_super {
+                    maybe_sub.link(maybe_super, self.undoable);
                     return Ok(());
                 } else if &rsup == maybe_sub {
-                    maybe_sup.link(maybe_sub, self.undoable);
+                    maybe_super.link(maybe_sub, self.undoable);
                     return Ok(());
                 }
                 // ?T(<: Add(?T))
                 // ?U(:> {1, 2}, <: Add(?U)) ==> {1, 2}
-                sup_fv.dummy_link();
+                super_fv.dummy_link();
                 sub_fv.dummy_link();
                 if lsub.qual_name() == rsub.qual_name() {
                     for (lps, rps) in lsub.typarams().iter().zip(rsub.typarams().iter()) {
                         self.sub_unify_tp(lps, rps, None, false).inspect_err(|_e| {
-                            sup_fv.undo();
+                            super_fv.undo();
                             sub_fv.undo();
                         })?;
                     }
@@ -1132,12 +1135,12 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 if lsup.qual_name() == rsup.qual_name() {
                     for (lps, rps) in lsup.typarams().iter().zip(rsup.typarams().iter()) {
                         self.sub_unify_tp(lps, rps, None, false).inspect_err(|_e| {
-                            sup_fv.undo();
+                            super_fv.undo();
                             sub_fv.undo();
                         })?;
                     }
                 }
-                sup_fv.undo();
+                super_fv.undo();
                 sub_fv.undo();
                 let intersec = self.ctx.intersection(&lsup, &rsup);
                 if intersec == Type::Never {
@@ -1145,7 +1148,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                         self.ctx.cfg.input.clone(),
                         line!() as usize,
                         maybe_sub,
-                        maybe_sup,
+                        maybe_super,
                         self.loc.loc(),
                         self.ctx.caused_by(),
                     )));
@@ -1178,55 +1181,56 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 match sub_fv
                     .level()
                     .unwrap_or(GENERIC_LEVEL)
-                    .cmp(&sup_fv.level().unwrap_or(GENERIC_LEVEL))
+                    .cmp(&super_fv.level().unwrap_or(GENERIC_LEVEL))
                 {
                     std::cmp::Ordering::Less => {
-                        if sup_fv.level().unwrap_or(GENERIC_LEVEL) == GENERIC_LEVEL {
-                            maybe_sup.update_tyvar(union, intersec, self.undoable, false);
-                            maybe_sub.link(maybe_sup, self.undoable);
+                        if super_fv.level().unwrap_or(GENERIC_LEVEL) == GENERIC_LEVEL {
+                            maybe_super.update_tyvar(union, intersec, self.undoable, false);
+                            maybe_sub.link(maybe_super, self.undoable);
                         } else {
                             maybe_sub.update_tyvar(union, intersec, self.undoable, false);
-                            maybe_sup.link(maybe_sub, self.undoable);
+                            maybe_super.link(maybe_sub, self.undoable);
                         }
                     }
                     std::cmp::Ordering::Greater => {
                         if sub_fv.level().unwrap_or(GENERIC_LEVEL) == GENERIC_LEVEL {
                             maybe_sub.update_tyvar(union, intersec, self.undoable, false);
-                            maybe_sup.link(maybe_sub, self.undoable);
+                            maybe_super.link(maybe_sub, self.undoable);
                         } else {
-                            maybe_sup.update_tyvar(union, intersec, self.undoable, false);
-                            maybe_sub.link(maybe_sup, self.undoable);
+                            maybe_super.update_tyvar(union, intersec, self.undoable, false);
+                            maybe_sub.link(maybe_super, self.undoable);
                         }
                     }
                     std::cmp::Ordering::Equal => {
                         // choose named one
-                        if sup_fv.is_named_unbound() {
-                            maybe_sup.update_tyvar(union, intersec, self.undoable, false);
-                            maybe_sub.link(maybe_sup, self.undoable);
+                        if super_fv.is_named_unbound() {
+                            maybe_super.update_tyvar(union, intersec, self.undoable, false);
+                            maybe_sub.link(maybe_super, self.undoable);
                         } else {
                             maybe_sub.update_tyvar(union, intersec, self.undoable, false);
-                            maybe_sup.link(maybe_sub, self.undoable);
+                            maybe_super.link(maybe_sub, self.undoable);
                         }
                     }
                 }
             }
-            (FreeVar(sub_fv), FreeVar(sup_fv))
-                if sub_fv.constraint_is_sandwiched() && sup_fv.constraint_is_typeof() =>
+            (FreeVar(sub_fv), FreeVar(super_fv))
+                if sub_fv.constraint_is_sandwiched() && super_fv.constraint_is_typeof() =>
             {
-                if !self.change_generalized && (sub_fv.is_generalized() || sup_fv.is_generalized())
+                if !self.change_generalized
+                    && (sub_fv.is_generalized() || super_fv.is_generalized())
                 {
-                    log!(info "generalized:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
+                    log!(info "generalized:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_super}");
                     return Ok(());
                 }
                 let (lsub, _lsup) = sub_fv.get_subsup().unwrap();
                 // sub: ?T(:> ?U(: {Str, Int}))
                 // sup: ?U(: {Str, Int})
                 // => ?T == ?U
-                if &lsub == maybe_sup {
-                    maybe_sub.link(maybe_sup, self.undoable);
+                if &lsub == maybe_super {
+                    maybe_sub.link(maybe_super, self.undoable);
                     return Ok(());
                 }
-                let rty = sup_fv.get_type().unwrap();
+                let rty = super_fv.get_type().unwrap();
                 let Some(rtys) = rty.refinement_values() else {
                     todo!("{rty}");
                 };
@@ -1247,15 +1251,15 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             (
                 Bounded {
                     sub: lsub,
-                    sup: lsup,
+                    sup: lsuper,
                 },
                 FreeVar(sup_fv),
             ) if sup_fv.constraint_is_sandwiched() => {
                 if !self.change_generalized && sup_fv.is_generalized() {
-                    log!(info "generalized:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
+                    log!(info "generalized:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_super}");
                     return Ok(());
                 }
-                let (rsub, rsup) = sup_fv.get_subsup().unwrap();
+                let (rsub, rsuper) = sup_fv.get_subsup().unwrap();
                 // ?T(<: Add(?T))
                 // ?U(:> {1, 2}, <: Add(?U)) ==> {1, 2}
                 sup_fv.dummy_link();
@@ -1267,20 +1271,20 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 }
                 // lsup: Add(?X(:> Int)), rsup: Add(?Y(:> Nat))
                 //   => lsup: Add(?X(:> Int)), rsup: Add((?X(:> Int)))
-                if lsup.qual_name() == rsup.qual_name() {
-                    for (lps, rps) in lsup.typarams().iter().zip(rsup.typarams().iter()) {
+                if lsuper.qual_name() == rsuper.qual_name() {
+                    for (lps, rps) in lsuper.typarams().iter().zip(rsuper.typarams().iter()) {
                         self.sub_unify_tp(lps, rps, None, false)
                             .inspect_err(|_e| sup_fv.undo())?;
                     }
                 }
                 sup_fv.undo();
-                let intersec = self.ctx.intersection(lsup, &rsup);
+                let intersec = self.ctx.intersection(lsuper, &rsuper);
                 if intersec == Type::Never {
                     return Err(TyCheckErrors::from(TyCheckError::subtyping_error(
                         self.ctx.cfg.input.clone(),
                         line!() as usize,
                         maybe_sub,
-                        maybe_sup,
+                        maybe_super,
                         self.loc.loc(),
                         self.ctx.caused_by(),
                     )));
@@ -1304,11 +1308,11 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 }
                 // e.g. intersec == Int, rsup == Add(?T)
                 //   => ?T(:> Int)
-                self.sub_unify(&intersec, &rsup)?;
+                self.sub_unify(&intersec, &rsuper)?;
                 self.sub_unify(&rsub, &union)?;
                 // self.sub_unify(&intersec, &lsup, loc, param_name)?;
                 // self.sub_unify(&lsub, &union, loc, param_name)?;
-                maybe_sup.update_tyvar(union, intersec, self.undoable, false);
+                maybe_super.update_tyvar(union, intersec, self.undoable, false);
             }
             // TODO: Preferentially compare same-structure types (e.g. K(?T) <: K(?U))
             (And(ltys, _), And(rtys, _)) => {
@@ -1391,7 +1395,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 // * sub_unify(Float, ?T(<: Structural{ .imag = ?U })) ==> ?U == Float
                 // * sub_unify(K(Int, 1), ?T(:> K(?A, ?N))) ==> ?A(:> Int), ?N == 1
                 if let Type::Refinement(refine) = maybe_sub {
-                    if refine.t.addr_eq(maybe_sup) {
+                    if refine.t.addr_eq(maybe_super) {
                         return Ok(());
                     }
                 }
@@ -1443,16 +1447,16 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                         }
                     }
                     if sup.contains_union(&new_sub) {
-                        maybe_sup.link(&new_sub, self.undoable); // Bool <: ?T <: Bool or Y ==> ?T == Bool
+                        maybe_super.link(&new_sub, self.undoable); // Bool <: ?T <: Bool or Y ==> ?T == Bool
                     } else {
-                        maybe_sup.update_tyvar(new_sub, mem::take(&mut sup), self.undoable, true);
+                        maybe_super.update_tyvar(new_sub, mem::take(&mut sup), self.undoable, true);
                     }
                 }
                 // sub_unify(Nat, ?T(: Type)): (/* ?T(:> Nat) */)
                 else if let Some(ty) = sup_fv.get_type() {
                     if self.ctx.supertype_of(&Type, &ty) {
                         let constr = Constraint::new_supertype_of(maybe_sub.clone());
-                        maybe_sup.update_constraint(constr, self.undoable, true);
+                        maybe_super.update_constraint(constr, self.undoable, true);
                     } else {
                         // ?T: GenericDict
                         // todo!("{maybe_sub} <: {maybe_sup}")
@@ -1473,12 +1477,12 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     } else if !self.ctx.subtype_of(&sub, &Never) {
                         sub_fv.undo();
                         maybe_sub.coerce(self.undoable);
-                        return self.sub_unify(maybe_sub, maybe_sup);
+                        return self.sub_unify(maybe_sub, maybe_super);
                     } else {
                         // e.g. ?T / Structural({ .method = (self: ?T) -> Int })
                         let constr = Constraint::new_sandwiched(
                             sub.clone(),
-                            self.ctx.intersection(&sup, maybe_sup),
+                            self.ctx.intersection(&sup, maybe_super),
                         );
                         sub_fv.undo();
                         sub_fv.update_constraint(constr, false);
@@ -1503,16 +1507,16 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 // * sub_unify(?T(<: {1}), {0}): (* ?T == Never *)
                 // * sub_unify(?T(<: Eq and Ord), Show): (?T(<: Eq and Ord and Show))
                 // * sub_unify(?T(:> [Int; 4]), [Int, _]): (* ?T == [Int; 4] *)
-                if let Some((mut sub, sup)) = sub_fv.get_subsup() {
-                    if sup.is_structural() {
+                if let Some((mut sub, supe)) = sub_fv.get_subsup() {
+                    if supe.is_structural() {
                         return Ok(());
                     }
                     let sub = mem::take(&mut sub);
                     // min(L, R) != L and R
-                    let new_sup = if let Some(new_sup) = self.ctx.min(&sup, maybe_sup).either() {
+                    let new_sup = if let Some(new_sup) = self.ctx.min(&supe, maybe_super).either() {
                         new_sup.clone()
                     } else {
-                        self.ctx.intersection(&sup, maybe_sup)
+                        self.ctx.intersection(&supe, maybe_super)
                     };
                     self.sub_unify(&sub, &new_sup)?;
                     // ?T(:> Int, <: Int) ==> ?T == Int
@@ -1531,7 +1535,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 // sub_unify(?T(: Type), Int): (?T(<: Int))
                 else if let Some(ty) = sub_fv.get_type() {
                     if self.ctx.supertype_of(&Type, &ty) {
-                        let constr = Constraint::new_subtype_of(maybe_sup.clone());
+                        let constr = Constraint::new_subtype_of(maybe_super.clone());
                         maybe_sub.update_constraint(constr, self.undoable, true);
                     } else {
                         // ?T: GenericDict
@@ -1539,42 +1543,42 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     }
                 }
             }
-            (Record(sub_rec), Record(sup_rec)) => {
+            (Record(sub_rec), Record(super_rec)) => {
                 for (k, l) in sub_rec.iter() {
-                    if let Some(r) = sup_rec.get(k) {
+                    if let Some(r) = super_rec.get(k) {
                         self.sub_unify(l, r)?;
                     } else {
                         return Err(TyCheckErrors::from(TyCheckError::subtyping_error(
                             self.ctx.cfg.input.clone(),
                             line!() as usize,
                             maybe_sub,
-                            maybe_sup,
+                            maybe_super,
                             self.loc.loc(),
                             self.ctx.caused_by(),
                         )));
                     }
                 }
             }
-            (NamedTuple(sub_tup), NamedTuple(sup_tup)) => {
-                for ((_, lt), (_, rt)) in sub_tup.iter().zip(sup_tup.iter()) {
+            (NamedTuple(sub_tup), NamedTuple(super_tup)) => {
+                for ((_, lt), (_, rt)) in sub_tup.iter().zip(super_tup.iter()) {
                     self.sub_unify(lt, rt)?;
                 }
             }
-            (Subr(sub_subr), Subr(sup_subr)) => {
+            (Subr(sub_subr), Subr(super_subr)) => {
                 // (Int, *Int) -> ... <: (T, U, V) -> ...
                 if let Some(sub_var) = sub_subr.var_params.as_deref() {
                     sub_subr
                         .non_default_params
                         .iter()
                         .chain(repeat(sub_var))
-                        .zip(sup_subr.non_default_params.iter())
+                        .zip(super_subr.non_default_params.iter())
                         .try_for_each(|(sub, sup)| {
                             // contravariant
                             self.sub_unify(sup.typ(), sub.typ())
                         })?;
                 } else {
                     // (self: Self, Int) -> ... <: T -> ...
-                    let sub_params = if !sup_subr.is_method() && sub_subr.is_method() {
+                    let sub_params = if !super_subr.is_method() && sub_subr.is_method() {
                         sub_subr
                             .non_default_params
                             .iter()
@@ -1589,7 +1593,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                             .chain(&sub_subr.default_params)
                     };
                     sub_params
-                        .zip(sup_subr.non_default_params.iter())
+                        .zip(super_subr.non_default_params.iter())
                         .try_for_each(|(sub, sup)| {
                             // contravariant
                             self.sub_unify(sup.typ(), sub.typ())
@@ -1598,23 +1602,23 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 sub_subr
                     .var_params
                     .iter()
-                    .zip(sup_subr.var_params.iter())
+                    .zip(super_subr.var_params.iter())
                     .try_for_each(|(sub, sup)| {
                         // contravariant
                         self.sub_unify(sup.typ(), sub.typ())
                     })?;
-                for sup_pt in sup_subr.default_params.iter() {
+                for super_pt in super_subr.default_params.iter() {
                     if let Some(sub_pt) = sub_subr
                         .default_params
                         .iter()
-                        .find(|sub_pt| sub_pt.name() == sup_pt.name())
+                        .find(|sub_pt| sub_pt.name() == super_pt.name())
                     {
                         // contravariant
-                        self.sub_unify(sup_pt.typ(), sub_pt.typ())?;
+                        self.sub_unify(super_pt.typ(), sub_pt.typ())?;
                     } else {
-                        let param_name = sup_pt.name().map_or("_", |s| &s[..]);
+                        let param_name = super_pt.name().map_or("_", |s| &s[..]);
                         let similar_param = erg_common::levenshtein::get_similar_name(
-                            sup_subr
+                            super_subr
                                 .default_params
                                 .iter()
                                 .map(|pt| pt.name().map_or("_", |s| &s[..])),
@@ -1633,16 +1637,16 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     }
                 }
                 // covariant
-                self.sub_unify(&sub_subr.return_t, &sup_subr.return_t)?;
+                self.sub_unify(&sub_subr.return_t, &super_subr.return_t)?;
             }
-            (Quantified(sub_subr), Subr(sup_subr)) => {
+            (Quantified(sub_subr), Subr(super_subr)) => {
                 let Ok(sub_subr) = <&SubrType>::try_from(sub_subr.as_ref()) else {
                     unreachable!()
                 };
                 sub_subr
                     .non_default_params
                     .iter()
-                    .zip(sup_subr.non_default_params.iter())
+                    .zip(super_subr.non_default_params.iter())
                     .try_for_each(|(sub, sup)| {
                         if !self.change_generalized && sub.typ().is_generalized() {
                             Ok(())
@@ -1652,34 +1656,34 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                             self.sub_unify(sup.typ(), sub.typ())
                         }
                     })?;
-                for sup_pt in sup_subr.default_params.iter() {
+                for super_pt in super_subr.default_params.iter() {
                     if let Some(sub_pt) = sub_subr
                         .default_params
                         .iter()
-                        .find(|sub_pt| sub_pt.name() == sup_pt.name())
+                        .find(|sub_pt| sub_pt.name() == super_pt.name())
                     {
-                        if !self.change_generalized && sup_pt.typ().is_generalized() {
+                        if !self.change_generalized && sub_pt.typ().is_generalized() {
                             continue;
                         }
                         // contravariant
-                        self.sub_unify(sup_pt.typ(), sub_pt.typ())?;
+                        self.sub_unify(super_pt.typ(), sub_pt.typ())?;
                     } else {
-                        todo!("{maybe_sub} <: {maybe_sup}")
+                        todo!("{maybe_sub} <: {maybe_super}")
                     }
                 }
                 if !sub_subr.return_t.is_generalized() {
                     // covariant
-                    self.sub_unify(&sub_subr.return_t, &sup_subr.return_t)?;
+                    self.sub_unify(&sub_subr.return_t, &super_subr.return_t)?;
                 }
             }
-            (Subr(sub_subr), Quantified(sup_subr)) => {
-                let Ok(sup_subr) = <&SubrType>::try_from(sup_subr.as_ref()) else {
+            (Subr(sub_subr), Quantified(super_subr)) => {
+                let Ok(super_subr) = <&SubrType>::try_from(super_subr.as_ref()) else {
                     unreachable!()
                 };
                 sub_subr
                     .non_default_params
                     .iter()
-                    .zip(sup_subr.non_default_params.iter())
+                    .zip(super_subr.non_default_params.iter())
                     .try_for_each(|(sub, sup)| {
                         // contravariant
                         if !self.change_generalized && sup.typ().is_generalized() {
@@ -1688,24 +1692,24 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                             self.sub_unify(sup.typ(), sub.typ())
                         }
                     })?;
-                for sup_pt in sup_subr.default_params.iter() {
+                for super_pt in super_subr.default_params.iter() {
                     if let Some(sub_pt) = sub_subr
                         .default_params
                         .iter()
-                        .find(|sub_pt| sub_pt.name() == sup_pt.name())
+                        .find(|sub_pt| sub_pt.name() == super_pt.name())
                     {
                         // contravariant
-                        if !self.change_generalized && sup_pt.typ().is_generalized() {
+                        if !self.change_generalized && super_pt.typ().is_generalized() {
                             continue;
                         }
-                        self.sub_unify(sup_pt.typ(), sub_pt.typ())?;
+                        self.sub_unify(super_pt.typ(), sub_pt.typ())?;
                     } else {
-                        todo!("{maybe_sub} <: {maybe_sup}")
+                        todo!("{maybe_sub} <: {maybe_super}")
                     }
                 }
-                if !sup_subr.return_t.is_generalized() {
+                if !super_subr.return_t.is_generalized() {
                     // covariant
-                    self.sub_unify(&sub_subr.return_t, &sup_subr.return_t)?;
+                    self.sub_unify(&sub_subr.return_t, &super_subr.return_t)?;
                 }
             }
             (
@@ -1722,7 +1726,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 //      List(Str) <: Iterable(Str)
                 //      Zip(T, U) <: Iterable(Tuple([T, U]))
                 if ln != rn {
-                    self.nominal_sub_unify(maybe_sub, maybe_sup)?;
+                    self.nominal_sub_unify(maybe_sub, maybe_super)?;
                 } else {
                     for (l_maybe_sub, r_maybe_sup) in lps.iter().zip(rps.iter()) {
                         self.sub_unify_tp(l_maybe_sub, r_maybe_sup, None, false)?;
@@ -1735,9 +1739,9 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             (Guard(sub), Guard(sup)) => {
                 self.sub_unify(&sub.to, &sup.to)?;
             }
-            (sub, Structural(sup)) => {
+            (sub, Structural(supe)) => {
                 let sub_fields = self.ctx.fields(sub);
-                for (sup_field, sup_ty) in self.ctx.fields(sup) {
+                for (sup_field, sup_ty) in self.ctx.fields(supe) {
                     if let Some((_, sub_ty)) = sub_fields.get_key_value(&sup_field) {
                         self.sub_unify(sub_ty, &sup_ty)?;
                     } else {
@@ -1756,7 +1760,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             // (X or Y) <: Z is valid when X <: Z and Y <: Z
             (Or(tys), _) => {
                 for ty in tys {
-                    self.sub_unify(ty, maybe_sup)?;
+                    self.sub_unify(ty, maybe_super)?;
                 }
             }
             // X <: (Y and Z) is valid when X <: Y and X <: Z
@@ -1768,11 +1772,11 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             // (X and Y) <: Z is valid when X <: Z or Y <: Z
             (And(tys, _), _) => {
                 for ty in tys {
-                    if self.ctx.subtype_of(ty, maybe_sup) {
-                        return self.sub_unify(ty, maybe_sup);
+                    if self.ctx.subtype_of(ty, maybe_super) {
+                        return self.sub_unify(ty, maybe_super);
                     }
                 }
-                self.sub_unify(tys.iter().next().unwrap(), maybe_sup)?;
+                self.sub_unify(tys.iter().next().unwrap(), maybe_super)?;
             }
             // X <: (Y or Z) is valid when X <: Y or X <: Z
             (_, Or(tys)) => {
@@ -1800,7 +1804,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     self.ctx
                         .eval_proj(*lhs.clone(), rhs.clone(), self.ctx.level, self.loc)
                 {
-                    if maybe_sup != &evaled {
+                    if maybe_super != &evaled {
                         self.sub_unify(maybe_sub, &evaled)?;
                     }
                 }
@@ -1811,7 +1815,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                         .eval_proj(*lhs.clone(), rhs.clone(), self.ctx.level, self.loc)
                 {
                     if maybe_sub != &evaled {
-                        self.sub_unify(&evaled, maybe_sup)?;
+                        self.sub_unify(&evaled, maybe_super)?;
                     }
                 }
             }
@@ -1829,7 +1833,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     .ok()
                     .and_then(|tp| self.ctx.convert_tp_into_type(tp).ok())
                 {
-                    if maybe_sup != &evaled {
+                    if maybe_super != &evaled {
                         self.sub_unify(maybe_sub, &evaled)?;
                     }
                 }
@@ -1849,7 +1853,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     .and_then(|tp| self.ctx.convert_tp_into_type(tp).ok())
                 {
                     if maybe_sub != &evaled {
-                        self.sub_unify(&evaled, maybe_sup)?;
+                        self.sub_unify(&evaled, maybe_super)?;
                     }
                 }
             }
@@ -1872,10 +1876,10 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             }
             (sub, Refinement(_)) => {
                 if let Some(sub) = sub.to_singleton() {
-                    self.sub_unify(&Type::Refinement(sub), maybe_sup)?;
+                    self.sub_unify(&Type::Refinement(sub), maybe_super)?;
                 } else {
                     let sub = sub.clone().into_refinement();
-                    self.sub_unify(&Type::Refinement(sub), maybe_sup)?;
+                    self.sub_unify(&Type::Refinement(sub), maybe_super)?;
                 }
             }
             (Subr(_) | Record(_), Type) => {}
@@ -1883,13 +1887,13 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             // REVIEW: correct?
             (Poly { name, .. }, Type) if &name[..] == "List" || &name[..] == "Tuple" => {}
             (Poly { .. }, _) => {
-                if maybe_sub.has_no_qvar() && maybe_sup.has_no_qvar() {
+                if maybe_sub.has_no_qvar() && maybe_super.has_no_qvar() {
                     return Ok(());
                 }
-                self.nominal_sub_unify(maybe_sub, maybe_sup)?;
+                self.nominal_sub_unify(maybe_sub, maybe_super)?;
             }
             (_, Poly { .. }) => {
-                self.nominal_sub_unify(maybe_sub, maybe_sup)?;
+                self.nominal_sub_unify(maybe_sub, maybe_super)?;
             }
             (Subr(_), Mono(name)) if &name[..] == "Subroutine" => {}
             _ => {
@@ -1897,20 +1901,20 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     self.ctx,
                     self.loc.loc(),
                     &format!(
-                        "{maybe_sub} can be a subtype of {maybe_sup}, but failed to semi-unify"
+                        "{maybe_sub} can be a subtype of {maybe_super}, but failed to semi-unify"
                     )
                 )
             }
         }
-        log!(info "sub_unified:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_sup}");
+        log!(info "sub_unified:\nmaybe_sub: {maybe_sub}\nmaybe_sup: {maybe_super}");
         Ok(())
     }
 
     /// e.g. `maybe_sub: Vec, maybe_sup: Iterable T (Vec <: Iterable Int, T <: Int)`
     ///
     /// TODO: Current implementation is inefficient because coercion is performed twice with `subtype_of` in `sub_unify`
-    fn nominal_sub_unify(&self, maybe_sub: &Type, maybe_sup: &Type) -> TyCheckResult<()> {
-        debug_assert_ne!(maybe_sub.qual_name(), maybe_sup.qual_name());
+    fn nominal_sub_unify(&self, maybe_sub: &Type, maybe_super: &Type) -> TyCheckResult<()> {
+        debug_assert_ne!(maybe_sub.qual_name(), maybe_super.qual_name());
         if let Some(sub_ctx) = self.ctx.get_nominal_type_ctx(maybe_sub) {
             let sub_def_t = &sub_ctx.typ;
             // e.g.
@@ -1918,7 +1922,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             // sub_def_t: Zip(T, U) ==> Zip(Int, Str)
             // super_traits: [Iterable((T, U)), ...] ==> [Iterable((Int, Str)), ...]
             let _substituter = Substituter::substitute_typarams(self.ctx, sub_def_t, maybe_sub)?;
-            let sups = if self.ctx.is_class(maybe_sup) || self.ctx.is_trait(maybe_sub) {
+            let sups = if self.ctx.is_class(maybe_super) || self.ctx.is_trait(maybe_sub) {
                 sub_ctx.super_classes.iter()
             } else {
                 sub_ctx.super_traits.iter()
@@ -1932,8 +1936,8 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 compatibles.push(&sub_ctx.typ);
             }
             for sup_of_sub in sups {
-                if sup_of_sub.qual_name() == maybe_sup.qual_name()
-                    && self.ctx.subtype_of(sup_of_sub, maybe_sup)
+                if sup_of_sub.qual_name() == maybe_super.qual_name()
+                    && self.ctx.subtype_of(sup_of_sub, maybe_super)
                 {
                     if !compatibles.is_empty() {
                         let mut idx = compatibles.len();
@@ -1949,7 +1953,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     }
                 }
             }
-            let sup_params = maybe_sup.typarams();
+            let sup_params = maybe_super.typarams();
             'l: for sup_of_sub in compatibles {
                 let _substituter = Substituter::substitute_self(sup_of_sub, maybe_sub, self.ctx);
                 let sub_instance = self.ctx.instantiate_def_type(sup_of_sub)?;
@@ -1997,13 +2001,13 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 }
                 return Ok(());
             }
-            log!(err "no compatible supertype found: {maybe_sub} <: {maybe_sup}");
+            log!(err "no compatible supertype found: {maybe_sub} <: {maybe_super}");
         }
         Err(TyCheckErrors::from(TyCheckError::unification_error(
             self.ctx.cfg.input.clone(),
             line!() as usize,
             maybe_sub,
-            maybe_sup,
+            maybe_super,
             self.loc.loc(),
             self.ctx.caused_by(),
         )))
@@ -2133,23 +2137,23 @@ impl Context {
     pub(crate) fn sub_unify(
         &self,
         maybe_sub: &Type,
-        maybe_sup: &Type,
+        maybe_super: &Type,
         loc: &impl Locational,
         param_name: Option<&Str>,
     ) -> TyCheckResult<()> {
         let unifier = Unifier::new(self, loc, None, false, param_name.cloned());
-        unifier.sub_unify(maybe_sub, maybe_sup)
+        unifier.sub_unify(maybe_sub, maybe_super)
     }
 
     pub(crate) fn sub_unify_with_coercion(
         &self,
         maybe_sub: &Type,
-        maybe_sup: &Type,
+        maybe_super: &Type,
         loc: &impl Locational,
         param_name: Option<&Str>,
     ) -> TyCheckResult<()> {
         let unifier = Unifier::new(self, loc, None, false, param_name.cloned());
-        unifier.sub_unify(maybe_sub, maybe_sup).or_else(|err| {
+        unifier.sub_unify(maybe_sub, maybe_super).or_else(|err| {
             log!(err "{err}");
             maybe_sub.coerce(unifier.undoable);
             // maybe_sup.coerce(unifier.undoable);
@@ -2159,10 +2163,10 @@ impl Context {
             if new_sub != Never && &new_sub != maybe_sub {
                 maybe_sub.link(&new_sub, unifier.undoable);
             }
-            let new_sup = self
-                .eval_t_params(maybe_sup.clone(), self.level, loc)
+            let new_super = self
+                .eval_t_params(maybe_super.clone(), self.level, loc)
                 .map_err(|(_, errs)| errs)?;
-            unifier.sub_unify(&new_sub, &new_sup)
+            unifier.sub_unify(&new_sub, &new_super)
         })
     }
 
@@ -2170,24 +2174,24 @@ impl Context {
     pub(crate) fn force_sub_unify(
         &self,
         maybe_sub: &Type,
-        maybe_sup: &Type,
+        maybe_super: &Type,
         loc: &impl Locational,
         param_name: Option<&Str>,
     ) -> TyCheckResult<()> {
         let unifier = Unifier::new(self, loc, None, true, param_name.cloned());
-        unifier.sub_unify(maybe_sub, maybe_sup)
+        unifier.sub_unify(maybe_sub, maybe_super)
     }
 
     pub(crate) fn undoable_sub_unify(
         &self,
         maybe_sub: &Type,
-        maybe_sup: &Type,
+        maybe_super: &Type,
         loc: &impl Locational,
         list: &UndoableLinkedList,
         param_name: Option<&Str>,
     ) -> TyCheckResult<()> {
         let unifier = Unifier::new(self, loc, Some(list), false, param_name.cloned());
-        unifier.sub_unify(maybe_sub, maybe_sup)
+        unifier.sub_unify(maybe_sub, maybe_super)
     }
 
     pub(crate) fn unify(&self, lhs: &Type, rhs: &Type) -> Option<Type> {

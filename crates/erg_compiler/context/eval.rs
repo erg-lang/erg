@@ -2866,6 +2866,7 @@ impl Context {
                 }
             }
             TyParam::Type(t) => Ok(ValueObj::builtin_type(*t)),
+            TyParam::Failure => Ok(ValueObj::Failure),
             other => self.convert_tp_into_type(other).map(ValueObj::builtin_type),
         }
     }
@@ -2885,6 +2886,7 @@ impl Context {
             }
             Type::Quantified(quant) => self.convert_singular_type_into_value(*quant),
             Type::Subr(subr) => self.convert_singular_type_into_value(*subr.return_t),
+            Type::Failure => Ok(ValueObj::Failure),
             _ => Err(typ),
         }
     }
@@ -3027,6 +3029,7 @@ impl Context {
                     fields: new_fields,
                 })
             }
+            ValueObj::Failure => Ok(TyParam::Failure),
             _ => Err(TyParam::Value(value)),
         }
     }
@@ -3072,6 +3075,7 @@ impl Context {
                     Err(())
                 }
             }
+            Type::Failure => Ok(dict! { Failure => Failure }),
             _ => Err(()),
         }
     }
@@ -3082,7 +3086,7 @@ impl Context {
     ) -> Result<Dict<ValueObj, ValueObj>, ()> {
         match val {
             ValueObj::Dict(dic) => Ok(dic.clone()),
-            ValueObj::Type(ty) if ty.typ().is_dict() || ty.typ().is_dict_mut() => {
+            ValueObj::Type(ty) => {
                 let Ok(dict) = self
                     .convert_type_to_dict_type(ty.typ().clone())
                     .map(|dict| {
@@ -3095,6 +3099,7 @@ impl Context {
                 };
                 Ok(dict)
             }
+            ValueObj::Failure => Ok(dict! { ValueObj::Failure => ValueObj::Failure }),
             _ => Err(()),
         }
     }
@@ -3140,6 +3145,8 @@ impl Context {
                     Err(())
                 }
             }
+            // FIXME: unsized tuple
+            Type::Failure => Ok(vec![Type::Failure; 100]),
             _ => Err(()),
         }
     }
@@ -3183,6 +3190,8 @@ impl Context {
                     _ => Err(old),
                 }
             }
+            // FIXME: unsized list
+            Type::Failure => Ok(vec![ValueObj::Failure; 100]),
             _ => Err(ty),
         }
     }
@@ -3194,6 +3203,8 @@ impl Context {
             ValueObj::Type(t) => self
                 .convert_type_to_list(t.into_typ())
                 .map_err(ValueObj::builtin_type),
+            // FIXME: unsized list
+            ValueObj::Failure => Ok(vec![ValueObj::Failure; 100]),
             _ => Err(val),
         }
     }

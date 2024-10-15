@@ -2216,6 +2216,14 @@ impl Context {
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
+        let ret = poly(DICT_ITEMS, vec![ty_tp(tuple_t(vec![Obj, Never]))]);
+        let dict_items_t = fn0_met(g_dict_t.clone(), ret).quantify();
+        generic_dict.register_builtin_erg_impl(
+            ITEMS,
+            dict_items_t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
         let inner = ty_tp(tuple_t(vec![T.clone(), U.clone()]));
         let t_call = func1(
             poly(ITERABLE, vec![inner]),

@@ -118,15 +118,26 @@ impl Context {
         } else {
             mono("ContextManager")
         };
-        let t_with = nd_proc(
-            vec![
-                kw("obj", C),
-                kw("proc!", nd_proc(vec![anon(T)], None, U.clone())),
-            ],
-            None,
-            U,
-        )
-        .quantify();
+        let t_with = if PYTHON_MODE {
+            nd_proc(
+                vec![
+                    kw("obj", C),
+                    kw("proc!", nd_proc(vec![anon(T)], None, Obj.clone())),
+                ],
+                None,
+                NoneType,
+            )
+        } else {
+            nd_proc(
+                vec![
+                    kw("obj", C),
+                    kw("proc!", nd_proc(vec![anon(T)], None, U.clone())),
+                ],
+                None,
+                U,
+            )
+            .quantify()
+        };
         self.register_builtin_py_impl(
             "breakpoint!",
             t_breakpoint,

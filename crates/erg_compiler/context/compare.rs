@@ -276,7 +276,7 @@ impl Context {
         None
     }
 
-    fn _nominal_subtype_of<'c>(
+    fn _nominal_supertype_of<'c>(
         &'c self,
         lhs: &Type,
         rhs: &Type,
@@ -332,7 +332,7 @@ impl Context {
         if !self.is_class(lhs) || !self.is_class(rhs) {
             return (Maybe, false);
         }
-        self._nominal_subtype_of(lhs, rhs, |ty_ctx| &ty_ctx.super_classes)
+        self._nominal_supertype_of(lhs, rhs, |ty_ctx| &ty_ctx.super_classes)
     }
 
     // e.g. Eq(Nat) :> Nat
@@ -342,11 +342,11 @@ impl Context {
         if !self.is_trait(lhs) {
             return (Maybe, false);
         }
-        let (cred, judge) = self._nominal_subtype_of(lhs, rhs, |ty_ctx| &ty_ctx.super_traits[..]);
+        let (cred, judge) = self._nominal_supertype_of(lhs, rhs, |ty_ctx| &ty_ctx.super_traits[..]);
         if judge {
             return (cred, judge);
         }
-        self._nominal_subtype_of(lhs, rhs, |ty_ctx| &ty_ctx.super_classes[..])
+        self._nominal_supertype_of(lhs, rhs, |ty_ctx| &ty_ctx.super_classes[..])
     }
 
     /// lhs :> rhs?
