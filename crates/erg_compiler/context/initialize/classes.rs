@@ -1698,11 +1698,17 @@ impl Context {
                 t_singleton(unknown_len_list_t(T.clone())),
             )
             .quantify();
-            generic_list.register_builtin_erg_impl(
+            let list_constructor = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
                 FUNDAMENTAL_GETITEM,
-                t_getitem,
-                Immutable,
+                list_constructor,
+                t_getitem.clone(),
+                None,
+            )));
+            generic_list.register_builtin_const(
+                FUNDAMENTAL_GETITEM,
                 Visibility::BUILTIN_PUBLIC,
+                Some(t_getitem),
+                list_constructor,
             );
         }
         let mut list_hash = Self::builtin_methods(Some(mono(HASH)), 1);
@@ -2249,11 +2255,17 @@ impl Context {
                 t_singleton(Type::from(dict! { T.clone() => U.clone() })),
             )
             .quantify();
-            generic_dict.register_builtin_erg_impl(
+            let dict_constructor = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
                 FUNDAMENTAL_GETITEM,
-                t_getitem,
-                Immutable,
+                dict_constructor,
+                t_getitem.clone(),
+                None,
+            )));
+            generic_dict.register_builtin_const(
+                FUNDAMENTAL_GETITEM,
                 Visibility::BUILTIN_PUBLIC,
+                Some(t_getitem),
+                dict_constructor,
             );
         }
         let dic_t = poly(DICT, vec![D.clone()]);

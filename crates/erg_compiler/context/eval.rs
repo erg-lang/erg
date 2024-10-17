@@ -9,7 +9,7 @@ use erg_common::log;
 use erg_common::set::Set;
 use erg_common::shared::Shared;
 use erg_common::traits::{Locational, Stream};
-use erg_common::{dict, fmt_vec, fn_name, option_enum_unwrap, set, set_recursion_limit, Triple};
+use erg_common::{dict, fmt_vec, fn_name, set, set_recursion_limit, Triple};
 use erg_common::{ArcArray, Str};
 use OpKind::*;
 
@@ -667,10 +667,52 @@ impl Context {
     }
 
     fn tp_eval_const_call(&self, call: &Call) -> Failable<TyParam> {
-        if let Expr::Accessor(acc) = call.obj.as_ref() {
-            match acc {
-                Accessor::Ident(ident) => {
-                    let obj = self.rec_get_const_obj(ident.inspect()).ok_or_else(|| {
+        if let Some(attr) = &call.attr_name {
+            let obj = self
+                .eval_const_expr(&call.obj)
+                .map_err(|(val, errs)| (TyParam::value(val), errs))?;
+            let callee = self
+                .eval_attr(obj.clone(), attr)
+                .map_err(|err| (TyParam::Failure, err.into()))?;
+            let ValueObj::Subr(subr) = callee else {
+                return Err((
+                    TyParam::Failure,
+                    EvalError::type_mismatch_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        Location::concat(call.obj.as_ref(), attr),
+                        self.caused_by(),
+                        attr.inspect(),
+                        None,
+                        &mono("Subroutine"),
+                        &callee.t(),
+                        self.get_candidates(&callee.t()),
+                        None,
+                    )
+                    .into(),
+                ));
+            };
+            let (mut args, mut errs) = match self.eval_args(&call.args) {
+                Ok(args) => (args, EvalErrors::empty()),
+                Err((args, es)) => (args, es),
+            };
+            args.pos_args.insert(0, obj);
+            let tp = match self.call(subr.clone(), args, call.loc()) {
+                Ok(tp) => tp,
+                Err((tp, es)) => {
+                    errs.extend(es);
+                    tp
+                }
+            };
+            if errs.is_empty() {
+                Ok(tp)
+            } else {
+                Err((tp, errs))
+            }
+        } else {
+            match call.obj.as_ref() {
+                Expr::Accessor(Accessor::Ident(ident)) => {
+                    let callee = self.rec_get_const_obj(ident.inspect()).ok_or_else(|| {
                         (
                             TyParam::Failure,
                             EvalError::not_comptime_fn_error(
@@ -685,31 +727,29 @@ impl Context {
                         )
                     })?;
                     // TODO: __call__
-                    let subr = option_enum_unwrap!(obj, ValueObj::Subr)
-                        .ok_or_else(|| {
-                            (
-                                TyParam::Failure,
-                                EvalError::type_mismatch_error(
-                                    self.cfg.input.clone(),
-                                    line!() as usize,
-                                    ident.loc(),
-                                    self.caused_by(),
-                                    ident.inspect(),
-                                    None,
-                                    &mono("Subroutine"),
-                                    &obj.t(),
-                                    self.get_candidates(&obj.t()),
-                                    None,
-                                )
-                                .into(),
+                    let ValueObj::Subr(subr) = callee else {
+                        return Err((
+                            TyParam::Failure,
+                            EvalError::type_mismatch_error(
+                                self.cfg.input.clone(),
+                                line!() as usize,
+                                ident.loc(),
+                                self.caused_by(),
+                                ident.inspect(),
+                                None,
+                                &mono("Subroutine"),
+                                &callee.t(),
+                                self.get_candidates(&callee.t()),
+                                None,
                             )
-                        })?
-                        .clone();
+                            .into(),
+                        ));
+                    };
                     let (args, mut errs) = match self.eval_args(&call.args) {
                         Ok(args) => (args, EvalErrors::empty()),
                         Err((args, es)) => (args, es),
                     };
-                    let tp = match self.call(subr, args, call.loc()) {
+                    let tp = match self.call(subr.clone(), args, call.loc()) {
                         Ok(tp) => tp,
                         Err((tp, es)) => {
                             errs.extend(es);
@@ -723,7 +763,7 @@ impl Context {
                     }
                 }
                 // TODO: eval attr
-                Accessor::Attr(_attr) => Err((
+                Expr::Accessor(Accessor::Attr(_attr)) => Err((
                     TyParam::Failure,
                     EvalErrors::from(EvalError::not_const_expr(
                         self.cfg.input.clone(),
@@ -733,7 +773,7 @@ impl Context {
                     )),
                 )),
                 // TODO: eval type app
-                Accessor::TypeApp(_type_app) => Err((
+                Expr::Accessor(Accessor::TypeApp(_type_app)) => Err((
                     TyParam::Failure,
                     EvalErrors::from(EvalError::not_const_expr(
                         self.cfg.input.clone(),
@@ -753,16 +793,6 @@ impl Context {
                     )),
                 )),
             }
-        } else {
-            Err((
-                TyParam::Failure,
-                EvalErrors::from(EvalError::not_const_expr(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    call.loc(),
-                    self.caused_by(),
-                )),
-            ))
         }
     }
 

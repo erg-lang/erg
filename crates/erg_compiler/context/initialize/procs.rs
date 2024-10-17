@@ -127,6 +127,7 @@ impl Context {
                 None,
                 NoneType,
             )
+            .quantify()
         } else {
             nd_proc(
                 vec![

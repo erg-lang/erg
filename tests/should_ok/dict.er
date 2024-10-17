@@ -13,3 +13,6 @@ assert rec.a == 1 and rec.b == 2
 gdic as {Obj: Obj} = dic
 assert "a" in gdic
 assert not 1 in gdic
+
+l as List! {Str: Int} = ![{"a": 1}]
+l.push!({"b": 2}) # OK

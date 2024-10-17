@@ -9,7 +9,7 @@ use erg_common::fresh::FRESH_GEN;
 use erg_common::traits::Locational;
 use erg_common::Str;
 #[allow(unused_imports)]
-use erg_common::{fmt_vec, fn_name, log};
+use erg_common::{dict, fmt_vec, fn_name, log};
 
 use crate::context::eval::Substituter;
 use crate::context::instantiate::TyVarCache;
@@ -2075,6 +2075,47 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     return Some(self.ctx.union_refinement(lhs, rhs).into());
                 }
             }
+            (
+                Poly {
+                    name: ln,
+                    params: lps,
+                },
+                Poly {
+                    name: rn,
+                    params: rps,
+                },
+            ) if ln == rn && (lhs.is_dict() || lhs.is_dict_mut()) => {
+                let Ok(ValueObj::Dict(l_dict)) = self.ctx.convert_tp_into_value(lps[0].clone())
+                else {
+                    return None;
+                };
+                let Ok(ValueObj::Dict(r_dict)) = self.ctx.convert_tp_into_value(rps[0].clone())
+                else {
+                    return None;
+                };
+                if l_dict.len() == 1 && r_dict.len() == 1 {
+                    let l_key = self
+                        .ctx
+                        .convert_value_into_type(l_dict.keys().next()?.clone())
+                        .ok()?;
+                    let r_key = self
+                        .ctx
+                        .convert_value_into_type(r_dict.keys().next()?.clone())
+                        .ok()?;
+                    let l_value = self
+                        .ctx
+                        .convert_value_into_type(l_dict.values().next()?.clone())
+                        .ok()?;
+                    let r_value = self
+                        .ctx
+                        .convert_value_into_type(r_dict.values().next()?.clone())
+                        .ok()?;
+                    let unified_key = self.unify(&l_key, &r_key)?;
+                    let unified_value = self.unify(&l_value, &r_value)?;
+                    let unified_dict = TyParam::t(dict! { unified_key => unified_value }.into());
+                    return Some(poly(ln.clone(), vec![unified_dict]));
+                }
+            }
             _ => {}
         }
         let l_sups = self.ctx.get_super_classes(lhs)?;
@@ -2092,16 +2133,26 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     continue;
                 };
                 let mut tv_cache = TyVarCache::new(self.ctx.level, self.ctx);
-                let l_sup = self.ctx.detach(l_sup.clone(), &mut tv_cache);
+                let detached_l_sup = self.ctx.detach(l_sup.clone(), &mut tv_cache);
                 drop(l_substituter);
                 let Ok(r_substituter) = Substituter::substitute_typarams(self.ctx, &r_sup, rhs)
                 else {
                     continue;
                 };
                 let mut tv_cache = TyVarCache::new(self.ctx.level, self.ctx);
-                let r_sup = self.ctx.detach(r_sup.clone(), &mut tv_cache);
+                let detached_r_sup = self.ctx.detach(r_sup.clone(), &mut tv_cache);
                 drop(r_substituter);
-                if let Some(t) = self.ctx.max(&l_sup, &r_sup).either() {
+                if let Some(t) = self.ctx.max(&detached_l_sup, &detached_r_sup).either() {
+                    for l_tp in l_sup.typarams() {
+                        if l_tp.has_qvar() && t.contains_tp(&l_tp) {
+                            return None;
+                        }
+                    }
+                    for r_tp in r_sup.typarams() {
+                        if r_tp.has_qvar() && t.contains_tp(&r_tp) {
+                            return None;
+                        }
+                    }
                     return Some(t.clone());
                 }
             }

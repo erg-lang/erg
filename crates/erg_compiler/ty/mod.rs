@@ -2562,6 +2562,11 @@ impl Type {
         }
     }
 
+    /// ```erg
+    /// Int.union_size() == 1
+    /// (Int or Str).union_size() == 2
+    /// K(Int or Str, Int or Str or NoneType) == 3
+    /// ```
     pub fn union_size(&self) -> usize {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().union_size(),
@@ -3117,6 +3122,10 @@ impl Type {
         self.contains_tp(&TyParam::Failure)
             || self.contains_type(&Type::Failure)
             || self.contains_value(&ValueObj::Failure)
+    }
+
+    pub fn has_refinement(&self) -> bool {
+        self.is_refinement() || self.has_type_satisfies(|t| t.is_refinement())
     }
 
     pub fn is_recursive(&self) -> bool {
@@ -4088,6 +4097,11 @@ impl Type {
         }
     }
 
+    /// ```erg
+    /// {1, 2, 3}.derifine() == Nat
+    /// List({1, 2, 3}).derifine() == List(Nat)
+    /// ?T(:> {1, 2, 3}).derifine() == ?T'(:> Nat)
+    /// ```
     pub fn derefine(&self) -> Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().derefine(),
@@ -4112,13 +4126,7 @@ impl Type {
             Self::Poly { name, params } => {
                 let params = params
                     .iter()
-                    .map(|tp| match tp {
-                        TyParam::Value(ValueObj::Type(t)) => {
-                            TyParam::Value(ValueObj::Type(t.clone().mapped_t(|t| t.derefine())))
-                        }
-                        TyParam::Type(t) => TyParam::t(t.derefine()),
-                        other => other.clone(),
-                    })
+                    .map(|tp| tp.clone().map_t(&mut |t| t.derefine()))
                     .collect();
                 Self::Poly {
                     name: name.clone(),
@@ -4149,22 +4157,10 @@ impl Type {
                 attr_name,
                 args,
             } => {
-                let lhs = match lhs.as_ref() {
-                    TyParam::Value(ValueObj::Type(t)) => {
-                        TyParam::Value(ValueObj::Type(t.clone().mapped_t(|t| t.derefine())))
-                    }
-                    TyParam::Type(t) => TyParam::t(t.derefine()),
-                    other => other.clone(),
-                };
+                let lhs = lhs.clone().map_t(&mut |t| t.derefine());
                 let args = args
                     .iter()
-                    .map(|arg| match arg {
-                        TyParam::Value(ValueObj::Type(t)) => {
-                            TyParam::Value(ValueObj::Type(t.clone().mapped_t(|t| t.derefine())))
-                        }
-                        TyParam::Type(t) => TyParam::t(t.derefine()),
-                        other => other.clone(),
-                    })
+                    .map(|arg| arg.clone().map_t(&mut |t| t.derefine()))
                     .collect();
                 proj_call(lhs, attr_name.clone(), args)
             }

@@ -5,3 +5,7 @@ for! {"a": 1, "b": 2}.keys(), i =>
 
 dic as {Nat: Int} = {1: -1}
 _ = dic[-1] # ERR
+
+l as List! {Str: Int} = ![{"a": 1}]
+l.push!({"b": 2}) # OK
+l.push!({1: "a"}) # ERR

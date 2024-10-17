@@ -12,7 +12,7 @@ use crate::context::eval::UndoableLinkedList;
 use crate::context::initialize::closed_range;
 use crate::context::Context;
 use crate::feature_error;
-use crate::ty::constructors::{and, mono, tuple_t, v_enum};
+use crate::ty::constructors::{and, dict_mut, list_mut, mono, tuple_t, v_enum};
 use crate::ty::value::{EvalValueError, EvalValueResult, GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{Field, TyParam, Type, ValueArgs};
 use erg_common::error::{ErrorCore, ErrorKind, Location, SubMessage};
@@ -481,6 +481,47 @@ pub(crate) fn dict_diff(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<T
         return Err(type_mismatch("Dict", other, "Other"));
     };
     Ok(ValueObj::Dict(slf.diff(&other)).into())
+}
+
+pub(crate) fn list_constructor(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let _cls = args
+        .remove_left_or_key("Cls")
+        .ok_or_else(|| not_passed("Cls"))?;
+    let elem = args
+        .remove_left_or_key("elem")
+        .ok_or_else(|| not_passed("elem"))?;
+    let Ok(elem_t) = ctx.convert_value_into_type(elem.clone()) else {
+        return Err(type_mismatch("Type", elem, "elem"));
+    };
+    let len = args
+        .remove_left_or_key("len")
+        .map(TyParam::value)
+        .unwrap_or(TyParam::erased(Type::Nat));
+    Ok(ValueObj::builtin_class(list_mut(elem_t, len)).into())
+}
+
+pub(crate) fn dict_constructor(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
+    let _cls = args
+        .remove_left_or_key("Cls")
+        .ok_or_else(|| not_passed("Cls"))?;
+    let key_value = args
+        .remove_left_or_key("key_value")
+        .ok_or_else(|| not_passed("key_value"))?;
+    let (key_t, value_t) = match key_value {
+        ValueObj::Tuple(ts) | ValueObj::List(ts) => {
+            let key = ts.first().ok_or_else(|| not_passed("key"))?;
+            let value = ts.get(1).ok_or_else(|| not_passed("value"))?;
+            let Ok(key_t) = ctx.convert_value_into_type(key.clone()) else {
+                return Err(type_mismatch("Type", key, "key"));
+            };
+            let Ok(value_t) = ctx.convert_value_into_type(value.clone()) else {
+                return Err(type_mismatch("Type", value, "value"));
+            };
+            (key_t, value_t)
+        }
+        _ => return Err(type_mismatch("Tuple", key_value, "key_value")),
+    };
+    Ok(ValueObj::builtin_class(dict_mut(dict! { key_t => value_t }.into())).into())
 }
 
 /// `[Int, Str].union() == Int or Str`
