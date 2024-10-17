@@ -4224,19 +4224,39 @@ impl Context {
         &'v self,
         name: &str,
         tmp_tv_cache: &'v TyVarCache,
-    ) -> Option<(TyParam, &'v VarInfo)> {
+    ) -> Option<TyParam> {
         if let Some(tp) = tmp_tv_cache.get_typaram(name) {
-            Some((tp.clone(), &tmp_tv_cache.var_infos[name]))
+            Some(tp.clone())
         } else if let Some(t) = tmp_tv_cache.get_tyvar(name) {
-            Some((TyParam::t(t.clone()), &tmp_tv_cache.var_infos[name]))
+            Some(TyParam::t(t.clone()))
         } else if let Some(tv_ctx) = &self.tv_cache {
             if let Some(t) = tv_ctx.get_tyvar(name) {
-                Some((TyParam::t(t.clone()), &tv_ctx.var_infos[name]))
+                Some(TyParam::t(t.clone()))
+            } else {
+                tv_ctx.get_typaram(name).cloned()
+            }
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn get_tp_and_vi_from_tv_cache<'v>(
+        &'v self,
+        name: &str,
+        tmp_tv_cache: &'v TyVarCache,
+    ) -> Option<(TyParam, &'v VarInfo)> {
+        if let Some(tp) = tmp_tv_cache.get_typaram(name) {
+            Some((tp.clone(), tmp_tv_cache.var_infos.get(name)?))
+        } else if let Some(t) = tmp_tv_cache.get_tyvar(name) {
+            Some((TyParam::t(t.clone()), tmp_tv_cache.var_infos.get(name)?))
+        } else if let Some(tv_ctx) = &self.tv_cache {
+            if let Some(t) = tv_ctx.get_tyvar(name) {
+                Some((TyParam::t(t.clone()), tv_ctx.var_infos.get(name)?))
             } else {
                 tv_ctx
                     .get_typaram(name)
                     .cloned()
-                    .map(|tp| (tp, &tv_ctx.var_infos[name]))
+                    .and_then(|tp| Some((tp, tv_ctx.var_infos.get(name)?)))
             }
         } else {
             None

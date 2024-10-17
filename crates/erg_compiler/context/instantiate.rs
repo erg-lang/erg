@@ -82,6 +82,13 @@ impl TyVarCache {
                 self.typaram_instances.insert(name.clone(), ty.clone());
             }
         }
+        for (name, vi) in outer.var_infos.iter() {
+            if self.var_infos.contains_key(name) {
+                continue;
+            } else {
+                self.var_infos.insert(name.clone(), vi.clone());
+            }
+        }
     }
 
     pub fn purge(&mut self, other: &Self) {
@@ -90,6 +97,9 @@ impl TyVarCache {
         }
         for name in other.typaram_instances.keys() {
             self.typaram_instances.remove(name);
+        }
+        for name in other.var_infos.keys() {
+            self.var_infos.remove(name);
         }
     }
 

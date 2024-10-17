@@ -530,7 +530,7 @@ impl Context {
             .and_then(|name| self.get_const_local(name.token(), &self.name).ok())
         {
             return Ok(ParamTy::Pos(v_enum(set! { value })));
-        } else if let Some((tp, _vi)) = sig
+        } else if let Some(tp) = sig
             .name()
             .and_then(|name| self.get_tp_from_tv_cache(name.inspect(), tmp_tv_cache))
         {
@@ -708,7 +708,8 @@ impl Context {
                 ident.inspect(),
             ))),
             other => {
-                if let Some((TyParam::Type(t), vi)) = self.get_tp_from_tv_cache(other, tmp_tv_cache)
+                if let Some((TyParam::Type(t), vi)) =
+                    self.get_tp_and_vi_from_tv_cache(other, tmp_tv_cache)
                 {
                     self.inc_ref(ident.inspect(), vi, ident, self);
                     return Ok(*t);
@@ -771,10 +772,20 @@ impl Context {
         let mut errs = TyCheckErrors::empty();
         match name.inspect().trim_start_matches([':', '.']) {
             "List" => {
-                let ctx = &self
-                    .get_nominal_type_ctx(&list_t(Type::Obj, TyParam::Failure))
-                    .unwrap()
-                    .ctx;
+                let Some(ctx) = self.get_nominal_type_ctx(&list_t(Type::Obj, TyParam::Failure))
+                else {
+                    return Err((
+                        Failure,
+                        TyCheckErrors::from(TyCheckError::no_type_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            name.loc(),
+                            self.caused_by(),
+                            "List",
+                            self.get_similar_name("List"),
+                        )),
+                    ));
+                };
                 // TODO: kw
                 let mut pos_args = args.pos_args();
                 if let Some(first) = pos_args.next() {
@@ -1289,7 +1300,7 @@ impl Context {
             };
             return Ok(TyParam::erased(t));
         }
-        if let Some((tp, _vi)) = self.get_tp_from_tv_cache(name.inspect(), tmp_tv_cache) {
+        if let Some(tp) = self.get_tp_from_tv_cache(name.inspect(), tmp_tv_cache) {
             return Ok(tp);
         }
         if let Some(value) = self.rec_get_const_obj(name.inspect()) {
