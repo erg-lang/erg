@@ -37,8 +37,8 @@
 .__or__: |T <: Int|(T, T) -> T
 .pos: |N <: Num|(N) -> N
 .__pos__: |N <: Num|(N) -> N
-.pow: |N <: Mul| (N, N) -> N
-.__pow__: |N <: Mul| (N, N) -> N
+.pow: |N <: Mul(N)| (N, N) -> N
+.__pow__: |N <: Mul(N)| (N, N) -> N
 .rshift: (Int, Int) -> Int
 .__rshift__: (Int, Int) -> Int
 .sub: |T: Type, S <: Sub(T)| (S, T) -> S.Output

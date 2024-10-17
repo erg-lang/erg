@@ -7,7 +7,7 @@ for! g, ((b, it),) =>
         assert all(map(i -> i >= 3, it))
 
 ts = itertools.tee([1, 2, 3, 4, 5], 2)
-for! ts, (t: itertools.Tee,) =>
+for! ts, (t: itertools.Tee(Nat),) =>
     print! t
 
 combs = itertools.combinations([1, 2, 3], 2)

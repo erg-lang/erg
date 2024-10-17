@@ -959,6 +959,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                     }
                 };
                 let acc = hir::Accessor::Ident(ident);
+                // debug_assert!(acc.ref_t().has_no_qvar(), "{acc} has qvar");
                 if errors.is_empty() {
                     Ok(acc)
                 } else {
@@ -1020,6 +1021,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 }
                 let ident = hir::Identifier::new(attr.ident, None, vi);
                 let acc = hir::Accessor::Attr(hir::Attribute::new(obj, ident));
+                // debug_assert!(acc.ref_t().has_no_qvar(), "{acc} has qvar");
                 if errors.is_empty() {
                     Ok(acc)
                 } else {
@@ -3606,6 +3608,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 }
             }
         }
+        // debug_assert!(expr.ref_t().has_no_qvar(), "{expr} has qvar");
         Ok(expr)
     }
 

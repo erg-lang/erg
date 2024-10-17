@@ -2711,9 +2711,12 @@ impl Context {
             "Found:\ncallee: {obj}{}\nfound: {found}",
             fmt_option!(pre ".", attr_name.as_ref().map(|ident| &ident.name))
         );
-        let instance = self
-            .instantiate(found.t.clone(), obj)
-            .map_err(|errs| (Some(found.clone()), errs))?;
+        let instance = self.instantiate(found.t.clone(), obj).map_err(|errs| {
+            (
+                (!found.t.is_quantified_subr()).then_some(found.clone()),
+                errs,
+            )
+        })?;
         log!("Instantiated:\ninstance: {instance}");
         debug_assert!(
             !instance.is_quantified_subr(),
@@ -2774,9 +2777,12 @@ impl Context {
             "Found:\ncallee: {obj}{}\nfound: {found}",
             fmt_option!(pre ".", attr_name.as_ref().map(|ident| &ident.name))
         );
-        let instance = self
-            .instantiate(found.t.clone(), obj)
-            .map_err(|errs| (Some(found.clone()), errs))?;
+        let instance = self.instantiate(found.t.clone(), obj).map_err(|errs| {
+            (
+                (!found.t.is_quantified_subr()).then_some(found.clone()),
+                errs,
+            )
+        })?;
         log!(
             "Instantiated:\ninstance: {instance}\npos_args: ({})\nkw_args: ({})",
             fmt_slice(pos_args),

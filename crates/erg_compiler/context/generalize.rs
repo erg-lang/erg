@@ -226,6 +226,10 @@ impl<'c> Generalizer<'c> {
                         *default = self.generalize_t(mem::take(default), uninit);
                     }
                 });
+                if let Some(kw_var_args) = &mut subr.kw_var_params {
+                    *kw_var_args.typ_mut() =
+                        self.generalize_t(mem::take(kw_var_args.typ_mut()), uninit);
+                }
                 self.variance = Covariant;
                 let return_t = self.generalize_t(*subr.return_t, uninit);
                 self.qnames = self.qnames.difference(&qnames);
@@ -256,7 +260,14 @@ impl<'c> Generalizer<'c> {
                     .collect();
                 Type::NamedTuple(fields)
             }
-            Callable { .. } => todo!(),
+            Callable { param_ts, return_t } => {
+                let param_ts = param_ts
+                    .into_iter()
+                    .map(|t| self.generalize_t(t, uninit))
+                    .collect();
+                let return_t = self.generalize_t(*return_t, uninit);
+                callable(param_ts, return_t)
+            }
             Ref(t) => ref_(self.generalize_t(*t, uninit)),
             RefMut { before, after } => {
                 let after = after.map(|aft| self.generalize_t(*aft, uninit));
@@ -1245,14 +1256,18 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
         }
     }
 
-    // here ?T can be eliminated
-    //     ?T -> Int
-    //     ?T, ?U -> K(?U)
-    //     Int -> ?T
-    // here ?T cannot be eliminated
-    //     ?T -> ?T
-    //     ?T -> K(?T)
-    //     ?T -> ?U(:> ?T)
+    /// here ?T can be eliminated
+    /// ```erg
+    /// ?T -> Int
+    /// ?T, ?U -> K(?U)
+    /// Int -> ?T
+    /// ```
+    /// here ?T cannot be eliminated
+    /// ```erg
+    /// ?T -> ?T
+    /// ?T -> K(?T)
+    /// ?T -> ?U(:> ?T)
+    /// ```
     fn eliminate_needless_quant(&mut self, subr: Type) -> TyCheckResult<Type> {
         let Ok(mut subr) = SubrType::try_from(subr) else {
             unreachable!()

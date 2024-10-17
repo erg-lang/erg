@@ -1,0 +1,5 @@
+itertools = pyimport "itertools"
+
+ts = itertools.tee([1, 2, 3, 4, 5], 2)
+for! ts, (t: itertools.Tee,) => # ERR
+    print! t
