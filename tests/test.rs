@@ -790,6 +790,11 @@ fn exec_refinement_class_err() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_use_itertools_err() -> Result<(), ()> {
+    expect_compile_failure("tests/should_err/use_itertools.er", 0, 1)
+}
+
+#[test]
 fn exec_use_unit_err() -> Result<(), ()> {
     expect_compile_failure("tests/should_err/use_unit.er", 0, 4)
 }

@@ -8,7 +8,7 @@
     __call__: (iterable := Iterable(Obj)) -> Deque!
 .ChainMap: ClassType
 .ChainMap.
-    maps: [Mapping; _]
+    maps: [Mapping(Obj, Obj); _]
     __call__: (*maps: Mapping(Obj, Obj)) -> ChainMap
     new_child: (m := Mapping(Obj, Obj), **kwargs: Obj) -> ChainMap
 .Counter: ClassType

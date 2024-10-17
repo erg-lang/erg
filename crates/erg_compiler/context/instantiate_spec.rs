@@ -646,7 +646,9 @@ impl Context {
                 for ctx in ctxs {
                     if let Some(ctx) = ctx.rec_local_get_type(t.inspect()) {
                         // TODO: visibility check
-                        return Ok(ctx.typ.clone());
+                        return self
+                            .check_mono_type(ctx.typ.clone(), &t)
+                            .map_err(|es| (Type::Failure, es));
                     }
                 }
                 Err((
@@ -663,6 +665,23 @@ impl Context {
             }
             other => type_feature_error!(self, other.loc(), &format!("instantiating type {other}"))
                 .map_err(|errs| (Type::Failure, errs)),
+        }
+    }
+
+    fn check_mono_type(&self, should_mono: Type, t_loc: &impl Locational) -> TyCheckResult<Type> {
+        let qvars = should_mono.qvars();
+        if qvars.is_empty() || should_mono.is_proj() {
+            Ok(should_mono)
+        } else {
+            let err = TyCheckError::args_missing_error(
+                self.cfg.input.clone(),
+                line!() as usize,
+                t_loc.loc(),
+                &should_mono.qual_name(),
+                self.caused_by(),
+                qvars.into_iter().map(|(s, _)| s).collect(),
+            );
+            Err(err.into())
         }
     }
 
@@ -722,7 +741,7 @@ impl Context {
                     if let Some((_, vi)) = self.get_var_info(ident.inspect()) {
                         self.inc_ref(ident.inspect(), vi, ident, self);
                     }
-                    return Ok(typ);
+                    return self.check_mono_type(typ, ident);
                 }
                 if let Some(outer) = &self.outer {
                     if let Ok(t) = outer.instantiate_mono_t(
@@ -738,7 +757,7 @@ impl Context {
                     if let Some((_, vi)) = self.get_var_info(ident.inspect()) {
                         self.inc_ref(ident.inspect(), vi, ident, self);
                     }
-                    Ok(ctx.typ.clone())
+                    self.check_mono_type(ctx.typ.clone(), ident)
                 } else if not_found_is_qvar {
                     let tyvar = named_free_var(Str::rc(other), self.level, Constraint::Uninited);
                     tmp_tv_cache.push_or_init_tyvar(&ident.name, &tyvar, self)?;

@@ -19,7 +19,6 @@ use erg_parser::ast::*;
 use erg_parser::desugar::Desugarer;
 use erg_parser::token::{Token, TokenKind};
 
-use crate::mono_type_pattern;
 use crate::ty::constructors::{
     bounded, callable, closed_range, dict_t, func, guard, list_t, mono, mono_q, named_free_var,
     poly, proj, proj_call, ref_, ref_mut, refinement, set_t, subr_t, subtypeof, tp_enum,
@@ -29,8 +28,9 @@ use crate::ty::free::HasLevel;
 use crate::ty::typaram::{OpKind, TyParam};
 use crate::ty::value::{GenTypeObj, TypeObj, ValueObj};
 use crate::ty::{
-    ConstSubr, HasType, Predicate, SubrKind, Type, UserConstSubr, ValueArgs, Visibility,
+    ConstSubr, HasType, Predicate, SubrKind, SubrType, Type, UserConstSubr, ValueArgs, Visibility,
 };
+use crate::{mono_type_pattern, mono_value_pattern};
 
 use crate::context::instantiate_spec::ParamKind;
 use crate::context::{ClassDefType, Context, ContextKind, RegistrationMode};
@@ -3346,7 +3346,99 @@ impl Context {
                 }
                 poly(name, new_params)
             }
-            _ => ty,
+            Type::Refinement(refine) => {
+                let t = self.detach(*refine.t, tv_cache);
+                refinement(refine.var, t, *refine.pred)
+            }
+            Type::Proj { lhs, rhs } => proj(self.detach(*lhs, tv_cache), rhs),
+            Type::ProjCall {
+                lhs,
+                attr_name,
+                args,
+            } => {
+                let mut new_args = vec![];
+                for arg in args {
+                    new_args.push(self.detach_tp(arg, tv_cache));
+                }
+                proj_call(self.detach_tp(*lhs, tv_cache), attr_name, new_args)
+            }
+            Type::Ref(t) => ref_(self.detach(*t, tv_cache)),
+            Type::RefMut { before, after } => {
+                let before = self.detach(*before, tv_cache);
+                let after = after.map(|t| self.detach(*t, tv_cache));
+                ref_mut(before, after)
+            }
+            Type::Record(rec) => {
+                let mut new_rec = dict! {};
+                for (name, t) in rec {
+                    new_rec.insert(name, self.detach(t, tv_cache));
+                }
+                Type::Record(new_rec)
+            }
+            Type::NamedTuple(tup) => {
+                let mut new_tup = vec![];
+                for (name, t) in tup {
+                    new_tup.push((name, self.detach(t, tv_cache)));
+                }
+                Type::NamedTuple(new_tup)
+            }
+            Type::Structural(ty) => self.detach(*ty, tv_cache).structuralize(),
+            Type::Guard(grd) => {
+                let to = self.detach(*grd.to, tv_cache);
+                guard(grd.namespace, *grd.target, to)
+            }
+            Type::Subr(subr) => {
+                let mut new_nd = vec![];
+                for pt in subr.non_default_params {
+                    new_nd.push(pt.map_type(&mut |t| self.detach(t, tv_cache)));
+                }
+                let new_var = subr
+                    .var_params
+                    .map(|t| t.map_type(&mut |t| self.detach(t, tv_cache)));
+                let mut new_d = vec![];
+                for pt in subr.default_params {
+                    let pt = pt
+                        .map_type(&mut |t| self.detach(t, tv_cache))
+                        .map_default_type(&mut |t| self.detach(t, tv_cache));
+                    new_d.push(pt);
+                }
+                let new_kv = subr
+                    .kw_var_params
+                    .map(|t| t.map_type(&mut |t| self.detach(t, tv_cache)));
+                let return_t = self.detach(*subr.return_t, tv_cache);
+                let new_subr = SubrType::new(subr.kind, new_nd, new_var, new_d, new_kv, return_t);
+                Type::Subr(new_subr)
+            }
+            Type::And(tys, idx) => {
+                let mut new_tys = vec![];
+                for t in tys {
+                    new_tys.push(self.detach(t, tv_cache));
+                }
+                Type::checked_and(new_tys, idx)
+            }
+            Type::Or(tys) => {
+                let mut new_tys = set! {};
+                for t in tys {
+                    new_tys.insert(self.detach(t, tv_cache));
+                }
+                Type::checked_or(new_tys)
+            }
+            Type::Not(t) => !self.detach(*t, tv_cache),
+            Type::Bounded { sub, sup } => {
+                let sub = self.detach(*sub, tv_cache);
+                let sup = self.detach(*sup, tv_cache);
+                bounded(sub, sup)
+            }
+            Type::Callable { param_ts, return_t } => {
+                let mut new_param_ts = vec![];
+                for t in param_ts {
+                    new_param_ts.push(self.detach(t, tv_cache));
+                }
+                let return_t = self.detach(*return_t, tv_cache);
+                callable(new_param_ts, return_t)
+            }
+            Type::Quantified(_) => ty,
+            mono_type_pattern!() => ty,
         }
     }
 
@@ -3369,7 +3461,153 @@ impl Context {
                 }
             }
             TyParam::Type(t) => TyParam::t(self.detach(*t, tv_cache)),
-            _ => tp,
+            TyParam::Value(v) => TyParam::Value(self.detach_value(v, tv_cache)),
+            TyParam::App { name, args } => {
+                let mut new_args = vec![];
+                for arg in args {
+                    new_args.push(self.detach_tp(arg, tv_cache));
+                }
+                TyParam::App {
+                    name,
+                    args: new_args,
+                }
+            }
+            TyParam::BinOp { op, lhs, rhs } => {
+                let lhs = self.detach_tp(*lhs, tv_cache);
+                let rhs = self.detach_tp(*rhs, tv_cache);
+                TyParam::bin(op, lhs, rhs)
+            }
+            TyParam::UnaryOp { op, val } => {
+                let val = self.detach_tp(*val, tv_cache);
+                TyParam::unary(op, val)
+            }
+            TyParam::List(lis) => {
+                let mut new_lis = vec![];
+                for elem in lis {
+                    new_lis.push(self.detach_tp(elem, tv_cache));
+                }
+                TyParam::List(new_lis)
+            }
+            TyParam::UnsizedList(elem) => {
+                let elem = self.detach_tp(*elem, tv_cache);
+                TyParam::UnsizedList(Box::new(elem))
+            }
+            TyParam::Tuple(tys) => {
+                let mut new_tys = vec![];
+                for elem in tys {
+                    new_tys.push(self.detach_tp(elem, tv_cache));
+                }
+                TyParam::Tuple(new_tys)
+            }
+            TyParam::Set(set) => {
+                let mut new_set = set! {};
+                for elem in set {
+                    new_set.insert(self.detach_tp(elem, tv_cache));
+                }
+                TyParam::Set(new_set)
+            }
+            TyParam::Dict(dic) => {
+                let mut new_dic = dict! {};
+                for (k, v) in dic.into_iter() {
+                    new_dic.insert(self.detach_tp(k, tv_cache), self.detach_tp(v, tv_cache));
+                }
+                TyParam::Dict(new_dic)
+            }
+            TyParam::Record(rec) => {
+                let mut new_rec = dict! {};
+                for (name, elem) in rec {
+                    new_rec.insert(name, self.detach_tp(elem, tv_cache));
+                }
+                TyParam::Record(new_rec)
+            }
+            TyParam::DataClass { name, fields } => {
+                let mut new_fields = dict! {};
+                for (k, v) in fields.into_iter() {
+                    new_fields.insert(k, self.detach_tp(v, tv_cache));
+                }
+                TyParam::DataClass {
+                    name,
+                    fields: new_fields,
+                }
+            }
+            TyParam::Proj { obj, attr } => {
+                let obj = self.detach_tp(*obj, tv_cache);
+                obj.proj(attr)
+            }
+            TyParam::ProjCall { obj, attr, args } => {
+                let obj = self.detach_tp(*obj, tv_cache);
+                let mut new_args = vec![];
+                for arg in args {
+                    new_args.push(self.detach_tp(arg, tv_cache));
+                }
+                obj.proj_call(attr, new_args)
+            }
+            TyParam::Erased(ty) => TyParam::erased(self.detach(*ty, tv_cache)),
+            TyParam::Lambda(_) | TyParam::Mono(_) | TyParam::Failure => tp,
+        }
+    }
+
+    #[allow(clippy::only_used_in_recursion)]
+    fn detach_value(&self, val: ValueObj, tv_cache: &mut TyVarCache) -> ValueObj {
+        match val {
+            ValueObj::Type(typ) => {
+                // TODO:
+                // let typ = typ.mapped_t(|t| self.detach(t, tv_cache));
+                ValueObj::Type(typ)
+            }
+            ValueObj::List(vals) => {
+                let mut new_vals = vec![];
+                for v in vals.iter() {
+                    new_vals.push(self.detach_value(v.clone(), tv_cache));
+                }
+                ValueObj::List(new_vals.into())
+            }
+            ValueObj::UnsizedList(val) => {
+                ValueObj::UnsizedList(Box::new(self.detach_value(*val, tv_cache)))
+            }
+            ValueObj::Tuple(vals) => {
+                let mut new_vals = vec![];
+                for v in vals.iter() {
+                    new_vals.push(self.detach_value(v.clone(), tv_cache));
+                }
+                ValueObj::Tuple(new_vals.into())
+            }
+            ValueObj::Dict(dic) => {
+                let mut new_dic = dict! {};
+                for (k, v) in dic.into_iter() {
+                    new_dic.insert(
+                        self.detach_value(k, tv_cache),
+                        self.detach_value(v, tv_cache),
+                    );
+                }
+                ValueObj::Dict(new_dic)
+            }
+            ValueObj::Set(set) => {
+                let mut new_set = set! {};
+                for v in set.into_iter() {
+                    new_set.insert(self.detach_value(v, tv_cache));
+                }
+                ValueObj::Set(new_set)
+            }
+            ValueObj::Record(rec) => {
+                let mut new_rec = dict! {};
+                for (name, v) in rec.into_iter() {
+                    new_rec.insert(name, self.detach_value(v, tv_cache));
+                }
+                ValueObj::Record(new_rec)
+            }
+            ValueObj::DataClass { name, fields } => {
+                let mut new_fields = dict! {};
+                for (name, v) in fields.into_iter() {
+                    new_fields.insert(name, self.detach_value(v, tv_cache));
+                }
+                ValueObj::DataClass {
+                    name,
+                    fields: new_fields,
+                }
+            }
+            ValueObj::Subr(_) => val,
+            mono_value_pattern!() => val,
         }
     }
 
