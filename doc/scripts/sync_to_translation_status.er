@@ -2,66 +2,73 @@
 os = pyimport "os"
 re = pyimport "re"
 mylib = pyimport "mylib" # TODO: Make it work without this
+# tqdm = pyimport "tqdm"
 
 LANGUAGES_KEBAB_CASE = ["JA", "zh-TW", "zh-CN"]
+EN = "EN"
 
-os.chdir! mylib.path_join(mylib.get_file_dirname!(), "..")
 
-'''
-path_to_erg/erg/doc
-'''
-cwd = os.getcwd!()
+path_to_posix path: Str =
+    if mylib.path_sep == "/":
+        do path
+        do path.replace(mylib.path_sep, "/")
 
-badge_pattern = re.compile("\\[!\\[badge\\]\\(([\\w.,@?^=%&:\\/~+#-]+)\\)\\]\\(([\\w.,@?^=%&:\\/~+#-]+)\\)")
 
-get_badge! file_path =
-    if! os.path.exists!(file_path) and os.path.isfile!(file_path):
-        do!:
-            with! open!(file_path, encoding := "utf-8"), f =>
-                badge_match = badge_pattern.search(f.read!())
-                match badge_match:
-                    (matched: re.Match) -> matched.group(0)
-                    _ -> "Badge not found"
-        do!:
-            "File not found"
+main!() =
+    '''
+    path_to_erg/erg/doc
+    '''
+    cwd = os.path.dirname! mylib.get_file_dirname!()
+    os.chdir! cwd
 
-get_doc_en_file_paths! relative_dir_path, relative_file_paths_result := [] =
-    dir_path = mylib.path_join(cwd, relative_dir_path)
-    dir_list = sorted os.listdir! dir_path
-    relative_file_paths = ![]
-    relative_dir_paths = ![]
-    for! dir_list, d =>
-        d_path = mylib.path_join(dir_path, d)
-        if! os.path.isfile!(d_path):
-            do! relative_file_paths.push! mylib.path_join(relative_dir_path, d)
-        if! os.path.isdir!(d_path):
-            do! relative_dir_paths.push! mylib.path_join(relative_dir_path, d)
-    result = ![]
-    for! relative_file_paths_result, path =>
-        result.push! path
-    for! relative_file_paths, path =>
-        result.push! path
-    for! relative_dir_paths, path =>
-        result.extend! get_doc_en_file_paths! path, result
-    result
+    badge_pattern = re.compile("\\[!\\[badge\\]\\(([\\w.,@?^=%&:\\/~+#-]+)\\)\\]\\(([\\w.,@?^=%&:\\/~+#-]+)\\)")
 
-doc_en_file_paths = get_doc_en_file_paths! "EN"
+    get_badge! absolute_file_path =
+        if! os.path.exists!(absolute_file_path) and os.path.isfile!(absolute_file_path):
+            do!:
+                with! open!(absolute_file_path, encoding := "utf-8"), f =>
+                    badge_match = badge_pattern.search(f.read!())
+                    match badge_match:
+                        (matched: re.Match) -> matched.group(0)
+                        _ -> "Badge not found"
+            do!:
+                "File not found"
 
-for! LANGUAGES_KEBAB_CASE, lang =>
-    result_text = !"# \{lang} translation status\n\n"
-    result_text.push! "This file is generated automatically. If you want to edit this, edit [`doc/scripts/sync_to_translation_status.er`](../scripts/sync_to_translation_status.er)\n\n"
-    add_table_row_text! left: Str, right: Str =
-        result_text.push! "| \{left} | \{right} |\n"
+    doc_en_relative_file_paths =
+        result = ![]
+        absolute_dir_stack = ![mylib.path_join(cwd, EN)]
+        while! do! len(absolute_dir_stack) > 0, do!:
+            top_absolute_dir = absolute_dir_stack.pop!()
+            basenames = sorted os.listdir! top_absolute_dir # TODO: use `os.scandir!`
+            absolute_dirs = ![]
+            for! basenames, basename =>
+                absolute_path = mylib.path_join(top_absolute_dir, basename)
+                if! os.path.isfile!(absolute_path):
+                    do! result.push! mylib.path_relpath(absolute_path, cwd)
+                    # do! os.path.isdir!(absolute_path)
+                    do! absolute_dirs.push! absolute_path
+            absolute_dir_stack.extend! reversed absolute_dirs
+        result
 
-    add_table_row_text! "EN file name", "edit icon and badge"
-    add_table_row_text! "---", "---"
-    add_table_row_text! "[README.md](../../README.md)", "[📝](../../README_\{lang}.md) \{get_badge!(mylib.path_join(cwd, "../README_\{lang}.md"))}"
-    add_table_row_text! "[CODE_OF_CONDUCT.md](../../CODE_OF_CONDUCT.md)", "[📝](../CODE_OF_CONDUCT/CODE_OF_CONDUCT_\{lang}.md) \{get_badge!(mylib.path_join(cwd, "./CODE_OF_CONDUCT/CODE_OF_CONDUCT_\{lang}.md"))}"
-    add_table_row_text! "[CONTRIBUTING.md](../../CONTRIBUTING.md)", "[📝](../CONTRIBUTING/CONTRIBUTING_\{lang}.md) \{get_badge!(mylib.path_join(cwd, "./CONTRIBUTING/CONTRIBUTING_\{lang}.md"))}"
+    for! LANGUAGES_KEBAB_CASE, lang =>
+        result_text = !"# \{lang} translation status\n\n"
+        result_text.push! "This file is generated automatically. If you want to edit this, edit [`doc/scripts/sync_to_translation_status.er`](../scripts/sync_to_translation_status.er)\n\n"
+        add_table_row_text! left: Str, right: Str =
+            result_text.push! "| \{left} | \{right} |\n"
 
-    for! doc_en_file_paths, en_path =>
-        relative_file_path = "\{lang.replace "-", "_"}\{mylib.str_slice en_path, 2}"
-        add_table_row_text! "[\{mylib.str_slice en_path, 3}](../\{en_path})", "[📝](../\{relative_file_path}) \{get_badge!(mylib.path_join(cwd, relative_file_path))}"
+        add_table_row_text! "EN file name", "edit icon and badge"
+        add_table_row_text! "---", "---"
+        add_table_row_text! "[README.md](../../README.md)", "[📝 Edit](../../README_\{lang}.md) \{get_badge!(mylib.path_join(cwd, "../README_\{lang}.md"))}"
+        add_table_row_text! "[CODE_OF_CONDUCT.md](../../CODE_OF_CONDUCT.md)", "[📝 Edit](../CODE_OF_CONDUCT/CODE_OF_CONDUCT_\{lang}.md) \{get_badge!(mylib.path_join(cwd, "./CODE_OF_CONDUCT/CODE_OF_CONDUCT_\{lang}.md"))}"
+        add_table_row_text! "[CONTRIBUTING.md](../../CONTRIBUTING.md)", "[📝 Edit](../CONTRIBUTING/CONTRIBUTING_\{lang}.md) \{get_badge!(mylib.path_join(cwd, "./CONTRIBUTING/CONTRIBUTING_\{lang}.md"))}"
 
-    with! open!(mylib.path_join(cwd, mylib.path_join("translation_status", "translation_status_\{lang}.md")), encoding := "utf-8", mode := "w"), f =>
-        discard f.write! str(result_text)
+        # for! tqdm.Tqdm!(doc_en_relative_file_paths), en_path =>
+        for! doc_en_relative_file_paths, en_path =>
+            relative_file_path = "\{lang.replace "-", "_"}\{mylib.str_slice en_path, len(EN)}"
+            add_table_row_text! "[\{path_to_posix mylib.str_slice(en_path, len(EN) + 1)}](../\{en_path})", "[📝 Edit](../\{path_to_posix relative_file_path}) \{get_badge!(mylib.path_join(cwd, relative_file_path))}"
+
+        with! open!(mylib.path_join(cwd, mylib.path_join("translation_status", "translation_status_\{lang}.md")), encoding := "utf-8", mode := "w"), f =>
+            discard f.write! str(result_text)
+
+if! __name__ == "__main__", do!:
+    main!()
