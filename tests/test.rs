@@ -599,7 +599,7 @@ fn exec_dependent_err() -> Result<(), ()> {
 
 #[test]
 fn exec_dict_err() -> Result<(), ()> {
-    expect_compile_failure("tests/should_err/dict.er", 0, 4)
+    expect_compile_failure("tests/should_err/dict.er", 0, 5)
 }
 
 #[test]
@@ -766,7 +766,7 @@ fn exec_mut_list_err() -> Result<(), ()> {
 
 #[test]
 fn exec_mut_dict_err() -> Result<(), ()> {
-    expect_compile_failure("tests/should_err/mut_dict.er", 1, 4)
+    expect_compile_failure("tests/should_err/mut_dict.er", 1, 5)
 }
 
 #[test]

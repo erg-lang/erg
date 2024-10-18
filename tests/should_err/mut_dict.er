@@ -8,6 +8,9 @@ _ = dict.get("c") # OK
 _ = dict["b"] # OK
 _ = dict["c"] # ERR
 
+_: Mapping(Int, Str) = !{1: "a", 2: "b"}
+_: Mapping(Str, Int) = !{1: "a", 2: "b"} # ERR
+
 Manager = Class {
     .tasks = List Dict! { Int: Str }
 }
