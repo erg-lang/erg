@@ -1,5 +1,6 @@
 use std::fmt;
 
+use erg_common::consts::DEBUG_MODE;
 use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::set;
 use erg_common::set::Set;
@@ -95,6 +96,12 @@ impl ModuleGraph {
     }
 
     pub fn add_node_if_none(&mut self, path: &NormalizedPathBuf) {
+        if path.is_dir() {
+            if DEBUG_MODE {
+                panic!("path is a directory: {path}");
+            }
+            return;
+        }
         if self.0.iter().all(|n| &n.id != path) {
             let node = Node::new(path.clone(), (), set! {});
             self.0.push(node);
@@ -107,6 +114,12 @@ impl ModuleGraph {
         referrer: &NormalizedPathBuf,
         depends_on: NormalizedPathBuf,
     ) -> Result<(), IncRefError> {
+        if depends_on.is_dir() {
+            if DEBUG_MODE {
+                panic!("path is a directory: {depends_on}");
+            }
+            return Ok(());
+        }
         self.add_node_if_none(referrer);
         if referrer == &depends_on {
             return Ok(());

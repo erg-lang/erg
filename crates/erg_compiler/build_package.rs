@@ -630,36 +630,39 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
             if self.cfg.input.path() == path.as_path() {
                 return Ok(path);
             }
-            let (out, err) = if self.cfg.mode == ErgMode::LanguageServer || self.cfg.quiet_repl {
-                (Stdio::null(), Stdio::null())
-            } else {
-                (Stdio::inherit(), Stdio::inherit())
-            };
-            // pylyzer is a static analysis tool for Python (https://github.com/mtshiba/pylyzer).
-            // It can convert a Python script to an Erg AST for code analysis.
-            // There is also an option to output the analysis result as `d.er`. Use this if the system have pylyzer installed.
-            // A type definition file may be generated even if not all type checks succeed.
-            if let Ok(status) = Command::new("pylyzer")
-                .arg("--dump-decl")
-                .arg(path.to_str().unwrap_or_default())
-                .stdout(out)
-                .stderr(err)
-                .spawn()
-                .and_then(|mut child| child.wait())
-            {
-                if let Some(path) = self
-                    .cfg
-                    .input
-                    .resolve_decl_path(Path::new(&__name__[..]), &self.cfg)
+            if self.cfg.use_pylyzer {
+                let (out, err) = if self.cfg.mode == ErgMode::LanguageServer || self.cfg.quiet_repl
                 {
-                    let size = metadata(&path).or(Err(()))?.len();
-                    // if pylyzer crashed
-                    if !status.success() && size == 0 {
-                        // The presence of the decl file indicates that the analysis is in progress or completed,
-                        // so if pylyzer crashes in the middle of the analysis, delete the file.
-                        remove_file(&path).unwrap();
-                    } else {
-                        return Ok(path);
+                    (Stdio::null(), Stdio::null())
+                } else {
+                    (Stdio::inherit(), Stdio::inherit())
+                };
+                // pylyzer is a static analysis tool for Python (https://github.com/mtshiba/pylyzer).
+                // It can convert a Python script to an Erg AST for code analysis.
+                // There is also an option to output the analysis result as `d.er`. Use this if the system have pylyzer installed.
+                // A type definition file may be generated even if not all type checks succeed.
+                if let Ok(status) = Command::new("pylyzer")
+                    .arg("--dump-decl")
+                    .arg(path.to_str().unwrap_or_default())
+                    .stdout(out)
+                    .stderr(err)
+                    .spawn()
+                    .and_then(|mut child| child.wait())
+                {
+                    if let Some(path) = self
+                        .cfg
+                        .input
+                        .resolve_decl_path(Path::new(&__name__[..]), &self.cfg)
+                    {
+                        let size = metadata(&path).or(Err(()))?.len();
+                        // if pylyzer crashed
+                        if !status.success() && size == 0 {
+                            // The presence of the decl file indicates that the analysis is in progress or completed,
+                            // so if pylyzer crashes in the middle of the analysis, delete the file.
+                            remove_file(&path).unwrap();
+                        } else {
+                            return Ok(path);
+                        }
                     }
                 }
             }

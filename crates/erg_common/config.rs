@@ -179,6 +179,7 @@ pub struct ErgConfig {
     pub packages: ArcArray<Package>,
     pub effect_check: bool,
     pub ownership_check: bool,
+    pub use_pylyzer: bool,
 }
 
 impl Default for ErgConfig {
@@ -206,6 +207,7 @@ impl Default for ErgConfig {
             packages: ArcArray::from([]),
             effect_check: true,
             ownership_check: true,
+            use_pylyzer: false,
         }
     }
 }
@@ -339,6 +341,9 @@ impl ErgConfig {
                         Box::leak(version),
                         None,
                     ));
+                }
+                "--use-pylyzer" => {
+                    cfg.use_pylyzer = true;
                 }
                 "--use-local-package" => {
                     let name = args
