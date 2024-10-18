@@ -267,6 +267,7 @@ impl Context {
                 poly(FILTER, vec![ty_tp(T.clone())]),
             )
             .quantify();
+        let t_filter = t_filter.with_default_intersec_index(1);
         iterable.register_builtin_decl(
             FUNC_FILTER,
             t_filter,

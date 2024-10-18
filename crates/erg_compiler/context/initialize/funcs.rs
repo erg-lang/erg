@@ -141,6 +141,7 @@ impl Context {
                 poly(FILTER, vec![ty_tp(T.clone())]),
             )
             .quantify();
+        let t_filter = t_filter.with_default_intersec_index(1);
         let filter = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_FILTER,
             filter_func,

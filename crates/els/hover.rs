@@ -238,7 +238,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     continue;
                 };
                 let Some(module) = ({
-                    self.quick_check_file(def_uri.clone())?;
+                    // self.quick_check_file(def_uri.clone())?;
                     self.get_mod_ctx(&def_uri)
                 }) else {
                     continue;
