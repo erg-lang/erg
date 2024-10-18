@@ -141,7 +141,7 @@ impl UndoableLinkedList {
 pub struct Substituter<'c> {
     ctx: &'c Context,
     undoable_linked: UndoableLinkedList,
-    child: Option<Box<Substituter<'c>>>,
+    child: Vec<Substituter<'c>>,
 }
 
 impl<'c> Substituter<'c> {
@@ -149,7 +149,16 @@ impl<'c> Substituter<'c> {
         Self {
             ctx,
             undoable_linked: UndoableLinkedList::new(),
-            child: None,
+            child: vec![],
+        }
+    }
+
+    fn with_child(mut self, child: Self) -> Self {
+        self.child.push(child);
+        Self {
+            ctx: self.ctx,
+            undoable_linked: self.undoable_linked,
+            child: self.child,
         }
     }
 
@@ -184,7 +193,13 @@ impl<'c> Substituter<'c> {
             if let Some(st_sups) = ctx.get_super_types(st) {
                 for sup in st_sups.skip(1) {
                     if sup.qual_name() == qt.qual_name() {
-                        return Self::substitute_typarams(ctx, qt, &sup);
+                        let mut child = Self::new(ctx);
+                        let sup_tps = sup.typarams();
+                        for (sup_tp, stp) in sup_tps.into_iter().zip(stps.into_iter()) {
+                            let _ = child.substitute_typaram(sup_tp, stp);
+                        }
+                        return Self::substitute_typarams(ctx, qt, &sup)
+                            .map(|opt_subs| opt_subs.map(|sub| sub.with_child(child)));
                     }
                 }
             }
@@ -223,7 +238,13 @@ impl<'c> Substituter<'c> {
             if let Some(st_sups) = ctx.get_super_types(st) {
                 for sup in st_sups.skip(1) {
                     if sup.qual_name() == qt.qual_name() {
-                        return Self::overwrite_typarams(ctx, qt, &sup);
+                        let mut child = Self::new(ctx);
+                        let sup_tps = sup.typarams();
+                        for (sup_tp, stp) in sup_tps.into_iter().zip(stps.into_iter()) {
+                            let _ = child.overwrite_typaram(sup_tp, stp);
+                        }
+                        return Self::overwrite_typarams(ctx, qt, &sup)
+                            .map(|opt_subs| opt_subs.map(|sub| sub.with_child(child)));
                     }
                 }
             }
@@ -311,7 +332,8 @@ impl<'c> Substituter<'c> {
             }
         }
         if !st.is_unbound_var() || !st.is_generalized() {
-            self.child = Self::substitute_typarams(self.ctx, &qt, &st)?.map(Box::new);
+            self.child
+                .extend(Self::substitute_typarams(self.ctx, &qt, &st)?);
         }
         if st.has_no_unbound_var() && qt.has_no_unbound_var() {
             return Ok(());
@@ -385,7 +407,8 @@ impl<'c> Substituter<'c> {
             qt.undoable_link(&st, &self.undoable_linked);
         }
         if !st.is_unbound_var() || !st.is_generalized() {
-            self.child = Self::overwrite_typarams(self.ctx, &qt, &st)?.map(Box::new);
+            self.child
+                .extend(Self::overwrite_typarams(self.ctx, &qt, &st)?);
         }
         let qt = if qt.has_undoable_linked_var() {
             let mut tv_cache = TyVarCache::new(self.ctx.level, self.ctx);

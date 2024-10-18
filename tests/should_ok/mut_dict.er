@@ -12,3 +12,11 @@ assert x == 1
 dics as Dict!({Str: [Int; _]}) = !{:}
 dics.insert! "a", []
 dics.insert! "b", [1, 2, 3]
+
+Manager = Class {
+    .tasks = List Dict! { Int: Str }
+}
+Manager.
+    show_tasks! self, id: Int =
+        for! self.tasks, task =>
+            print! task[id]

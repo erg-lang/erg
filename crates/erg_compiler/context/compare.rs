@@ -506,6 +506,9 @@ impl Context {
                 },
                 _,
             ) => {
+                if lhs.has_unbound_var() {
+                    return true;
+                }
                 if let Ok(evaled) = self.eval_proj_call_t(
                     *l.clone(),
                     attr_name.clone(),
@@ -527,6 +530,9 @@ impl Context {
                     args,
                 },
             ) => {
+                if rhs.has_unbound_var() {
+                    return true;
+                }
                 if let Ok(evaled) = self.eval_proj_call_t(
                     *r.clone(),
                     attr_name.clone(),

@@ -7,3 +7,11 @@ _ = dict.get("b") == "a" # ERR
 _ = dict.get("c") # OK
 _ = dict["b"] # OK
 _ = dict["c"] # ERR
+
+Manager = Class {
+    .tasks = List Dict! { Int: Str }
+}
+Manager.
+    show_tasks! self, id: Str =
+        for! self.tasks, task =>
+            print! task[id] # ERR
