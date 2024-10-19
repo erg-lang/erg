@@ -172,8 +172,9 @@ impl Context {
             self.index().register(ident.inspect().clone(), &vi);
             return Ok(());
         }
+        // don't remove at this point
         if self
-            .remove_class_attr(ident.name.inspect())
+            .get_class_attr(ident.name.inspect())
             .is_some_and(|(_, decl)| !decl.kind.is_auto())
         {
             errs.push(TyCheckError::duplicate_decl_error(
@@ -2120,7 +2121,7 @@ impl Context {
                         } else {
                             self.get_nominal_type_ctx(sup.typ())
                                 .and_then(|ctx| {
-                                    ctx.get_class_attr(&VarName::from_static("__call__"), ctx)
+                                    ctx.get_class_member(&VarName::from_static("__call__"), ctx)
                                 })
                                 .and_then(|vi| {
                                     Some((
@@ -2159,9 +2160,9 @@ impl Context {
                     } else {
                         self.get_nominal_type_ctx(sup.typ())
                             .and_then(|ctx| {
-                                ctx.get_class_attr(&VarName::from_static("new"), ctx)
+                                ctx.get_class_member(&VarName::from_static("new"), ctx)
                                     .or_else(|| {
-                                        ctx.get_class_attr(&VarName::from_static("__call__"), ctx)
+                                        ctx.get_class_member(&VarName::from_static("__call__"), ctx)
                                     })
                             })
                             .and_then(|vi| {

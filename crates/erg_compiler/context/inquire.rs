@@ -2089,9 +2089,9 @@ impl Context {
         // method: obj: 1, subr: (self: Int, other: Int) -> Int
         // non-method: obj: Int, subr: (self: Int, other: Int) -> Int
         // FIXME: staticmethod
-        let is_method = subr
-            .self_t()
-            .map_or(false, |self_t| self.subtype_of(obj.ref_t(), self_t));
+        let is_method = subr.self_t().map_or(false, |self_t| {
+            self.subtype_of(obj.ref_t(), self_t) || !self.subtype_of(obj.ref_t(), &Type)
+        });
         let callee = if let Some(ident) = attr_name {
             if is_method {
                 obj.clone()
@@ -4381,6 +4381,32 @@ impl Context {
                     None
                 } else {
                     ctx.remove_class_attr(name)
+                }
+            })
+        }
+    }
+
+    /// does not include instance attribute declarations
+    /// see also: `get_class_member`
+    pub(crate) fn get_class_attr(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
+        if let Some((k, v)) = self.locals.get_key_value(name) {
+            if !v.kind.is_instance_attr() {
+                return Some((k, v));
+            }
+        } else if let Some((k, v)) = self.decls.get_key_value(name) {
+            if !v.kind.is_instance_attr() {
+                return Some((k, v));
+            }
+        }
+        if self.kind.is_method_def() {
+            self.get_nominal_type_ctx(&mono(&self.name))
+                .and_then(|ctx| ctx.get_class_attr(name))
+        } else {
+            self.methods_list.iter().find_map(|ctx| {
+                if ctx.kind.is_trait_impl() {
+                    None
+                } else {
+                    ctx.get_class_attr(name)
                 }
             })
         }

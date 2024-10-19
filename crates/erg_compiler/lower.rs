@@ -2847,7 +2847,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         }
         let constructor = class_ctx
             .and_then(|ctx| {
-                ctx.get_class_attr(&VarName::from_static("__call__"), &self.module.context)
+                ctx.get_class_member(&VarName::from_static("__call__"), &self.module.context)
             })
             .map_or(Type::FAILURE, |vi| &vi.t);
         let need_to_gen_new = class_ctx

@@ -267,7 +267,9 @@ impl TypeContext {
         Self { typ, ctx }
     }
 
-    pub(crate) fn get_class_attr<'c>(
+    /// contains both class attributes and instance attributes
+    /// see also: `get_class_attr`
+    pub(crate) fn get_class_member<'c>(
         &'c self,
         name: &VarName,
         ctx: &'c Context,
