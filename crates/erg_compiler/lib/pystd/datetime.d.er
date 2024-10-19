@@ -8,6 +8,12 @@
 .TimeDelta <: Eq
 .TimeDelta <: Hash
 .TimeDelta <: Ord
+.TimeDelta|<: Add .TimeDelta|.
+    Output: {TimeDelta}
+    __add__: (self: .TimeDelta, other: .TimeDelta) -> .TimeDelta
+.TimeDelta|<: Sub .TimeDelta|.
+    Output: {TimeDelta}
+    __sub__: (self: .TimeDelta, other: .TimeDelta) -> .TimeDelta
 .TimeDelta.
     __call__: (days := Nat, seconds := Nat, microseconds := Nat, milliseconds := Nat, minutes := Nat, hours := Nat, weeks := Nat) -> .TimeDelta
     __eq__: (self: .TimeDelta, other: .TimeDelta) -> Bool
@@ -24,6 +30,15 @@
 .Date <: Eq
 .Date <: Hash
 .Date <: Ord
+.Date|<: Add .TimeDelta|.
+    Output: {Date}
+    __add__: (self: .Date, other: .TimeDelta) -> .Date
+.Date|<: Sub .TimeDelta|.
+    Output: {Date}
+    __sub__: (self: .Date, other: .TimeDelta) -> .Date
+.Date|<: Sub .Date|.
+    Output: {TimeDelta}
+    __sub__: (self: .Date, other: .Date) -> .TimeDelta
 .Date.
     __call__: (year: Nat, month: Nat, day: Nat) -> .Date
     __eq__: (self: .Date, other: .Date) -> Bool
@@ -75,6 +90,15 @@
     isoformat: (self: .Time, timespec := Str) -> Str
 .DateTime = 'datetime': ClassType
 .DateTime <: .Date
+.DateTime|<: Add .TimeDelta|.
+    Output: {DateTime}
+    __add__: (self: .DateTime, other: .TimeDelta) -> .DateTime
+.DateTime|<: Sub .TimeDelta|.
+    Output: {DateTime}
+    __sub__: (self: .DateTime, other: .TimeDelta) -> .DateTime
+.DateTime|<: Sub .DateTime|.
+    Output: {TimeDelta}
+    __sub__: (self: .DateTime, other: .DateTime) -> .TimeDelta
 .DateTime.
     __call__: (year: 0..9999, month: 1..12, day: 1..31, hour := 0..23, minute := 0..59, second := 0..59, microsecond := Nat, tzinfo := .TZInfo or NoneType) -> .DateTime
     __eq__: (self: .DateTime, other: .DateTime) -> Bool

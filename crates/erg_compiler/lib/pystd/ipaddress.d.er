@@ -31,8 +31,10 @@
 .IPv4Address: ClassType
 .IPv4Address|<: Add Nat|.
     Output: {IPv4Address}
+    __add__: (self: IPv4Address, other: Nat) -> IPv4Address
 .IPv4Address|<: Sub Nat|.
     Output: {IPv4Address}
+    __sub__: (self: IPv4Address, other: Nat) -> IPv4Address
 .IPv4Address <: EqHash
 .IPv4Address <: PartialOrd
 .IPv4Address <: _BaseAddress
@@ -52,8 +54,10 @@
 .IPv6Address: ClassType
 .IPv6Address|<: Add Nat|.
     Output: {IPv6Address}
+    __add__: (self: IPv6Address, other: Nat) -> IPv6Address
 .IPv6Address|<: Sub Nat|.
     Output: {IPv6Address}
+    __sub__: (self: IPv6Address, other: Nat) -> IPv6Address
 .IPv6Address <: EqHash
 .IPv6Address <: PartialOrd
 .IPv6Address <: _BaseAddress

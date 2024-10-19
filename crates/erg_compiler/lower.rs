@@ -2349,6 +2349,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             }
             Err((block, errs)) => {
                 errors.extend(errs);
+                let found_body_t = block.ref_t();
                 let ident = match &sig.pat {
                     ast::VarPattern::Ident(ident) => ident.clone(),
                     ast::VarPattern::Discard(token) => {
@@ -2367,7 +2368,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 };
                 if let Err(errs) = self.module.context.outer.as_mut().unwrap().assign_var_sig(
                     &sig,
-                    &Type::Failure,
+                    found_body_t,
                     ast::DefId(0),
                     None,
                     None,
@@ -2600,11 +2601,12 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             }
             Err((block, errs)) => {
                 errors.extend(errs);
+                let found_body_t = self.module.context.squash_tyvar(block.t());
                 let vi = match self.module.context.outer.as_mut().unwrap().assign_subr(
                     &sig,
                     ast::DefId(0),
                     &params,
-                    &Type::Failure,
+                    &found_body_t,
                     &sig,
                 ) {
                     Ok(vi) => vi,

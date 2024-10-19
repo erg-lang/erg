@@ -3396,6 +3396,7 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().tvar_name(),
             Self::FreeVar(fv) => fv.unbound_name(),
+            Self::Refinement(refine) => refine.t.tvar_name(),
             _ => None,
         }
     }
@@ -3406,6 +3407,7 @@ impl Type {
                 fv.forced_as_ref().linked().unwrap().q_constraint()
             }
             Self::FreeVar(fv) if fv.is_generalized() => fv.constraint(),
+            Self::Refinement(refine) => refine.t.q_constraint(),
             _ => None,
         }
     }
@@ -3415,6 +3417,7 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().get_super(),
             Self::FreeVar(fv) if fv.is_unbound() => fv.get_super(),
+            Self::Refinement(refine) => refine.t.get_super(),
             _ => None,
         }
     }
@@ -3424,6 +3427,7 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().get_sub(),
             Self::FreeVar(fv) if fv.is_unbound() => fv.get_sub(),
+            Self::Refinement(refine) => refine.t.get_sub(),
             _ => None,
         }
     }
@@ -3432,6 +3436,7 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().get_meta_type(),
             Self::FreeVar(fv) if fv.is_unbound() => fv.get_type(),
+            Self::Refinement(refine) => refine.t.get_meta_type(),
             _ => None,
         }
     }
@@ -3440,20 +3445,49 @@ impl Type {
         matches!(self, Self::FreeVar(_))
     }
 
-    pub const fn is_callable(&self) -> bool {
-        matches!(self, Self::Subr { .. } | Self::Callable { .. })
+    pub fn is_callable(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_callable(),
+            Self::Subr { .. } | Self::Callable { .. } => true,
+            Self::Refinement(refine) => refine.t.is_callable(),
+            Self::And(tys, _) => tys.iter().any(|t| t.is_callable()),
+            Self::Or(tys) => tys.iter().all(|t| t.is_callable()),
+            _ => false,
+        }
     }
 
     pub fn is_unbound_var(&self) -> bool {
-        matches!(self, Self::FreeVar(fv) if fv.is_unbound() || fv.crack().is_unbound_var())
+        match self {
+            Self::FreeVar(fv) => fv.is_unbound() || fv.crack().is_unbound_var(),
+            Self::And(tys, _) => tys.iter().any(|t| t.is_unbound_var()),
+            Self::Or(tys) => tys.iter().all(|t| t.is_unbound_var()),
+            Self::Refinement(refine) => refine.t.is_unbound_var(),
+            _ => false,
+        }
     }
 
     pub fn is_named_unbound_var(&self) -> bool {
-        matches!(self, Self::FreeVar(fv) if fv.is_named_unbound() || (fv.is_linked() && fv.crack().is_named_unbound_var()))
+        match self {
+            Self::FreeVar(fv) => {
+                fv.is_named_unbound() || (fv.is_linked() && fv.crack().is_named_unbound_var())
+            }
+            Self::And(tys, _) => tys.iter().any(|t| t.is_named_unbound_var()),
+            Self::Or(tys) => tys.iter().all(|t| t.is_named_unbound_var()),
+            Self::Refinement(refine) => refine.t.is_named_unbound_var(),
+            _ => false,
+        }
     }
 
     pub fn is_unnamed_unbound_var(&self) -> bool {
-        matches!(self, Self::FreeVar(fv) if fv.is_unnamed_unbound() || (fv.is_linked() && fv.crack().is_unnamed_unbound_var()))
+        match self {
+            Self::FreeVar(fv) => {
+                fv.is_unnamed_unbound() || (fv.is_linked() && fv.crack().is_unnamed_unbound_var())
+            }
+            Self::And(tys, _) => tys.iter().any(|t| t.is_unnamed_unbound_var()),
+            Self::Or(tys) => tys.iter().all(|t| t.is_unnamed_unbound_var()),
+            Self::Refinement(refine) => refine.t.is_unnamed_unbound_var(),
+            _ => false,
+        }
     }
 
     /// ```erg
@@ -3466,6 +3500,7 @@ impl Type {
             Self::And(tys, _) => tys.iter().all(|t| t.is_totally_unbound()),
             Self::Or(tys) => tys.iter().all(|t| t.is_totally_unbound()),
             Self::Not(t) => t.is_totally_unbound(),
+            Self::Refinement(refine) => refine.t.is_totally_unbound(),
             _ => false,
         }
     }
@@ -4958,7 +4993,9 @@ impl Type {
             Self::Refinement(refine) => refine.t.destructive_link(to),
             Self::And(tys, _) => {
                 for ty in tys {
-                    ty.destructive_link(to);
+                    if ty.is_unbound_var() {
+                        ty.destructive_link(to);
+                    }
                 }
             }
             Self::Or(tys) => {
@@ -4995,7 +5032,9 @@ impl Type {
             Self::Refinement(refine) => refine.t.undoable_link(to, list),
             Self::And(tys, _) => {
                 for ty in tys {
-                    ty.undoable_link(to, list);
+                    if ty.is_unbound_var() {
+                        ty.undoable_link(to, list);
+                    }
                 }
             }
             Self::Or(tys) => {
@@ -5167,6 +5206,9 @@ impl Type {
                     if let Some(default) = d.default_typ() {
                         ts.extend(default.contained_ts());
                     }
+                }
+                if let Some(kw_var) = sub.kw_var_params.as_ref() {
+                    ts.extend(kw_var.typ().contained_ts());
                 }
                 ts.extend(sub.return_t.contained_ts());
                 ts
