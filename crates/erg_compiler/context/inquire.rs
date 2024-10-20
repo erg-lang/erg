@@ -2109,9 +2109,9 @@ impl Context {
         // method: obj: 1, subr: (self: Int, other: Int) -> Int
         // non-method: obj: Int, subr: (self: Int, other: Int) -> Int
         // FIXME: staticmethod
-        let is_method = subr.self_t().map_or(false, |self_t| {
-            self.subtype_of(obj.ref_t(), self_t) || !self.subtype_of(obj.ref_t(), &Type)
-        });
+        let is_method = subr
+            .self_t()
+            .map_or(false, |self_t| self.subtype_of(obj.ref_t(), self_t));
         let callee = if let Some(ident) = attr_name {
             if is_method {
                 obj.clone()
