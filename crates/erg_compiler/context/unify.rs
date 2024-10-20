@@ -2,14 +2,13 @@
 use std::iter::repeat;
 use std::mem;
 use std::option::Option;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 use erg_common::consts::DEBUG_MODE;
 use erg_common::fresh::FRESH_GEN;
 use erg_common::traits::Locational;
-use erg_common::Str;
 #[allow(unused_imports)]
 use erg_common::{dict, fmt_vec, fn_name, log};
+use erg_common::{get_hash, set_recursion_limit, Str};
 
 use crate::context::eval::Substituter;
 use crate::context::instantiate::TyVarCache;
@@ -35,7 +34,6 @@ pub struct Unifier<'c, 'l, 'u, L: Locational> {
     loc: &'l L,
     undoable: Option<&'u UndoableLinkedList>,
     change_generalized: bool,
-    recursion_limit: AtomicUsize,
     param_name: Option<Str>,
 }
 
@@ -52,7 +50,6 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
             loc,
             undoable,
             change_generalized,
-            recursion_limit: AtomicUsize::new(128),
             param_name,
         }
     }
@@ -1037,21 +1034,18 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
     /// ```
     fn sub_unify(&self, maybe_sub: &Type, maybe_super: &Type) -> TyCheckResult<()> {
         log!(info "trying {}sub_unify:\nmaybe_sub: {maybe_sub}\nmaybe_super: {maybe_super}", self.undoable.map_or("", |_| "undoable_"));
-        if self.recursion_limit.fetch_sub(1, Ordering::SeqCst) == 0 {
-            self.recursion_limit.store(128, Ordering::SeqCst);
-            log!(err "recursion limit exceeded: {maybe_sub} / {maybe_super}");
-            return Err(TyCheckError::recursion_limit(
-                self.ctx.cfg.input.clone(),
-                line!() as usize,
-                self.loc.loc(),
-                fn_name!(),
-                line!(),
-            )
-            .into());
-        }
+        set_recursion_limit!(
+            panic,
+            "recursion limit exceed: sub_unify({maybe_sub}, {maybe_super})",
+            128
+        );
         // In this case, there is no new information to be gained
-        // この場合、特に新しく得られる情報はない
-        if maybe_sub == &Type::Never || maybe_super == &Type::Obj || maybe_super.addr_eq(maybe_sub)
+        if maybe_sub == &Type::Never
+            || maybe_super == &Type::Obj
+            || maybe_super.addr_eq(maybe_sub)
+            || (maybe_sub.has_no_unbound_var()
+                && maybe_super.has_no_unbound_var()
+                && maybe_sub == maybe_super)
         {
             log!(info "no-op:\nmaybe_sub: {maybe_sub}\nmaybe_super: {maybe_super}");
             return Ok(());
@@ -1481,8 +1475,11 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                             .inspect_err(|_e| sub_fv.undo())?;
                     } else if !self.ctx.subtype_of(&sub, &Never) {
                         sub_fv.undo();
+                        let sub_hash = get_hash(maybe_sub);
                         maybe_sub.coerce(self.undoable);
-                        return self.sub_unify(maybe_sub, maybe_super);
+                        if get_hash(maybe_sub) != sub_hash {
+                            return self.sub_unify(maybe_sub, maybe_super);
+                        }
                     } else {
                         // e.g. ?T / Structural({ .method = (self: ?T) -> Int })
                         let constr = Constraint::new_sandwiched(
@@ -1518,23 +1515,27 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     }
                     let sub = mem::take(&mut sub);
                     // min(L, R) != L and R
-                    let new_sup = if let Some(new_sup) = self.ctx.min(&supe, maybe_super).either() {
+                    let new_super = if let Some(new_sup) = self.ctx.min(&supe, maybe_super).either()
+                    {
                         new_sup.clone()
                     } else {
                         self.ctx.intersection(&supe, maybe_super)
                     };
-                    self.sub_unify(&sub, &new_sup)?;
+                    if !maybe_sub.is_recursive() && (&sub != maybe_sub || &new_super != maybe_super)
+                    {
+                        self.sub_unify(&sub, &new_super)?;
+                    }
                     // ?T(:> Int, <: Int) ==> ?T == Int
                     // ?T(:> List(Int, 3), <: List(?T, ?N)) ==> ?T == List(Int, 3)
                     // ?T(:> List(Int, 3), <: Indexable(?K, ?V)) ==> ?T(:> List(Int, 3), <: Indexable(0..2, Int))
                     if !sub.is_refinement()
-                        && new_sup.qual_name() == sub.qual_name()
-                        && !new_sup.is_unbound_var()
+                        && new_super.qual_name() == sub.qual_name()
+                        && !new_super.is_unbound_var()
                         && !sub.is_unbound_var()
                     {
                         maybe_sub.link(&sub, self.undoable);
                     } else {
-                        maybe_sub.update_tyvar(sub, new_sup, self.undoable, true);
+                        maybe_sub.update_tyvar(sub, new_super, self.undoable, true);
                     }
                 }
                 // sub_unify(?T(: Type), Int): (?T(<: Int))

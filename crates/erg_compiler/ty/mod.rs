@@ -31,7 +31,7 @@ use erg_common::fresh::FRESH_GEN;
 use erg_common::log;
 use erg_common::set::Set;
 use erg_common::traits::{LimitedDisplay, Locational, StructuralEq};
-use erg_common::{enum_unwrap, fmt_option, ref_addr_eq, set, set_recursion_limit, Str};
+use erg_common::{enum_unwrap, fmt_option, ref_addr_eq, set, Str};
 
 use erg_parser::ast::Expr;
 use erg_parser::token::TokenKind;
@@ -1005,7 +1005,7 @@ impl Eq for RefineKind {}
 /// {_: StrWithLen N | N >= 0}
 /// {T: (Int, Int) | T.0 >= 0, T.1 >= 0}
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct RefinementType {
     pub var: Str,
     pub t: Box<Type>,
@@ -1026,6 +1026,24 @@ impl<'a> TryFrom<&'a Type> for &'a RefinementType {
             Type::Refinement(refine) => Ok(refine),
             _ => Err(()),
         }
+    }
+}
+
+impl PartialEq for RefinementType {
+    fn eq(&self, other: &Self) -> bool {
+        self.t == other.t && *self.pred == other.pred.clone().change_subject_name(self.var.clone())
+    }
+}
+
+impl Eq for RefinementType {}
+
+impl Hash for RefinementType {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.t.hash(state);
+        self.pred
+            .clone()
+            .change_subject_name("%RefinementType::hash".into())
+            .hash(state);
     }
 }
 
@@ -3616,8 +3634,6 @@ impl Type {
                 fv.crack().destructive_coerce();
             }
             Type::FreeVar(fv) if fv.is_unbound_and_sandwiched() => {
-                // TODO: other way to avoid infinite recursion
-                set_recursion_limit!({}, 128);
                 let (sub, _sup) = fv.get_subsup().unwrap();
                 sub.destructive_coerce();
                 self.destructive_link(&sub);
@@ -3684,7 +3700,6 @@ impl Type {
                 }
             }
             Type::FreeVar(fv) if fv.is_unbound_and_sandwiched() => {
-                set_recursion_limit!({}, 128);
                 let (sub, _sup) = fv.get_subsup().unwrap();
                 sub.undoable_coerce(list);
                 self.undoable_link(&sub, list);
