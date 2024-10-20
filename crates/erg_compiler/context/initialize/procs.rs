@@ -60,7 +60,7 @@ impl Context {
         )
         .quantify();
         let t_proc_ret = if PYTHON_MODE { Obj } else { NoneType };
-        let t_for = nd_proc(
+        let t_for = proc(
             vec![
                 kw("iterable", poly("Iterable", vec![ty_tp(T.clone())])),
                 kw(
@@ -68,6 +68,8 @@ impl Context {
                     nd_proc(vec![anon(T.clone())], None, t_proc_ret.clone()),
                 ),
             ],
+            None,
+            vec![kw("else!", nd_proc(vec![], None, t_proc_ret.clone()))],
             None,
             NoneType,
         )
@@ -90,11 +92,13 @@ impl Context {
             // not Bool! type because `cond` may be the result of evaluation of a mutable object's method returns Bool.
             nd_proc(vec![], None, Bool)
         };
-        let t_while = nd_proc(
+        let t_while = proc(
             vec![
                 kw("cond!", t_cond),
-                kw("proc!", nd_proc(vec![], None, t_proc_ret)),
+                kw("proc!", nd_proc(vec![], None, t_proc_ret.clone())),
             ],
+            None,
+            vec![kw("else!", nd_proc(vec![], None, t_proc_ret.clone()))],
             None,
             NoneType,
         );

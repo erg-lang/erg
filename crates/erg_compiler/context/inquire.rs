@@ -750,6 +750,27 @@ impl Context {
         Triple::None
     }
 
+    pub(crate) fn rec_get_param_or_decl_info(&self, name: &str) -> Option<VarInfo> {
+        if let Some(vi) = self
+            .params
+            .iter()
+            .find(|(var_name, _)| var_name.as_ref().is_some_and(|n| n.inspect() == name))
+            .map(|(_, vi)| vi)
+            .or_else(|| self.decls.get(name))
+        {
+            return Some(vi.clone());
+        }
+        for method_ctx in self.methods_list.iter() {
+            if let Some(vi) = method_ctx.rec_get_param_or_decl_info(name) {
+                return Some(vi);
+            }
+        }
+        if let Some(parent) = self.get_outer_scope().or_else(|| self.get_builtins()) {
+            return parent.rec_get_param_or_decl_info(name);
+        }
+        None
+    }
+
     pub(crate) fn get_attr_info(
         &self,
         obj: &hir::Expr,

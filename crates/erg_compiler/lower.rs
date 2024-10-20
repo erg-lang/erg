@@ -2253,6 +2253,11 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             errors.extend(errs);
         }
         let outer = self.module.context.outer.as_ref().unwrap();
+        let existing_vi = sig
+            .ident()
+            .and_then(|ident| outer.get_current_scope_var(&ident.name))
+            .cloned();
+        let existing_t = existing_vi.as_ref().map(|vi| vi.t.clone());
         let expect_body_t = sig
             .t_spec
             .as_ref()
@@ -2269,14 +2274,14 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             })
             .or_else(|| {
                 sig.ident()
-                    .and_then(|ident| outer.get_current_scope_var(&ident.name))
+                    .and_then(|ident| outer.rec_get_param_or_decl_info(ident.inspect()))
                     .map(|vi| vi.t.clone())
             });
         match self.lower_block(body.block, expect_body.or(expect_body_t.as_ref())) {
             Ok(block) => {
                 let found_body_t = block.ref_t();
                 let ident = match &sig.pat {
-                    ast::VarPattern::Ident(ident) => ident.clone(),
+                    ast::VarPattern::Ident(ident) | ast::VarPattern::Phi(ident) => ident.clone(),
                     ast::VarPattern::Discard(token) => {
                         ast::Identifier::private_from_token(token.clone())
                     }
@@ -2291,6 +2296,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                             .map_err(|errs| (None, errors.concat(errs)));
                     }
                 };
+                let mut no_reassign = false;
                 if let Some(expect_body_t) = expect_body_t {
                     // TODO: expect_body_t is smaller for constants
                     // TODO: 定数の場合、expect_body_tのほうが小さくなってしまう
@@ -2302,20 +2308,35 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                             found_body_t,
                         ) {
                             errors.push(e);
+                            no_reassign = true;
                         }
                     }
                 }
-                let vi = match self.module.context.outer.as_mut().unwrap().assign_var_sig(
-                    &sig,
-                    found_body_t,
-                    body.id,
-                    block.last(),
-                    None,
-                ) {
-                    Ok(vi) => vi,
-                    Err(errs) => {
-                        errors.extend(errs);
-                        VarInfo::ILLEGAL
+                let found_body_t = if sig.is_phi() {
+                    self.module
+                        .context
+                        .union(existing_t.as_ref().unwrap_or(&Type::Never), found_body_t)
+                } else {
+                    found_body_t.clone()
+                };
+                let vi = if no_reassign {
+                    VarInfo {
+                        t: found_body_t,
+                        ..existing_vi.unwrap_or_default()
+                    }
+                } else {
+                    match self.module.context.outer.as_mut().unwrap().assign_var_sig(
+                        &sig,
+                        &found_body_t,
+                        body.id,
+                        block.last(),
+                        None,
+                    ) {
+                        Ok(vi) => vi,
+                        Err(errs) => {
+                            errors.extend(errs);
+                            VarInfo::ILLEGAL
+                        }
                     }
                 };
                 let ident = hir::Identifier::new(ident, None, vi);
@@ -2351,7 +2372,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 errors.extend(errs);
                 let found_body_t = block.ref_t();
                 let ident = match &sig.pat {
-                    ast::VarPattern::Ident(ident) => ident.clone(),
+                    ast::VarPattern::Ident(ident) | ast::VarPattern::Phi(ident) => ident.clone(),
                     ast::VarPattern::Discard(token) => {
                         ast::Identifier::private_from_token(token.clone())
                     }
@@ -2366,9 +2387,16 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                             .map_err(|errs| (None, errors.concat(errs)));
                     }
                 };
+                let found_body_t = if sig.is_phi() {
+                    self.module
+                        .context
+                        .union(existing_t.as_ref().unwrap_or(&Type::Never), found_body_t)
+                } else {
+                    found_body_t.clone()
+                };
                 if let Err(errs) = self.module.context.outer.as_mut().unwrap().assign_var_sig(
                     &sig,
-                    found_body_t,
+                    &found_body_t,
                     ast::DefId(0),
                     None,
                     None,

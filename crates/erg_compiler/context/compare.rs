@@ -445,6 +445,23 @@ impl Context {
                     && var_params_judge
                     && default_check() // contravariant
             }
+            // {Int} <: Obj -> Int
+            (Subr(_) | Quantified(_), Refinement(refine))
+                if rhs.singleton_value().is_some() && self.subtype_of(&refine.t, &ClassType) =>
+            {
+                let Ok(typ) = self.convert_tp_into_type(rhs.singleton_value().unwrap().clone())
+                else {
+                    return false;
+                };
+                let Some(ctx) = self.get_nominal_type_ctx(&typ) else {
+                    return false;
+                };
+                if let Some((_, __call__)) = ctx.get_class_attr("__call__") {
+                    self.supertype_of(lhs, &__call__.t)
+                } else {
+                    false
+                }
+            }
             // ?T(<: Int) :> ?U(:> Nat)
             // ?T(<: Int) :> ?U(:> Int)
             // ?T(<: Nat) !:> ?U(:> Int) (if the upper bound of LHS is smaller than the lower bound of RHS, LHS cannot not be a supertype)

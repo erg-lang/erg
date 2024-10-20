@@ -4723,6 +4723,10 @@ pub enum VarPattern {
     Discard(Token),
     Glob(Token),
     Ident(Identifier),
+    /// Used when a different value is assigned in a branch other than `Ident`.
+    /// (e.g. the else variable when a variable is defined with Python if-else)
+    /// Not used in Erg mode at this time
+    Phi(Identifier),
     /// e.g. `[x, y, z]` of `[x, y, z] = [1, 2, 3]`
     List(VarListPattern),
     /// e.g. `(x, y, z)` of `(x, y, z) = (1, 2, 3)`
@@ -4739,6 +4743,7 @@ impl NestedDisplay for VarPattern {
             Self::Discard(_) => write!(f, "_"),
             Self::Glob(_) => write!(f, "*"),
             Self::Ident(ident) => write!(f, "{ident}"),
+            Self::Phi(ident) => write!(f, "(phi){ident}"),
             Self::List(l) => write!(f, "{l}"),
             Self::Tuple(t) => write!(f, "{t}"),
             Self::Record(r) => write!(f, "{r}"),
@@ -4748,9 +4753,9 @@ impl NestedDisplay for VarPattern {
 }
 
 impl_display_from_nested!(VarPattern);
-impl_locational_for_enum!(VarPattern; Discard, Glob, Ident, List, Tuple, Record, DataPack);
-impl_into_py_for_enum!(VarPattern; Discard, Glob, Ident, List, Tuple, Record, DataPack);
-impl_from_py_for_enum!(VarPattern; Discard(Token), Glob(Token), Ident(Identifier), List(VarListPattern), Tuple(VarTuplePattern), Record(VarRecordPattern), DataPack(VarDataPackPattern));
+impl_locational_for_enum!(VarPattern; Discard, Glob, Ident, Phi, List, Tuple, Record, DataPack);
+impl_into_py_for_enum!(VarPattern; Discard, Glob, Ident, Phi, List, Tuple, Record, DataPack);
+impl_from_py_for_enum!(VarPattern; Discard(Token), Glob(Token), Ident(Identifier), Phi(Identifier), List(VarListPattern), Tuple(VarTuplePattern), Record(VarRecordPattern), DataPack(VarDataPackPattern));
 
 impl VarPattern {
     pub const fn inspect(&self) -> Option<&Str> {
@@ -4900,9 +4905,13 @@ impl VarSignature {
 
     pub fn ident(&self) -> Option<&Identifier> {
         match &self.pat {
-            VarPattern::Ident(ident) => Some(ident),
+            VarPattern::Ident(ident) | VarPattern::Phi(ident) => Some(ident),
             _ => None,
         }
+    }
+
+    pub fn is_phi(&self) -> bool {
+        matches!(self.pat, VarPattern::Phi(_))
     }
 }
 

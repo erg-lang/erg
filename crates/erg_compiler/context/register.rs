@@ -130,7 +130,7 @@ impl Context {
         let mut errs = TyCheckErrors::empty();
         let muty = Mutability::from(&sig.inspect().unwrap_or(UBAR)[..]);
         let ident = match &sig.pat {
-            ast::VarPattern::Ident(ident) => ident,
+            ast::VarPattern::Ident(ident) | ast::VarPattern::Phi(ident) => ident,
             ast::VarPattern::Discard(_) | ast::VarPattern::Glob(_) => {
                 return Ok(());
             }
@@ -287,7 +287,7 @@ impl Context {
             None
         };
         let ident = match &sig.pat {
-            ast::VarPattern::Ident(ident) => ident,
+            ast::VarPattern::Ident(ident) | ast::VarPattern::Phi(ident) => ident,
             ast::VarPattern::Discard(_) => {
                 return Ok(VarInfo {
                     t: body_t.clone(),

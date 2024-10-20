@@ -77,6 +77,14 @@ impl<T, E> Triple<T, E> {
         }
     }
 
+    pub fn or_else_triple(self, f: impl FnOnce() -> Triple<T, E>) -> Triple<T, E> {
+        match self {
+            Triple::None => f(),
+            Triple::Ok(ok) => Triple::Ok(ok),
+            Triple::Err(err) => Triple::Err(err),
+        }
+    }
+
     pub fn unwrap_or(self, default: T) -> T {
         match self {
             Triple::None => default,
