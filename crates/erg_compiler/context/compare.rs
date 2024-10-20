@@ -446,8 +446,8 @@ impl Context {
                     && default_check() // contravariant
             }
             // {Int} <: Obj -> Int
-            (Subr(_) | Quantified(_), Refinement(refine))
-                if rhs.singleton_value().is_some() && self.subtype_of(&refine.t, &ClassType) =>
+            (Subr(_) | Quantified(_), Refinement(_refine))
+                if rhs.singleton_value().is_some() && rhs.is_singleton_refinement_type() =>
             {
                 let Ok(typ) = self.convert_tp_into_type(rhs.singleton_value().unwrap().clone())
                 else {

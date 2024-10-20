@@ -1875,7 +1875,8 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 self.sub_unify_pred(&sub.pred, &supe.pred)?;
             }
             // {Int} <: Obj -> Int
-            (Refinement(_), Subr(_) | Quantified(_)) if maybe_sub.singleton_value().is_some() => {}
+            (Refinement(_), Subr(_) | Quantified(_))
+                if maybe_sub.is_singleton_refinement_type() => {}
             // {I: Int | I >= 1} <: Nat == {I: Int | I >= 0}
             (Refinement(_), sup) => {
                 let sup = sup.clone().into_refinement();
