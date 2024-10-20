@@ -2109,11 +2109,9 @@ impl Context {
         // method: obj: 1, subr: (self: Int, other: Int) -> Int
         // non-method: obj: Int, subr: (self: Int, other: Int) -> Int
         // FIXME: staticmethod
-        let is_method = subr.self_t().map_or(false, |self_t| {
-            self.subtype_of(obj.ref_t(), self_t) || !self.subtype_of(obj.ref_t(), &Type)
-        });
+        let is_method_call = subr.self_t().is_some() && !obj.ref_t().is_singleton_refinement_type();
         let callee = if let Some(ident) = attr_name {
-            if is_method {
+            if is_method_call {
                 obj.clone()
             } else {
                 let attr = hir::Attribute::new(obj.clone(), hir::Identifier::bare(ident.clone()));
@@ -2122,7 +2120,7 @@ impl Context {
         } else {
             obj.clone()
         };
-        let params_len = if is_method {
+        let params_len = if is_method_call {
             subr.non_default_params.len().saturating_sub(1) + subr.default_params.len()
         } else {
             subr.non_default_params.len() + subr.default_params.len()
@@ -2133,10 +2131,16 @@ impl Context {
             || (params_len == pos_args.len() + kw_args.len() && there_var))
             && subr.is_no_var()
         {
-            return Err(self.gen_too_many_args_error(&callee, subr, is_method, pos_args, kw_args));
+            return Err(self.gen_too_many_args_error(
+                &callee,
+                subr,
+                is_method_call,
+                pos_args,
+                kw_args,
+            ));
         }
         let mut passed_params = set! {};
-        let non_default_params = if is_method {
+        let non_default_params = if is_method_call {
             let mut non_default_params = subr.non_default_params.iter();
             let self_pt = non_default_params.next().unwrap();
             if let Err(mut es) = self.sub_unify(obj.ref_t(), self_pt.typ(), obj, self_pt.name()) {
@@ -2259,7 +2263,7 @@ impl Context {
                 .enumerate()
                 .filter(|(_, pt)| pt.name().map_or(true, |name| !passed_params.contains(name)))
                 .map(|(i, pt)| {
-                    let n = if is_method { i } else { i + 1 };
+                    let n = if is_method_call { i } else { i + 1 };
                     let nth = format!("({} param)", ordinal_num(n));
                     pt.name()
                         .map_or(nth.clone(), |name| format!("{name} {nth}"))

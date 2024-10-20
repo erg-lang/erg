@@ -1536,6 +1536,10 @@ impl TyParam {
         }
     }
 
+    pub fn as_type(&self) -> Option<&Type> {
+        <&Type>::try_from(self).ok()
+    }
+
     pub fn substitute(self, var: &str, to: &TyParam) -> TyParam {
         if self.qual_name().is_some_and(|n| n == var) {
             return to.clone();

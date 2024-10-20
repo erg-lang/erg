@@ -2634,6 +2634,17 @@ impl Type {
         }
     }
 
+    pub fn is_singleton_refinement_type(&self) -> bool {
+        match self {
+            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_singleton_refinement_type(),
+            Self::Refinement(refine) => {
+                matches!(refine.pred.as_ref(), Predicate::Equal { rhs, .. } if rhs.as_type().is_some())
+            }
+            Self::And(tys, _) => tys.iter().any(|t| t.is_singleton_refinement_type()),
+            _ => false,
+        }
+    }
+
     pub fn is_record(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_record(),
