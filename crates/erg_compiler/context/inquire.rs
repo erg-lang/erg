@@ -750,7 +750,9 @@ impl Context {
         Triple::None
     }
 
-    pub(crate) fn rec_get_param_or_decl_info(&self, name: &str) -> Option<VarInfo> {
+    pub(crate) fn get_current_param_or_decl(&self, name: &str) -> Option<VarInfo> {
+        #[cfg(feature = "py_compat")]
+        let name = self.erg_to_py_names.get(name).map_or(name, |s| &s[..]);
         if let Some(vi) = self
             .params
             .iter()
@@ -761,12 +763,9 @@ impl Context {
             return Some(vi.clone());
         }
         for method_ctx in self.methods_list.iter() {
-            if let Some(vi) = method_ctx.rec_get_param_or_decl_info(name) {
+            if let Some(vi) = method_ctx.get_current_param_or_decl(name) {
                 return Some(vi);
             }
-        }
-        if let Some(parent) = self.get_outer_scope().or_else(|| self.get_builtins()) {
-            return parent.rec_get_param_or_decl_info(name);
         }
         None
     }

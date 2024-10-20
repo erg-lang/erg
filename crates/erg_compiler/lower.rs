@@ -2274,7 +2274,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             })
             .or_else(|| {
                 sig.ident()
-                    .and_then(|ident| outer.rec_get_param_or_decl_info(ident.inspect()))
+                    .and_then(|ident| outer.get_current_param_or_decl(ident.inspect()))
                     .map(|vi| vi.t.clone())
             });
         match self.lower_block(body.block, expect_body.or(expect_body_t.as_ref())) {
