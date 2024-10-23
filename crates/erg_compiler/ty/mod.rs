@@ -3636,6 +3636,7 @@ impl Type {
             Type::FreeVar(fv) if fv.is_unbound_and_sandwiched() => {
                 let (sub, _sup) = fv.get_subsup().unwrap();
                 sub.destructive_coerce();
+                let sub = sub.replace(self, &Type::Never);
                 self.destructive_link(&sub);
             }
             Type::And(tys, _) => {
@@ -4477,19 +4478,16 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().map(f),
             Self::FreeVar(fv) => {
-                let fv_clone = fv.deep_clone();
-                if let Some((sub, sup)) = fv_clone.get_subsup() {
+                if let Some((sub, sup)) = fv.get_subsup() {
                     fv.dummy_link();
-                    fv_clone.dummy_link();
                     let sub = sub.map(f);
                     let sup = sup.map(f);
                     fv.undo();
-                    fv_clone.undo();
-                    fv_clone.update_constraint(Constraint::new_sandwiched(sub, sup), true);
-                } else if let Some(ty) = fv_clone.get_type() {
-                    fv_clone.update_constraint(Constraint::new_type_of(ty.map(f)), true);
+                    fv.update_constraint(Constraint::new_sandwiched(sub, sup), true);
+                } else if let Some(ty) = fv.get_type() {
+                    fv.update_constraint(Constraint::new_type_of(ty.map(f)), true);
                 }
-                Self::FreeVar(fv_clone)
+                Self::FreeVar(fv)
             }
             Self::Refinement(mut refine) => {
                 refine.t = Box::new(refine.t.map(f));
@@ -4564,22 +4562,16 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked()._replace_tp(target, to),
             Self::FreeVar(fv) => {
-                let fv_clone = fv.deep_clone();
-                if let Some((sub, sup)) = fv_clone.get_subsup() {
+                if let Some((sub, sup)) = fv.get_subsup() {
                     fv.dummy_link();
-                    fv_clone.dummy_link();
                     let sub = sub._replace_tp(target, to);
                     let sup = sup._replace_tp(target, to);
                     fv.undo();
-                    fv_clone.undo();
-                    fv_clone.update_constraint(Constraint::new_sandwiched(sub, sup), true);
-                } else if let Some(ty) = fv_clone.get_type() {
-                    fv_clone.update_constraint(
-                        Constraint::new_type_of(ty._replace_tp(target, to)),
-                        true,
-                    );
+                    fv.update_constraint(Constraint::new_sandwiched(sub, sup), true);
+                } else if let Some(ty) = fv.get_type() {
+                    fv.update_constraint(Constraint::new_type_of(ty._replace_tp(target, to)), true);
                 }
-                Self::FreeVar(fv_clone)
+                Self::FreeVar(fv)
             }
             Self::Refinement(mut refine) => {
                 refine.t = Box::new(refine.t._replace_tp(target, to));
@@ -4655,19 +4647,16 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().map_tp(f),
             Self::FreeVar(fv) => {
-                let fv_clone = fv.deep_clone();
-                if let Some((sub, sup)) = fv_clone.get_subsup() {
+                if let Some((sub, sup)) = fv.get_subsup() {
                     fv.dummy_link();
-                    fv_clone.dummy_link();
                     let sub = sub.map_tp(f);
                     let sup = sup.map_tp(f);
                     fv.undo();
-                    fv_clone.undo();
-                    fv_clone.update_constraint(Constraint::new_sandwiched(sub, sup), true);
-                } else if let Some(ty) = fv_clone.get_type() {
-                    fv_clone.update_constraint(Constraint::new_type_of(ty.map_tp(f)), true);
+                    fv.update_constraint(Constraint::new_sandwiched(sub, sup), true);
+                } else if let Some(ty) = fv.get_type() {
+                    fv.update_constraint(Constraint::new_type_of(ty.map_tp(f)), true);
                 }
-                Self::FreeVar(fv_clone)
+                Self::FreeVar(fv)
             }
             Self::Refinement(mut refine) => {
                 refine.t = Box::new(refine.t.map_tp(f));
@@ -4737,19 +4726,16 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().try_map_tp(f),
             Self::FreeVar(fv) => {
-                let fv_clone = fv.deep_clone();
-                if let Some((sub, sup)) = fv_clone.get_subsup() {
+                if let Some((sub, sup)) = fv.get_subsup() {
                     fv.dummy_link();
-                    fv_clone.dummy_link();
                     let sub = sub.try_map_tp(f)?;
                     let sup = sup.try_map_tp(f)?;
                     fv.undo();
-                    fv_clone.undo();
-                    fv_clone.update_constraint(Constraint::new_sandwiched(sub, sup), true);
-                } else if let Some(ty) = fv_clone.get_type() {
-                    fv_clone.update_constraint(Constraint::new_type_of(ty.try_map_tp(f)?), true);
+                    fv.update_constraint(Constraint::new_sandwiched(sub, sup), true);
+                } else if let Some(ty) = fv.get_type() {
+                    fv.update_constraint(Constraint::new_type_of(ty.try_map_tp(f)?), true);
                 }
-                Ok(Self::FreeVar(fv_clone))
+                Ok(Self::FreeVar(fv))
             }
             Self::Refinement(mut refine) => {
                 refine.t = Box::new(refine.t.try_map_tp(f)?);
@@ -5014,7 +5000,9 @@ impl Type {
         match self {
             Self::FreeVar(fv) => {
                 let to_ = to.clone().eliminate_subsup(self).eliminate_recursion(self);
-                fv.link(&to_);
+                if !self.addr_eq(&to_) {
+                    fv.link(&to_);
+                }
             }
             Self::Refinement(refine) => refine.t.destructive_link(to),
             Self::And(tys, _) => {
@@ -5126,7 +5114,7 @@ impl Type {
         list: Option<&UndoableLinkedList>,
         in_instantiation: bool,
     ) {
-        let new_constraint = new_constraint.eliminate_recursion(self);
+        let new_constraint = new_constraint.eliminate_subsup_recursion(self);
         if let Some(list) = list {
             self.undoable_update_constraint(new_constraint, list);
         } else {
@@ -5134,6 +5122,7 @@ impl Type {
         }
     }
 
+    /// :> new_sub, <: new_sup
     pub(crate) fn update_tyvar(
         &self,
         new_sub: Type,
@@ -5147,6 +5136,17 @@ impl Type {
             let new_constraint = Constraint::new_sandwiched(new_sub, new_sup);
             self.update_constraint(new_constraint, list, in_instantiation);
         }
+    }
+
+    /// <: new_sup
+    pub(crate) fn update_super(
+        &self,
+        new_sup: Type,
+        list: Option<&UndoableLinkedList>,
+        in_instantiation: bool,
+    ) {
+        let new_constraint = Constraint::new_subtype_of(new_sup);
+        self.update_constraint(new_constraint, list, in_instantiation);
     }
 
     fn inc_undo_count(&self) {

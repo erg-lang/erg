@@ -1621,7 +1621,9 @@ impl TyParam {
             Self::FreeVar(fv) => {
                 if to.contains_tp(self) {
                     let to = to.clone().eliminate_recursion(self);
-                    fv.link(&to);
+                    if !self.addr_eq(&to) {
+                        fv.link(&to);
+                    }
                 } else {
                     fv.link(to);
                 }

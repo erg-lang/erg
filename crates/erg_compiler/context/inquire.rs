@@ -800,7 +800,7 @@ impl Context {
                     .structuralize();
                     let intersection = self.intersection(&sup, &structural);
                     if intersection != Never {
-                        fv.update_super(|_| intersection);
+                        obj.ref_t().update_super(intersection, None, true);
                     }
                 }
             }
@@ -1384,7 +1384,7 @@ impl Context {
                     .structuralize();
                     let intersection = self.intersection(&sup, &structural);
                     if intersection != Never {
-                        fv.update_super(|_| intersection);
+                        obj.ref_t().update_super(intersection, None, true);
                     }
                 }
             }

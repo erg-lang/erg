@@ -7,7 +7,7 @@ use erg_common::dict::Dict;
 use erg_common::set::Set;
 use erg_common::style::colors::DEBUG_ERROR;
 use erg_common::traits::StructuralEq;
-use erg_common::{assume_unreachable, fmt_vec, log, set};
+use erg_common::{assume_unreachable, fmt_vec, log, set, set_recursion_limit};
 use erg_common::{Str, Triple};
 
 use crate::context::eval::UndoableLinkedList;
@@ -359,6 +359,11 @@ impl Context {
     /// 単一化、評価等はここでは行わない、スーパータイプになる **可能性があるか** だけ判定する
     /// ので、lhsが(未連携)型変数の場合は単一化せずにtrueを返す
     pub(crate) fn structural_supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
+        set_recursion_limit!(
+            panic,
+            "recursion limit exceed: structural_supertype_of({lhs}, {rhs})",
+            128
+        );
         match (lhs, rhs) {
             // Proc :> Func if params are compatible
             // * default params can be omitted (e.g. (Int, x := Int) -> Int <: (Int) -> Int)
