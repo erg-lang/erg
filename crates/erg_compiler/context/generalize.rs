@@ -200,13 +200,17 @@ impl<'c> Generalizer<'c> {
                         // |T :> Int| X -> T ==> X -> Int
                         self.generalize_t(sub, uninit)
                     } else {
-                        fv.update_constraint(self.generalize_constraint(&fv), true);
-                        Type::FreeVar(fv)
+                        let constr = self.generalize_constraint(&fv);
+                        let ty = Type::FreeVar(fv);
+                        ty.update_constraint(constr, None, true);
+                        ty
                     }
                 } else {
                     // ?S(: Str) => 'S
-                    fv.update_constraint(self.generalize_constraint(&fv), true);
-                    Type::FreeVar(fv)
+                    let constr = self.generalize_constraint(&fv);
+                    let ty = Type::FreeVar(fv);
+                    ty.update_constraint(constr, None, true);
+                    ty
                 }
             }
             FreeVar(_) => free_type,
@@ -951,8 +955,9 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 } else {
                     let new_constraint = fv.crack_constraint().clone();
                     let new_constraint = self.deref_constraint(new_constraint)?;
-                    fv.update_constraint(new_constraint, true);
-                    Ok(Type::FreeVar(fv))
+                    let ty = Type::FreeVar(fv);
+                    ty.update_constraint(new_constraint, None, true);
+                    Ok(ty)
                 }
             }
             FreeVar(_) => Ok(t),

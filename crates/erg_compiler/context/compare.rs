@@ -359,7 +359,11 @@ impl Context {
     /// 単一化、評価等はここでは行わない、スーパータイプになる **可能性があるか** だけ判定する
     /// ので、lhsが(未連携)型変数の場合は単一化せずにtrueを返す
     pub(crate) fn structural_supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
-        set_recursion_limit!(false, 128);
+        set_recursion_limit!(
+            panic,
+            "recursion limit exceed: structural_supertype_of({lhs}, {rhs})",
+            128
+        );
         match (lhs, rhs) {
             // Proc :> Func if params are compatible
             // * default params can be omitted (e.g. (Int, x := Int) -> Int <: (Int) -> Int)
@@ -446,8 +450,8 @@ impl Context {
                     && default_check() // contravariant
             }
             // {Int} <: Obj -> Int
-            (Subr(_) | Quantified(_), Refinement(refine))
-                if rhs.singleton_value().is_some() && self.subtype_of(&refine.t, &ClassType) =>
+            (Subr(_) | Quantified(_), Refinement(_refine))
+                if rhs.singleton_value().is_some() && rhs.is_singleton_refinement_type() =>
             {
                 let Ok(typ) = self.convert_tp_into_type(rhs.singleton_value().unwrap().clone())
                 else {
@@ -937,6 +941,11 @@ impl Context {
         }
     }
 
+    /// ```erg
+    /// Int.fields() == { imag: Int, real: Int, abs: (self: Int) -> Nat, ... }
+    /// ?T(<: Int).fields() == Int.fields()
+    /// Structural({ .x = Int }).fields() == { x: Int }
+    /// ```
     pub fn fields(&self, t: &Type) -> Dict<Field, Type> {
         match t {
             Type::FreeVar(fv) if fv.is_linked() => self.fields(&fv.unwrap_linked()),

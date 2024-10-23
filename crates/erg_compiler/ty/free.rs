@@ -164,10 +164,12 @@ impl Constraint {
         }
     }
 
+    /// <: sup
     pub const fn new_subtype_of(sup: Type) -> Self {
         Self::new_sandwiched(Type::Never, sup)
     }
 
+    /// :> sub
     pub const fn new_supertype_of(sub: Type) -> Self {
         Self::new_sandwiched(sub, Type::Obj)
     }
@@ -235,14 +237,16 @@ impl Constraint {
     /// old_sub: ?T, constraint: (:> ?T or NoneType, <: Obj)
     /// -> constraint: (:> NoneType, <: Obj)
     /// ```
-    pub fn eliminate_recursion(self, target: &Type) -> Self {
+    pub fn eliminate_subsup_recursion(self, target: &Type) -> Self {
         match self {
             Self::Sandwiched { sub, sup } => {
                 if sub.addr_eq(target) && sup.addr_eq(target) {
                     Self::new_type_of(Type::Type)
                 } else if sub.addr_eq(target) {
+                    let sup = sup.eliminate_subsup(target);
                     Self::new_subtype_of(sup)
                 } else if sup.addr_eq(target) {
+                    let sub = sub.eliminate_subsup(target);
                     Self::new_supertype_of(sub)
                 } else {
                     let sub = sub.eliminate_subsup(target);
@@ -757,14 +761,6 @@ impl<T: Send + Clone> Free<T> {
 }
 
 impl Free<Type> {
-    pub fn deep_clone(&self) -> Self {
-        Self::new_named_unbound(
-            self.unbound_name().unwrap(),
-            self.level().unwrap(),
-            self.constraint().unwrap(),
-        )
-    }
-
     /// (T) => T
     /// ((T)) => T
     pub fn linked_free(&self) -> Option<Free<Type>> {
@@ -820,7 +816,7 @@ impl Free<Type> {
 
     /// interior-mut
     /// if `in_inst_or_gen` is true, constraint will be updated forcibly
-    pub fn update_constraint(&self, new_constraint: Constraint, in_inst_or_gen: bool) {
+    pub(super) fn update_constraint(&self, new_constraint: Constraint, in_inst_or_gen: bool) {
         if new_constraint.get_type() == Some(&Type::Never) {
             panic!("{new_constraint}");
         }
@@ -852,31 +848,9 @@ impl Free<Type> {
             }
         }
     }
-
-    /// interior-mut
-    pub fn update_sub(&self, f: impl FnOnce(Type) -> Type) {
-        let (sub, sup) = self.get_subsup().unwrap();
-        let new_constraint = Constraint::new_sandwiched(f(sub), sup);
-        self.update_constraint(new_constraint, true);
-    }
-
-    /// interior-mut
-    pub fn update_super(&self, f: impl FnOnce(Type) -> Type) {
-        let (sub, sup) = self.get_subsup().unwrap();
-        let new_constraint = Constraint::new_sandwiched(sub, f(sup));
-        self.update_constraint(new_constraint, true);
-    }
 }
 
 impl Free<TyParam> {
-    pub fn deep_clone(&self) -> Self {
-        Self::new_named_unbound(
-            self.unbound_name().unwrap(),
-            self.level().unwrap(),
-            self.constraint().unwrap(),
-        )
-    }
-
     /// (T) => T
     /// ((T)) => T
     pub fn linked_free(&self) -> Option<Free<TyParam>> {

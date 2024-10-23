@@ -280,7 +280,7 @@ pub(crate) fn sub_tpdict_get<'d>(
             ctx.convert_tp_into_type(k.clone()),
         ) {
             (Ok(idx), Ok(kt))
-                if ctx.subtype_of(&idx.lower_bounded(), &kt.lower_bounded()) || dict.len() == 1 =>
+                if dict.len() == 1 || ctx.subtype_of(&idx.lower_bounded(), &kt.lower_bounded()) =>
             {
                 matches.push((idx, kt, v));
             }
