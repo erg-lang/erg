@@ -69,7 +69,7 @@ pub enum Constraint {
 
 impl fmt::Display for Constraint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.limited_fmt(f, 10)
+        self.limited_fmt(f, <Self as LimitedDisplay>::DEFAULT_LIMIT)
     }
 }
 
@@ -386,7 +386,7 @@ impl<T: CanbeFree> FreeKind<T> {
 
 impl<T: LimitedDisplay> fmt::Display for FreeKind<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.limited_fmt(f, 10)
+        self.limited_fmt(f, <Self as LimitedDisplay>::DEFAULT_LIMIT)
     }
 }
 
@@ -1002,6 +1002,19 @@ impl HasLevel for Free<TyParam> {
                 }
             }
         }
+    }
+}
+
+impl<T: Send + Clone + CanbeFree> Free<T>
+where
+    Free<T>: HasLevel,
+{
+    pub fn deep_clone(&self) -> Self {
+        Self::new_named_unbound(
+            self.unbound_name().unwrap(),
+            self.level().unwrap(),
+            self.constraint().unwrap(),
+        )
     }
 }
 

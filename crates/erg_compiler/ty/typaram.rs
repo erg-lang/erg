@@ -18,7 +18,7 @@ use super::free::{
     CanbeFree, Constraint, FreeKind, FreeTyParam, FreeTyVar, HasLevel, Level, GENERIC_LEVEL,
 };
 use super::value::ValueObj;
-use super::{Field, ParamTy, ReplaceTable};
+use super::{Field, ParamTy, ReplaceTable, SharedFrees};
 use super::{Type, CONTAINER_OMIT_THRESHOLD};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -375,7 +375,7 @@ impl Eq for TyParam {}
 
 impl fmt::Display for TyParam {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.limited_fmt(f, 10)
+        self.limited_fmt(f, <Self as LimitedDisplay>::DEFAULT_LIMIT)
     }
 }
 
@@ -1544,7 +1544,7 @@ impl TyParam {
         if self.qual_name().is_some_and(|n| n == var) {
             return to.clone();
         }
-        self.map(&mut |tp| tp.substitute(var, to))
+        self.map(&mut |tp| tp.substitute(var, to), &SharedFrees::new())
     }
 
     pub fn replace(self, target: &TyParam, to: &TyParam) -> TyParam {
@@ -1552,34 +1552,40 @@ impl TyParam {
         table.replace_tp(self)
     }
 
-    pub(crate) fn _replace(self, target: &TyParam, to: &TyParam) -> TyParam {
+    pub(crate) fn _replace(self, target: &TyParam, to: &TyParam, tvs: &SharedFrees) -> TyParam {
         if &self == target {
             return to.clone();
         }
         match self {
-            TyParam::Type(t) => TyParam::t(t._replace_tp(target, to)),
-            TyParam::Value(val) => TyParam::value(val.replace_tp(target, to)),
-            self_ => self_.map(&mut |tp| tp._replace(target, to)),
+            TyParam::Type(t) => TyParam::t(t._replace_tp(target, to, tvs)),
+            TyParam::Value(val) => TyParam::value(val.replace_tp(target, to, tvs)),
+            self_ => self_.map(&mut |tp| tp._replace(target, to, tvs), tvs),
         }
     }
 
-    pub fn replace_t(self, target: &Type, to: &Type) -> TyParam {
+    pub fn replace_t(self, target: &Type, to: &Type, tvs: &SharedFrees) -> TyParam {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().replace_t(target, to),
+            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().replace_t(target, to, tvs),
             Self::FreeVar(fv) if fv.get_type().is_some() => {
-                let typ = fv.get_type().unwrap()._replace(target, to);
-                fv.update_type(typ);
-                Self::FreeVar(fv)
+                let name = fv.unbound_name().unwrap();
+                if let Some(tp) = tvs.get_tp(&name) {
+                    return tp;
+                }
+                let typ = fv.get_type().unwrap()._replace(target, to, tvs);
+                let fv_clone = fv.deep_clone();
+                fv_clone.update_type(typ);
+                tvs.insert_tp(name, Self::FreeVar(fv_clone.clone()));
+                Self::FreeVar(fv_clone)
             }
-            Self::Type(t) => Self::t(t._replace(target, to)),
-            Self::Erased(t) => Self::erased(t._replace(target, to)),
-            Self::Value(val) => Self::Value(val.replace_t(target, to)),
-            _ => self.map(&mut |tp| tp.replace_t(target, to)),
+            Self::Type(t) => Self::t(t._replace(target, to, tvs)),
+            Self::Erased(t) => Self::erased(t._replace(target, to, tvs)),
+            Self::Value(val) => Self::Value(val.replace_t(target, to, tvs)),
+            _ => self.map(&mut |tp| tp.replace_t(target, to, tvs), &SharedFrees::new()),
         }
     }
 
     pub fn eliminate_t(self, target: &Type) -> Self {
-        self.replace_t(target, &Type::Never)
+        self.replace_t(target, &Type::Never, &SharedFrees::new())
     }
 
     /// TyParam::Value(ValueObj::Type(_)) => TyParam::Type
@@ -1661,7 +1667,11 @@ impl TyParam {
             Self::FreeVar(fv) => {
                 if to.contains_tp(self) {
                     let to = to.clone().eliminate_recursion(self);
-                    fv.undoable_link(&to);
+                    if self.addr_eq(&to) {
+                        self.inc_undo_count();
+                    } else {
+                        fv.undoable_link(&to);
+                    }
                 } else {
                     fv.undoable_link(to);
                 }
@@ -1907,13 +1917,22 @@ impl TyParam {
     }
 
     /// For recursive function
-    pub fn map(self, f: &mut impl FnMut(TyParam) -> TyParam) -> TyParam {
+    pub fn map(self, f: &mut impl FnMut(TyParam) -> TyParam, tvs: &SharedFrees) -> TyParam {
         match self {
             TyParam::FreeVar(fv) if fv.is_linked() => f(fv.unwrap_linked()),
             TyParam::FreeVar(fv) if fv.get_type().is_some() => {
+                if let Some(name) = fv.unbound_name() {
+                    if let Some(tp) = tvs.get_tp(&name) {
+                        return tp;
+                    }
+                }
                 let typ = fv.get_type().unwrap();
-                fv.update_type(typ.map_tp(f));
-                TyParam::FreeVar(fv)
+                let fv_clone = fv.deep_clone();
+                fv_clone.update_type(typ.map_tp(f, tvs));
+                if let Some(name) = fv_clone.unbound_name() {
+                    tvs.insert_tp(name, TyParam::FreeVar(fv_clone.clone()));
+                }
+                TyParam::FreeVar(fv_clone)
             }
             TyParam::FreeVar(_) => self,
             TyParam::App { name, args } => {
@@ -1961,65 +1980,89 @@ impl TyParam {
                 attr,
                 args: args.into_iter().map(f).collect::<Vec<_>>(),
             },
-            TyParam::Value(val) => TyParam::Value(val.map_tp(f)),
-            TyParam::Type(t) => TyParam::t(t.map_tp(f)),
-            TyParam::Erased(t) => TyParam::erased(t.map_tp(f)),
+            TyParam::Value(val) => TyParam::Value(val.map_tp(f, tvs)),
+            TyParam::Type(t) => TyParam::t(t.map_tp(f, tvs)),
+            TyParam::Erased(t) => TyParam::erased(t.map_tp(f, tvs)),
             TyParam::Mono(_) | TyParam::Failure => self,
         }
     }
 
-    pub fn map_t(self, f: &mut impl FnMut(Type) -> Type) -> TyParam {
+    pub fn map_t(self, f: &mut impl FnMut(Type) -> Type, tvs: &SharedFrees) -> TyParam {
         match self {
-            TyParam::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().map_t(f),
+            TyParam::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().map_t(f, tvs),
             TyParam::FreeVar(fv) if fv.get_type().is_some() => {
+                if let Some(name) = fv.unbound_name() {
+                    if let Some(tp) = tvs.get_tp(&name) {
+                        return tp;
+                    }
+                }
+                let fv_clone = fv.deep_clone();
                 let typ = fv.get_type().unwrap();
-                fv.update_type(f(typ));
-                TyParam::FreeVar(fv)
+                fv_clone.update_type(f(typ));
+                if let Some(name) = fv_clone.unbound_name() {
+                    tvs.insert_tp(name, TyParam::FreeVar(fv_clone.clone()));
+                }
+                TyParam::FreeVar(fv_clone)
             }
             TyParam::FreeVar(_) => self,
             TyParam::App { name, args } => {
-                let new_args = args.into_iter().map(|tp| tp.map_t(f)).collect::<Vec<_>>();
+                let new_args = args
+                    .into_iter()
+                    .map(|tp| tp.map_t(f, tvs))
+                    .collect::<Vec<_>>();
                 TyParam::app(name, new_args)
             }
-            TyParam::BinOp { op, lhs, rhs } => TyParam::bin(op, lhs.map_t(f), rhs.map_t(f)),
-            TyParam::UnaryOp { op, val } => TyParam::unary(op, val.map_t(f)),
-            TyParam::UnsizedList(elem) => TyParam::unsized_list(elem.map_t(f)),
-            TyParam::List(tps) => TyParam::List(tps.into_iter().map(|tp| tp.map_t(f)).collect()),
-            TyParam::Tuple(tps) => TyParam::Tuple(tps.into_iter().map(|tp| tp.map_t(f)).collect()),
-            TyParam::Set(tps) => TyParam::Set(tps.into_iter().map(|tp| tp.map_t(f)).collect()),
+            TyParam::BinOp { op, lhs, rhs } => {
+                TyParam::bin(op, lhs.map_t(f, tvs), rhs.map_t(f, tvs))
+            }
+            TyParam::UnaryOp { op, val } => TyParam::unary(op, val.map_t(f, tvs)),
+            TyParam::UnsizedList(elem) => TyParam::unsized_list(elem.map_t(f, tvs)),
+            TyParam::List(tps) => {
+                TyParam::List(tps.into_iter().map(|tp| tp.map_t(f, tvs)).collect())
+            }
+            TyParam::Tuple(tps) => {
+                TyParam::Tuple(tps.into_iter().map(|tp| tp.map_t(f, tvs)).collect())
+            }
+            TyParam::Set(tps) => TyParam::Set(tps.into_iter().map(|tp| tp.map_t(f, tvs)).collect()),
             TyParam::Dict(tps) => {
                 let new_tps = tps
                     .into_iter()
-                    .map(|(k, v)| (k.map_t(f), v.map_t(f)))
+                    .map(|(k, v)| (k.map_t(f, tvs), v.map_t(f, tvs)))
                     .collect();
                 TyParam::Dict(new_tps)
             }
             TyParam::Record(rec) => {
-                let new_rec = rec.into_iter().map(|(k, v)| (k, v.map_t(f))).collect();
+                let new_rec = rec.into_iter().map(|(k, v)| (k, v.map_t(f, tvs))).collect();
                 TyParam::Record(new_rec)
             }
             TyParam::DataClass { name, fields } => {
-                let new_fields = fields.into_iter().map(|(k, v)| (k, v.map_t(f))).collect();
+                let new_fields = fields
+                    .into_iter()
+                    .map(|(k, v)| (k, v.map_t(f, tvs)))
+                    .collect();
                 TyParam::DataClass {
                     name,
                     fields: new_fields,
                 }
             }
             TyParam::Lambda(lambda) => {
-                let new_body = lambda.body.into_iter().map(|tp| tp.map_t(f)).collect();
+                let new_body = lambda.body.into_iter().map(|tp| tp.map_t(f, tvs)).collect();
                 TyParam::Lambda(TyParamLambda {
                     body: new_body,
                     ..lambda
                 })
             }
             TyParam::Proj { obj, attr } => TyParam::Proj {
-                obj: Box::new(obj.map_t(f)),
+                obj: Box::new(obj.map_t(f, tvs)),
                 attr,
             },
             TyParam::ProjCall { obj, attr, args } => {
-                let new_args = args.into_iter().map(|tp| tp.map_t(f)).collect::<Vec<_>>();
+                let new_args = args
+                    .into_iter()
+                    .map(|tp| tp.map_t(f, tvs))
+                    .collect::<Vec<_>>();
                 TyParam::ProjCall {
-                    obj: Box::new(obj.map_t(f)),
+                    obj: Box::new(obj.map_t(f, tvs)),
                     attr,
                     args: new_args,
                 }
@@ -2044,7 +2087,10 @@ impl TyParam {
         if self.is_free_var() && self.addr_eq(target) {
             return Self::Failure;
         }
-        self.map(&mut |tp| tp.eliminate_recursion(target))
+        self.map(
+            &mut |tp| tp.eliminate_recursion(target),
+            &SharedFrees::new(),
+        )
     }
 
     pub fn as_free(&self) -> Option<&FreeTyParam> {

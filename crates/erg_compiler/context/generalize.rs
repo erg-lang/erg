@@ -14,7 +14,7 @@ use crate::ty::constructors::*;
 use crate::ty::free::{CanbeFree, Constraint, Free, HasLevel};
 use crate::ty::typaram::{TyParam, TyParamLambda};
 use crate::ty::value::ValueObj;
-use crate::ty::{HasType, Predicate, SubrType, Type};
+use crate::ty::{HasType, Predicate, SharedFrees, SubrType, Type};
 
 use crate::context::{Context, Variance};
 use crate::error::{TyCheckError, TyCheckErrors, TyCheckResult};
@@ -45,10 +45,12 @@ impl<'c> Generalizer<'c> {
     fn generalize_tp(&mut self, free: TyParam, uninit: bool) -> TyParam {
         match free {
             TyParam::Type(t) => TyParam::t(self.generalize_t(*t, uninit)),
-            TyParam::Value(val) => TyParam::Value(
-                val.map_t(&mut |t| self.generalize_t(t, uninit))
-                    .map_tp(&mut |tp| self.generalize_tp(tp, uninit)),
-            ),
+            TyParam::Value(val) => {
+                TyParam::Value(val.map_t(&mut |t| self.generalize_t(t, uninit)).map_tp(
+                    &mut |tp| self.generalize_tp(tp, uninit),
+                    &SharedFrees::new(),
+                ))
+            }
             TyParam::FreeVar(fv) if fv.is_generalized() => TyParam::FreeVar(fv),
             TyParam::FreeVar(fv) if fv.is_linked() => {
                 let tp = fv.crack().clone();

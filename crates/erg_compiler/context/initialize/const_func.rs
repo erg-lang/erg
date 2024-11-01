@@ -6,7 +6,7 @@ use erg_common::dict::Dict;
 #[allow(unused_imports)]
 use erg_common::log;
 use erg_common::traits::Stream;
-use erg_common::{dict, set};
+use erg_common::{dict, set, set_recursion_limit};
 
 use crate::context::eval::UndoableLinkedList;
 use crate::context::initialize::closed_range;
@@ -237,6 +237,7 @@ pub(crate) fn sub_vdict_get<'d>(
     key: &ValueObj,
     ctx: &Context,
 ) -> Option<&'d ValueObj> {
+    set_recursion_limit!(None, 64);
     let mut matches = vec![];
     for (k, v) in dict.iter() {
         if key == k {
