@@ -2096,6 +2096,13 @@ impl TyParam {
     pub fn as_free(&self) -> Option<&FreeTyParam> {
         <&FreeTyParam>::try_from(self).ok()
     }
+
+    pub fn is_none(&self) -> bool {
+        match self {
+            Self::Value(val) => val.is_none(),
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

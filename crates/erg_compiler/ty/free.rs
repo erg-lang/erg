@@ -962,13 +962,7 @@ impl HasLevel for Free<Type> {
     fn level(&self) -> Option<Level> {
         match &*self.borrow() {
             FreeKind::Unbound { lev, .. } | FreeKind::NamedUnbound { lev, .. } => Some(*lev),
-            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
-                if t.is_recursive() {
-                    None
-                } else {
-                    t.level()
-                }
-            }
+            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t.level(),
         }
     }
 }

@@ -1395,7 +1395,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                     }
                 }
                 if let Some((sub, mut supe)) = super_fv.get_subsup() {
-                    if supe.is_structural() || !supe.is_recursive() {
+                    if !supe.is_recursive() {
                         self.sub_unify(maybe_sub, &supe)?;
                     }
                     let mut new_sub = self.ctx.union(maybe_sub, &sub);

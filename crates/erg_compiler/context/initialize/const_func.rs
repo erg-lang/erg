@@ -363,7 +363,10 @@ pub(crate) fn __dict_getitem__(mut args: ValueArgs, ctx: &Context) -> EvalValueR
     }
 }
 
-/// `{Str: Int, Int: Float}.keys() == Str or Int`
+/// ```erg
+/// {"a": 1, "b": 2}.keys() == ["a", "b"]
+/// {Str: Int, Int: Float}.keys() == Str or Int
+/// ```
 pub(crate) fn dict_keys(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let slf = args
         .remove_left_or_key("Self")
@@ -390,7 +393,10 @@ pub(crate) fn dict_keys(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<T
     }
 }
 
-/// `{Str: Int, Int: Float}.values() == Int or Float`
+/// ```erg
+/// {"a": 1, "b": 2}.values() == [1, 2]
+/// {Str: Int, Int: Float}.values() == Int or Float
+/// ```
 pub(crate) fn dict_values(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let slf = args
         .remove_left_or_key("Self")
@@ -417,7 +423,10 @@ pub(crate) fn dict_values(mut args: ValueArgs, ctx: &Context) -> EvalValueResult
     }
 }
 
-/// `{Str: Int, Int: Float}.items() == (Str, Int) or (Int, Float)`
+/// ```erg
+/// {"a": 1, "b": 2}.items() == [("a", 1), ("b", 2)]
+/// {Str: Int, Int: Float}.items() == (Str, Int) or (Int, Float)
+/// ```
 pub(crate) fn dict_items(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<TyParam> {
     let slf = args
         .remove_left_or_key("Self")
@@ -434,8 +443,8 @@ pub(crate) fn dict_items(mut args: ValueArgs, ctx: &Context) -> EvalValueResult<
         })
         .collect::<Result<Dict<_, _>, ValueObj>>();
     if let Ok(slf) = dict_type {
-        let union = slf.iter().fold(Type::Never, |union, (k, v)| {
-            ctx.union(&union, &tuple_t(vec![k.clone(), v.clone()]))
+        let union = slf.into_iter().fold(Type::Never, |union, (k, v)| {
+            ctx.union(&union, &tuple_t(vec![k, v]))
         });
         // let items = poly(DICT_ITEMS, vec![ty_tp(union)]);
         Ok(ValueObj::builtin_type(union).into())
@@ -1652,4 +1661,46 @@ pub(crate) fn classof_func(mut args: ValueArgs, _ctx: &Context) -> EvalValueResu
         .remove_left_or_key("obj")
         .ok_or_else(|| not_passed("obj"))?;
     Ok(TyParam::t(val.class()))
+}
+
+#[cfg(test)]
+mod tests {
+    use erg_common::config::ErgConfig;
+
+    use crate::module::SharedCompilerResource;
+    use crate::ty::constructors::*;
+
+    use super::*;
+
+    #[test]
+    fn test_dict_items() {
+        let cfg = ErgConfig::default();
+        let shared = SharedCompilerResource::default();
+        Context::init_builtins(cfg, shared.clone());
+        let ctx = &shared.raw_ref_builtins_ctx().unwrap().context;
+
+        let a = singleton(Type::Str, TyParam::value("a"));
+        let b = singleton(Type::Str, TyParam::value("b"));
+        let c = singleton(Type::Str, TyParam::value("c"));
+        // FIXME: order dependency
+        let k_union = ctx.union(&ctx.union(&c, &a), &b);
+        let g_dic = singleton(Type::Type, TyParam::t(mono("GenericDict")));
+        let g_lis = singleton(Type::Type, TyParam::t(mono("GenericList")));
+        let sub = func0(singleton(Type::NoneType, TyParam::value(ValueObj::None)));
+        let v_union = ctx.union(&ctx.union(&g_lis, &sub), &g_dic);
+        let dic = dict! {
+            a.clone() => sub.clone(),
+            b.clone() => g_dic.clone(),
+            c.clone() => g_lis.clone(),
+        };
+        match ctx.eval_proj_call_t(dic.clone().into(), "items".into(), vec![], 1, &()) {
+            Ok(t) => {
+                let items = tuple_t(vec![k_union, v_union]);
+                assert_eq!(t, items, "{t} != {items}");
+            }
+            Err(e) => {
+                panic!("ERR: {e}");
+            }
+        }
+    }
 }

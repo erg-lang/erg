@@ -690,6 +690,19 @@ macro_rules! mono_value_pattern {
             | $crate::ty::ValueObj::Ellipsis
             | $crate::ty::ValueObj::Failure
     };
+    (-Failure) => {
+        $crate::ty::ValueObj::Int(_)
+            | $crate::ty::ValueObj::Nat(_)
+            | $crate::ty::ValueObj::Float(_)
+            | $crate::ty::ValueObj::Inf
+            | $crate::ty::ValueObj::NegInf
+            | $crate::ty::ValueObj::Bool(_)
+            | $crate::ty::ValueObj::Str(_)
+            | $crate::ty::ValueObj::Code(_)
+            | $crate::ty::ValueObj::None
+            | $crate::ty::ValueObj::NotImplemented
+            | $crate::ty::ValueObj::Ellipsis
+    };
 }
 
 impl fmt::Debug for ValueObj {

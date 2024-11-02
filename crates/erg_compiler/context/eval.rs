@@ -2939,6 +2939,34 @@ impl Context {
             }
             Type::Quantified(quant) => self.convert_singular_type_into_value(*quant),
             Type::Subr(subr) => self.convert_singular_type_into_value(*subr.return_t),
+            Type::Proj { lhs, rhs } => {
+                let old = lhs.clone().proj(rhs.clone());
+                let evaled = self.eval_proj(*lhs, rhs, 0, &()).map_err(|_| old.clone())?;
+                if old != evaled {
+                    self.convert_singular_type_into_value(evaled)
+                } else {
+                    Err(old)
+                }
+            }
+            Type::ProjCall {
+                lhs,
+                attr_name,
+                args,
+            } => {
+                let old = Type::ProjCall {
+                    lhs: lhs.clone(),
+                    attr_name: attr_name.clone(),
+                    args: args.clone(),
+                };
+                let evaled = self
+                    .eval_proj_call_t(*lhs, attr_name, args, 0, &())
+                    .map_err(|_| old.clone())?;
+                if old != evaled {
+                    self.convert_singular_type_into_value(evaled)
+                } else {
+                    Err(old)
+                }
+            }
             Type::Failure => Ok(ValueObj::Failure),
             _ => Err(typ),
         }
@@ -2993,7 +3021,15 @@ impl Context {
                 let end = fields["end"].clone();
                 Ok(closed_range(start.class(), start, end))
             }
-            other => Err(other),
+            // TODO:
+            ValueObj::DataClass { .. }
+            | ValueObj::Int(_)
+            | ValueObj::Nat(_)
+            | ValueObj::Bool(_)
+            | ValueObj::Float(_)
+            | ValueObj::Code(_)
+            | ValueObj::Str(_)
+            | ValueObj::None => Err(val),
         }
     }
 
@@ -3083,7 +3119,8 @@ impl Context {
                 })
             }
             ValueObj::Failure => Ok(TyParam::Failure),
-            _ => Err(TyParam::Value(value)),
+            ValueObj::Subr(_) => Err(TyParam::Value(value)),
+            mono_value_pattern!(-Failure) => Err(TyParam::Value(value)),
         }
     }
 
@@ -3094,7 +3131,7 @@ impl Context {
                 self.convert_type_to_dict_type(t)
             }
             Type::Refinement(refine) => self.convert_type_to_dict_type(*refine.t),
-            Type::Poly { name, params } if &name[..] == "Dict" || &name[..] == "Dict!" => {
+            Type::Poly { params, .. } if ty.is_dict() || ty.is_dict_mut() => {
                 let dict = Dict::try_from(params[0].clone())?;
                 let mut new_dict = dict! {};
                 for (k, v) in dict.into_iter() {

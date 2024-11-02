@@ -2590,7 +2590,7 @@ impl Type {
     }
 
     pub fn has_proj(&self) -> bool {
-        self.is_proj() || self.has_type_satisfies(|t| t.is_proj())
+        self.is_proj() || self.has_type_satisfies(|t| t.has_proj())
     }
 
     pub fn is_proj_call(&self) -> bool {
@@ -2602,7 +2602,7 @@ impl Type {
     }
 
     pub fn has_proj_call(&self) -> bool {
-        self.is_proj_call() || self.has_type_satisfies(|t| t.is_proj_call())
+        self.is_proj_call() || self.has_type_satisfies(|t| t.has_proj_call())
     }
 
     pub fn is_intersection_type(&self) -> bool {
@@ -3190,7 +3190,7 @@ impl Type {
     }
 
     pub fn has_refinement(&self) -> bool {
-        self.is_refinement() || self.has_type_satisfies(|t| t.is_refinement())
+        self.is_refinement() || self.has_type_satisfies(|t| t.has_refinement())
     }
 
     pub fn is_recursive(&self) -> bool {
@@ -5132,6 +5132,13 @@ impl Type {
         }
     }
 
+    pub(crate) fn undoable_root(self) -> Self {
+        if let Some(free) = self.as_free().and_then(|fv| fv.get_undoable_root()) {
+            return Self::FreeVar(FreeTyVar::new(free.clone()));
+        }
+        self.map(&mut |t| t.undoable_root(), &SharedFrees::new())
+    }
+
     /// interior-mut
     ///
     /// `inc/dec_undo_count` due to the number of `substitute_typarams/undo_typarams` must be matched
@@ -6089,7 +6096,8 @@ impl TypePair {
 
 #[cfg(test)]
 mod tests {
-    use constructors::type_q;
+    use constructors::*;
+    use erg_common::dict;
 
     use super::*;
 
@@ -6106,5 +6114,18 @@ mod tests {
             union.replace(&u, &Type::Never),
             Type::Or(set! {t, Type::Never})
         );
+    }
+
+    #[test]
+    fn test_recursive() {
+        let t = type_q("T");
+        let u = type_q("U");
+        let subr = fn1_met(Type::Failure, u.clone(), t.clone());
+        let sup = Type::Record(dict! {Field::private("x".into()) => subr.clone()}).structuralize();
+        let constr = Constraint::new_subtype_of(sup.clone());
+        t.update_constraint(constr, None, true);
+        assert!(t.is_recursive());
+        assert!(subr.is_recursive());
+        assert!(sup.is_recursive());
     }
 }
