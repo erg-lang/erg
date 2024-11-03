@@ -97,3 +97,7 @@ path = "src/lib.rs"
 
 # [profile.release]
 # panic = 'abort'
+
+[profile.opt-with-dbg]
+inherits = "release"
+debug = true

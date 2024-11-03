@@ -10,7 +10,7 @@ use erg_common::{fmt_option, set, Str};
 use super::free::{Constraint, HasLevel};
 use super::typaram::TyParam;
 use super::value::ValueObj;
-use super::Type;
+use super::{SharedFrees, Type};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub enum Predicate {
@@ -961,26 +961,29 @@ impl Predicate {
         }
     }
 
-    pub fn _replace_tp(self, target: &TyParam, to: &TyParam) -> Self {
-        self.map_tp(&mut |tp| tp._replace(target, to))
+    pub fn _replace_tp(self, target: &TyParam, to: &TyParam, tvs: &SharedFrees) -> Self {
+        self.map_tp(&mut |tp| tp._replace(target, to, tvs), tvs)
     }
 
     pub fn replace_tp(self, target: &TyParam, to: &TyParam) -> Self {
-        self.map_tp(&mut |tp| tp.replace(target, to))
+        self.map_tp(&mut |tp| tp.replace(target, to), &SharedFrees::new())
     }
 
-    pub fn _replace_t(self, target: &Type, to: &Type) -> Self {
-        self.map_t(&mut |t| t._replace(target, to))
+    pub fn _replace_t(self, target: &Type, to: &Type, tvs: &SharedFrees) -> Self {
+        self.map_t(&mut |t| t._replace(target, to, tvs), tvs)
     }
 
     pub fn dereference(&mut self) {
-        *self = std::mem::take(self).map_t(&mut |mut t| {
-            t.dereference();
-            t
-        });
+        *self = std::mem::take(self).map_t(
+            &mut |mut t| {
+                t.dereference();
+                t
+            },
+            &SharedFrees::new(),
+        );
     }
 
-    pub fn map_t(self, f: &mut impl FnMut(Type) -> Type) -> Self {
+    pub fn map_t(self, f: &mut impl FnMut(Type) -> Type, tvs: &SharedFrees) -> Self {
         match self {
             Self::Value(val) => Self::Value(val.map_t(f)),
             Self::Const(_) => self,
@@ -989,105 +992,113 @@ impl Predicate {
                 args,
                 name,
             } => Self::Call {
-                receiver: receiver.map_t(f),
-                args: args.into_iter().map(|a| a.map_t(f)).collect(),
+                receiver: receiver.map_t(f, tvs),
+                args: args.into_iter().map(|a| a.map_t(f, tvs)).collect(),
                 name,
             },
             Self::Attr { receiver, name } => Self::Attr {
-                receiver: receiver.map_t(f),
+                receiver: receiver.map_t(f, tvs),
                 name,
             },
             Self::Equal { lhs, rhs } => Self::Equal {
                 lhs,
-                rhs: rhs.map_t(f),
+                rhs: rhs.map_t(f, tvs),
             },
             Self::GreaterEqual { lhs, rhs } => Self::GreaterEqual {
                 lhs,
-                rhs: rhs.map_t(f),
+                rhs: rhs.map_t(f, tvs),
             },
             Self::LessEqual { lhs, rhs } => Self::LessEqual {
                 lhs,
-                rhs: rhs.map_t(f),
+                rhs: rhs.map_t(f, tvs),
             },
             Self::NotEqual { lhs, rhs } => Self::NotEqual {
                 lhs,
-                rhs: rhs.map_t(f),
+                rhs: rhs.map_t(f, tvs),
             },
             Self::GeneralEqual { lhs, rhs } => Self::GeneralEqual {
-                lhs: Box::new(lhs.map_t(f)),
-                rhs: Box::new(rhs.map_t(f)),
+                lhs: Box::new(lhs.map_t(f, tvs)),
+                rhs: Box::new(rhs.map_t(f, tvs)),
             },
             Self::GeneralLessEqual { lhs, rhs } => Self::GeneralLessEqual {
-                lhs: Box::new(lhs.map_t(f)),
-                rhs: Box::new(rhs.map_t(f)),
+                lhs: Box::new(lhs.map_t(f, tvs)),
+                rhs: Box::new(rhs.map_t(f, tvs)),
             },
             Self::GeneralGreaterEqual { lhs, rhs } => Self::GeneralGreaterEqual {
-                lhs: Box::new(lhs.map_t(f)),
-                rhs: Box::new(rhs.map_t(f)),
+                lhs: Box::new(lhs.map_t(f, tvs)),
+                rhs: Box::new(rhs.map_t(f, tvs)),
             },
             Self::GeneralNotEqual { lhs, rhs } => Self::GeneralNotEqual {
-                lhs: Box::new(lhs.map_t(f)),
-                rhs: Box::new(rhs.map_t(f)),
+                lhs: Box::new(lhs.map_t(f, tvs)),
+                rhs: Box::new(rhs.map_t(f, tvs)),
             },
-            Self::And(lhs, rhs) => Self::And(Box::new(lhs.map_t(f)), Box::new(rhs.map_t(f))),
-            Self::Or(lhs, rhs) => Self::Or(Box::new(lhs.map_t(f)), Box::new(rhs.map_t(f))),
-            Self::Not(pred) => Self::Not(Box::new(pred.map_t(f))),
+            Self::And(lhs, rhs) => {
+                Self::And(Box::new(lhs.map_t(f, tvs)), Box::new(rhs.map_t(f, tvs)))
+            }
+            Self::Or(lhs, rhs) => {
+                Self::Or(Box::new(lhs.map_t(f, tvs)), Box::new(rhs.map_t(f, tvs)))
+            }
+            Self::Not(pred) => Self::Not(Box::new(pred.map_t(f, tvs))),
             Self::Failure => self,
         }
     }
 
-    pub fn map_tp(self, f: &mut impl FnMut(TyParam) -> TyParam) -> Self {
+    pub fn map_tp(self, f: &mut impl FnMut(TyParam) -> TyParam, tvs: &SharedFrees) -> Self {
         match self {
-            Self::Value(val) => Self::Value(val.map_tp(f)),
+            Self::Value(val) => Self::Value(val.map_tp(f, tvs)),
             Self::Const(_) => self,
             Self::Call {
                 receiver,
                 args,
                 name,
             } => Self::Call {
-                receiver: receiver.map(f),
-                args: args.into_iter().map(|a| a.map(f)).collect(),
+                receiver: receiver.map(f, tvs),
+                args: args.into_iter().map(|a| a.map(f, tvs)).collect(),
                 name,
             },
             Self::Attr { receiver, name } => Self::Attr {
-                receiver: receiver.map(f),
+                receiver: receiver.map(f, tvs),
                 name,
             },
             Self::Equal { lhs, rhs } => Self::Equal {
                 lhs,
-                rhs: rhs.map(f),
+                rhs: rhs.map(f, tvs),
             },
             Self::GreaterEqual { lhs, rhs } => Self::GreaterEqual {
                 lhs,
-                rhs: rhs.map(f),
+                rhs: rhs.map(f, tvs),
             },
             Self::LessEqual { lhs, rhs } => Self::LessEqual {
                 lhs,
-                rhs: rhs.map(f),
+                rhs: rhs.map(f, tvs),
             },
             Self::NotEqual { lhs, rhs } => Self::NotEqual {
                 lhs,
-                rhs: rhs.map(f),
+                rhs: rhs.map(f, tvs),
             },
             Self::GeneralEqual { lhs, rhs } => Self::GeneralEqual {
-                lhs: Box::new(lhs.map_tp(f)),
-                rhs: Box::new(rhs.map_tp(f)),
+                lhs: Box::new(lhs.map_tp(f, tvs)),
+                rhs: Box::new(rhs.map_tp(f, tvs)),
             },
             Self::GeneralLessEqual { lhs, rhs } => Self::GeneralLessEqual {
-                lhs: Box::new(lhs.map_tp(f)),
-                rhs: Box::new(rhs.map_tp(f)),
+                lhs: Box::new(lhs.map_tp(f, tvs)),
+                rhs: Box::new(rhs.map_tp(f, tvs)),
             },
             Self::GeneralGreaterEqual { lhs, rhs } => Self::GeneralGreaterEqual {
-                lhs: Box::new(lhs.map_tp(f)),
-                rhs: Box::new(rhs.map_tp(f)),
+                lhs: Box::new(lhs.map_tp(f, tvs)),
+                rhs: Box::new(rhs.map_tp(f, tvs)),
             },
             Self::GeneralNotEqual { lhs, rhs } => Self::GeneralNotEqual {
-                lhs: Box::new(lhs.map_tp(f)),
-                rhs: Box::new(rhs.map_tp(f)),
+                lhs: Box::new(lhs.map_tp(f, tvs)),
+                rhs: Box::new(rhs.map_tp(f, tvs)),
             },
-            Self::And(lhs, rhs) => Self::And(Box::new(lhs.map_tp(f)), Box::new(rhs.map_tp(f))),
-            Self::Or(lhs, rhs) => Self::Or(Box::new(lhs.map_tp(f)), Box::new(rhs.map_tp(f))),
-            Self::Not(pred) => Self::Not(Box::new(pred.map_tp(f))),
+            Self::And(lhs, rhs) => {
+                Self::And(Box::new(lhs.map_tp(f, tvs)), Box::new(rhs.map_tp(f, tvs)))
+            }
+            Self::Or(lhs, rhs) => {
+                Self::Or(Box::new(lhs.map_tp(f, tvs)), Box::new(rhs.map_tp(f, tvs)))
+            }
+            Self::Not(pred) => Self::Not(Box::new(pred.map_tp(f, tvs))),
             Self::Failure => self,
         }
     }
@@ -1095,9 +1106,10 @@ impl Predicate {
     pub fn try_map_tp<E>(
         self,
         f: &mut impl FnMut(TyParam) -> Result<TyParam, E>,
+        tvs: &SharedFrees,
     ) -> Result<Self, E> {
         match self {
-            Self::Value(val) => Ok(Self::Value(val.try_map_tp(f)?)),
+            Self::Value(val) => Ok(Self::Value(val.try_map_tp(f, tvs)?)),
             Self::Call {
                 receiver,
                 args,
@@ -1116,30 +1128,30 @@ impl Predicate {
             Self::LessEqual { lhs, rhs } => Ok(Self::LessEqual { lhs, rhs: f(rhs)? }),
             Self::NotEqual { lhs, rhs } => Ok(Self::NotEqual { lhs, rhs: f(rhs)? }),
             Self::GeneralEqual { lhs, rhs } => Ok(Self::GeneralEqual {
-                lhs: Box::new(lhs.try_map_tp(f)?),
-                rhs: Box::new(rhs.try_map_tp(f)?),
+                lhs: Box::new(lhs.try_map_tp(f, tvs)?),
+                rhs: Box::new(rhs.try_map_tp(f, tvs)?),
             }),
             Self::GeneralLessEqual { lhs, rhs } => Ok(Self::GeneralLessEqual {
-                lhs: Box::new(lhs.try_map_tp(f)?),
-                rhs: Box::new(rhs.try_map_tp(f)?),
+                lhs: Box::new(lhs.try_map_tp(f, tvs)?),
+                rhs: Box::new(rhs.try_map_tp(f, tvs)?),
             }),
             Self::GeneralGreaterEqual { lhs, rhs } => Ok(Self::GeneralGreaterEqual {
-                lhs: Box::new(lhs.try_map_tp(f)?),
-                rhs: Box::new(rhs.try_map_tp(f)?),
+                lhs: Box::new(lhs.try_map_tp(f, tvs)?),
+                rhs: Box::new(rhs.try_map_tp(f, tvs)?),
             }),
             Self::GeneralNotEqual { lhs, rhs } => Ok(Self::GeneralNotEqual {
-                lhs: Box::new(lhs.try_map_tp(f)?),
-                rhs: Box::new(rhs.try_map_tp(f)?),
+                lhs: Box::new(lhs.try_map_tp(f, tvs)?),
+                rhs: Box::new(rhs.try_map_tp(f, tvs)?),
             }),
             Self::And(lhs, rhs) => Ok(Self::And(
-                Box::new(lhs.try_map_tp(f)?),
-                Box::new(rhs.try_map_tp(f)?),
+                Box::new(lhs.try_map_tp(f, tvs)?),
+                Box::new(rhs.try_map_tp(f, tvs)?),
             )),
             Self::Or(lhs, rhs) => Ok(Self::Or(
-                Box::new(lhs.try_map_tp(f)?),
-                Box::new(rhs.try_map_tp(f)?),
+                Box::new(lhs.try_map_tp(f, tvs)?),
+                Box::new(rhs.try_map_tp(f, tvs)?),
             )),
-            Self::Not(pred) => Ok(Self::Not(Box::new(pred.try_map_tp(f)?))),
+            Self::Not(pred) => Ok(Self::Not(Box::new(pred.try_map_tp(f, tvs)?))),
             Self::Failure | Self::Const(_) => Ok(self),
         }
     }

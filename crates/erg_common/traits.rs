@@ -517,6 +517,7 @@ pub trait LimitedDisplay {
         self.limited_fmt(&mut s, -1).unwrap();
         s
     }
+    const DEFAULT_LIMIT: isize = 10;
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]

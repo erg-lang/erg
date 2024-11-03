@@ -359,7 +359,11 @@ impl Context {
     /// 単一化、評価等はここでは行わない、スーパータイプになる **可能性があるか** だけ判定する
     /// ので、lhsが(未連携)型変数の場合は単一化せずにtrueを返す
     pub(crate) fn structural_supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
-        set_recursion_limit!(false, 128);
+        set_recursion_limit!(
+            panic,
+            "recursion limit exceed: structural_supertype_of({lhs}, {rhs})",
+            128
+        );
         match (lhs, rhs) {
             // Proc :> Func if params are compatible
             // * default params can be omitted (e.g. (Int, x := Int) -> Int <: (Int) -> Int)
@@ -409,45 +413,48 @@ impl Context {
                     .return_t
                     .clone()
                     .replace_params(rs.param_names(), ls.param_names());
-                let return_t_judge = self.supertype_of(&ls.return_t, &rhs_ret); // covariant
-                let non_defaults_judge = if let Some(r_var) = rs.var_params.as_deref() {
-                    ls.non_default_params
-                        .iter()
-                        .zip(repeat(r_var))
-                        .all(|(l, r)| self.subtype_of(l.typ(), r.typ()))
-                } else {
-                    let rs_params = if !ls.is_method() && rs.is_method() {
-                        rs.non_default_params
+                let return_t_judge = || self.supertype_of(&ls.return_t, &rhs_ret); // covariant
+                let non_defaults_judge = || {
+                    if let Some(r_var) = rs.var_params.as_deref() {
+                        ls.non_default_params
                             .iter()
-                            .skip(1)
-                            .chain(&rs.default_params)
+                            .zip(repeat(r_var))
+                            .all(|(l, r)| self.subtype_of(l.typ(), r.typ()))
                     } else {
-                        #[allow(clippy::iter_skip_zero)]
-                        rs.non_default_params
+                        let rs_params = if !ls.is_method() && rs.is_method() {
+                            rs.non_default_params
+                                .iter()
+                                .skip(1)
+                                .chain(&rs.default_params)
+                        } else {
+                            #[allow(clippy::iter_skip_zero)]
+                            rs.non_default_params
+                                .iter()
+                                .skip(0)
+                                .chain(&rs.default_params)
+                        };
+                        ls.non_default_params
                             .iter()
-                            .skip(0)
-                            .chain(&rs.default_params)
-                    };
-                    ls.non_default_params
-                        .iter()
-                        .zip(rs_params)
-                        .all(|(l, r)| self.subtype_of(l.typ(), r.typ()))
+                            .zip(rs_params)
+                            .all(|(l, r)| self.subtype_of(l.typ(), r.typ()))
+                    }
                 };
-                let var_params_judge = ls
-                    .var_params
-                    .as_ref()
-                    .zip(rs.var_params.as_ref())
-                    .map(|(l, r)| self.subtype_of(l.typ(), r.typ()))
-                    .unwrap_or(true);
+                let var_params_judge = || {
+                    ls.var_params
+                        .as_ref()
+                        .zip(rs.var_params.as_ref())
+                        .map(|(l, r)| self.subtype_of(l.typ(), r.typ()))
+                        .unwrap_or(true)
+                };
                 len_judge
-                    && return_t_judge
-                    && non_defaults_judge
-                    && var_params_judge
+                    && return_t_judge()
+                    && non_defaults_judge()
+                    && var_params_judge()
                     && default_check() // contravariant
             }
             // {Int} <: Obj -> Int
-            (Subr(_) | Quantified(_), Refinement(refine))
-                if rhs.singleton_value().is_some() && self.subtype_of(&refine.t, &ClassType) =>
+            (Subr(_) | Quantified(_), Refinement(_refine))
+                if rhs.singleton_value().is_some() && rhs.is_singleton_refinement_type() =>
             {
                 let Ok(typ) = self.convert_tp_into_type(rhs.singleton_value().unwrap().clone())
                 else {
@@ -457,7 +464,8 @@ impl Context {
                     return false;
                 };
                 if let Some((_, __call__)) = ctx.get_class_attr("__call__") {
-                    self.supertype_of(lhs, &__call__.t)
+                    let call_t = __call__.t.clone().undoable_root();
+                    self.supertype_of(lhs, &call_t)
                 } else {
                     false
                 }
@@ -767,10 +775,14 @@ impl Context {
             // Bool :> {2} == false
             // [2, 3]: {A: List(Nat) | A.prod() == 6}
             // List({1, 2}, _) :> {[3, 4]} == false
+            // T :> {None} == T :> NoneType
             (l, Refinement(r)) => {
                 // Type / {S: Set(Str) | S == {"a", "b"}}
                 // TODO: GeneralEq
                 if let Pred::Equal { rhs, .. } = r.pred.as_ref() {
+                    if rhs.is_none() {
+                        return self.supertype_of(lhs, &NoneType);
+                    }
                     if self.subtype_of(l, &Type) && self.convert_tp_into_type(rhs.clone()).is_ok() {
                         return true;
                     }
@@ -937,6 +949,11 @@ impl Context {
         }
     }
 
+    /// ```erg
+    /// Int.fields() == { imag: Int, real: Int, abs: (self: Int) -> Nat, ... }
+    /// ?T(<: Int).fields() == Int.fields()
+    /// Structural({ .x = Int }).fields() == { x: Int }
+    /// ```
     pub fn fields(&self, t: &Type) -> Dict<Field, Type> {
         match t {
             Type::FreeVar(fv) if fv.is_linked() => self.fields(&fv.unwrap_linked()),

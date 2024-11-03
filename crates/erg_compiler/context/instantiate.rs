@@ -265,7 +265,7 @@ impl TyVarCache {
                 ctx.union(&old_sub, &new_sub),
                 ctx.intersection(&old_sup, &new_sup),
             );
-            free_inst.update_constraint(new_constraint, true);
+            inst.update_constraint(new_constraint, None, true);
         }
     }
 
@@ -449,7 +449,7 @@ impl Context {
                         {
                             let new_constr =
                                 tmp_tv_cache.instantiate_constraint(constr, self, loc)?;
-                            fv.update_constraint(new_constr, true);
+                            t.update_constraint(new_constr, None, true);
                         }
                     } else {
                         todo!("{t}");
@@ -867,7 +867,8 @@ impl Context {
                         self.instantiate_t_inner(sup, tmp_tv_cache, loc)?
                     };
                     let new_constraint = Constraint::new_sandwiched(sub, sup);
-                    fv.update_constraint(new_constraint, true);
+                    let ty = FreeVar(fv.clone());
+                    ty.update_constraint(new_constraint, None, true);
                 } else if let Some(ty) = fv.get_type() {
                     let ty = if ty.is_recursive() {
                         ty
@@ -875,9 +876,10 @@ impl Context {
                         self.instantiate_t_inner(ty, tmp_tv_cache, loc)?
                     };
                     let new_constraint = Constraint::new_type_of(ty);
-                    fv.update_constraint(new_constraint, true);
+                    let ty = FreeVar(fv.clone());
+                    ty.update_constraint(new_constraint, None, true);
                 }
-                Ok(FreeVar(fv))
+                Ok(Type::FreeVar(fv))
             }
             Refinement(mut refine) => {
                 refine.t = Box::new(self.instantiate_t_inner(*refine.t, tmp_tv_cache, loc)?);

@@ -29,7 +29,7 @@ use super::codeobj::{tuple_into_bytes, CodeObj};
 use super::constructors::{dict_t, list_t, refinement, set_t, tuple_t, unsized_list_t};
 use super::free::{Constraint, FreeTyVar, HasLevel};
 use super::typaram::{OpKind, TyParam};
-use super::{ConstSubr, Field, HasType, Predicate, Type};
+use super::{ConstSubr, Field, HasType, Predicate, SharedFrees, Type};
 use super::{CONTAINER_OMIT_THRESHOLD, GENERIC_LEVEL, STR_OMIT_THRESHOLD};
 
 pub struct EvalValueError {
@@ -390,8 +390,8 @@ impl GenTypeObj {
         *self.typ_mut() = f(std::mem::take(self.typ_mut()));
     }
 
-    pub fn map_tp(&mut self, f: &mut impl FnMut(TyParam) -> TyParam) {
-        *self.typ_mut() = std::mem::take(self.typ_mut()).map_tp(f);
+    pub fn map_tp(&mut self, f: &mut impl FnMut(TyParam) -> TyParam, tvs: &SharedFrees) {
+        *self.typ_mut() = std::mem::take(self.typ_mut()).map_tp(f, tvs);
     }
 
     pub fn try_map_t<E>(&mut self, f: impl FnOnce(Type) -> Result<Type, E>) -> Result<(), E> {
@@ -402,8 +402,9 @@ impl GenTypeObj {
     pub fn try_map_tp<E>(
         &mut self,
         f: &mut impl FnMut(TyParam) -> Result<TyParam, E>,
+        tvs: &SharedFrees,
     ) -> Result<(), E> {
-        *self.typ_mut() = std::mem::take(self.typ_mut()).try_map_tp(f)?;
+        *self.typ_mut() = std::mem::take(self.typ_mut()).try_map_tp(f, tvs)?;
         Ok(())
     }
 }
@@ -428,7 +429,7 @@ impl Hash for TypeObj {
 
 impl fmt::Display for TypeObj {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.limited_fmt(f, 10)
+        self.limited_fmt(f, <Self as LimitedDisplay>::DEFAULT_LIMIT)
     }
 }
 
@@ -514,10 +515,10 @@ impl TypeObj {
         }
     }
 
-    pub fn map_tp(&mut self, f: &mut impl FnMut(TyParam) -> TyParam) {
+    pub fn map_tp(&mut self, f: &mut impl FnMut(TyParam) -> TyParam, tvs: &SharedFrees) {
         match self {
-            TypeObj::Builtin { t, .. } => *t = std::mem::take(t).map_tp(f),
-            TypeObj::Generated(t) => t.map_tp(f),
+            TypeObj::Builtin { t, .. } => *t = std::mem::take(t).map_tp(f, tvs),
+            TypeObj::Generated(t) => t.map_tp(f, tvs),
         }
     }
 
@@ -526,8 +527,8 @@ impl TypeObj {
         self
     }
 
-    pub fn mapped_tp(mut self, f: &mut impl FnMut(TyParam) -> TyParam) -> Self {
-        self.map_tp(f);
+    pub fn mapped_tp(mut self, f: &mut impl FnMut(TyParam) -> TyParam, tvs: &SharedFrees) -> Self {
+        self.map_tp(f, tvs);
         self
     }
 
@@ -552,21 +553,23 @@ impl TypeObj {
     pub fn try_map_tp<E>(
         &mut self,
         f: &mut impl FnMut(TyParam) -> Result<TyParam, E>,
+        tvs: &SharedFrees,
     ) -> Result<(), E> {
         match self {
             TypeObj::Builtin { t, .. } => {
-                *t = std::mem::take(t).try_map_tp(f)?;
+                *t = std::mem::take(t).try_map_tp(f, tvs)?;
                 Ok(())
             }
-            TypeObj::Generated(t) => t.try_map_tp(f),
+            TypeObj::Generated(t) => t.try_map_tp(f, tvs),
         }
     }
 
     pub fn try_mapped_tp<E>(
         mut self,
         f: &mut impl FnMut(TyParam) -> Result<TyParam, E>,
+        tvs: &SharedFrees,
     ) -> Result<Self, E> {
-        self.try_map_tp(f)?;
+        self.try_map_tp(f, tvs)?;
         Ok(self)
     }
 }
@@ -686,6 +689,19 @@ macro_rules! mono_value_pattern {
             | $crate::ty::ValueObj::NotImplemented
             | $crate::ty::ValueObj::Ellipsis
             | $crate::ty::ValueObj::Failure
+    };
+    (-Failure) => {
+        $crate::ty::ValueObj::Int(_)
+            | $crate::ty::ValueObj::Nat(_)
+            | $crate::ty::ValueObj::Float(_)
+            | $crate::ty::ValueObj::Inf
+            | $crate::ty::ValueObj::NegInf
+            | $crate::ty::ValueObj::Bool(_)
+            | $crate::ty::ValueObj::Str(_)
+            | $crate::ty::ValueObj::Code(_)
+            | $crate::ty::ValueObj::None
+            | $crate::ty::ValueObj::NotImplemented
+            | $crate::ty::ValueObj::Ellipsis
     };
 }
 
@@ -1950,29 +1966,34 @@ impl ValueObj {
         }
     }
 
-    pub fn map_tp(self, f: &mut impl FnMut(TyParam) -> TyParam) -> Self {
+    pub fn map_tp(self, f: &mut impl FnMut(TyParam) -> TyParam, tvs: &SharedFrees) -> Self {
         match self {
-            ValueObj::Type(obj) => ValueObj::Type(obj.mapped_tp(f)),
+            ValueObj::Type(obj) => ValueObj::Type(obj.mapped_tp(f, tvs)),
             ValueObj::List(lis) => {
-                ValueObj::List(lis.iter().map(|v| v.clone().map_tp(f)).collect())
+                ValueObj::List(lis.iter().map(|v| v.clone().map_tp(f, tvs)).collect())
             }
             ValueObj::Tuple(tup) => {
-                ValueObj::Tuple(tup.iter().map(|v| v.clone().map_tp(f)).collect())
+                ValueObj::Tuple(tup.iter().map(|v| v.clone().map_tp(f, tvs)).collect())
             }
-            ValueObj::Set(st) => ValueObj::Set(st.into_iter().map(|v| v.map_tp(f)).collect()),
+            ValueObj::Set(st) => ValueObj::Set(st.into_iter().map(|v| v.map_tp(f, tvs)).collect()),
             ValueObj::Dict(dict) => ValueObj::Dict(
                 dict.into_iter()
-                    .map(|(k, v)| (k.map_tp(f), v.map_tp(f)))
+                    .map(|(k, v)| (k.map_tp(f, tvs), v.map_tp(f, tvs)))
                     .collect(),
             ),
-            ValueObj::Record(rec) => {
-                ValueObj::Record(rec.into_iter().map(|(k, v)| (k, v.map_tp(f))).collect())
-            }
+            ValueObj::Record(rec) => ValueObj::Record(
+                rec.into_iter()
+                    .map(|(k, v)| (k, v.map_tp(f, tvs)))
+                    .collect(),
+            ),
             ValueObj::DataClass { name, fields } => ValueObj::DataClass {
                 name,
-                fields: fields.into_iter().map(|(k, v)| (k, v.map_tp(f))).collect(),
+                fields: fields
+                    .into_iter()
+                    .map(|(k, v)| (k, v.map_tp(f, tvs)))
+                    .collect(),
             },
-            ValueObj::UnsizedList(elem) => ValueObj::UnsizedList(Box::new(elem.map_tp(f))),
+            ValueObj::UnsizedList(elem) => ValueObj::UnsizedList(Box::new(elem.map_tp(f, tvs))),
             ValueObj::Subr(_) => self,
             mono_value_pattern!() => self,
         }
@@ -1981,53 +2002,56 @@ impl ValueObj {
     pub fn try_map_tp<E>(
         self,
         f: &mut impl FnMut(TyParam) -> Result<TyParam, E>,
+        tvs: &SharedFrees,
     ) -> Result<Self, E> {
         match self {
-            ValueObj::Type(obj) => Ok(ValueObj::Type(obj.try_mapped_tp(f)?)),
+            ValueObj::Type(obj) => Ok(ValueObj::Type(obj.try_mapped_tp(f, tvs)?)),
             ValueObj::List(lis) => Ok(ValueObj::List(
                 lis.iter()
-                    .map(|v| v.clone().try_map_tp(f))
+                    .map(|v| v.clone().try_map_tp(f, tvs))
                     .collect::<Result<Arc<_>, _>>()?,
             )),
             ValueObj::Tuple(tup) => Ok(ValueObj::Tuple(
                 tup.iter()
-                    .map(|v| v.clone().try_map_tp(f))
+                    .map(|v| v.clone().try_map_tp(f, tvs))
                     .collect::<Result<Arc<_>, _>>()?,
             )),
             ValueObj::Set(st) => Ok(ValueObj::Set(
                 st.into_iter()
-                    .map(|v| v.try_map_tp(f))
+                    .map(|v| v.try_map_tp(f, tvs))
                     .collect::<Result<Set<_>, _>>()?,
             )),
             ValueObj::Dict(dict) => Ok(ValueObj::Dict(
                 dict.into_iter()
-                    .map(|(k, v)| Ok((k.try_map_tp(f)?, v.try_map_tp(f)?)))
+                    .map(|(k, v)| Ok((k.try_map_tp(f, tvs)?, v.try_map_tp(f, tvs)?)))
                     .collect::<Result<Dict<_, _>, _>>()?,
             )),
             ValueObj::Record(rec) => Ok(ValueObj::Record(
                 rec.into_iter()
-                    .map(|(k, v)| Ok((k, v.try_map_tp(f)?)))
+                    .map(|(k, v)| Ok((k, v.try_map_tp(f, tvs)?)))
                     .collect::<Result<Dict<_, _>, _>>()?,
             )),
             ValueObj::DataClass { name, fields } => Ok(ValueObj::DataClass {
                 name,
                 fields: fields
                     .into_iter()
-                    .map(|(k, v)| Ok((k, v.try_map_tp(f)?)))
+                    .map(|(k, v)| Ok((k, v.try_map_tp(f, tvs)?)))
                     .collect::<Result<Dict<_, _>, _>>()?,
             }),
-            ValueObj::UnsizedList(elem) => Ok(ValueObj::UnsizedList(Box::new(elem.try_map_tp(f)?))),
+            ValueObj::UnsizedList(elem) => {
+                Ok(ValueObj::UnsizedList(Box::new(elem.try_map_tp(f, tvs)?)))
+            }
             ValueObj::Subr(_) => Ok(self),
             mono_value_pattern!() => Ok(self),
         }
     }
 
-    pub fn replace_t(self, target: &Type, to: &Type) -> Self {
-        self.map_t(&mut |t| t._replace(target, to))
+    pub fn replace_t(self, target: &Type, to: &Type, tvs: &SharedFrees) -> Self {
+        self.map_t(&mut |t| t._replace(target, to, tvs))
     }
 
-    pub fn replace_tp(self, target: &TyParam, to: &TyParam) -> Self {
-        self.map_t(&mut |t| t._replace_tp(target, to))
+    pub fn replace_tp(self, target: &TyParam, to: &TyParam, tvs: &SharedFrees) -> Self {
+        self.map_t(&mut |t| t._replace_tp(target, to, tvs))
     }
 
     pub fn contains(&self, val: &ValueObj) -> bool {

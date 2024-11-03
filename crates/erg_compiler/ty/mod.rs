@@ -30,8 +30,9 @@ use erg_common::fresh::FRESH_GEN;
 #[allow(unused_imports)]
 use erg_common::log;
 use erg_common::set::Set;
+use erg_common::shared::Shared;
 use erg_common::traits::{LimitedDisplay, Locational, StructuralEq};
-use erg_common::{enum_unwrap, fmt_option, ref_addr_eq, set, set_recursion_limit, Str};
+use erg_common::{enum_unwrap, fmt_option, ref_addr_eq, set, Str};
 
 use erg_parser::ast::Expr;
 use erg_parser::token::TokenKind;
@@ -209,6 +210,37 @@ macro_rules! impl_t_for_enum {
     }
 }
 
+#[derive(Debug, Default)]
+pub struct SharedFrees {
+    tvs: Shared<Dict<Str, Type>>,
+    tps: Shared<Dict<Str, TyParam>>,
+}
+
+impl SharedFrees {
+    pub fn new() -> Self {
+        Self {
+            tvs: Shared::default(),
+            tps: Shared::default(),
+        }
+    }
+
+    pub fn get_tv(&self, name: &str) -> Option<Type> {
+        self.tvs.borrow().get(name).cloned()
+    }
+
+    pub fn get_tp(&self, name: &str) -> Option<TyParam> {
+        self.tps.borrow().get(name).cloned()
+    }
+
+    pub fn insert_tv(&self, name: Str, t: Type) {
+        self.tvs.borrow_mut().insert(name, t);
+    }
+
+    pub fn insert_tp(&self, name: Str, tp: TyParam) {
+        self.tps.borrow_mut().insert(name, tp);
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ParamTy {
     Pos(Type),
@@ -370,7 +402,7 @@ pub struct SubrType {
 
 impl fmt::Display for SubrType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.limited_fmt(f, 10)
+        self.limited_fmt(f, <Self as LimitedDisplay>::DEFAULT_LIMIT)
     }
 }
 
@@ -574,8 +606,8 @@ impl SubrType {
         )
     }
 
-    pub fn map_tp(self, f: &mut impl FnMut(TyParam) -> TyParam) -> Self {
-        let mut f_ = |t: Type| t.map_tp(f);
+    pub fn map_tp(self, f: &mut impl FnMut(TyParam) -> TyParam, tvs: &SharedFrees) -> Self {
+        let mut f_ = |t: Type| t.map_tp(f, tvs);
         Self::new(
             self.kind,
             self.non_default_params
@@ -595,8 +627,9 @@ impl SubrType {
     pub fn try_map_tp<E>(
         self,
         f: &mut impl FnMut(TyParam) -> Result<TyParam, E>,
+        tvs: &SharedFrees,
     ) -> Result<Self, E> {
-        let mut f_ = |t: Type| t.try_map_tp(f);
+        let mut f_ = |t: Type| t.try_map_tp(f, tvs);
         let var_params = if let Some(var_params) = self.var_params {
             Some(var_params.try_map_type(&mut f_)?)
         } else {
@@ -619,7 +652,7 @@ impl SubrType {
                 .map(|pt| pt.try_map_type(&mut f_)?.try_map_default_type(&mut f_))
                 .collect::<Result<_, _>>()?,
             kw_var_params,
-            self.return_t.try_map_tp(f)?,
+            self.return_t.try_map_tp(f, tvs)?,
         ))
     }
 
@@ -873,46 +906,47 @@ impl SubrType {
         ArgsOwnership::new(nd_args, var_args, d_args, kw_var_args)
     }
 
-    pub fn _replace(mut self, target: &Type, to: &Type) -> Self {
+    pub fn _replace(mut self, target: &Type, to: &Type, tvs: &SharedFrees) -> Self {
         for nd in self.non_default_params.iter_mut() {
-            *nd.typ_mut() = std::mem::take(nd.typ_mut())._replace(target, to);
-        }
-        if let Some(var) = self.var_params.as_mut() {
-            *var.as_mut().typ_mut() = std::mem::take(var.as_mut().typ_mut())._replace(target, to);
-        }
-        for d in self.default_params.iter_mut() {
-            *d.typ_mut() = std::mem::take(d.typ_mut())._replace(target, to);
-            if let Some(default) = d.default_typ_mut() {
-                *default = std::mem::take(default)._replace(target, to);
-            }
-        }
-        if let Some(kw_var) = self.kw_var_params.as_mut() {
-            *kw_var.as_mut().typ_mut() =
-                std::mem::take(kw_var.as_mut().typ_mut())._replace(target, to);
-        }
-        self.return_t = Box::new(self.return_t._replace(target, to));
-        self
-    }
-
-    pub fn _replace_tp(mut self, target: &TyParam, to: &TyParam) -> Self {
-        for nd in self.non_default_params.iter_mut() {
-            *nd.typ_mut() = std::mem::take(nd.typ_mut())._replace_tp(target, to);
+            *nd.typ_mut() = std::mem::take(nd.typ_mut())._replace(target, to, tvs);
         }
         if let Some(var) = self.var_params.as_mut() {
             *var.as_mut().typ_mut() =
-                std::mem::take(var.as_mut().typ_mut())._replace_tp(target, to);
+                std::mem::take(var.as_mut().typ_mut())._replace(target, to, tvs);
         }
         for d in self.default_params.iter_mut() {
-            *d.typ_mut() = std::mem::take(d.typ_mut())._replace_tp(target, to);
+            *d.typ_mut() = std::mem::take(d.typ_mut())._replace(target, to, tvs);
             if let Some(default) = d.default_typ_mut() {
-                *default = std::mem::take(default)._replace_tp(target, to);
+                *default = std::mem::take(default)._replace(target, to, tvs);
             }
         }
         if let Some(kw_var) = self.kw_var_params.as_mut() {
             *kw_var.as_mut().typ_mut() =
-                std::mem::take(kw_var.as_mut().typ_mut())._replace_tp(target, to);
+                std::mem::take(kw_var.as_mut().typ_mut())._replace(target, to, tvs);
         }
-        self.return_t = Box::new(self.return_t._replace_tp(target, to));
+        self.return_t = Box::new(self.return_t._replace(target, to, tvs));
+        self
+    }
+
+    pub fn _replace_tp(mut self, target: &TyParam, to: &TyParam, tvs: &SharedFrees) -> Self {
+        for nd in self.non_default_params.iter_mut() {
+            *nd.typ_mut() = std::mem::take(nd.typ_mut())._replace_tp(target, to, tvs);
+        }
+        if let Some(var) = self.var_params.as_mut() {
+            *var.as_mut().typ_mut() =
+                std::mem::take(var.as_mut().typ_mut())._replace_tp(target, to, tvs);
+        }
+        for d in self.default_params.iter_mut() {
+            *d.typ_mut() = std::mem::take(d.typ_mut())._replace_tp(target, to, tvs);
+            if let Some(default) = d.default_typ_mut() {
+                *default = std::mem::take(default)._replace_tp(target, to, tvs);
+            }
+        }
+        if let Some(kw_var) = self.kw_var_params.as_mut() {
+            *kw_var.as_mut().typ_mut() =
+                std::mem::take(kw_var.as_mut().typ_mut())._replace_tp(target, to, tvs);
+        }
+        self.return_t = Box::new(self.return_t._replace_tp(target, to, tvs));
         self
     }
 
@@ -1005,7 +1039,7 @@ impl Eq for RefineKind {}
 /// {_: StrWithLen N | N >= 0}
 /// {T: (Int, Int) | T.0 >= 0, T.1 >= 0}
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct RefinementType {
     pub var: Str,
     pub t: Box<Type>,
@@ -1014,7 +1048,7 @@ pub struct RefinementType {
 
 impl fmt::Display for RefinementType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.limited_fmt(f, 10)
+        self.limited_fmt(f, <Self as LimitedDisplay>::DEFAULT_LIMIT)
     }
 }
 
@@ -1026,6 +1060,24 @@ impl<'a> TryFrom<&'a Type> for &'a RefinementType {
             Type::Refinement(refine) => Ok(refine),
             _ => Err(()),
         }
+    }
+}
+
+impl PartialEq for RefinementType {
+    fn eq(&self, other: &Self) -> bool {
+        self.t == other.t && *self.pred == other.pred.clone().change_subject_name(self.var.clone())
+    }
+}
+
+impl Eq for RefinementType {}
+
+impl Hash for RefinementType {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.t.hash(state);
+        self.pred
+            .clone()
+            .change_subject_name("%RefinementType::hash".into())
+            .hash(state);
     }
 }
 
@@ -1407,7 +1459,7 @@ pub enum Type {
 
 impl PartialEq for Type {
     fn eq(&self, other: &Self) -> bool {
-        if ref_addr_eq!(self, other) {
+        if self.addr_eq(other) {
             return true;
         }
         match (self, other) {
@@ -1500,9 +1552,9 @@ impl PartialEq for Type {
             ) => lhs == r && attr_name == rn && args == ra,
             (Self::Structural(l), Self::Structural(r)) => l == r,
             (Self::Guard(l), Self::Guard(r)) => l == r,
+            (Self::FreeVar(l), Self::FreeVar(r)) => l == r,
             (Self::FreeVar(fv), other) if fv.is_linked() => &*fv.crack() == other,
             (_self, Self::FreeVar(fv)) if fv.is_linked() => _self == &*fv.crack(),
-            (Self::FreeVar(l), Self::FreeVar(r)) => l == r,
             // NoneType == {None}
             (Self::NoneType, Self::Refinement(refine))
             | (Self::Refinement(refine), Self::NoneType) => {
@@ -1530,7 +1582,7 @@ impl Eq for Type {}
 
 impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.limited_fmt(f, 10)
+        self.limited_fmt(f, <Self as LimitedDisplay>::DEFAULT_LIMIT)
     }
 }
 
@@ -1879,7 +1931,7 @@ impl HasType for Type {
     }
     fn inner_ts(&self) -> Vec<Type> {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().inner_ts(),
+            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().inner_ts(),
             Self::Ref(t) => {
                 vec![t.as_ref().clone()]
             }
@@ -2100,7 +2152,7 @@ impl StructuralEq for Type {
     fn structural_eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::FreeVar(fv), other) | (other, Self::FreeVar(fv)) if fv.is_linked() => {
-                fv.crack().structural_eq(other)
+                fv.unwrap_linked().structural_eq(other)
             }
             (Self::FreeVar(fv), Self::FreeVar(fv2)) => fv.structural_eq(fv2),
             (Self::Refinement(refine), Self::Refinement(refine2)) => {
@@ -2538,7 +2590,7 @@ impl Type {
     }
 
     pub fn has_proj(&self) -> bool {
-        self.is_proj() || self.has_type_satisfies(|t| t.is_proj())
+        self.is_proj() || self.has_type_satisfies(|t| t.has_proj())
     }
 
     pub fn is_proj_call(&self) -> bool {
@@ -2550,7 +2602,7 @@ impl Type {
     }
 
     pub fn has_proj_call(&self) -> bool {
-        self.is_proj_call() || self.has_type_satisfies(|t| t.is_proj_call())
+        self.is_proj_call() || self.has_type_satisfies(|t| t.has_proj_call())
     }
 
     pub fn is_intersection_type(&self) -> bool {
@@ -2569,7 +2621,7 @@ impl Type {
     /// ```
     pub fn union_size(&self) -> usize {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().union_size(),
+            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().union_size(),
             Self::FreeVar(fv) if fv.constraint_is_sandwiched() => {
                 let (sub, sup) = fv.get_subsup().unwrap();
                 fv.do_avoiding_recursion(|| sub.union_size().max(sup.union_size()))
@@ -2926,7 +2978,7 @@ impl Type {
 
     pub fn contains_tvar(&self, target: &FreeTyVar) -> bool {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_tvar(target),
+            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().contains_tvar(target),
             Self::FreeVar(fv) if fv.constraint_is_typeof() => {
                 ref_addr_eq!(fv.forced_as_ref(), target.forced_as_ref())
             }
@@ -2985,7 +3037,9 @@ impl Type {
 
     pub fn contains_tvar_in_constraint(&self, target: &FreeTyVar) -> bool {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_tvar_in_constraint(target),
+            Self::FreeVar(fv) if fv.is_linked() => {
+                fv.unwrap_linked().contains_tvar_in_constraint(target)
+            }
             Self::FreeVar(fv) if fv.constraint_is_typeof() => {
                 ref_addr_eq!(fv.forced_as_ref(), target.forced_as_ref())
             }
@@ -3018,7 +3072,7 @@ impl Type {
             return true;
         }
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_type(target),
+            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().contains_type(target),
             Self::FreeVar(fv) => {
                 fv.get_subsup().map_or(false, |(sub, sup)| {
                     fv.dummy_link();
@@ -3059,7 +3113,7 @@ impl Type {
 
     pub fn contains_tp(&self, target: &TyParam) -> bool {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_tp(target),
+            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().contains_tp(target),
             Self::FreeVar(fv) => {
                 fv.get_subsup().map_or(false, |(sub, sup)| {
                     fv.do_avoiding_recursion(|| sub.contains_tp(target) || sup.contains_tp(target))
@@ -3097,7 +3151,7 @@ impl Type {
 
     pub fn contains_value(&self, target: &ValueObj) -> bool {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_value(target),
+            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().contains_value(target),
             Self::FreeVar(_) => false,
             Self::Record(rec) => rec.iter().any(|(_, t)| t.contains_value(target)),
             Self::NamedTuple(rec) => rec.iter().any(|(_, t)| t.contains_value(target)),
@@ -3136,12 +3190,12 @@ impl Type {
     }
 
     pub fn has_refinement(&self) -> bool {
-        self.is_refinement() || self.has_type_satisfies(|t| t.is_refinement())
+        self.is_refinement() || self.has_type_satisfies(|t| t.has_refinement())
     }
 
     pub fn is_recursive(&self) -> bool {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_recursive(),
+            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().is_recursive(),
             Self::FreeVar(fv) => fv
                 .get_subsup()
                 .map(|(sub, sup)| sub.contains_type(self) || sup.contains_type(self))
@@ -3616,10 +3670,9 @@ impl Type {
                 fv.crack().destructive_coerce();
             }
             Type::FreeVar(fv) if fv.is_unbound_and_sandwiched() => {
-                // TODO: other way to avoid infinite recursion
-                set_recursion_limit!({}, 128);
                 let (sub, _sup) = fv.get_subsup().unwrap();
                 sub.destructive_coerce();
+                let sub = sub.replace(self, &Type::Never);
                 self.destructive_link(&sub);
             }
             Type::And(tys, _) => {
@@ -3684,7 +3737,6 @@ impl Type {
                 }
             }
             Type::FreeVar(fv) if fv.is_unbound_and_sandwiched() => {
-                set_recursion_limit!({}, 128);
                 let (sub, _sup) = fv.get_subsup().unwrap();
                 sub.undoable_coerce(list);
                 self.undoable_link(&sub, list);
@@ -3815,7 +3867,7 @@ impl Type {
     /// ```
     pub fn has_qvar(&self) -> bool {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().has_qvar(),
+            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().has_qvar(),
             Self::FreeVar(fv) if fv.is_unbound() && fv.is_generalized() => true,
             Self::FreeVar(fv) => {
                 if let Some((sub, sup)) = fv.get_subsup() {
@@ -4150,7 +4202,7 @@ impl Type {
     /// ```
     pub fn derefine(&self) -> Type {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().derefine(),
+            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().derefine(),
             Self::FreeVar(fv) => {
                 let name = fv.unbound_name().unwrap();
                 let level = fv.level().unwrap();
@@ -4172,7 +4224,7 @@ impl Type {
             Self::Poly { name, params } => {
                 let params = params
                     .iter()
-                    .map(|tp| tp.clone().map_t(&mut |t| t.derefine()))
+                    .map(|tp| tp.clone().map_t(&mut |t| t.derefine(), &SharedFrees::new()))
                     .collect();
                 Self::Poly {
                     name: name.clone(),
@@ -4203,10 +4255,15 @@ impl Type {
                 attr_name,
                 args,
             } => {
-                let lhs = lhs.clone().map_t(&mut |t| t.derefine());
+                let lhs = lhs
+                    .clone()
+                    .map_t(&mut |t| t.derefine(), &SharedFrees::new());
                 let args = args
                     .iter()
-                    .map(|arg| arg.clone().map_t(&mut |t| t.derefine()))
+                    .map(|arg| {
+                        arg.clone()
+                            .map_t(&mut |t| t.derefine(), &SharedFrees::new())
+                    })
                     .collect();
                 proj_call(lhs, attr_name.clone(), args)
             }
@@ -4284,6 +4341,8 @@ impl Type {
     /// ```erg
     /// ?T(<: K(X)).eliminate_recursion(X) == ?T(<: K(X))
     /// Tuple(X).eliminate_recursion(X) == Tuple(Never)
+    /// ((?T)).eliminate_recursion(?T) == Never
+    /// ?T(<: A).eliminate_recursion(A) == ?T(<: A)
     /// ```
     pub(crate) fn eliminate_recursion(self, target: &Type) -> Self {
         if self.is_free_var() && self.addr_eq(target) {
@@ -4294,7 +4353,11 @@ impl Type {
             Self::FreeVar(_) => self,
             Self::Refinement(mut refine) => {
                 refine.t = Box::new(refine.t.eliminate_recursion(target));
-                refine.pred = Box::new(refine.pred.map_t(&mut |t| t.eliminate_recursion(target)));
+                refine.pred = Box::new(
+                    refine
+                        .pred
+                        .map_t(&mut |t| t.eliminate_recursion(target), &SharedFrees::new()),
+                );
                 Self::Refinement(refine)
             }
             Self::Record(mut rec) => {
@@ -4458,258 +4521,285 @@ impl Type {
         }
     }
 
-    fn map(self, f: &mut impl FnMut(Type) -> Type) -> Type {
+    fn map(self, f: &mut impl FnMut(Type) -> Type, tvs: &SharedFrees) -> Type {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().map(f),
+            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().map(f, tvs),
             Self::FreeVar(fv) => {
+                if let Some(name) = fv.unbound_name() {
+                    if let Some(tv) = tvs.get_tv(&name) {
+                        return tv;
+                    }
+                }
                 let fv_clone = fv.deep_clone();
-                if let Some((sub, sup)) = fv_clone.get_subsup() {
+                if let Some((sub, sup)) = fv.get_subsup() {
                     fv.dummy_link();
-                    fv_clone.dummy_link();
-                    let sub = sub.map(f);
-                    let sup = sup.map(f);
+                    let sub = f(sub);
+                    let sup = f(sup);
                     fv.undo();
-                    fv_clone.undo();
                     fv_clone.update_constraint(Constraint::new_sandwiched(sub, sup), true);
-                } else if let Some(ty) = fv_clone.get_type() {
-                    fv_clone.update_constraint(Constraint::new_type_of(ty.map(f)), true);
+                } else if let Some(ty) = fv.get_type() {
+                    fv_clone.update_constraint(Constraint::new_type_of(f(ty)), true);
+                }
+                if let Some(name) = fv.unbound_name() {
+                    tvs.insert_tv(name, Self::FreeVar(fv_clone.clone()));
                 }
                 Self::FreeVar(fv_clone)
             }
             Self::Refinement(mut refine) => {
-                refine.t = Box::new(refine.t.map(f));
-                refine.pred = Box::new(refine.pred.map_t(f));
+                refine.t = Box::new(f(*refine.t));
+                refine.pred = Box::new(refine.pred.map_t(f, tvs));
                 Self::Refinement(refine)
             }
             Self::Record(mut rec) => {
                 for v in rec.values_mut() {
-                    *v = std::mem::take(v).map(f);
+                    *v = f(std::mem::take(v));
                 }
                 Self::Record(rec)
             }
             Self::NamedTuple(mut r) => {
                 for (_, v) in r.iter_mut() {
-                    *v = std::mem::take(v).map(f);
+                    *v = f(std::mem::take(v));
                 }
                 Self::NamedTuple(r)
             }
             Self::Subr(subr) => Self::Subr(subr.map(f)),
             Self::Callable { param_ts, return_t } => {
-                let param_ts = param_ts.into_iter().map(|t| t.map(f)).collect();
-                let return_t = Box::new(return_t.map(f));
+                let param_ts = param_ts.into_iter().map(&mut *f).collect();
+                let return_t = Box::new(f(*return_t));
                 Self::Callable { param_ts, return_t }
             }
-            Self::Quantified(quant) => quant.map(f).quantify(),
+            Self::Quantified(quant) => f(*quant).quantify(),
             Self::Poly { name, params } => {
-                let params = params.into_iter().map(|tp| tp.map_t(f)).collect();
+                let params = params.into_iter().map(|tp| tp.map_t(f, tvs)).collect();
                 Self::Poly { name, params }
             }
-            Self::Ref(t) => Self::Ref(Box::new(t.map(f))),
+            Self::Ref(t) => Self::Ref(Box::new(f(*t))),
             Self::RefMut { before, after } => Self::RefMut {
-                before: Box::new(before.map(f)),
-                after: after.map(|t| Box::new(t.map(f))),
+                before: Box::new(f(*before)),
+                after: after.map(|t| Box::new(f(*t))),
             },
-            Self::And(tys, idx) => {
-                Self::checked_and(tys.into_iter().map(|t| t.map(f)).collect(), idx)
-            }
-            Self::Or(tys) => Self::checked_or(tys.into_iter().map(|t| t.map(f)).collect()),
-            Self::Not(ty) => !ty.map(f),
-            Self::Proj { lhs, rhs } => lhs.map(f).proj(rhs),
+            Self::And(tys, idx) => Self::checked_and(tys.into_iter().map(f).collect(), idx),
+            Self::Or(tys) => Self::checked_or(tys.into_iter().map(f).collect()),
+            Self::Not(ty) => !f(*ty),
+            Self::Proj { lhs, rhs } => f(*lhs).proj(rhs),
             Self::ProjCall {
                 lhs,
                 attr_name,
                 args,
             } => {
-                let args = args.into_iter().map(|tp| tp.map_t(f)).collect();
-                proj_call(lhs.map_t(f), attr_name, args)
+                let args = args.into_iter().map(|tp| tp.map_t(f, tvs)).collect();
+                proj_call(lhs.map_t(f, tvs), attr_name, args)
             }
-            Self::Structural(ty) => ty.map(f).structuralize(),
+            Self::Structural(ty) => f(*ty).structuralize(),
             Self::Guard(guard) => Self::Guard(GuardType::new(
                 guard.namespace,
                 *guard.target.clone(),
-                guard.to.map(f),
+                f(*guard.to),
             )),
             Self::Bounded { sub, sup } => Self::Bounded {
-                sub: Box::new(sub.map(f)),
-                sup: Box::new(sup.map(f)),
+                sub: Box::new(f(*sub)),
+                sup: Box::new(f(*sup)),
             },
             mono_type_pattern!() => self,
         }
     }
 
     /// Unlike `replace`, this does not make a look-up table.
-    fn _replace(mut self, target: &Type, to: &Type) -> Type {
+    /// ```erg
+    /// (?T or ?U)._replace(?U, Int) == ?T or Int
+    /// (?T or ?U)._replace(?U, Never) == ?T or Never
+    /// ```
+    fn _replace(mut self, target: &Type, to: &Type, tvs: &SharedFrees) -> Type {
         if &self == target {
             self = to.clone();
         }
-        self.map(&mut |t| t._replace(target, to))
+        self.map(&mut |t| t._replace(target, to, tvs), tvs)
     }
 
-    fn _replace_tp(self, target: &TyParam, to: &TyParam) -> Type {
+    fn _replace_tp(self, target: &TyParam, to: &TyParam, tvs: &SharedFrees) -> Type {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked()._replace_tp(target, to),
+            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked()._replace_tp(target, to, tvs),
             Self::FreeVar(fv) => {
+                if let Some(name) = fv.unbound_name() {
+                    if let Some(tv) = tvs.get_tv(&name) {
+                        return tv;
+                    }
+                }
                 let fv_clone = fv.deep_clone();
-                if let Some((sub, sup)) = fv_clone.get_subsup() {
+                if let Some((sub, sup)) = fv.get_subsup() {
                     fv.dummy_link();
-                    fv_clone.dummy_link();
-                    let sub = sub._replace_tp(target, to);
-                    let sup = sup._replace_tp(target, to);
+                    let sub = sub._replace_tp(target, to, tvs);
+                    let sup = sup._replace_tp(target, to, tvs);
                     fv.undo();
-                    fv_clone.undo();
                     fv_clone.update_constraint(Constraint::new_sandwiched(sub, sup), true);
-                } else if let Some(ty) = fv_clone.get_type() {
+                } else if let Some(ty) = fv.get_type() {
                     fv_clone.update_constraint(
-                        Constraint::new_type_of(ty._replace_tp(target, to)),
+                        Constraint::new_type_of(ty._replace_tp(target, to, tvs)),
                         true,
                     );
+                }
+                if let Some(name) = fv.unbound_name() {
+                    tvs.insert_tv(name, Self::FreeVar(fv_clone.clone()));
                 }
                 Self::FreeVar(fv_clone)
             }
             Self::Refinement(mut refine) => {
-                refine.t = Box::new(refine.t._replace_tp(target, to));
-                refine.pred = Box::new(refine.pred._replace_tp(target, to));
+                refine.t = Box::new(refine.t._replace_tp(target, to, tvs));
+                refine.pred = Box::new(refine.pred._replace_tp(target, to, tvs));
                 Self::Refinement(refine)
             }
             Self::Record(mut rec) => {
                 for v in rec.values_mut() {
-                    *v = std::mem::take(v)._replace_tp(target, to);
+                    *v = std::mem::take(v)._replace_tp(target, to, tvs);
                 }
                 Self::Record(rec)
             }
             Self::NamedTuple(mut r) => {
                 for (_, v) in r.iter_mut() {
-                    *v = std::mem::take(v)._replace_tp(target, to);
+                    *v = std::mem::take(v)._replace_tp(target, to, tvs);
                 }
                 Self::NamedTuple(r)
             }
-            Self::Subr(subr) => Self::Subr(subr._replace_tp(target, to)),
+            Self::Subr(subr) => Self::Subr(subr._replace_tp(target, to, tvs)),
             Self::Callable { param_ts, return_t } => {
                 let param_ts = param_ts
                     .into_iter()
-                    .map(|t| t._replace_tp(target, to))
+                    .map(|t| t._replace_tp(target, to, tvs))
                     .collect();
-                let return_t = Box::new(return_t._replace_tp(target, to));
+                let return_t = Box::new(return_t._replace_tp(target, to, tvs));
                 Self::Callable { param_ts, return_t }
             }
-            Self::Quantified(quant) => quant._replace_tp(target, to).quantify(),
+            Self::Quantified(quant) => quant._replace_tp(target, to, tvs).quantify(),
             Self::Poly { name, params } => {
                 let params = params
                     .into_iter()
-                    .map(|tp| tp._replace(target, to))
+                    .map(|tp| tp._replace(target, to, tvs))
                     .collect();
                 Self::Poly { name, params }
             }
-            Self::Ref(t) => Self::Ref(Box::new(t._replace_tp(target, to))),
+            Self::Ref(t) => Self::Ref(Box::new(t._replace_tp(target, to, tvs))),
             Self::RefMut { before, after } => Self::RefMut {
-                before: Box::new(before._replace_tp(target, to)),
-                after: after.map(|t| Box::new(t._replace_tp(target, to))),
+                before: Box::new(before._replace_tp(target, to, tvs)),
+                after: after.map(|t| Box::new(t._replace_tp(target, to, tvs))),
             },
             Self::And(tys, idx) => Self::checked_and(
-                tys.into_iter().map(|t| t._replace_tp(target, to)).collect(),
+                tys.into_iter()
+                    .map(|t| t._replace_tp(target, to, tvs))
+                    .collect(),
                 idx,
             ),
-            Self::Or(tys) => {
-                Self::checked_or(tys.into_iter().map(|t| t._replace_tp(target, to)).collect())
-            }
-            Self::Not(ty) => !ty._replace_tp(target, to),
-            Self::Proj { lhs, rhs } => lhs._replace_tp(target, to).proj(rhs),
+            Self::Or(tys) => Self::checked_or(
+                tys.into_iter()
+                    .map(|t| t._replace_tp(target, to, tvs))
+                    .collect(),
+            ),
+            Self::Not(ty) => !ty._replace_tp(target, to, tvs),
+            Self::Proj { lhs, rhs } => lhs._replace_tp(target, to, tvs).proj(rhs),
             Self::ProjCall {
                 lhs,
                 attr_name,
                 args,
             } => {
-                let args = args.into_iter().map(|tp| tp._replace(target, to)).collect();
-                proj_call(lhs._replace(target, to), attr_name, args)
+                let args = args
+                    .into_iter()
+                    .map(|tp| tp._replace(target, to, tvs))
+                    .collect();
+                proj_call(lhs._replace(target, to, tvs), attr_name, args)
             }
-            Self::Structural(ty) => ty._replace_tp(target, to).structuralize(),
+            Self::Structural(ty) => ty._replace_tp(target, to, tvs).structuralize(),
             Self::Guard(guard) => Self::Guard(GuardType::new(
                 guard.namespace,
                 *guard.target.clone(),
-                guard.to._replace_tp(target, to),
+                guard.to._replace_tp(target, to, tvs),
             )),
             Self::Bounded { sub, sup } => Self::Bounded {
-                sub: Box::new(sub._replace_tp(target, to)),
-                sup: Box::new(sup._replace_tp(target, to)),
+                sub: Box::new(sub._replace_tp(target, to, tvs)),
+                sup: Box::new(sup._replace_tp(target, to, tvs)),
             },
             mono_type_pattern!() => self,
         }
     }
 
-    fn map_tp(self, f: &mut impl FnMut(TyParam) -> TyParam) -> Type {
+    fn map_tp(self, f: &mut impl FnMut(TyParam) -> TyParam, tvs: &SharedFrees) -> Type {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().map_tp(f),
+            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().map_tp(f, tvs),
             Self::FreeVar(fv) => {
+                if let Some(name) = fv.unbound_name() {
+                    if let Some(tv) = tvs.get_tv(&name) {
+                        return tv;
+                    }
+                }
                 let fv_clone = fv.deep_clone();
-                if let Some((sub, sup)) = fv_clone.get_subsup() {
+                if let Some((sub, sup)) = fv.get_subsup() {
                     fv.dummy_link();
-                    fv_clone.dummy_link();
-                    let sub = sub.map_tp(f);
-                    let sup = sup.map_tp(f);
+                    let sub = sub.map_tp(f, tvs);
+                    let sup = sup.map_tp(f, tvs);
                     fv.undo();
-                    fv_clone.undo();
                     fv_clone.update_constraint(Constraint::new_sandwiched(sub, sup), true);
-                } else if let Some(ty) = fv_clone.get_type() {
-                    fv_clone.update_constraint(Constraint::new_type_of(ty.map_tp(f)), true);
+                } else if let Some(ty) = fv.get_type() {
+                    fv_clone.update_constraint(Constraint::new_type_of(ty.map_tp(f, tvs)), true);
+                }
+                if let Some(name) = fv.unbound_name() {
+                    tvs.insert_tv(name, Self::FreeVar(fv_clone.clone()));
                 }
                 Self::FreeVar(fv_clone)
             }
             Self::Refinement(mut refine) => {
-                refine.t = Box::new(refine.t.map_tp(f));
-                refine.pred = Box::new(refine.pred.map_tp(f));
+                refine.t = Box::new(refine.t.map_tp(f, tvs));
+                refine.pred = Box::new(refine.pred.map_tp(f, tvs));
                 Self::Refinement(refine)
             }
             Self::Record(mut rec) => {
                 for v in rec.values_mut() {
-                    *v = std::mem::take(v).map_tp(f);
+                    *v = std::mem::take(v).map_tp(f, tvs);
                 }
                 Self::Record(rec)
             }
             Self::NamedTuple(mut r) => {
                 for (_, v) in r.iter_mut() {
-                    *v = std::mem::take(v).map_tp(f);
+                    *v = std::mem::take(v).map_tp(f, tvs);
                 }
                 Self::NamedTuple(r)
             }
-            Self::Subr(subr) => Self::Subr(subr.map_tp(f)),
+            Self::Subr(subr) => Self::Subr(subr.map_tp(f, tvs)),
             Self::Callable { param_ts, return_t } => {
-                let param_ts = param_ts.into_iter().map(|t| t.map_tp(f)).collect();
-                let return_t = Box::new(return_t.map_tp(f));
+                let param_ts = param_ts.into_iter().map(|t| t.map_tp(f, tvs)).collect();
+                let return_t = Box::new(return_t.map_tp(f, tvs));
                 Self::Callable { param_ts, return_t }
             }
-            Self::Quantified(quant) => quant.map_tp(f).quantify(),
+            Self::Quantified(quant) => quant.map_tp(f, tvs).quantify(),
             Self::Poly { name, params } => {
-                let params = params.into_iter().map(|tp| tp.map(f)).collect();
+                let params = params.into_iter().map(|tp| tp.map(f, tvs)).collect();
                 Self::Poly { name, params }
             }
-            Self::Ref(t) => Self::Ref(Box::new(t.map_tp(f))),
+            Self::Ref(t) => Self::Ref(Box::new(t.map_tp(f, tvs))),
             Self::RefMut { before, after } => Self::RefMut {
-                before: Box::new(before.map_tp(f)),
-                after: after.map(|t| Box::new(t.map_tp(f))),
+                before: Box::new(before.map_tp(f, tvs)),
+                after: after.map(|t| Box::new(t.map_tp(f, tvs))),
             },
             Self::And(tys, idx) => {
-                Self::checked_and(tys.into_iter().map(|t| t.map_tp(f)).collect(), idx)
+                Self::checked_and(tys.into_iter().map(|t| t.map_tp(f, tvs)).collect(), idx)
             }
-            Self::Or(tys) => Self::checked_or(tys.into_iter().map(|t| t.map_tp(f)).collect()),
-            Self::Not(ty) => !ty.map_tp(f),
-            Self::Proj { lhs, rhs } => lhs.map_tp(f).proj(rhs),
+            Self::Or(tys) => Self::checked_or(tys.into_iter().map(|t| t.map_tp(f, tvs)).collect()),
+            Self::Not(ty) => !ty.map_tp(f, tvs),
+            Self::Proj { lhs, rhs } => lhs.map_tp(f, tvs).proj(rhs),
             Self::ProjCall {
                 lhs,
                 attr_name,
                 args,
             } => {
-                let args = args.into_iter().map(|tp| tp.map(f)).collect();
-                proj_call(lhs.map(f), attr_name, args)
+                let args = args.into_iter().map(|tp| tp.map(f, tvs)).collect();
+                proj_call(lhs.map(f, tvs), attr_name, args)
             }
-            Self::Structural(ty) => ty.map_tp(f).structuralize(),
+            Self::Structural(ty) => ty.map_tp(f, tvs).structuralize(),
             Self::Guard(guard) => Self::Guard(GuardType::new(
                 guard.namespace,
                 *guard.target.clone(),
-                guard.to.map_tp(f),
+                guard.to.map_tp(f, tvs),
             )),
             Self::Bounded { sub, sup } => Self::Bounded {
-                sub: Box::new(sub.map_tp(f)),
-                sup: Box::new(sup.map_tp(f)),
+                sub: Box::new(sub.map_tp(f, tvs)),
+                sup: Box::new(sup.map_tp(f, tvs)),
             },
             mono_type_pattern!() => self,
         }
@@ -4718,79 +4808,87 @@ impl Type {
     pub fn try_map_tp<E>(
         self,
         f: &mut impl FnMut(TyParam) -> Result<TyParam, E>,
+        tvs: &SharedFrees,
     ) -> Result<Type, E> {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().try_map_tp(f),
+            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().try_map_tp(f, tvs),
             Self::FreeVar(fv) => {
+                if let Some(name) = fv.unbound_name() {
+                    if let Some(tv) = tvs.get_tv(&name) {
+                        return Ok(tv);
+                    }
+                }
                 let fv_clone = fv.deep_clone();
-                if let Some((sub, sup)) = fv_clone.get_subsup() {
+                if let Some((sub, sup)) = fv.get_subsup() {
                     fv.dummy_link();
-                    fv_clone.dummy_link();
-                    let sub = sub.try_map_tp(f)?;
-                    let sup = sup.try_map_tp(f)?;
+                    let sub = sub.try_map_tp(f, tvs)?;
+                    let sup = sup.try_map_tp(f, tvs)?;
                     fv.undo();
-                    fv_clone.undo();
                     fv_clone.update_constraint(Constraint::new_sandwiched(sub, sup), true);
-                } else if let Some(ty) = fv_clone.get_type() {
-                    fv_clone.update_constraint(Constraint::new_type_of(ty.try_map_tp(f)?), true);
+                } else if let Some(ty) = fv.get_type() {
+                    fv_clone
+                        .update_constraint(Constraint::new_type_of(ty.try_map_tp(f, tvs)?), true);
+                }
+                if let Some(name) = fv.unbound_name() {
+                    tvs.insert_tv(name, Self::FreeVar(fv_clone.clone()));
                 }
                 Ok(Self::FreeVar(fv_clone))
             }
             Self::Refinement(mut refine) => {
-                refine.t = Box::new(refine.t.try_map_tp(f)?);
-                refine.pred = Box::new(refine.pred.try_map_tp(f)?);
+                refine.t = Box::new(refine.t.try_map_tp(f, tvs)?);
+                refine.pred = Box::new(refine.pred.try_map_tp(f, tvs)?);
                 Ok(Self::Refinement(refine))
             }
             Self::Record(mut rec) => {
                 for v in rec.values_mut() {
-                    *v = std::mem::take(v).try_map_tp(f)?;
+                    *v = std::mem::take(v).try_map_tp(f, tvs)?;
                 }
                 Ok(Self::Record(rec))
             }
             Self::NamedTuple(mut r) => {
                 for (_, v) in r.iter_mut() {
-                    *v = std::mem::take(v).try_map_tp(f)?;
+                    *v = std::mem::take(v).try_map_tp(f, tvs)?;
                 }
                 Ok(Self::NamedTuple(r))
             }
-            Self::Subr(subr) => Ok(Self::Subr(subr.try_map_tp(f)?)),
+            Self::Subr(subr) => Ok(Self::Subr(subr.try_map_tp(f, tvs)?)),
             Self::Callable { param_ts, return_t } => {
                 let param_ts = param_ts
                     .into_iter()
-                    .map(|t| t.try_map_tp(f))
+                    .map(|t| t.try_map_tp(f, tvs))
                     .collect::<Result<_, _>>()?;
-                let return_t = Box::new(return_t.try_map_tp(f)?);
+                let return_t = Box::new(return_t.try_map_tp(f, tvs)?);
                 Ok(Self::Callable { param_ts, return_t })
             }
-            Self::Quantified(quant) => Ok(quant.try_map_tp(f)?.quantify()),
+            Self::Quantified(quant) => Ok(quant.try_map_tp(f, tvs)?.quantify()),
             Self::Poly { name, params } => {
                 let params = params.into_iter().map(f).collect::<Result<_, _>>()?;
                 Ok(Self::Poly { name, params })
             }
-            Self::Ref(t) => Ok(Self::Ref(Box::new(t.try_map_tp(f)?))),
+            Self::Ref(t) => Ok(Self::Ref(Box::new(t.try_map_tp(f, tvs)?))),
             Self::RefMut { before, after } => {
                 let after = match after {
-                    Some(t) => Some(Box::new(t.try_map_tp(f)?)),
+                    Some(t) => Some(Box::new(t.try_map_tp(f, tvs)?)),
                     None => None,
                 };
                 Ok(Self::RefMut {
-                    before: Box::new(before.try_map_tp(f)?),
+                    before: Box::new(before.try_map_tp(f, tvs)?),
                     after,
                 })
             }
             Self::And(tys, idx) => Ok(Self::checked_and(
                 tys.into_iter()
-                    .map(|t| t.try_map_tp(f))
+                    .map(|t| t.try_map_tp(f, tvs))
                     .collect::<Result<_, _>>()?,
                 idx,
             )),
             Self::Or(tys) => Ok(Self::checked_or(
                 tys.into_iter()
-                    .map(|t| t.try_map_tp(f))
+                    .map(|t| t.try_map_tp(f, tvs))
                     .collect::<Result<_, _>>()?,
             )),
-            Self::Not(ty) => Ok(!ty.try_map_tp(f)?),
-            Self::Proj { lhs, rhs } => Ok(lhs.try_map_tp(f)?.proj(rhs)),
+            Self::Not(ty) => Ok(!ty.try_map_tp(f, tvs)?),
+            Self::Proj { lhs, rhs } => Ok(lhs.try_map_tp(f, tvs)?.proj(rhs)),
             Self::ProjCall {
                 lhs,
                 attr_name,
@@ -4800,15 +4898,15 @@ impl Type {
                 let args = args.into_iter().map(f).collect::<Result<_, _>>()?;
                 Ok(proj_call(lhs, attr_name, args))
             }
-            Self::Structural(ty) => Ok(ty.try_map_tp(f)?.structuralize()),
+            Self::Structural(ty) => Ok(ty.try_map_tp(f, tvs)?.structuralize()),
             Self::Guard(guard) => Ok(Self::Guard(GuardType::new(
                 guard.namespace,
                 *guard.target.clone(),
-                guard.to.try_map_tp(f)?,
+                guard.to.try_map_tp(f, tvs)?,
             ))),
             Self::Bounded { sub, sup } => Ok(Self::Bounded {
-                sub: Box::new(sub.try_map_tp(f)?),
-                sup: Box::new(sup.try_map_tp(f)?),
+                sub: Box::new(sub.try_map_tp(f, tvs)?),
+                sup: Box::new(sup.try_map_tp(f, tvs)?),
             }),
             mono_type_pattern!() => Ok(self),
         }
@@ -4866,7 +4964,11 @@ impl Type {
             }
             Self::Refinement(mut refine) => {
                 refine.t = Box::new(refine.t.normalize());
-                refine.pred = Box::new(refine.pred.map_t(&mut |t| t.normalize()));
+                refine.pred = Box::new(
+                    refine
+                        .pred
+                        .map_t(&mut |t| t.normalize(), &SharedFrees::new()),
+                );
                 Self::Refinement(refine)
             }
             Self::Subr(mut subr) => {
@@ -4976,6 +5078,12 @@ impl Type {
         }
     }
 
+    /// ```erg
+    /// assert ?T.addr_eq(?T)
+    /// assert not ?T(<: Int).addr_eq(?T(<: Str))
+    /// assert Int.addr_eq(Int)
+    /// assert not (Int or ?T).addr_eq(?T or Int)
+    /// ```
     pub(crate) fn addr_eq(&self, other: &Type) -> bool {
         match (self, other) {
             (Self::FreeVar(slf), _) if slf.is_linked() => slf.crack().addr_eq(other),
@@ -4999,7 +5107,9 @@ impl Type {
         match self {
             Self::FreeVar(fv) => {
                 let to_ = to.clone().eliminate_subsup(self).eliminate_recursion(self);
-                fv.link(&to_);
+                if !self.addr_eq(&to_) {
+                    fv.link(&to_);
+                }
             }
             Self::Refinement(refine) => refine.t.destructive_link(to),
             Self::And(tys, _) => {
@@ -5022,6 +5132,13 @@ impl Type {
         }
     }
 
+    pub(crate) fn undoable_root(self) -> Self {
+        if let Some(free) = self.as_free().and_then(|fv| fv.get_undoable_root()) {
+            return Self::FreeVar(FreeTyVar::new(free.clone()));
+        }
+        self.map(&mut |t| t.undoable_root(), &SharedFrees::new())
+    }
+
     /// interior-mut
     ///
     /// `inc/dec_undo_count` due to the number of `substitute_typarams/undo_typarams` must be matched
@@ -5038,7 +5155,11 @@ impl Type {
                     .clone()
                     .eliminate_subsup(self)
                     .eliminate_and_or_recursion(self);
-                fv.undoable_link(&to_);
+                if self.addr_eq(&to_) {
+                    self.inc_undo_count();
+                } else {
+                    fv.undoable_link(&to_);
+                }
             }
             Self::Refinement(refine) => refine.t.undoable_link(to, list),
             Self::And(tys, _) => {
@@ -5111,7 +5232,7 @@ impl Type {
         list: Option<&UndoableLinkedList>,
         in_instantiation: bool,
     ) {
-        let new_constraint = new_constraint.eliminate_recursion(self);
+        let new_constraint = new_constraint.eliminate_subsup_recursion(self);
         if let Some(list) = list {
             self.undoable_update_constraint(new_constraint, list);
         } else {
@@ -5119,6 +5240,7 @@ impl Type {
         }
     }
 
+    /// :> new_sub, <: new_sup
     pub(crate) fn update_tyvar(
         &self,
         new_sub: Type,
@@ -5132,6 +5254,17 @@ impl Type {
             let new_constraint = Constraint::new_sandwiched(new_sub, new_sup);
             self.update_constraint(new_constraint, list, in_instantiation);
         }
+    }
+
+    /// <: new_sup
+    pub(crate) fn update_super(
+        &self,
+        new_sup: Type,
+        list: Option<&UndoableLinkedList>,
+        in_instantiation: bool,
+    ) {
+        let new_constraint = Constraint::new_subtype_of(new_sup);
+        self.update_constraint(new_constraint, list, in_instantiation);
     }
 
     fn inc_undo_count(&self) {
@@ -5191,7 +5324,7 @@ impl Type {
     /// ```
     pub fn contained_ts(&self) -> Set<Type> {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv.crack().contained_ts(),
+            Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().contained_ts(),
             Self::FreeVar(fv) if fv.constraint_is_sandwiched() => {
                 let (sub, sup) = fv.get_subsup().unwrap();
                 fv.do_avoiding_recursion(|| {
@@ -5452,6 +5585,7 @@ impl Type {
 pub struct ReplaceTable<'t> {
     type_rules: Vec<(&'t Type, &'t Type)>,
     tp_rules: Vec<(&'t TyParam, &'t TyParam)>,
+    tvs: SharedFrees,
 }
 
 impl<'t> ReplaceTable<'t> {
@@ -5459,6 +5593,7 @@ impl<'t> ReplaceTable<'t> {
         let mut self_ = ReplaceTable {
             type_rules: vec![],
             tp_rules: vec![],
+            tvs: SharedFrees::new(),
         };
         self_.iterate(target, to);
         self_
@@ -5468,6 +5603,7 @@ impl<'t> ReplaceTable<'t> {
         let mut self_ = ReplaceTable {
             type_rules: vec![],
             tp_rules: vec![],
+            tvs: SharedFrees::new(),
         };
         self_.iterate_tp(target, to);
         self_
@@ -5475,14 +5611,14 @@ impl<'t> ReplaceTable<'t> {
 
     pub fn replace(&self, mut ty: Type) -> Type {
         for (target, to) in self.type_rules.iter() {
-            ty = ty._replace(target, to);
+            ty = ty._replace(target, to, &self.tvs);
         }
         ty
     }
 
     pub fn replace_tp(&self, mut tp: TyParam) -> TyParam {
         for (target, to) in self.tp_rules.iter() {
-            tp = tp._replace(target, to);
+            tp = tp._replace(target, to, &self.tvs);
         }
         tp
     }
@@ -5955,5 +6091,41 @@ impl TypePair {
             (l, Type::Refinement(refine)) => Self::new(l, &refine.t),
             (_, _) => Self::Others,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use constructors::*;
+    use erg_common::dict;
+
+    use super::*;
+
+    #[test]
+    fn test_replace() {
+        let t = type_q("T");
+        let constr = Constraint::new_subtype_of(Type::Int);
+        let u = named_free_var("U".into(), 1, constr);
+        let union = t.clone() | u.clone();
+
+        assert_eq!(union.clone().eliminate_recursion(&t), u);
+        assert_eq!(union.clone().replace(&u, &Type::Int), t.clone() | Type::Int);
+        assert_eq!(
+            union.replace(&u, &Type::Never),
+            Type::Or(set! {t, Type::Never})
+        );
+    }
+
+    #[test]
+    fn test_recursive() {
+        let t = type_q("T");
+        let u = type_q("U");
+        let subr = fn1_met(Type::Failure, u.clone(), t.clone());
+        let sup = Type::Record(dict! {Field::private("x".into()) => subr.clone()}).structuralize();
+        let constr = Constraint::new_subtype_of(sup.clone());
+        t.update_constraint(constr, None, true);
+        assert!(t.is_recursive());
+        assert!(subr.is_recursive());
+        assert!(sup.is_recursive());
     }
 }

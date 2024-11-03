@@ -753,7 +753,10 @@ impl SubMessage {
                         gutter_color,
                     );
                     cxt.push_str(&" ".repeat(lineno.to_string().len()));
-                    cxt.push_str_with_color(mark.repeat(cmp::max(1, codes[i].len())), err_color);
+                    cxt.push_str_with_color(
+                        mark.repeat(cmp::max(1, codes.get(i).map_or(1, |code| code.len()))),
+                        err_color,
+                    );
                     cxt.push_str("\n");
                 }
                 cxt.push_str("\n");

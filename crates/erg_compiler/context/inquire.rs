@@ -800,7 +800,7 @@ impl Context {
                     .structuralize();
                     let intersection = self.intersection(&sup, &structural);
                     if intersection != Never {
-                        fv.update_super(|_| intersection);
+                        obj.ref_t().update_super(intersection, None, true);
                     }
                 }
             }
@@ -1384,7 +1384,7 @@ impl Context {
                     .structuralize();
                     let intersection = self.intersection(&sup, &structural);
                     if intersection != Never {
-                        fv.update_super(|_| intersection);
+                        obj.ref_t().update_super(intersection, None, true);
                     }
                 }
             }
@@ -3261,6 +3261,8 @@ impl Context {
     /// get_nominal_type_ctx({ .x = Int }) == Some(<RecordMetaType>)
     /// get_nominal_type_ctx(?T(<: Int)) == Some(<Int>)
     /// get_nominal_type_ctx(?T(:> Int)) == None # you need to coerce it to Int
+    /// get_nominal_type_ctx(T or U) == Some(<Or>)
+    /// get_nominal_type_ctx(T and U) == None
     /// ```
     pub(crate) fn get_nominal_type_ctx<'a>(&'a self, typ: &Type) -> Option<&'a TypeContext> {
         match typ {
