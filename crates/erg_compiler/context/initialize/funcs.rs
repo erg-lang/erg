@@ -419,7 +419,7 @@ impl Context {
         let t_vars = no_var_func(
             vec![],
             vec![kw_default(KW_OBJECT, Obj, Obj)],
-            dict! { Str => Obj }.into(),
+            out_dict_t(dict! { Str => Obj }.into()),
         );
         let t_zip = nd_func(
             vec![
@@ -1003,7 +1003,7 @@ impl Context {
             None,
         );
         let t_exec = func(
-            vec![kw(KW_CODE, Str)],
+            vec![kw(KW_CODE, Str | Code)],
             None,
             vec![
                 kw(KW_GLOBALS, mono(GENERIC_DICT)),
@@ -1020,7 +1020,7 @@ impl Context {
             Some(FUNC_EXEC),
         );
         let t_eval = func(
-            vec![kw(KW_CODE, Str)],
+            vec![kw(KW_CODE, Str | Code)],
             None,
             vec![
                 kw(KW_GLOBALS, mono(GENERIC_DICT)),

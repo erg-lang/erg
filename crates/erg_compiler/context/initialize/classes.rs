@@ -3745,6 +3745,8 @@ impl Context {
         /* ByteArray! */
         let bytearray_mut_t = mono(MUT_BYTEARRAY);
         let mut bytearray_mut = Self::builtin_mono_class(MUT_BYTEARRAY, 2);
+        // TODO: different class
+        bytearray_mut.register_superclass(mono(BYTES), &bytes);
         let mut bytearray_seq = Self::builtin_methods(Some(poly(SEQUENCE, vec![ty_tp(Int)])), 2);
         bytearray_seq.register_builtin_erg_impl(
             FUNDAMENTAL_LEN,

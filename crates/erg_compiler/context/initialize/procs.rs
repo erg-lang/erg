@@ -74,9 +74,9 @@ impl Context {
             NoneType,
         )
         .quantify();
-        let t_globals = no_var_proc(vec![], vec![], dict! { Str => Obj }.into());
+        let t_globals = no_var_proc(vec![], vec![], out_dict_t(dict! { Str => Obj }.into()));
         let t_help = nd_proc(vec![kw("object", ref_(Obj))], None, NoneType);
-        let t_locals = no_var_proc(vec![], vec![], dict! { Str => Obj }.into());
+        let t_locals = no_var_proc(vec![], vec![], out_dict_t(dict! { Str => Obj }.into()));
         let t_next = nd_proc(
             vec![kw(
                 "iterable",

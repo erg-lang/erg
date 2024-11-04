@@ -1,0 +1,108 @@
+._CData: ClassType
+._SimpleCData: ClassType
+._SimpleCData <: _CData
+
+.CBool = 'c_bool': ClassType
+.CBool <: _SimpleCData
+.CBool.
+    __call__: (value:= Bool) -> CBool
+.CChar = 'c_char': ClassType
+.CChar <: _SimpleCData
+.CChar.
+    __call__: (value:= Bytes or ByteArray! or Int) -> CChar
+.CWChar = 'c_wchar': ClassType
+.CWChar <: _SimpleCData
+.CWChar.
+    __call__: (value:= Str) -> CWChar
+.CByte = 'c_byte': ClassType
+.CByte <: _SimpleCData
+.CByte.
+    __call__: (value:= Int) -> CByte
+.CUByte = 'c_ubyte': ClassType
+.CUByte <: _SimpleCData
+.CUByte.
+    __call__: (value:= Int) -> CUByte
+.CShort = 'c_short': ClassType
+.CShort <: _SimpleCData
+.CShort.
+    __call__: (value:= Int) -> CShort
+.CUShort = 'c_ushort': ClassType
+.CUShort <: _SimpleCData
+.CUShort.
+    __call__: (value:= Int) -> CUShort
+.CInt = 'c_int': ClassType
+.CInt <: _SimpleCData
+.CInt.
+    __call__: (value:= Int) -> CInt
+.CUInt = 'c_uint': ClassType
+.CUInt <: _SimpleCData
+.CUInt.
+    __call__: (value:= Int) -> CUInt
+.CLong = 'c_long': ClassType
+.CLong <: _SimpleCData
+.CLong.
+    __call__: (value:= Int) -> CLong
+.CULong = 'c_ulong': ClassType
+.CULong <: _SimpleCData
+.CULong.
+    __call__: (value:= Int) -> CULong
+.CLongLong = 'c_longlong': ClassType
+.CLongLong <: _SimpleCData
+.CLongLong.
+    __call__: (value:= Int) -> CLongLong
+.CULongLong = 'c_ulonglong': ClassType
+.CULongLong <: _SimpleCData
+.CULongLong.
+    __call__: (value:= Int) -> CULongLong
+.CFloat = 'c_float': ClassType
+.CFloat <: _SimpleCData
+.CFloat.
+    __call__: (value:= Float) -> CFloat
+.CDouble = 'c_double': ClassType
+.CDouble <: _SimpleCData
+.CDouble.
+    __call__: (value:= Float) -> CDouble
+.CCharP = 'c_char_p': ClassType
+.CCharP <: _SimpleCData
+.CCharP.
+    __call__: (value:= Str or NoneType) -> CCharP
+.CWCharP = 'c_wchar_p': ClassType
+.CWCharP <: _SimpleCData
+.CWCharP.
+    __call__: (value:= Str or NoneType) -> CWCharP
+.CVoidP = 'c_void_p': ClassType
+.CVoidP <: _SimpleCData
+.CVoidP.
+    __call__: (value:= Int or NoneType) -> CVoidP
+
+.CDLL: ClassType
+.OleDLL: ClassType
+.WinDLL: ClassType
+.PyDLL: ClassType
+
+.Array: ClassType
+.ARRAY: ClassType
+.Structure: ClassType
+
+._Pointer: ClassType
+._CFuncPtr: ClassType
+
+.ArgumentError: ClassType
+.ArgumentError <: Exception
+
+.addressof!: (obj:= Obj) => Int
+.alignment!: (obj_or_type:= Obj or Type) => Int
+.byref!: (obj:= Obj) => Obj
+.cast!: (obj:= Obj, typ:= Type) => Obj
+.create_string_buffer: (init:= Str or NoneType, size:= Int) -> CCharP
+.create_unicode_buffer: (init:= Str or NoneType, size:= Int) -> CWCharP
+.get_errno!: () => Int
+.get_last_error!: () => Int
+.memmove!: (dst:= Obj, src:= Obj, count:= Int) => NoneType
+.memset!: (dst:= Obj, c:= Int, count:= Int) => NoneType
+.resize!: (obj:= Obj, size:= Int) => NoneType
+.set_errno!: (value:= Int) => NoneType
+.set_last_error!: (value:= Int) => NoneType
+.sizeof!: (obj_or_type:= Obj or Type) => Nat
+.string_at: (ptr:= Obj, size:= Int) -> Bytes
+.wstring_at: (ptr:= Obj, size:= Int) -> Str
