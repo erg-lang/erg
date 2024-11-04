@@ -736,7 +736,7 @@ fn exec_trait_err() -> Result<(), ()> {
 
 #[test]
 fn exec_callable() -> Result<(), ()> {
-    expect_compile_failure("tests/should_err/callable.er", 0, 6)
+    expect_compile_failure("tests/should_err/callable.er", 0, 5)
 }
 
 #[test]

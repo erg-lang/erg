@@ -363,6 +363,16 @@ pub fn func2(l: Type, r: Type, return_t: Type) -> Type {
     )
 }
 
+pub fn func3(l: Type, m: Type, r: Type, return_t: Type) -> Type {
+    func(
+        vec![ParamTy::Pos(l), ParamTy::Pos(m), ParamTy::Pos(r)],
+        None,
+        vec![],
+        None,
+        return_t,
+    )
+}
+
 pub fn default_func(defaults: Vec<ParamTy>, return_t: Type) -> Type {
     func(vec![], None, defaults, None, return_t)
 }

@@ -1,23 +1,51 @@
 .abc = pyimport "abc"
 
 .NamedTuple = 'namedtuple': ClassType
+.NamedTuple|<: Sized|.
+    __len__: (self: .NamedTuple) -> Nat
 .NamedTuple.
     __call__: (typename: Str, field_names: Sequence(Str), rename := Bool) -> (*Obj, **Obj) -> NamedTuple
 .Deque! = 'deque': ClassType
+.Deque!|<: Sized|.
+    __len__: (self: Ref .Deque!) -> Nat
 .Deque!.
+    maxlen: Nat or NoneType
     __call__: (iterable := Iterable(Obj)) -> Deque!
+    append!: (self: RefMut(.Deque!), x: Obj) => NoneType
+    appendleft!: (self: RefMut(.Deque!), x: Obj) => NoneType
+    clear!: (self: RefMut .Deque!) => NoneType
+    copy: (self: Ref .Deque!) -> Deque!
+    count: (self: Ref(.Deque!), x: Obj) -> Nat
+    extend!: (self: RefMut(.Deque!), iterable: Iterable(Obj)) => NoneType
+    extendleft!: (self: RefMut(.Deque!), iterable: Iterable(Obj)) => NoneType
+    index: (self: Ref(.Deque!), x: Obj, start := Nat, stop := Nat) -> Nat
+    insert!: (self: RefMut(.Deque!), i: Nat, x: Obj) => NoneType
+    pop!: (self: RefMut(.Deque!), i := Nat) -> Obj
+    popleft!: (self: RefMut .Deque!) -> Obj
+    remove!: (self: RefMut(.Deque!), value: Obj) => NoneType
+    reverse!: (self: RefMut .Deque!) => NoneType
+    rotate!: (self: RefMut(.Deque!), n := Int) => NoneType
+
 .ChainMap: ClassType
+.ChainMap <: {Obj: Obj}
 .ChainMap.
     maps: [Mapping(Obj, Obj); _]
+    parents: [ChainMap; _]
     __call__: (*maps: Mapping(Obj, Obj)) -> ChainMap
     new_child: (m := Mapping(Obj, Obj), **kwargs: Obj) -> ChainMap
-.Counter: ClassType
-.Counter.
-    __call__: (iterable_or_mapping := Iterable(Obj) or Mapping(Obj, Obj), **kwargs: Obj) -> Counter
-.OrderedDict: ClassType
-.OrderedDict.
-    __call__: (mapping: Mapping(Obj, Obj)) -> OrderedDict
-.Defaultdict = 'defaultDict': ClassType
+.Counter!: ClassType
+.Counter! <: Dict! {Obj: Int}
+.Counter!.
+    __call__: (iterable_or_mapping := Iterable(Obj) or Mapping(Obj, Obj), **kwargs: Obj) -> Counter!
+.OrderedDict!: ClassType
+.OrderedDict! <: Dict! {Obj: Obj}
+.OrderedDict!.
+    __call__: (mapping: Mapping(Obj, Obj)) -> OrderedDict!
+    elements: (self: Ref OrderedDict!) -> Iterable(Obj)
+    most_common: (self: Ref(OrderedDict!), n := Nat) -> List((Obj, Int))
+    subtract!: (self: RefMut(OrderedDict!), iterable_or_mapping: Iterable(Obj) or Mapping(Obj, Obj)) => NoneType
+    total: (self: Ref(OrderedDict!)) -> Nat
+.DefaultDict = 'defaultDict': ClassType
 .UserDict: ClassType
 .UserList: ClassType
 .UserString: ClassType

@@ -1472,6 +1472,19 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         type_.register_trait(self, mono(NAMED)).unwrap();
+        let t_call = func1(Obj, ClassType)
+            & func3(
+                Str,
+                Type | poly(ITERABLE, vec![ty_tp(Type)]),
+                mono(GENERIC_DICT),
+                ClassType,
+            );
+        type_.register_builtin_erg_impl(
+            FUNDAMENTAL_CALL,
+            t_call,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
         let mut type_container = Self::builtin_methods(Some(poly(CONTAINER, vec![ty_tp(Obj)])), 2);
         type_container.register_builtin_erg_impl(
             FUNDAMENTAL_CONTAINS,
@@ -1681,11 +1694,13 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         generic_list.register_trait_methods(mono(GENERIC_LIST), list_eq);
-        let t_call = func1(
-            poly(ITERABLE, vec![ty_tp(T.clone())]),
+        let t_call = func(
+            vec![],
+            None,
+            vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
+            None,
             out_list_t(T.clone(), TyParam::erased(Nat)),
-        )
-        .quantify();
+        );
         generic_list.register_builtin_erg_impl(
             FUNDAMENTAL_CALL,
             t_call,
@@ -1731,6 +1746,19 @@ impl Context {
         list_
             .register_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
             .unwrap();
+        let t_call = func(
+            vec![],
+            None,
+            vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
+            None,
+            out_list_t(T.clone(), TyParam::erased(Nat)),
+        );
+        list_.register_builtin_erg_impl(
+            FUNDAMENTAL_CALL,
+            t_call,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
         let lis_t = list_t(T.clone(), N.clone());
         let t = no_var_fn_met(
             lis_t.clone(),
