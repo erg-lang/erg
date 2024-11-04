@@ -3394,6 +3394,9 @@ impl Context {
                     return Some(ctx);
                 }
             }
+            Type::Guard(_) => {
+                return self.get_nominal_type_ctx(&Bool);
+            }
             // FIXME: `F()`などの場合、実際は引数が省略されていてもmonomorphicになる
             other if other.is_monomorphic() => {
                 if let Some(ctx) = self.rec_local_get_mono_type(&other.local_name()) {

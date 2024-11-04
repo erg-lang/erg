@@ -1893,7 +1893,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
                 }
             }
             (Subr(_) | Record(_), Type) => {}
-            (Guard(_), Bool) | (Bool, Guard(_)) => {}
+            (Guard(_), _) | (_, Guard(_)) => {}
             // REVIEW: correct?
             (Poly { name, .. }, Type) if &name[..] == "List" || &name[..] == "Tuple" => {}
             (Poly { .. }, _) => {

@@ -945,6 +945,7 @@ impl Context {
                 }
                 true
             }
+            (l, Guard(_)) => self.supertype_of(l, &Bool),
             (_l, _r) => false,
         }
     }
