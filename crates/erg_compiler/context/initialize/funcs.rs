@@ -263,12 +263,25 @@ impl Context {
         )));
         let O = mono_q(TY_O, subtypeof(mono(ORD)));
         // TODO: iterable should be non-empty
-        let t_max = nd_func(
+        let t_max = func(
             vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(O.clone())]))],
+            None,
+            vec![
+                kw(KW_DEFAULT, O.clone()),
+                kw(KW_KEY, func1(O.clone(), O.clone())),
+            ],
             None,
             O.clone(),
         )
-        .quantify();
+        .quantify()
+            & func(
+                vec![kw(KW_ARG1, O.clone()), kw(KW_ARG2, O.clone())],
+                Some(kw(KW_ARGS, O.clone())),
+                vec![kw(KW_KEY, func1(O.clone(), O.clone()))],
+                None,
+                O.clone(),
+            )
+            .quantify();
         let max = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_MAX,
             max_func,
@@ -283,12 +296,25 @@ impl Context {
             None,
             mono(MEMORYVIEW),
         );
-        let t_min = nd_func(
+        let t_min = func(
             vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(O.clone())]))],
             None,
-            O,
+            vec![
+                kw(KW_DEFAULT, O.clone()),
+                kw(KW_KEY, func1(O.clone(), O.clone())),
+            ],
+            None,
+            O.clone(),
         )
-        .quantify();
+        .quantify()
+            & func(
+                vec![kw(KW_ARG1, O.clone()), kw(KW_ARG2, O.clone())],
+                Some(kw(KW_ARGS, O.clone())),
+                vec![kw(KW_KEY, func1(O.clone(), O.clone()))],
+                None,
+                O,
+            )
+            .quantify();
         let min = ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr::new(
             FUNC_MIN,
             min_func,
