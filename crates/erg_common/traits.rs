@@ -1413,3 +1413,22 @@ impl<T: Immutable, U: Immutable, V: Immutable> Immutable for (T, U, V) {}
 impl<T: Immutable + ?Sized> Immutable for Box<T> {}
 impl<T: Immutable + ?Sized> Immutable for std::rc::Rc<T> {}
 impl<T: Immutable + ?Sized> Immutable for std::sync::Arc<T> {}
+
+pub trait Traversable {
+    type Target;
+    fn traverse(&self, rec_f: &mut impl FnMut(&Self::Target));
+}
+
+#[macro_export]
+macro_rules! impl_traversable_for_enum {
+    ($Enum: ident; $Target: ty; $($Variant: ident $(,)?)*) => {
+        impl Traversable for $Enum {
+            type Target = $Target;
+            fn traverse(&self, rec_f: &mut impl FnMut(&Self::Target)) {
+                match self {
+                    $($Enum::$Variant(v) => v.traverse(rec_f),)*
+                }
+            }
+        }
+    }
+}

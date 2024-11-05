@@ -9,12 +9,12 @@ use erg_common::error::Location;
 use erg_common::io::Input;
 use erg_common::set::Set as HashSet;
 // use erg_common::dict::Dict as HashMap;
-use erg_common::traits::{Immutable, Locational, NestedDisplay, Stream};
+use erg_common::traits::{Immutable, Locational, NestedDisplay, Stream, Traversable};
 use erg_common::{
     fmt_option, fmt_vec, impl_display_for_enum, impl_display_from_nested,
     impl_displayable_stream_for_wrapper, impl_from_trait_for_enum, impl_locational,
     impl_locational_for_enum, impl_nested_display_for_chunk_enum, impl_nested_display_for_enum,
-    impl_stream,
+    impl_stream, impl_traversable_for_enum,
 };
 use erg_common::{fmt_vec_split_with, Str};
 
@@ -219,6 +219,11 @@ impl NestedDisplay for Literal {
 impl_display_from_nested!(Literal);
 impl_locational!(Literal, token);
 
+impl Traversable for Literal {
+    type Target = Expr;
+    fn traverse(&self, _f: &mut impl FnMut(&Self::Target)) {}
+}
+
 impl From<Token> for Literal {
     #[inline]
     fn from(token: Token) -> Self {
@@ -287,6 +292,13 @@ impl NestedDisplay for PosArg {
 impl_display_from_nested!(PosArg);
 impl_locational!(PosArg, expr);
 
+impl Traversable for PosArg {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        f(&self.expr);
+    }
+}
+
 impl PosArg {
     pub const fn new(expr: Expr) -> Self {
         Self { expr }
@@ -315,6 +327,13 @@ impl NestedDisplay for KwArg {
 
 impl_display_from_nested!(KwArg);
 impl_locational!(KwArg, keyword, expr);
+
+impl Traversable for KwArg {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        f(&self.expr);
+    }
+}
 
 #[pymethods]
 impl KwArg {
@@ -398,6 +417,24 @@ impl Locational for Args {
             (None, None, Some((l, r))) => Location::concat(l, r),
             (None, Some(l), None) => l.loc(),
             (None, None, None) => Location::Unknown,
+        }
+    }
+}
+
+impl Traversable for Args {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        for arg in &self.pos_args {
+            f(&arg.expr);
+        }
+        if let Some(var) = &self.var_args {
+            f(&var.expr);
+        }
+        for arg in &self.kw_args {
+            f(&arg.expr);
+        }
+        if let Some(var) = &self.kw_var_args {
+            f(&var.expr);
         }
     }
 }
@@ -619,6 +656,13 @@ impl NestedDisplay for Attribute {
 impl_display_from_nested!(Attribute);
 impl_locational!(Attribute, obj, ident);
 
+impl Traversable for Attribute {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        f(&self.obj);
+    }
+}
+
 #[pymethods]
 impl Attribute {
     #[getter]
@@ -661,6 +705,13 @@ impl NestedDisplay for TupleAttribute {
 impl_display_from_nested!(TupleAttribute);
 impl_locational!(TupleAttribute, obj, index);
 
+impl Traversable for TupleAttribute {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        f(&self.obj);
+    }
+}
+
 #[pymethods]
 impl TupleAttribute {
     #[getter]
@@ -702,6 +753,14 @@ impl NestedDisplay for Subscript {
 
 impl_display_from_nested!(Subscript);
 impl_locational!(Subscript, obj, r_sqbr);
+
+impl Traversable for Subscript {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        f(&self.obj);
+        f(&self.index);
+    }
+}
 
 #[pymethods]
 impl Subscript {
@@ -769,6 +828,16 @@ impl NestedDisplay for TypeAppArgsKind {
 impl_display_from_nested!(TypeAppArgsKind);
 impl_locational_for_enum!(TypeAppArgsKind; SubtypeOf, Args);
 
+impl Traversable for TypeAppArgsKind {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        match self {
+            Self::SubtypeOf(_) => {}
+            Self::Args(args) => args.traverse(f),
+        }
+    }
+}
+
 #[pyclass(get_all, set_all)]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TypeAppArgs {
@@ -785,6 +854,13 @@ impl NestedDisplay for TypeAppArgs {
 
 impl_display_from_nested!(TypeAppArgs);
 impl_locational!(TypeAppArgs, l_vbar, args, r_vbar);
+
+impl Traversable for TypeAppArgs {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        self.args.traverse(f);
+    }
+}
 
 #[pymethods]
 impl TypeAppArgs {
@@ -819,6 +895,14 @@ impl NestedDisplay for TypeApp {
 impl_display_from_nested!(TypeApp);
 impl_locational!(TypeApp, obj, type_args);
 
+impl Traversable for TypeApp {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        f(&self.obj);
+        self.type_args.traverse(f);
+    }
+}
+
 #[pymethods]
 impl TypeApp {
     #[staticmethod]
@@ -844,6 +928,19 @@ impl_display_from_nested!(Accessor);
 impl_locational_for_enum!(Accessor; Ident, Attr, TupleAttr, Subscr, TypeApp);
 impl_into_py_for_enum!(Accessor; Ident, Attr, TupleAttr, Subscr, TypeApp);
 impl_from_py_for_enum!(Accessor; Ident(Identifier), Attr(Attribute), TupleAttr(TupleAttribute), Subscr(Subscript), TypeApp(TypeApp));
+
+impl Traversable for Accessor {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        match self {
+            Self::Ident(_) => {}
+            Self::Attr(attr) => attr.traverse(f),
+            Self::TupleAttr(attr) => attr.traverse(f),
+            Self::Subscr(subscr) => subscr.traverse(f),
+            Self::TypeApp(app) => app.traverse(f),
+        }
+    }
+}
 
 impl Accessor {
     pub const fn local(symbol: Token) -> Self {
@@ -943,6 +1040,13 @@ impl NestedDisplay for NormalList {
 impl_display_from_nested!(NormalList);
 impl_locational!(NormalList, l_sqbr, elems, r_sqbr);
 
+impl Traversable for NormalList {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        self.elems.traverse(f);
+    }
+}
+
 #[pymethods]
 impl NormalList {
     #[pyo3(name = "get")]
@@ -988,6 +1092,14 @@ impl NestedDisplay for ListWithLength {
 impl_display_from_nested!(ListWithLength);
 impl_locational!(ListWithLength, l_sqbr, elem, r_sqbr);
 
+impl Traversable for ListWithLength {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        self.elem.traverse(f);
+        f(&self.len);
+    }
+}
+
 #[pymethods]
 impl ListWithLength {
     #[staticmethod]
@@ -1030,6 +1142,21 @@ impl NestedDisplay for ListComprehension {
 impl_display_from_nested!(ListComprehension);
 impl_locational!(ListComprehension, l_sqbr, r_sqbr);
 
+impl Traversable for ListComprehension {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        if let Some(layout) = &self.layout {
+            f(layout);
+        }
+        for (_, gen) in &self.generators {
+            f(gen);
+        }
+        if let Some(guard) = &self.guard {
+            f(guard);
+        }
+    }
+}
+
 #[pymethods]
 impl ListComprehension {
     #[staticmethod]
@@ -1064,6 +1191,17 @@ impl_locational_for_enum!(List; Normal, WithLength, Comprehension);
 impl_into_py_for_enum!(List; Normal, WithLength, Comprehension);
 impl_from_py_for_enum!(List; Normal(NormalList), WithLength(ListWithLength), Comprehension(ListComprehension));
 
+impl Traversable for List {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        match self {
+            Self::Normal(list) => list.traverse(f),
+            Self::WithLength(list) => list.traverse(f),
+            Self::Comprehension(list) => list.traverse(f),
+        }
+    }
+}
+
 impl List {
     pub fn get(&self, index: usize) -> Option<&Expr> {
         match self {
@@ -1089,6 +1227,13 @@ impl NestedDisplay for NormalTuple {
 
 impl_display_from_nested!(NormalTuple);
 impl_locational!(NormalTuple, elems, elems);
+
+impl Traversable for NormalTuple {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Expr)) {
+        self.elems.traverse(f);
+    }
+}
 
 impl From<NormalTuple> for Expr {
     fn from(tuple: NormalTuple) -> Self {
@@ -1116,6 +1261,15 @@ impl_locational_for_enum!(Tuple; Normal);
 impl_into_py_for_enum!(Tuple; Normal);
 impl_from_py_for_enum!(Tuple; Normal(NormalTuple));
 
+impl Traversable for Tuple {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        match self {
+            Self::Normal(tuple) => tuple.traverse(f),
+        }
+    }
+}
+
 impl Tuple {
     pub fn paren(&self) -> Option<&(Location, Location)> {
         match self {
@@ -1139,6 +1293,14 @@ impl NestedDisplay for KeyValue {
 
 impl_display_from_nested!(KeyValue);
 impl_locational!(KeyValue, key, value);
+
+impl Traversable for KeyValue {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        f(&self.key);
+        f(&self.value);
+    }
+}
 
 #[pymethods]
 impl KeyValue {
@@ -1164,6 +1326,15 @@ impl NestedDisplay for NormalDict {
 
 impl_display_from_nested!(NormalDict);
 impl_locational!(NormalDict, l_brace, r_brace);
+
+impl Traversable for NormalDict {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        for kv in &self.kvs {
+            kv.traverse(f);
+        }
+    }
+}
 
 #[pymethods]
 impl NormalDict {
@@ -1205,6 +1376,19 @@ impl NestedDisplay for DictComprehension {
 impl_display_from_nested!(DictComprehension);
 impl_locational!(DictComprehension, l_brace, kv, r_brace);
 
+impl Traversable for DictComprehension {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        self.kv.traverse(f);
+        for (_, gen) in &self.generators {
+            f(gen);
+        }
+        if let Some(guard) = &self.guard {
+            f(guard);
+        }
+    }
+}
+
 #[pymethods]
 impl DictComprehension {
     #[staticmethod]
@@ -1237,6 +1421,16 @@ impl_locational_for_enum!(Dict; Normal, Comprehension);
 impl_into_py_for_enum!(Dict; Normal, Comprehension);
 impl_from_py_for_enum!(Dict; Normal(NormalDict), Comprehension(DictComprehension));
 
+impl Traversable for Dict {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        match self {
+            Self::Normal(dict) => dict.traverse(f),
+            Self::Comprehension(dict) => dict.traverse(f),
+        }
+    }
+}
+
 impl Dict {
     pub fn braces(&self) -> (&Token, &Token) {
         match self {
@@ -1258,6 +1452,17 @@ impl_display_for_enum!(ClassAttr; Def, Decl, Doc);
 impl_locational_for_enum!(ClassAttr; Def, Decl, Doc);
 impl_into_py_for_enum!(ClassAttr; Def, Decl, Doc);
 
+impl Traversable for ClassAttr {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        match self {
+            Self::Def(def) => def.traverse(f),
+            Self::Decl(decl) => decl.traverse(f),
+            Self::Doc(_) => {}
+        }
+    }
+}
+
 #[pyclass]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ClassAttrs(Vec<ClassAttr>);
@@ -1274,6 +1479,15 @@ impl NestedDisplay for ClassAttrs {
 impl Locational for ClassAttrs {
     fn loc(&self) -> Location {
         Location::stream(&self.0)
+    }
+}
+
+impl Traversable for ClassAttrs {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        for attr in &self.0 {
+            attr.traverse(f);
+        }
     }
 }
 
@@ -1303,6 +1517,15 @@ impl Locational for RecordAttrs {
             Location::Unknown
         } else {
             Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+        }
+    }
+}
+
+impl Traversable for RecordAttrs {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        for attr in &self.0 {
+            attr.traverse(f);
         }
     }
 }
@@ -1339,6 +1562,13 @@ impl NestedDisplay for NormalRecord {
 
 impl_display_from_nested!(NormalRecord);
 impl_locational!(NormalRecord, l_brace, attrs, r_brace);
+
+impl Traversable for NormalRecord {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        self.attrs.traverse(f);
+    }
+}
 
 impl From<NormalRecord> for Expr {
     fn from(record: NormalRecord) -> Self {
@@ -1418,6 +1648,7 @@ impl_display_for_enum!(Record; Normal, Mixed);
 impl_locational_for_enum!(Record; Normal, Mixed);
 impl_into_py_for_enum!(Record; Normal, Mixed);
 impl_from_py_for_enum!(Record; Normal(NormalRecord), Mixed(MixedRecord));
+impl_traversable_for_enum!(Record; Expr; Normal, Mixed);
 
 impl Record {
     pub const fn new_mixed(l_brace: Token, r_brace: Token, attrs: Vec<RecordAttrOrIdent>) -> Self {
@@ -1498,6 +1729,15 @@ impl NestedDisplay for MixedRecord {
 impl_display_from_nested!(MixedRecord);
 impl_locational!(MixedRecord, l_brace, r_brace);
 
+impl Traversable for MixedRecord {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Expr)) {
+        for attr in &self.attrs {
+            attr.traverse(f);
+        }
+    }
+}
+
 #[pymethods]
 impl MixedRecord {
     #[pyo3(name = "get")]
@@ -1559,6 +1799,16 @@ impl_locational_for_enum!(RecordAttrOrIdent; Attr, Ident);
 impl_into_py_for_enum!(RecordAttrOrIdent; Attr, Ident);
 impl_from_py_for_enum!(RecordAttrOrIdent; Attr(Def), Ident(Identifier));
 
+impl Traversable for RecordAttrOrIdent {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        match self {
+            Self::Attr(attr) => attr.traverse(f),
+            Self::Ident(_) => {}
+        }
+    }
+}
+
 impl RecordAttrOrIdent {
     pub fn ident(&self) -> Option<&Identifier> {
         match self {
@@ -1586,6 +1836,13 @@ impl NestedDisplay for NormalSet {
 
 impl_display_from_nested!(NormalSet);
 impl_locational!(NormalSet, l_brace, elems, r_brace);
+
+impl Traversable for NormalSet {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        self.elems.traverse(f);
+    }
+}
 
 impl From<NormalSet> for Expr {
     fn from(set: NormalSet) -> Self {
@@ -1634,6 +1891,14 @@ impl NestedDisplay for SetWithLength {
 impl_display_from_nested!(SetWithLength);
 impl_locational!(SetWithLength, l_brace, elem, r_brace);
 
+impl Traversable for SetWithLength {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Expr)) {
+        self.elem.traverse(f);
+        f(&self.len);
+    }
+}
+
 #[pymethods]
 impl SetWithLength {
     #[staticmethod]
@@ -1675,6 +1940,21 @@ impl NestedDisplay for SetComprehension {
 impl_display_from_nested!(SetComprehension);
 impl_locational!(SetComprehension, l_brace, r_brace);
 
+impl Traversable for SetComprehension {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Expr)) {
+        if let Some(layout) = &self.layout {
+            f(layout);
+        }
+        for (_, gen) in &self.generators {
+            f(gen);
+        }
+        if let Some(guard) = &self.guard {
+            f(guard);
+        }
+    }
+}
+
 #[pymethods]
 impl SetComprehension {
     #[staticmethod]
@@ -1709,6 +1989,17 @@ impl_locational_for_enum!(Set; Normal, WithLength, Comprehension);
 impl_into_py_for_enum!(Set; Normal, WithLength, Comprehension);
 impl_from_py_for_enum!(Set; Normal(NormalSet), WithLength(SetWithLength), Comprehension(SetComprehension));
 
+impl Traversable for Set {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        match self {
+            Self::Normal(set) => set.traverse(f),
+            Self::WithLength(set) => set.traverse(f),
+            Self::Comprehension(set) => set.traverse(f),
+        }
+    }
+}
+
 #[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct BinOp {
@@ -1731,6 +2022,14 @@ impl_display_from_nested!(BinOp);
 impl Locational for BinOp {
     fn loc(&self) -> Location {
         Location::concat(&self.op, self.args[1].as_ref())
+    }
+}
+
+impl Traversable for BinOp {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        f(&self.args[0]);
+        f(&self.args[1]);
     }
 }
 
@@ -1787,6 +2086,13 @@ impl_display_from_nested!(UnaryOp);
 impl Locational for UnaryOp {
     fn loc(&self) -> Location {
         Location::concat(&self.op, self.args[0].as_ref())
+    }
+}
+
+impl Traversable for UnaryOp {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        f(&self.args[0]);
     }
 }
 
@@ -1877,6 +2183,14 @@ impl TryFrom<Expr> for Call {
 }
 
 impl_display_from_nested!(Call);
+
+impl Traversable for Call {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        f(&self.obj);
+        self.args.traverse(f);
+    }
+}
 
 impl Locational for Call {
     fn loc(&self) -> Location {
@@ -1971,6 +2285,14 @@ impl Locational for DataPack {
     }
 }
 
+impl Traversable for DataPack {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        f(&self.class);
+        self.args.traverse(f);
+    }
+}
+
 impl DataPack {
     pub fn new(class: Expr, connector: VisModifierSpec, args: Record) -> Self {
         Self {
@@ -1999,6 +2321,15 @@ impl Locational for Block {
             Location::Unknown
         } else {
             Location::concat(self.0.first().unwrap(), self.0.last().unwrap())
+        }
+    }
+}
+
+impl Traversable for Block {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        for expr in &self.0 {
+            f(expr);
         }
     }
 }
@@ -2032,6 +2363,13 @@ impl Locational for Dummy {
         } else {
             Location::concat(self.exprs.first().unwrap(), self.exprs.last().unwrap())
         }
+    }
+}
+
+impl Traversable for Dummy {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        self.exprs.traverse(f);
     }
 }
 
@@ -5826,6 +6164,13 @@ impl NestedDisplay for Lambda {
 
 impl_display_from_nested!(Lambda);
 
+impl Traversable for Lambda {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        self.body.traverse(f);
+    }
+}
+
 #[pymethods]
 impl Lambda {
     #[staticmethod]
@@ -5986,6 +6331,13 @@ impl NestedDisplay for TypeAscription {
 impl_display_from_nested!(TypeAscription);
 impl_locational!(TypeAscription, expr, t_spec);
 
+impl Traversable for TypeAscription {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        self.expr.traverse(f);
+    }
+}
+
 #[pymethods]
 impl TypeAscription {
     #[staticmethod]
@@ -6073,6 +6425,13 @@ pub struct DefBody {
 
 impl_locational!(DefBody, lossy op, block);
 
+impl Traversable for DefBody {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        self.block.traverse(f);
+    }
+}
+
 impl PartialEq for DefBody {
     fn eq(&self, other: &Self) -> bool {
         self.op == other.op && self.block == other.block
@@ -6148,6 +6507,14 @@ impl NestedDisplay for Def {
 impl_display_from_nested!(Def);
 impl_locational!(Def, sig, body);
 
+impl Traversable for Def {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        // self.sig.traverse(f);
+        self.body.traverse(f);
+    }
+}
+
 #[pymethods]
 impl Def {
     #[staticmethod]
@@ -6191,6 +6558,14 @@ impl NestedDisplay for ReDef {
 
 impl_display_from_nested!(ReDef);
 impl_locational!(ReDef, attr, expr);
+
+impl Traversable for ReDef {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        self.attr.traverse(f);
+        self.expr.traverse(f);
+    }
+}
 
 #[pymethods]
 impl ReDef {
@@ -6252,6 +6627,14 @@ impl NestedDisplay for Methods {
 impl_display_from_nested!(Methods);
 impl_locational!(Methods, lossy class, attrs);
 
+impl Traversable for Methods {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        self.class_as_expr.traverse(f);
+        self.attrs.traverse(f);
+    }
+}
+
 impl Methods {
     pub fn new(
         id: DefId,
@@ -6292,6 +6675,16 @@ impl NestedDisplay for ClassDef {
 impl_display_from_nested!(ClassDef);
 impl_locational!(ClassDef, def);
 
+impl Traversable for ClassDef {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        self.def.traverse(f);
+        for methods in self.methods_list.iter() {
+            methods.traverse(f);
+        }
+    }
+}
+
 #[pymethods]
 impl ClassDef {
     #[staticmethod]
@@ -6324,6 +6717,16 @@ impl NestedDisplay for PatchDef {
 
 impl_display_from_nested!(PatchDef);
 impl_locational!(PatchDef, def);
+
+impl Traversable for PatchDef {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        self.def.traverse(f);
+        for methods in self.methods_list.iter() {
+            methods.traverse(f);
+        }
+    }
+}
 
 #[pymethods]
 impl PatchDef {
@@ -6360,6 +6763,15 @@ impl Locational for Compound {
             }
         } else {
             Location::Unknown
+        }
+    }
+}
+
+impl Traversable for Compound {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        for expr in self.exprs.iter() {
+            f(expr);
         }
     }
 }
@@ -6405,6 +6817,7 @@ impl_display_from_nested!(Expr);
 impl_locational_for_enum!(Expr; Literal, Accessor, List, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, Dummy);
 impl_into_py_for_enum!(Expr; Literal, Accessor, List, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, Dummy);
 impl_from_py_for_enum!(Expr; Literal, Accessor, List, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, Dummy);
+impl_traversable_for_enum!(Expr; Expr; Literal, Accessor, List, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, Dummy);
 
 impl Expr {
     pub fn is_match_call(&self) -> bool {
@@ -6657,6 +7070,13 @@ impl Locational for Module {
     }
 }
 
+impl Traversable for Module {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        self.0.traverse(f);
+    }
+}
+
 impl Stream<Expr> for Module {
     fn payload(self) -> Vec<Expr> {
         self.0.payload()
@@ -6726,6 +7146,13 @@ impl NestedDisplay for AST {
 impl_display_from_nested!(AST);
 impl_locational!(AST, module);
 
+impl Traversable for AST {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        self.module.traverse(f);
+    }
+}
+
 #[pymethods]
 impl AST {
     #[staticmethod]
@@ -6755,6 +7182,14 @@ impl NestedDisplay for InlineModule {
 
 impl_display_from_nested!(InlineModule);
 impl_locational!(InlineModule, ast);
+
+impl Traversable for InlineModule {
+    type Target = Expr;
+    fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
+        self.ast.traverse(f);
+        self.import.traverse(f);
+    }
+}
 
 #[pymethods]
 impl InlineModule {
