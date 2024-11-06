@@ -4055,6 +4055,7 @@ impl Type {
     pub fn mut_self_t(&mut self) -> Option<&mut Type> {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => {
+                fv.clear_hash_cache();
                 fv.forced_as_mut().linked_mut().and_then(|t| t.mut_self_t())
             }
             Self::Refinement(refine) => refine.t.mut_self_t(),
@@ -4169,18 +4170,28 @@ impl Type {
     pub fn tyvar_mut_return_t(&mut self) -> Option<RefMut<Type>> {
         match self {
             Self::FreeVar(fv) => {
+                fv.clear_hash_cache();
                 RefMut::filter_map(fv.borrow_mut(), |fv| fv.linked_mut()?.mut_return_t()).ok()
             }
             _ => None,
         }
     }
 
+    pub fn tyvar_hash_cache(&self) -> Option<u64> {
+        match self {
+            Self::FreeVar(fv) => fv.get_hash_cache(),
+            _ => Some(0),
+        }
+    }
+
     pub fn mut_return_t(&mut self) -> Option<&mut Type> {
         match self {
-            Self::FreeVar(fv) if fv.is_linked() => fv
-                .forced_as_mut()
-                .linked_mut()
-                .and_then(|t| t.mut_return_t()),
+            Self::FreeVar(fv) if fv.is_linked() => {
+                fv.clear_hash_cache();
+                fv.forced_as_mut()
+                    .linked_mut()
+                    .and_then(|t| t.mut_return_t())
+            }
             Self::Refinement(refine) => refine.t.mut_return_t(),
             Self::Subr(SubrType { return_t, .. }) | Self::Callable { return_t, .. } => {
                 Some(return_t)

@@ -2,9 +2,11 @@ use std::cell::{BorrowError, BorrowMutError, Ref, RefMut};
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::mem;
-use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::{AtomicU64, AtomicUsize};
+use std::sync::Arc;
 
 use erg_common::consts::DEBUG_MODE;
+use erg_common::fxhash::FxHasher;
 use erg_common::shared::Forkable;
 use erg_common::traits::{LimitedDisplay, StructuralEq};
 use erg_common::Str;
@@ -559,31 +561,44 @@ impl<T> FreeKind<T> {
 }
 
 #[derive(Debug, Clone)]
-pub struct Free<T: Send + Clone>(Forkable<FreeKind<T>>);
+pub struct Free<T: Send + Clone> {
+    value: Forkable<FreeKind<T>>,
+    hash_cache: Arc<AtomicU64>,
+}
 
 impl Hash for Free<Type> {
     fn hash<H: Hasher>(&self, state: &mut H) {
+        if let Some(cache) = self.get_hash_cache() {
+            state.write_u64(cache);
+            return;
+        }
+        let mut hasher = FxHasher::default();
+        let hasher = &mut hasher;
         if let Some(name) = self.unbound_name() {
-            name.hash(state);
+            name.hash(hasher);
         }
         if let Some(lev) = self.level() {
-            lev.hash(state);
+            lev.hash(hasher);
         }
         if let Some((sub, sup)) = self.get_subsup() {
             self.do_avoiding_recursion(|| {
-                sub.hash(state);
-                sup.hash(state);
+                sub.hash(hasher);
+                sup.hash(hasher);
             });
         } else if let Some(t) = self.get_type() {
-            t.hash(state);
+            t.hash(hasher);
         } else if self.is_linked() {
             let cracked = self.crack();
             if !Type::FreeVar(self.clone()).addr_eq(&cracked) {
-                cracked.hash(state);
+                cracked.hash(hasher);
             } else {
-                addr!(self).hash(state);
+                addr!(self).hash(hasher);
             }
         }
+        let hash = hasher.finish();
+        self.hash_cache
+            .store(hash, std::sync::atomic::Ordering::Relaxed);
+        state.write_u64(hash);
     }
 }
 
@@ -721,36 +736,36 @@ impl Eq for Free<TyParam> {}
 
 impl<T: LimitedDisplay + Send + Clone> fmt::Display for Free<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0.borrow())
+        write!(f, "{}", self.value.borrow())
     }
 }
 
 impl<T: LimitedDisplay + Send + Clone> LimitedDisplay for Free<T> {
     fn limited_fmt<W: std::fmt::Write>(&self, f: &mut W, limit: isize) -> fmt::Result {
-        self.0.borrow().limited_fmt(f, limit)
+        self.value.borrow().limited_fmt(f, limit)
     }
 }
 
 impl<T: Send + Clone> Free<T> {
     #[track_caller]
     pub fn borrow(&self) -> Ref<'_, FreeKind<T>> {
-        self.0.borrow()
+        self.value.borrow()
     }
     #[track_caller]
     pub fn borrow_mut(&self) -> RefMut<'_, FreeKind<T>> {
-        self.0.borrow_mut()
+        self.value.borrow_mut()
     }
     #[track_caller]
     pub fn try_borrow(&self) -> Result<Ref<'_, FreeKind<T>>, BorrowError> {
-        self.0.try_borrow()
+        self.value.try_borrow()
     }
     #[track_caller]
     pub fn try_borrow_mut(&self) -> Result<RefMut<'_, FreeKind<T>>, BorrowMutError> {
-        self.0.try_borrow_mut()
+        self.value.try_borrow_mut()
     }
     /// very unsafe, use `force_replace` instead whenever possible
     pub fn as_ptr(&self) -> *mut FreeKind<T> {
-        self.0.as_ptr()
+        self.value.as_ptr()
     }
     pub fn forced_as_ref(&self) -> &FreeKind<T> {
         unsafe { self.as_ptr().as_ref() }.unwrap()
@@ -775,6 +790,21 @@ impl Free<Type> {
 
     pub fn is_recursive(&self) -> bool {
         Type::FreeVar(self.clone()).is_recursive()
+    }
+
+    pub fn get_hash_cache(&self) -> Option<u64> {
+        if let Some(linked) = self.get_linked() {
+            linked.tyvar_hash_cache()?;
+        } else if let Some((sub, sup)) = self.get_subsup() {
+            sub.tyvar_hash_cache()
+                .and_then(|_| sup.tyvar_hash_cache())?;
+        }
+        let cache = self.hash_cache.load(std::sync::atomic::Ordering::Relaxed);
+        if cache == 0 {
+            None
+        } else {
+            Some(cache)
+        }
     }
 
     /// interior-mut
@@ -842,6 +872,7 @@ impl Free<Type> {
                     return;
                 }
                 *constraint = new_constraint;
+                self.clear_hash_cache();
             }
             FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
                 t.destructive_update_constraint(new_constraint, in_inst_or_gen);
@@ -928,11 +959,11 @@ impl<T: StructuralEq + CanbeFree + Clone + Default + fmt::Debug + Send + Sync + 
 
 impl<T: Send + Clone> Free<T> {
     pub fn clone_inner(&self) -> FreeKind<T> {
-        self.0.clone_inner()
+        self.value.clone_inner()
     }
 
     pub fn update_init(&mut self) {
-        self.0.update_init();
+        self.value.update_init();
     }
 }
 
@@ -944,6 +975,7 @@ impl HasLevel for Free<Type> {
                     return;
                 }
                 *lev = level;
+                self.clear_hash_cache();
             }
             _ => {}
         }
@@ -975,6 +1007,7 @@ impl HasLevel for Free<TyParam> {
                     return;
                 }
                 *lev = level;
+                self.clear_hash_cache();
             }
             _ => {}
         }
@@ -1014,26 +1047,41 @@ where
 
 impl<T: Send + Clone> Free<T> {
     pub fn new(f: FreeKind<T>) -> Self {
-        Self(Forkable::new(f))
+        Self {
+            value: Forkable::new(f),
+            hash_cache: Arc::new(AtomicU64::new(0)),
+        }
     }
 
     pub fn new_unbound(level: Level, constraint: Constraint) -> Self {
         UNBOUND_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        Self(Forkable::new(FreeKind::unbound(
-            UNBOUND_ID.load(std::sync::atomic::Ordering::SeqCst),
-            level,
-            constraint,
-        )))
+        Self {
+            value: Forkable::new(FreeKind::unbound(
+                UNBOUND_ID.load(std::sync::atomic::Ordering::SeqCst),
+                level,
+                constraint,
+            )),
+            hash_cache: Arc::new(AtomicU64::new(0)),
+        }
     }
 
     pub fn new_named_unbound(name: Str, level: Level, constraint: Constraint) -> Self {
-        Self(Forkable::new(FreeKind::named_unbound(
-            name, level, constraint,
-        )))
+        Self {
+            value: Forkable::new(FreeKind::named_unbound(name, level, constraint)),
+            hash_cache: Arc::new(AtomicU64::new(0)),
+        }
     }
 
     pub fn new_linked(t: T) -> Self {
-        Self(Forkable::new(FreeKind::Linked(t)))
+        Self {
+            value: Forkable::new(FreeKind::Linked(t)),
+            hash_cache: Arc::new(AtomicU64::new(0)),
+        }
+    }
+
+    pub fn clear_hash_cache(&self) {
+        self.hash_cache
+            .store(0, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// returns linked type (panic if self is unbounded)
@@ -1099,6 +1147,7 @@ impl<T: Send + Sync + 'static + Clone> Free<T> {
             return;
         }
         *self.borrow_mut() = to;
+        self.clear_hash_cache();
     }
 }
 
@@ -1113,6 +1162,7 @@ impl<T: Clone + Send + Sync + 'static> Free<T> {
             return;
         }
         self.borrow_mut().replace(to.clone());
+        self.clear_hash_cache();
     }
 
     /// interior-mut
@@ -1128,6 +1178,7 @@ impl<T: Clone + Send + Sync + 'static> Free<T> {
             count: 0,
         };
         *self.borrow_mut() = new;
+        self.clear_hash_cache();
     }
 
     /// interior-mut
@@ -1138,6 +1189,7 @@ impl<T: Clone + Send + Sync + 'static> Free<T> {
             } => {
                 if *count > 0 {
                     *count -= 1;
+                    self.clear_hash_cache();
                     return;
                 }
                 *previous.clone()
@@ -1145,6 +1197,7 @@ impl<T: Clone + Send + Sync + 'static> Free<T> {
             _other => panic!("cannot undo"),
         };
         self.replace(prev);
+        self.clear_hash_cache();
     }
 
     pub fn undo_stack_size(&self) -> usize {
@@ -1153,6 +1206,7 @@ impl<T: Clone + Send + Sync + 'static> Free<T> {
 
     pub fn inc_undo_count(&self) {
         self.borrow_mut().inc_undo_count();
+        self.clear_hash_cache();
     }
 
     pub fn unwrap_unbound(self) -> (Option<Str>, usize, Constraint) {
@@ -1197,6 +1251,7 @@ impl<T: Clone + Send + Sync + 'static> Free<T> {
 
     #[track_caller]
     pub fn get_linked_refmut(&self) -> Option<RefMut<T>> {
+        self.clear_hash_cache();
         RefMut::filter_map(self.borrow_mut(), |f| match f {
             FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => Some(t),
             FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => None,
@@ -1325,6 +1380,7 @@ impl Free<TyParam> {
                     return;
                 }
                 *constraint = new_constraint;
+                self.clear_hash_cache();
             }
             FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
                 t.destructive_update_constraint(new_constraint, in_inst_or_gen);
