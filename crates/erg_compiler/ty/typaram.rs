@@ -1571,11 +1571,16 @@ impl TyParam {
                 if let Some(tp) = tvs.get_tp(&name) {
                     return tp;
                 }
-                let typ = fv.get_type().unwrap()._replace(target, to, tvs);
-                let fv_clone = fv.deep_clone();
-                fv_clone.update_type(typ);
-                tvs.insert_tp(name, Self::FreeVar(fv_clone.clone()));
-                Self::FreeVar(fv_clone)
+                let typ = fv.get_type().unwrap();
+                let new_typ = typ.clone()._replace(target, to, tvs);
+                if new_typ != typ {
+                    let fv_clone = fv.deep_clone();
+                    fv_clone.update_type(new_typ);
+                    tvs.insert_tp(name, Self::FreeVar(fv_clone.clone()));
+                    Self::FreeVar(fv_clone)
+                } else {
+                    Self::FreeVar(fv)
+                }
             }
             Self::Type(t) => Self::t(t._replace(target, to, tvs)),
             Self::Erased(t) => Self::erased(t._replace(target, to, tvs)),
@@ -1927,12 +1932,17 @@ impl TyParam {
                     }
                 }
                 let typ = fv.get_type().unwrap();
-                let fv_clone = fv.deep_clone();
-                fv_clone.update_type(typ.map_tp(f, tvs));
-                if let Some(name) = fv_clone.unbound_name() {
-                    tvs.insert_tp(name, TyParam::FreeVar(fv_clone.clone()));
+                let new_typ = typ.clone().map_tp(f, tvs);
+                if typ != new_typ {
+                    let fv_clone = fv.deep_clone();
+                    fv_clone.update_type(new_typ);
+                    if let Some(name) = fv_clone.unbound_name() {
+                        tvs.insert_tp(name, TyParam::FreeVar(fv_clone.clone()));
+                    }
+                    TyParam::FreeVar(fv_clone)
+                } else {
+                    TyParam::FreeVar(fv)
                 }
-                TyParam::FreeVar(fv_clone)
             }
             TyParam::FreeVar(_) => self,
             TyParam::App { name, args } => {
@@ -1996,13 +2006,18 @@ impl TyParam {
                         return tp;
                     }
                 }
-                let fv_clone = fv.deep_clone();
                 let typ = fv.get_type().unwrap();
-                fv_clone.update_type(f(typ));
-                if let Some(name) = fv_clone.unbound_name() {
-                    tvs.insert_tp(name, TyParam::FreeVar(fv_clone.clone()));
+                let new_typ = f(typ.clone());
+                if typ != new_typ {
+                    let fv_clone = fv.deep_clone();
+                    fv_clone.update_type(new_typ);
+                    if let Some(name) = fv_clone.unbound_name() {
+                        tvs.insert_tp(name, TyParam::FreeVar(fv_clone.clone()));
+                    }
+                    TyParam::FreeVar(fv_clone)
+                } else {
+                    TyParam::FreeVar(fv)
                 }
-                TyParam::FreeVar(fv_clone)
             }
             TyParam::FreeVar(_) => self,
             TyParam::App { name, args } => {

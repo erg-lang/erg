@@ -4530,20 +4530,37 @@ impl Type {
                         return tv;
                     }
                 }
-                let fv_clone = fv.deep_clone();
                 if let Some((sub, sup)) = fv.get_subsup() {
                     fv.dummy_link();
-                    let sub = f(sub);
-                    let sup = f(sup);
+                    let new_sub = f(sub.clone());
+                    let new_sup = f(sup.clone());
                     fv.undo();
-                    fv_clone.update_constraint(Constraint::new_sandwiched(sub, sup), true);
+                    if new_sub != sub || new_sup != sup {
+                        let fv_clone = fv.deep_clone();
+                        fv_clone
+                            .update_constraint(Constraint::new_sandwiched(new_sub, new_sup), true);
+                        if let Some(name) = fv.unbound_name() {
+                            tvs.insert_tv(name, Self::FreeVar(fv_clone.clone()));
+                        }
+                        Self::FreeVar(fv_clone)
+                    } else {
+                        Self::FreeVar(fv)
+                    }
                 } else if let Some(ty) = fv.get_type() {
-                    fv_clone.update_constraint(Constraint::new_type_of(f(ty)), true);
+                    let new_ty = f(ty.clone());
+                    if new_ty != ty {
+                        let fv_clone = fv.deep_clone();
+                        fv_clone.update_constraint(Constraint::new_type_of(new_ty), true);
+                        if let Some(name) = fv.unbound_name() {
+                            tvs.insert_tv(name, Self::FreeVar(fv_clone.clone()));
+                        }
+                        Self::FreeVar(fv_clone)
+                    } else {
+                        Self::FreeVar(fv)
+                    }
+                } else {
+                    Self::FreeVar(fv)
                 }
-                if let Some(name) = fv.unbound_name() {
-                    tvs.insert_tv(name, Self::FreeVar(fv_clone.clone()));
-                }
-                Self::FreeVar(fv_clone)
             }
             Self::Refinement(mut refine) => {
                 refine.t = Box::new(f(*refine.t));
@@ -4616,6 +4633,7 @@ impl Type {
         self.map(&mut |t| t._replace(target, to, tvs), tvs)
     }
 
+    /// `?T(<: Int).replace(Int, Nat) == ?T'(<: Nat)`
     fn _replace_tp(self, target: &TyParam, to: &TyParam, tvs: &SharedFrees) -> Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked()._replace_tp(target, to, tvs),
@@ -4625,23 +4643,37 @@ impl Type {
                         return tv;
                     }
                 }
-                let fv_clone = fv.deep_clone();
                 if let Some((sub, sup)) = fv.get_subsup() {
                     fv.dummy_link();
-                    let sub = sub._replace_tp(target, to, tvs);
-                    let sup = sup._replace_tp(target, to, tvs);
+                    let new_sub = sub.clone()._replace_tp(target, to, tvs);
+                    let new_sup = sup.clone()._replace_tp(target, to, tvs);
                     fv.undo();
-                    fv_clone.update_constraint(Constraint::new_sandwiched(sub, sup), true);
+                    if new_sub != sub || new_sup != sup {
+                        let fv_clone = fv.deep_clone();
+                        fv_clone
+                            .update_constraint(Constraint::new_sandwiched(new_sub, new_sup), true);
+                        if let Some(name) = fv.unbound_name() {
+                            tvs.insert_tv(name, Self::FreeVar(fv_clone.clone()));
+                        }
+                        Self::FreeVar(fv_clone)
+                    } else {
+                        Self::FreeVar(fv)
+                    }
                 } else if let Some(ty) = fv.get_type() {
-                    fv_clone.update_constraint(
-                        Constraint::new_type_of(ty._replace_tp(target, to, tvs)),
-                        true,
-                    );
+                    let new_ty = ty.clone()._replace_tp(target, to, tvs);
+                    if new_ty != ty {
+                        let fv_clone = fv.deep_clone();
+                        fv_clone.update_constraint(Constraint::new_type_of(new_ty), true);
+                        if let Some(name) = fv.unbound_name() {
+                            tvs.insert_tv(name, Self::FreeVar(fv_clone.clone()));
+                        }
+                        Self::FreeVar(fv_clone)
+                    } else {
+                        Self::FreeVar(fv)
+                    }
+                } else {
+                    Self::FreeVar(fv)
                 }
-                if let Some(name) = fv.unbound_name() {
-                    tvs.insert_tv(name, Self::FreeVar(fv_clone.clone()));
-                }
-                Self::FreeVar(fv_clone)
             }
             Self::Refinement(mut refine) => {
                 refine.t = Box::new(refine.t._replace_tp(target, to, tvs));
@@ -4729,20 +4761,37 @@ impl Type {
                         return tv;
                     }
                 }
-                let fv_clone = fv.deep_clone();
                 if let Some((sub, sup)) = fv.get_subsup() {
                     fv.dummy_link();
-                    let sub = sub.map_tp(f, tvs);
-                    let sup = sup.map_tp(f, tvs);
+                    let new_sub = sub.clone().map_tp(f, tvs);
+                    let new_sup = sup.clone().map_tp(f, tvs);
                     fv.undo();
-                    fv_clone.update_constraint(Constraint::new_sandwiched(sub, sup), true);
+                    if new_sub != sub || new_sup != sup {
+                        let fv_clone = fv.deep_clone();
+                        fv_clone
+                            .update_constraint(Constraint::new_sandwiched(new_sub, new_sup), true);
+                        if let Some(name) = fv.unbound_name() {
+                            tvs.insert_tv(name, Self::FreeVar(fv_clone.clone()));
+                        }
+                        Self::FreeVar(fv_clone)
+                    } else {
+                        Self::FreeVar(fv)
+                    }
                 } else if let Some(ty) = fv.get_type() {
-                    fv_clone.update_constraint(Constraint::new_type_of(ty.map_tp(f, tvs)), true);
+                    let new_ty = ty.clone().map_tp(f, tvs);
+                    if new_ty != ty {
+                        let fv_clone = fv.deep_clone();
+                        fv_clone.update_constraint(Constraint::new_type_of(new_ty), true);
+                        if let Some(name) = fv.unbound_name() {
+                            tvs.insert_tv(name, Self::FreeVar(fv_clone.clone()));
+                        }
+                        Self::FreeVar(fv_clone)
+                    } else {
+                        Self::FreeVar(fv)
+                    }
+                } else {
+                    Self::FreeVar(fv)
                 }
-                if let Some(name) = fv.unbound_name() {
-                    tvs.insert_tv(name, Self::FreeVar(fv_clone.clone()));
-                }
-                Self::FreeVar(fv_clone)
             }
             Self::Refinement(mut refine) => {
                 refine.t = Box::new(refine.t.map_tp(f, tvs));
@@ -4818,21 +4867,37 @@ impl Type {
                         return Ok(tv);
                     }
                 }
-                let fv_clone = fv.deep_clone();
                 if let Some((sub, sup)) = fv.get_subsup() {
                     fv.dummy_link();
-                    let sub = sub.try_map_tp(f, tvs)?;
-                    let sup = sup.try_map_tp(f, tvs)?;
+                    let new_sub = sub.clone().try_map_tp(f, tvs)?;
+                    let new_sup = sup.clone().try_map_tp(f, tvs)?;
                     fv.undo();
-                    fv_clone.update_constraint(Constraint::new_sandwiched(sub, sup), true);
+                    if new_sub != sub || new_sup != sup {
+                        let fv_clone = fv.deep_clone();
+                        fv_clone
+                            .update_constraint(Constraint::new_sandwiched(new_sub, new_sup), true);
+                        if let Some(name) = fv.unbound_name() {
+                            tvs.insert_tv(name, Self::FreeVar(fv_clone.clone()));
+                        }
+                        Ok(Self::FreeVar(fv_clone))
+                    } else {
+                        Ok(Self::FreeVar(fv))
+                    }
                 } else if let Some(ty) = fv.get_type() {
-                    fv_clone
-                        .update_constraint(Constraint::new_type_of(ty.try_map_tp(f, tvs)?), true);
+                    let new_ty = ty.clone().try_map_tp(f, tvs)?;
+                    if new_ty != ty {
+                        let fv_clone = fv.deep_clone();
+                        fv_clone.update_constraint(Constraint::new_type_of(new_ty), true);
+                        if let Some(name) = fv.unbound_name() {
+                            tvs.insert_tv(name, Self::FreeVar(fv_clone.clone()));
+                        }
+                        Ok(Self::FreeVar(fv_clone))
+                    } else {
+                        Ok(Self::FreeVar(fv))
+                    }
+                } else {
+                    Ok(Self::FreeVar(fv))
                 }
-                if let Some(name) = fv.unbound_name() {
-                    tvs.insert_tv(name, Self::FreeVar(fv_clone.clone()));
-                }
-                Ok(Self::FreeVar(fv_clone))
             }
             Self::Refinement(mut refine) => {
                 refine.t = Box::new(refine.t.try_map_tp(f, tvs)?);
@@ -6127,5 +6192,21 @@ mod tests {
         assert!(t.is_recursive());
         assert!(subr.is_recursive());
         assert!(sup.is_recursive());
+    }
+
+    #[test]
+    fn test_link() {
+        let t = named_free_var("T".into(), 1, Constraint::new_type_of(Type::Type));
+        let u = free_var(1, Constraint::new_type_of(Type::Type));
+        let v = t.clone();
+        u.link(&unknown_len_list_t(t.clone()), None);
+        t.destructive_link(&Type::Int);
+        assert_eq!(v, Type::Int);
+        assert_eq!(
+            u,
+            unknown_len_list_t(Type::Int),
+            "{u} != {}",
+            unknown_len_list_t(Type::Int)
+        );
     }
 }
