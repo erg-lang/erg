@@ -477,8 +477,13 @@ impl Context {
             // ?T(:> ?U) :> ?U
             // ?U :> ?T(<: ?U)
             // ?T(: {Int, Str}) :> ?U(<: Int)
+            // ?T(:> NoneType, <: Eq) !:> ?U(:> Nat, <: Eq)
+            // ?T(:> Never, <: Eq) :> ?U(:> Nat, <: Eq)
+            // ?T(:> Int, <: Eq) :> ?U(:> Nat, <: Eq)
             (FreeVar(lfv), FreeVar(rfv)) => match (lfv.get_subsup(), rfv.get_subsup()) {
-                (Some((_, l_sup)), Some((r_sub, _))) => self.supertype_of(&l_sup, &r_sub),
+                (Some((l_sub, l_supe)), Some((r_sub, _))) => {
+                    self.supertype_of(&l_supe, &r_sub) && self.related(&l_sub, &r_sub)
+                }
                 (Some((l_sub, _)), None) if &l_sub == rhs => true,
                 (None, Some((_, r_sup))) if lhs == &r_sup => true,
                 _ => {

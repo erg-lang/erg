@@ -93,7 +93,7 @@ impl Context {
         inst.lift();
         let quantified_again = self.generalize_t(inst);
         println!("quantified_again: {quantified_again}");
-        assert_eq!(quantified, quantified_again);
+        assert!(quantified.structural_eq(&quantified_again));
         Ok(())
     }
 
