@@ -1700,7 +1700,8 @@ impl Context {
             vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
             None,
             out_list_t(T.clone(), TyParam::erased(Nat)),
-        );
+        )
+        .quantify();
         generic_list.register_builtin_erg_impl(
             FUNDAMENTAL_CALL,
             t_call,
@@ -1752,7 +1753,8 @@ impl Context {
             vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
             None,
             out_list_t(T.clone(), TyParam::erased(Nat)),
-        );
+        )
+        .quantify();
         list_.register_builtin_erg_impl(
             FUNDAMENTAL_CALL,
             t_call,
