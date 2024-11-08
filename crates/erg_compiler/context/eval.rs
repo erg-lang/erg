@@ -177,18 +177,34 @@ impl<'c> Substituter<'c> {
         qt: &Type,
         st: &Type,
     ) -> EvalResult<Option<Self>> {
-        let qtps = qt.typarams();
+        let mut qtps = qt.typarams();
         let mut stps = st.typarams();
         // Or, And are commutative, choose fitting order
-        if qt.qual_name() == st.qual_name() && (st.qual_name() == "Or" || st.qual_name() == "And") {
-            // REVIEW: correct condition?
-            if qt != st
-                && ctx.covariant_supertype_of_tp(&qtps[0], &stps[1])
-                && ctx.covariant_supertype_of_tp(&qtps[1], &stps[0])
-            {
-                stps.swap(0, 1);
+        if qt.qual_name() == st.qual_name() {
+            if st.is_union_type() || st.is_intersection_type() {
+                let mut q_indices = vec![];
+                let mut s_indices = vec![];
+                for (i, qtp) in qtps.iter().enumerate() {
+                    if let Some(j) = stps.iter().position(|stp| stp == qtp) {
+                        q_indices.push(i);
+                        s_indices.push(j);
+                    }
+                }
+                for q_index in q_indices {
+                    qtps[q_index] = TyParam::Failure;
+                }
+                for s_index in s_indices {
+                    stps[s_index] = TyParam::Failure;
+                }
+                // REVIEW: correct condition?
+                if qt != st
+                    && ctx.covariant_supertype_of_tp(&qtps[0], &stps[1])
+                    && ctx.covariant_supertype_of_tp(&qtps[1], &stps[0])
+                {
+                    stps.swap(0, 1);
+                }
             }
-        } else if qt.qual_name() != st.qual_name() || qtps.len() != stps.len() {
+        } else {
             // e.g. qt: Iterable(T), st: Vec(<: Iterable(Int))
             if let Some(st_sups) = ctx.get_super_types(st) {
                 for sup in st_sups.skip(1) {
@@ -198,8 +214,12 @@ impl<'c> Substituter<'c> {
                         for (sup_tp, stp) in sup_tps.into_iter().zip(stps.into_iter()) {
                             let _ = child.substitute_typaram(sup_tp, stp);
                         }
-                        return Self::substitute_typarams(ctx, qt, &sup)
-                            .map(|opt_subs| opt_subs.map(|sub| sub.with_child(child)));
+                        if st == &sup {
+                            return Ok(Some(child));
+                        } else {
+                            return Self::substitute_typarams(ctx, qt, &sup)
+                                .map(|opt_subs| opt_subs.map(|sub| sub.with_child(child)));
+                        }
                     }
                 }
             }
@@ -231,9 +251,33 @@ impl<'c> Substituter<'c> {
         qt: &Type,
         st: &Type,
     ) -> EvalResult<Option<Self>> {
-        let qtps = qt.typarams();
-        let stps = st.typarams();
-        if qt.qual_name() != st.qual_name() || qtps.len() != stps.len() {
+        let mut qtps = qt.typarams();
+        let mut stps = st.typarams();
+        if qt.qual_name() == st.qual_name() {
+            if st.is_union_type() || st.is_intersection_type() {
+                let mut q_indices = vec![];
+                let mut s_indices = vec![];
+                for (i, qtp) in qtps.iter().enumerate() {
+                    if let Some(j) = stps.iter().position(|stp| stp == qtp) {
+                        q_indices.push(i);
+                        s_indices.push(j);
+                    }
+                }
+                for q_index in q_indices {
+                    qtps[q_index] = TyParam::Failure;
+                }
+                for s_index in s_indices {
+                    stps[s_index] = TyParam::Failure;
+                }
+                // REVIEW: correct condition?
+                if qt != st
+                    && ctx.covariant_supertype_of_tp(&qtps[0], &stps[1])
+                    && ctx.covariant_supertype_of_tp(&qtps[1], &stps[0])
+                {
+                    stps.swap(0, 1);
+                }
+            }
+        } else {
             // e.g. qt: Iterable(T), st: Vec(<: Iterable(Int))
             if let Some(st_sups) = ctx.get_super_types(st) {
                 for sup in st_sups.skip(1) {
@@ -243,8 +287,12 @@ impl<'c> Substituter<'c> {
                         for (sup_tp, stp) in sup_tps.into_iter().zip(stps.into_iter()) {
                             let _ = child.overwrite_typaram(sup_tp, stp);
                         }
-                        return Self::overwrite_typarams(ctx, qt, &sup)
-                            .map(|opt_subs| opt_subs.map(|sub| sub.with_child(child)));
+                        if st == &sup {
+                            return Ok(Some(child));
+                        } else {
+                            return Self::overwrite_typarams(ctx, qt, &sup)
+                                .map(|opt_subs| opt_subs.map(|sub| sub.with_child(child)));
+                        }
                     }
                 }
             }
@@ -2058,18 +2106,7 @@ impl Context {
                     TyParam::erased(t)
                 }
             },
-            TyParam::Value(val) => {
-                match val
-                    .clone()
-                    .try_map_t(&mut |t| self.eval_t_params(t, self.level, &()))
-                {
-                    Ok(val) => TyParam::Value(val),
-                    Err((_t, es)) => {
-                        errs.extend(es);
-                        TyParam::Value(val)
-                    }
-                }
-            }
+            TyParam::Value(val) => TyParam::Value(val),
             TyParam::ProjCall { obj, attr, args } => {
                 match self.eval_proj_call(*obj, attr, args, &()) {
                     Ok(tp) => tp,
