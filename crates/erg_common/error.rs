@@ -792,7 +792,7 @@ impl SubMessage {
                 cxt.to_string()
             }
             Location::Unknown => match &e.input().kind {
-                InputKind::File(_) => "\n".to_string(),
+                InputKind::File { .. } => "\n".to_string(),
                 _other => {
                     let (_, vbar) = chars.gutters();
                     let mut cxt = StyledStrings::default();

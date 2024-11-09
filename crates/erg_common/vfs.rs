@@ -1,7 +1,8 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 use crate::dict::Dict;
+use crate::io::Input;
 use crate::pathutil::NormalizedPathBuf;
 use crate::shared::Shared;
 
@@ -10,18 +11,28 @@ use crate::shared::Shared;
 #[derive(Debug, Default)]
 pub struct VirtualFileSystem {
     cache: Shared<Dict<NormalizedPathBuf, String>>,
+    path_cache: Shared<Dict<(Input, PathBuf), Option<PathBuf>>>,
 }
 
 impl VirtualFileSystem {
     pub fn new() -> Self {
         Self {
             cache: Shared::new(Dict::new()),
+            path_cache: Shared::new(Dict::new()),
         }
     }
 
     pub fn update(&self, path: impl AsRef<Path>, contents: String) {
         let path = NormalizedPathBuf::from(path.as_ref());
         self.cache.borrow_mut().insert(path, contents);
+    }
+
+    pub fn cache_path(&self, input: Input, path: PathBuf, result: Option<PathBuf>) {
+        self.path_cache.borrow_mut().insert((input, path), result);
+    }
+
+    pub fn get_cached_path(&self, input: Input, path: PathBuf) -> Option<Option<PathBuf>> {
+        self.path_cache.borrow().get(&(input, path)).cloned()
     }
 
     pub fn remove(&self, path: impl AsRef<Path>) {
@@ -68,6 +79,18 @@ impl SharedVFS {
 
     pub fn remove(&self, path: impl AsRef<Path>) {
         self.0.get_or_init(VirtualFileSystem::new).remove(path)
+    }
+
+    pub fn cache_path(&self, input: Input, path: PathBuf, result: Option<PathBuf>) {
+        self.0
+            .get_or_init(VirtualFileSystem::new)
+            .cache_path(input, path, result)
+    }
+
+    pub fn get_cached_path(&self, input: Input, path: PathBuf) -> Option<Option<PathBuf>> {
+        self.0
+            .get_or_init(VirtualFileSystem::new)
+            .get_cached_path(input, path)
     }
 }
 
