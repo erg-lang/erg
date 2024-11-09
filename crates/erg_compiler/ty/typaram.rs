@@ -547,6 +547,15 @@ impl CanbeFree for TyParam {
         }
     }
 
+    fn unbound_id(&self) -> Option<usize> {
+        match self {
+            TyParam::FreeVar(fv) => fv.unbound_id(),
+            TyParam::Type(t) => t.unbound_id(),
+            TyParam::Value(ValueObj::Type(ty)) => ty.typ().unbound_id(),
+            _ => None,
+        }
+    }
+
     fn constraint(&self) -> Option<Constraint> {
         match self {
             TyParam::FreeVar(fv) => fv.constraint(),
@@ -1567,8 +1576,8 @@ impl TyParam {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().replace_t(target, to, tvs),
             Self::FreeVar(fv) if fv.get_type().is_some() => {
-                let name = fv.unbound_name().unwrap();
-                if let Some(tp) = tvs.get_tp(&name) {
+                let id = fv.unbound_id().unwrap();
+                if let Some(tp) = tvs.get_tp(id) {
                     return tp;
                 }
                 let typ = fv.get_type().unwrap();
@@ -1576,7 +1585,7 @@ impl TyParam {
                 if new_typ != typ {
                     let fv_clone = fv.deep_clone();
                     fv_clone.update_type(new_typ);
-                    tvs.insert_tp(name, Self::FreeVar(fv_clone.clone()));
+                    tvs.insert_tp(id, Self::FreeVar(fv_clone.clone()));
                     Self::FreeVar(fv_clone)
                 } else {
                     Self::FreeVar(fv)
@@ -1926,8 +1935,8 @@ impl TyParam {
         match self {
             TyParam::FreeVar(fv) if fv.is_linked() => f(fv.unwrap_linked()),
             TyParam::FreeVar(fv) if fv.get_type().is_some() => {
-                if let Some(name) = fv.unbound_name() {
-                    if let Some(tp) = tvs.get_tp(&name) {
+                if let Some(id) = fv.unbound_id() {
+                    if let Some(tp) = tvs.get_tp(id) {
                         return tp;
                     }
                 }
@@ -1936,8 +1945,8 @@ impl TyParam {
                 if typ != new_typ {
                     let fv_clone = fv.deep_clone();
                     fv_clone.update_type(new_typ);
-                    if let Some(name) = fv_clone.unbound_name() {
-                        tvs.insert_tp(name, TyParam::FreeVar(fv_clone.clone()));
+                    if let Some(id) = fv_clone.unbound_id() {
+                        tvs.insert_tp(id, TyParam::FreeVar(fv_clone.clone()));
                     }
                     TyParam::FreeVar(fv_clone)
                 } else {
@@ -2001,8 +2010,8 @@ impl TyParam {
         match self {
             TyParam::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().map_t(f, tvs),
             TyParam::FreeVar(fv) if fv.get_type().is_some() => {
-                if let Some(name) = fv.unbound_name() {
-                    if let Some(tp) = tvs.get_tp(&name) {
+                if let Some(id) = fv.unbound_id() {
+                    if let Some(tp) = tvs.get_tp(id) {
                         return tp;
                     }
                 }
@@ -2011,8 +2020,8 @@ impl TyParam {
                 if typ != new_typ {
                     let fv_clone = fv.deep_clone();
                     fv_clone.update_type(new_typ);
-                    if let Some(name) = fv_clone.unbound_name() {
-                        tvs.insert_tp(name, TyParam::FreeVar(fv_clone.clone()));
+                    if let Some(id) = fv_clone.unbound_id() {
+                        tvs.insert_tp(id, TyParam::FreeVar(fv_clone.clone()));
                     }
                     TyParam::FreeVar(fv_clone)
                 } else {

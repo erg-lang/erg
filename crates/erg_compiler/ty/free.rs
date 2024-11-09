@@ -269,6 +269,7 @@ impl Constraint {
 
 pub trait CanbeFree {
     fn unbound_name(&self) -> Option<Str>;
+    fn unbound_id(&self) -> Option<usize>;
     fn constraint(&self) -> Option<Constraint>;
     fn destructive_update_constraint(&self, constraint: Constraint, in_instantiation: bool);
 }
@@ -276,6 +277,10 @@ pub trait CanbeFree {
 impl<T: CanbeFree + Send + Clone> Free<T> {
     pub fn unbound_name(&self) -> Option<Str> {
         self.borrow().unbound_name()
+    }
+
+    pub fn unbound_id(&self) -> Option<usize> {
+        self.borrow().unbound_id()
     }
 
     pub fn constraint(&self) -> Option<Constraint> {
@@ -298,6 +303,7 @@ pub enum FreeKind<T> {
     },
     NamedUnbound {
         name: Str,
+        id: Id,
         lev: Level,
         constraint: Constraint,
     },
@@ -307,23 +313,8 @@ impl<T: Hash> Hash for FreeKind<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
             Self::Linked(t) | Self::UndoableLinked { t, .. } => t.hash(state),
-            Self::Unbound {
-                id,
-                lev,
-                constraint,
-            } => {
+            Self::Unbound { id, .. } | Self::NamedUnbound { id, .. } => {
                 id.hash(state);
-                lev.hash(state);
-                constraint.hash(state);
-            }
-            Self::NamedUnbound {
-                name,
-                lev,
-                constraint,
-            } => {
-                name.hash(state);
-                lev.hash(state);
-                constraint.hash(state);
             }
         }
     }
@@ -336,30 +327,10 @@ impl<T: PartialEq> PartialEq for FreeKind<T> {
                 Self::Linked(t1) | Self::UndoableLinked { t: t1, .. },
                 Self::Linked(t2) | Self::UndoableLinked { t: t2, .. },
             ) => t1 == t2,
-            (
-                Self::Unbound {
-                    id: id1,
-                    lev: lev1,
-                    constraint: c1,
-                },
-                Self::Unbound {
-                    id: id2,
-                    lev: lev2,
-                    constraint: c2,
-                },
-            ) => id1 == id2 && lev1 == lev2 && c1 == c2,
-            (
-                Self::NamedUnbound {
-                    name: n1,
-                    lev: l1,
-                    constraint: c1,
-                },
-                Self::NamedUnbound {
-                    name: n2,
-                    lev: l2,
-                    constraint: c2,
-                },
-            ) => n1 == n2 && l1 == l2 && c1 == c2,
+            (Self::Unbound { id: id1, .. }, Self::Unbound { id: id2, .. })
+            | (Self::NamedUnbound { id: id1, .. }, Self::NamedUnbound { id: id2, .. }) => {
+                id1 == id2
+            }
             _ => false,
         }
     }
@@ -371,6 +342,13 @@ impl<T: CanbeFree> FreeKind<T> {
             FreeKind::NamedUnbound { name, .. } => Some(name.clone()),
             FreeKind::Unbound { id, .. } => Some(Str::from(format!("%{id}"))),
             FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t.unbound_name(),
+        }
+    }
+
+    pub fn unbound_id(&self) -> Option<usize> {
+        match self {
+            FreeKind::NamedUnbound { id, .. } | FreeKind::Unbound { id, .. } => Some(*id),
+            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => t.unbound_id(),
         }
     }
 
@@ -407,6 +385,7 @@ impl<T: LimitedDisplay> LimitedDisplay for FreeKind<T> {
             }
             Self::NamedUnbound {
                 name,
+                id: _,
                 lev,
                 constraint,
             } => {
@@ -473,9 +452,10 @@ impl<T> FreeKind<T> {
         }
     }
 
-    pub const fn named_unbound(name: Str, lev: Level, constraint: Constraint) -> Self {
+    pub const fn named_unbound(name: Str, id: usize, lev: Level, constraint: Constraint) -> Self {
         Self::NamedUnbound {
             name,
+            id,
             lev,
             constraint,
         }
@@ -563,19 +543,8 @@ pub struct Free<T: Send + Clone>(Forkable<FreeKind<T>>);
 
 impl Hash for Free<Type> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        if let Some(name) = self.unbound_name() {
-            name.hash(state);
-        }
-        if let Some(lev) = self.level() {
-            lev.hash(state);
-        }
-        if let Some((sub, sup)) = self.get_subsup() {
-            self.do_avoiding_recursion(|| {
-                sub.hash(state);
-                sup.hash(state);
-            });
-        } else if let Some(t) = self.get_type() {
-            t.hash(state);
+        if let Some(id) = self.unbound_id() {
+            id.hash(state);
         } else if self.is_linked() {
             let cracked = self.crack();
             if !Type::FreeVar(self.clone()).addr_eq(&cracked) {
@@ -589,14 +558,8 @@ impl Hash for Free<Type> {
 
 impl Hash for Free<TyParam> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        if let Some(name) = self.unbound_name() {
-            name.hash(state);
-        }
-        if let Some(lev) = self.level() {
-            lev.hash(state);
-        }
-        if let Some(t) = self.get_type() {
-            t.hash(state);
+        if let Some(id) = self.unbound_id() {
+            id.hash(state);
         } else if self.is_linked() {
             self.crack().hash(state);
         }
@@ -617,38 +580,9 @@ impl PartialEq for Free<Type> {
         } else {
             other
         };
-        if let Some(self_name) = this.unbound_name() {
-            if let Some(other_name) = other.unbound_name() {
-                if self_name != other_name {
-                    return false;
-                }
-            } else {
-                return false;
-            }
-        }
-        if let Some(self_lev) = this.level() {
-            if let Some(other_lev) = other.level() {
-                if self_lev != other_lev {
-                    return false;
-                }
-            } else {
-                return false;
-            }
-        }
-        if let Some((sub, sup)) = this.get_subsup() {
-            if let Some((other_sub, other_sup)) = other.get_subsup() {
-                this.dummy_link();
-                other.dummy_link();
-                let res = sub == other_sub && sup == other_sup;
-                this.undo();
-                other.undo();
-                res
-            } else {
-                false
-            }
-        } else if let Some(self_t) = this.get_type() {
-            if let Some(other_t) = other.get_type() {
-                self_t == other_t
+        if let Some(self_id) = this.unbound_id() {
+            if let Some(other_id) = other.unbound_id() {
+                self_id == other_id
             } else {
                 false
             }
@@ -659,8 +593,7 @@ impl PartialEq for Free<Type> {
                 false
             }
         } else {
-            // name, level, constraint are equal
-            true
+            false
         }
     }
 }
@@ -679,27 +612,9 @@ impl PartialEq for Free<TyParam> {
         } else {
             other
         };
-        if let Some(self_name) = this.unbound_name() {
-            if let Some(other_name) = other.unbound_name() {
-                if self_name != other_name {
-                    return false;
-                }
-            } else {
-                return false;
-            }
-        }
-        if let Some(self_lev) = this.level() {
-            if let Some(other_lev) = other.level() {
-                if self_lev != other_lev {
-                    return false;
-                }
-            } else {
-                return false;
-            }
-        }
-        if let Some(self_t) = this.get_type() {
-            if let Some(other_t) = other.get_type() {
-                self_t == other_t
+        if let Some(self_id) = this.unbound_id() {
+            if let Some(other_id) = other.unbound_id() {
+                self_id == other_id
             } else {
                 false
             }
@@ -710,8 +625,7 @@ impl PartialEq for Free<TyParam> {
                 false
             }
         } else {
-            // name, level, constraint are equal
-            true
+            false
         }
     }
 }
@@ -827,24 +741,26 @@ impl Free<Type> {
         }) {
             return;
         }
-        match &mut *self.borrow_mut() {
-            FreeKind::Unbound {
-                lev, constraint, ..
-            }
-            | FreeKind::NamedUnbound {
-                lev, constraint, ..
-            } => {
-                if !in_inst_or_gen && *lev == GENERIC_LEVEL {
-                    log!(err "cannot update the constraint of a generalized type variable");
-                    return;
+        if let Some(linked) = self.get_linked() {
+            linked.destructive_update_constraint(new_constraint, in_inst_or_gen);
+        } else {
+            match &mut *self.borrow_mut() {
+                FreeKind::Unbound {
+                    lev, constraint, ..
                 }
-                if addr_eq!(*constraint, new_constraint) {
-                    return;
+                | FreeKind::NamedUnbound {
+                    lev, constraint, ..
+                } => {
+                    if !in_inst_or_gen && *lev == GENERIC_LEVEL {
+                        log!(err "cannot update the constraint of a generalized type variable");
+                        return;
+                    }
+                    if addr_eq!(*constraint, new_constraint) {
+                        return;
+                    }
+                    *constraint = new_constraint;
                 }
-                *constraint = new_constraint;
-            }
-            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
-                t.destructive_update_constraint(new_constraint, in_inst_or_gen);
+                FreeKind::Linked(_) | FreeKind::UndoableLinked { .. } => unreachable!(),
             }
         }
     }
@@ -1018,17 +934,17 @@ impl<T: Send + Clone> Free<T> {
     }
 
     pub fn new_unbound(level: Level, constraint: Constraint) -> Self {
-        UNBOUND_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        Self(Forkable::new(FreeKind::unbound(
-            UNBOUND_ID.load(std::sync::atomic::Ordering::SeqCst),
-            level,
-            constraint,
-        )))
+        let id = UNBOUND_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Self(Forkable::new(FreeKind::unbound(id + 1, level, constraint)))
     }
 
     pub fn new_named_unbound(name: Str, level: Level, constraint: Constraint) -> Self {
+        let id = UNBOUND_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         Self(Forkable::new(FreeKind::named_unbound(
-            name, level, constraint,
+            name,
+            id + 1,
+            level,
+            constraint,
         )))
     }
 
@@ -1163,6 +1079,7 @@ impl<T: Clone + Send + Sync + 'static> Free<T> {
             } => (None, lev, constraint),
             FreeKind::NamedUnbound {
                 name,
+                id: _,
                 lev,
                 constraint,
             } => (Some(name), lev, constraint),
@@ -1310,24 +1227,26 @@ impl Free<TyParam> {
         if new_constraint.get_type() == Some(&Type::Never) {
             panic!("{new_constraint}");
         }
-        match &mut *self.borrow_mut() {
-            FreeKind::Unbound {
-                lev, constraint, ..
-            }
-            | FreeKind::NamedUnbound {
-                lev, constraint, ..
-            } => {
-                if !in_inst_or_gen && *lev == GENERIC_LEVEL {
-                    log!(err "cannot update the constraint of a generalized type variable");
-                    return;
+        if let Some(linked) = self.get_linked() {
+            linked.destructive_update_constraint(new_constraint, in_inst_or_gen);
+        } else {
+            match &mut *self.borrow_mut() {
+                FreeKind::Unbound {
+                    lev, constraint, ..
                 }
-                if addr_eq!(*constraint, new_constraint) {
-                    return;
+                | FreeKind::NamedUnbound {
+                    lev, constraint, ..
+                } => {
+                    if !in_inst_or_gen && *lev == GENERIC_LEVEL {
+                        log!(err "cannot update the constraint of a generalized type variable");
+                        return;
+                    }
+                    if addr_eq!(*constraint, new_constraint) {
+                        return;
+                    }
+                    *constraint = new_constraint;
                 }
-                *constraint = new_constraint;
-            }
-            FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => {
-                t.destructive_update_constraint(new_constraint, in_inst_or_gen);
+                FreeKind::Linked(_) | FreeKind::UndoableLinked { .. } => unreachable!(),
             }
         }
     }
@@ -1362,6 +1281,7 @@ mod tests {
         let u = named_free_var("T".into(), 1, constraint);
         println!("{t} {u}");
         assert_eq!(t, t);
-        assert_eq!(t, u);
+        assert_ne!(t, u);
+        assert!(t.structural_eq(&u));
     }
 }

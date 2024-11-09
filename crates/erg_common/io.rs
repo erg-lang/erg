@@ -13,6 +13,7 @@ use crate::env::{
 use crate::pathutil::{add_postfix_foreach, remove_postfix};
 use crate::random::random;
 use crate::stdin::GLOBAL_STDIN;
+use crate::traits::Immutable;
 use crate::vfs::VFS;
 use crate::{normalize_path, power_assert};
 
@@ -59,7 +60,10 @@ impl DummyStdin {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum InputKind {
-    File(PathBuf),
+    File {
+        path: PathBuf,
+        project_root: Option<PathBuf>,
+    },
     REPL,
     // use Box to reduce the size
     DummyREPL(Box<DummyStdin>),
@@ -77,7 +81,7 @@ impl InputKind {
 
     pub fn path(&self) -> &Path {
         match self {
-            Self::File(filename) => filename.as_path(),
+            Self::File { path, .. } => path.as_path(),
             Self::REPL | Self::Pipe(_) => Path::new("<stdin>"),
             Self::DummyREPL(_stdin) => Path::new("<stdin>"),
             Self::Str(_) => Path::new("<string>"),
@@ -87,7 +91,7 @@ impl InputKind {
 
     pub fn as_str(&self) -> &str {
         match self {
-            Self::File(filename) => filename.to_str().unwrap_or("_"),
+            Self::File { path, .. } => path.to_str().unwrap_or("_"),
             Self::REPL | Self::DummyREPL(_) | Self::Pipe(_) => "<stdin>",
             Self::Str(_) => "<string>",
             Self::Dummy => "<dummy>",
@@ -95,7 +99,7 @@ impl InputKind {
     }
 
     pub fn dir(&self) -> PathBuf {
-        if let Self::File(path) = self {
+        if let Self::File { path, .. } = self {
             let mut path = path.clone();
             path.pop();
             if path.ends_with("__pycache__") {
@@ -111,17 +115,10 @@ impl InputKind {
         }
     }
 
-    pub fn project_root(&self) -> Option<PathBuf> {
-        if let Self::File(path) = self {
-            let mut parent = path.clone();
-            while parent.pop() {
-                if parent.join("package.er").exists() {
-                    return Some(parent);
-                }
-            }
-            None
-        } else {
-            None
+    pub fn project_root(&self) -> Option<&PathBuf> {
+        match self {
+            Self::File { project_root, .. } => project_root.as_ref(),
+            _ => None,
         }
     }
 }
@@ -147,13 +144,25 @@ impl From<&Path> for Input {
     }
 }
 
+impl Immutable for Input {}
+
 impl Input {
     pub const fn new(kind: InputKind, id: u64) -> Self {
         Self { kind, id }
     }
 
     pub fn file(path: PathBuf) -> Self {
-        Self::new(InputKind::File(path), random())
+        fn project_root(path: &Path) -> Option<PathBuf> {
+            let mut parent = path.to_path_buf();
+            while parent.pop() {
+                if parent.join("package.er").exists() {
+                    return Some(parent);
+                }
+            }
+            None
+        }
+        let project_root = project_root(&path);
+        Self::new(InputKind::File { path, project_root }, random())
     }
 
     pub fn pipe(src: String) -> Self {
@@ -188,7 +197,7 @@ impl Input {
         self.kind.dir()
     }
 
-    pub fn project_root(&self) -> Option<PathBuf> {
+    pub fn project_root(&self) -> Option<&PathBuf> {
         self.kind.project_root()
     }
 
@@ -218,7 +227,7 @@ impl Input {
 
     pub fn file_stem(&self) -> String {
         match &self.kind {
-            InputKind::File(filename) => filename
+            InputKind::File { path, .. } => path
                 .file_stem()
                 .and_then(|f| f.to_str())
                 .unwrap_or("_")
@@ -233,14 +242,14 @@ impl Input {
 
     pub fn full_path(&self) -> PathBuf {
         match &self.kind {
-            InputKind::File(filename) => filename.clone(),
+            InputKind::File { path, .. } => path.clone(),
             _ => PathBuf::from(self.file_stem()),
         }
     }
 
     pub fn filename(&self) -> String {
         match &self.kind {
-            InputKind::File(filename) => filename
+            InputKind::File { path, .. } => path
                 .file_name()
                 .and_then(|f| f.to_str())
                 .unwrap_or("_")
@@ -257,13 +266,13 @@ impl Input {
 
     pub fn module_name(&self) -> String {
         match &self.kind {
-            InputKind::File(filename) => {
-                let file_stem = if filename.file_stem() == Some(OsStr::new("__init__"))
-                    || filename.file_stem() == Some(OsStr::new("__init__.d"))
+            InputKind::File { path, .. } => {
+                let file_stem = if path.file_stem() == Some(OsStr::new("__init__"))
+                    || path.file_stem() == Some(OsStr::new("__init__.d"))
                 {
-                    filename.parent().and_then(|p| p.file_stem())
+                    path.parent().and_then(|p| p.file_stem())
                 } else {
-                    filename.file_stem()
+                    path.file_stem()
                 };
                 file_stem
                     .and_then(|f| f.to_str())
@@ -280,13 +289,13 @@ impl Input {
 
     pub fn read(&mut self) -> String {
         match &mut self.kind {
-            InputKind::File(filename) => match VFS.read(filename.as_path()) {
+            InputKind::File { path, .. } => match VFS.read(path.as_path()) {
                 Ok(s) => s,
                 Err(e) => {
                     let code = e.raw_os_error().unwrap_or(1);
                     println!(
                         "cannot read '{}': [Errno {code}] {e}",
-                        filename.to_string_lossy()
+                        path.to_string_lossy()
                     );
                     process::exit(code);
                 }
@@ -300,7 +309,7 @@ impl Input {
 
     pub fn source_exists(&self) -> bool {
         match &self.kind {
-            InputKind::File(filename) => filename.exists(),
+            InputKind::File { path, .. } => path.exists(),
             InputKind::Dummy => false,
             _ => true,
         }
@@ -308,7 +317,7 @@ impl Input {
 
     pub fn try_read(&mut self) -> std::io::Result<String> {
         match &mut self.kind {
-            InputKind::File(filename) => VFS.read(filename),
+            InputKind::File { path, .. } => VFS.read(path),
             InputKind::Pipe(s) | InputKind::Str(s) => Ok(s.clone()),
             InputKind::REPL => Ok(GLOBAL_STDIN.read()),
             InputKind::DummyREPL(dummy) => Ok(dummy.read_line()),
@@ -318,13 +327,13 @@ impl Input {
 
     pub fn read_non_dummy(&self) -> String {
         match &self.kind {
-            InputKind::File(filename) => match VFS.read(filename) {
+            InputKind::File { path, .. } => match VFS.read(path) {
                 Ok(s) => s,
                 Err(e) => {
                     let code = e.raw_os_error().unwrap_or(1);
                     println!(
                         "cannot read '{}': [Errno {code}] {e}",
-                        filename.to_string_lossy()
+                        path.to_string_lossy()
                     );
                     process::exit(code);
                 }
@@ -338,7 +347,7 @@ impl Input {
     pub fn reread_lines(&self, ln_begin: usize, ln_end: usize) -> Vec<String> {
         power_assert!(ln_begin, >=, 1);
         match &self.kind {
-            InputKind::File(filename) => match VFS.read(filename) {
+            InputKind::File { path, .. } => match VFS.read(path) {
                 Ok(code) => {
                     let mut codes = vec![];
                     let mut lines = code.lines().map(ToString::to_string).skip(ln_begin - 1);
@@ -368,7 +377,7 @@ impl Input {
 
     pub fn reread(&self) -> String {
         match &self.kind {
-            InputKind::File(path) => VFS.read(path).unwrap(),
+            InputKind::File { path, .. } => VFS.read(path).unwrap(),
             InputKind::Pipe(s) | InputKind::Str(s) => s.clone(),
             InputKind::REPL => GLOBAL_STDIN.reread().trim_end().to_owned(),
             InputKind::DummyREPL(dummy) => dummy.reread().unwrap_or_default(),
@@ -410,12 +419,13 @@ impl Input {
         path: &Path,
     ) -> Result<PathBuf, std::io::Error> {
         if path == Path::new("") {
-            let path = dir
+            let result = dir
                 .join("__init__.d.er")
                 .canonicalize()
                 .or_else(|_| dir.join("__pycache__").join("__init__.d.er").canonicalize())
                 .or_else(|_| dir.canonicalize())?;
-            return Ok(path);
+            VFS.cache_path(self.clone(), path.to_path_buf(), Some(result.clone()));
+            return Ok(result);
         }
         let mut comps = path.components();
         let last = comps
@@ -425,7 +435,7 @@ impl Input {
         dir.push(comps);
         dir.push(last_path);
         dir.set_extension("d.er"); // {path/to}.d.er
-        let path = dir
+        let result = dir
             .canonicalize()
             .or_else(|_| {
                 dir.pop(); // {path/to}.d.er -> {path}
@@ -449,7 +459,9 @@ impl Input {
                 dir.push("__init__.d.er"); // -> {path/to}/__pycache__/__init__.d.er
                 dir.canonicalize()
             })?;
-        Ok(normalize_path(path))
+        let result = normalize_path(result);
+        VFS.cache_path(self.clone(), path.to_path_buf(), Some(result.clone()));
+        Ok(result)
     }
 
     fn resolve_local_py(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
@@ -466,21 +478,34 @@ impl Input {
     }
 
     pub fn resolve_py(&self, path: &Path) -> Result<PathBuf, std::io::Error> {
-        if let Ok(path) = self.resolve_local_py(path) {
-            return Ok(path);
+        if let Some(opt_path) = VFS.get_cached_path(self.clone(), path.to_path_buf()) {
+            return opt_path.ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    format!("cannot find module `{}`", path.display()),
+                )
+            });
+        }
+        if let Ok(resolved) = self.resolve_local_py(path) {
+            VFS.cache_path(self.clone(), path.to_path_buf(), Some(resolved.clone()));
+            return Ok(resolved);
         }
         for sys_path in python_sys_path() {
             let mut dir = sys_path.clone();
             dir.push(path);
             dir.set_extension("py");
             if dir.exists() {
-                return Ok(normalize_path(dir));
+                let resolved = normalize_path(dir);
+                VFS.cache_path(self.clone(), path.to_path_buf(), Some(resolved.clone()));
+                return Ok(resolved);
             }
             dir.pop();
             dir.push(path);
             dir.push("__init__.py");
             if dir.exists() {
-                return Ok(normalize_path(dir));
+                let resolved = normalize_path(dir);
+                VFS.cache_path(self.clone(), path.to_path_buf(), Some(resolved.clone()));
+                return Ok(resolved);
             }
             if !EXPERIMENTAL_MODE {
                 break;
@@ -491,13 +516,17 @@ impl Input {
             dir.push(path);
             dir.set_extension("py");
             if dir.exists() {
-                return Ok(normalize_path(dir));
+                let resolved = normalize_path(dir);
+                VFS.cache_path(self.clone(), path.to_path_buf(), Some(resolved.clone()));
+                return Ok(resolved);
             }
             dir.pop();
             dir.push(path);
             dir.push("__init__.py");
             if dir.exists() {
-                return Ok(normalize_path(dir));
+                let resolved = normalize_path(dir);
+                VFS.cache_path(self.clone(), path.to_path_buf(), Some(resolved.clone()));
+                return Ok(resolved);
             }
         }
         Err(std::io::Error::new(
@@ -518,21 +547,31 @@ impl Input {
     /// 4. `std/{path/to}/__init__.er`
     /// 5. `pkgs/{path/to}/src/lib.er`
     pub fn resolve_real_path(&self, path: &Path, cfg: &ErgConfig) -> Option<PathBuf> {
-        if let Ok(path) = self.resolve_local(path) {
-            Some(path)
-        } else if let Ok(path) = erg_std_path()
+        if let Some(opt_path) = VFS.get_cached_path(self.clone(), path.to_path_buf()) {
+            return opt_path;
+        }
+        if let Ok(resolved) = self.resolve_local(path) {
+            VFS.cache_path(self.clone(), path.to_path_buf(), Some(resolved.clone()));
+            Some(resolved)
+        } else if let Ok(resolved) = erg_std_path()
             .join(format!("{}.er", path.display()))
             .canonicalize()
         {
-            Some(normalize_path(path))
-        } else if let Ok(path) = erg_std_path()
+            let resolved = normalize_path(resolved);
+            VFS.cache_path(self.clone(), path.to_path_buf(), Some(resolved.clone()));
+            Some(resolved)
+        } else if let Ok(resolved) = erg_std_path()
             .join(format!("{}", path.display()))
             .join("__init__.er")
             .canonicalize()
         {
-            Some(normalize_path(path))
+            let resolved = normalize_path(resolved);
+            VFS.cache_path(self.clone(), path.to_path_buf(), Some(resolved.clone()));
+            Some(resolved)
         } else if let Some(pkg) = self.resolve_project_dep_path(path, cfg, false) {
-            Some(normalize_path(pkg))
+            let resolved = normalize_path(pkg);
+            VFS.cache_path(self.clone(), path.to_path_buf(), Some(resolved.clone()));
+            Some(resolved)
         } else if path == Path::new("unsound") {
             Some(PathBuf::from("unsound"))
         } else {
@@ -597,8 +636,12 @@ impl Input {
     /// 10. `site-packages/{path}/__pycache__/{to}.d.er`
     /// 11. `site-packages/{path/to}/__pycache__/__init__.d.er`
     pub fn resolve_decl_path(&self, path: &Path, cfg: &ErgConfig) -> Option<PathBuf> {
-        if let Ok(path) = self.resolve_local_decl(self.dir(), path) {
-            return Some(path);
+        if let Some(opt_path) = VFS.get_cached_path(self.clone(), path.to_path_buf()) {
+            return opt_path;
+        }
+        if let Ok(resolved) = self.resolve_local_decl(self.dir(), path) {
+            VFS.cache_path(self.clone(), path.to_path_buf(), Some(resolved.clone()));
+            return Some(resolved);
         }
         // e.g.
         // root: lib/external/pandas.d, path: pandas/core/frame
@@ -609,28 +652,34 @@ impl Input {
         // -> NO
         if let Some((root, first)) = self.project_root().zip(path.components().next()) {
             if root.ends_with(first) || remove_postfix(root.clone(), ".d").ends_with(first) {
-                let path = path.iter().skip(1).collect::<PathBuf>();
-                if let Ok(path) = self.resolve_local_decl(root, &path) {
-                    return Some(path);
+                let path_buf = path.iter().skip(1).collect::<PathBuf>();
+                if let Ok(resolved) = self.resolve_local_decl(root.clone(), &path_buf) {
+                    VFS.cache_path(self.clone(), path.to_path_buf(), Some(resolved.clone()));
+                    return Some(resolved);
                 }
             }
         }
-        if let Some(path) = Self::resolve_std_decl_path(erg_pystd_path(), path) {
-            return Some(path);
+        if let Some(resolved) = Self::resolve_std_decl_path(erg_pystd_path(), path) {
+            VFS.cache_path(self.clone(), path.to_path_buf(), Some(resolved.clone()));
+            return Some(resolved);
         }
         if let Some(pkg) = self.resolve_project_dep_path(path, cfg, true) {
-            return Some(normalize_path(pkg));
+            let resolved = normalize_path(pkg);
+            VFS.cache_path(self.clone(), path.to_path_buf(), Some(resolved.clone()));
+            return Some(resolved);
         }
         for site_packages in python_site_packages() {
-            if let Some(path) = Self::resolve_site_pkgs_decl_path(site_packages, path) {
-                return Some(path);
+            if let Some(resolved) = Self::resolve_site_pkgs_decl_path(site_packages, path) {
+                VFS.cache_path(self.clone(), path.to_path_buf(), Some(resolved.clone()));
+                return Some(resolved);
             }
         }
         if PYTHON_MODE {
-            if let Ok(path) = self.resolve_py(path) {
-                return Some(path);
+            if let Ok(resolved) = self.resolve_py(path) {
+                return Some(resolved);
             }
         }
+        VFS.cache_path(self.clone(), path.to_path_buf(), None);
         None
     }
 

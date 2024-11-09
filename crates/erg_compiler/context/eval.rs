@@ -177,6 +177,9 @@ impl<'c> Substituter<'c> {
         qt: &Type,
         st: &Type,
     ) -> EvalResult<Option<Self>> {
+        if qt == st {
+            return Ok(None);
+        }
         let mut qtps = qt.typarams();
         let mut stps = st.typarams();
         // Or, And are commutative, choose fitting order
@@ -251,6 +254,9 @@ impl<'c> Substituter<'c> {
         qt: &Type,
         st: &Type,
     ) -> EvalResult<Option<Self>> {
+        if qt == st {
+            return Ok(None);
+        }
         let mut qtps = qt.typarams();
         let mut stps = st.typarams();
         if qt.qual_name() == st.qual_name() {

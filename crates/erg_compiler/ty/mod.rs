@@ -212,8 +212,8 @@ macro_rules! impl_t_for_enum {
 
 #[derive(Debug, Default)]
 pub struct SharedFrees {
-    tvs: Shared<Dict<Str, Type>>,
-    tps: Shared<Dict<Str, TyParam>>,
+    tvs: Shared<Dict<usize, Type>>,
+    tps: Shared<Dict<usize, TyParam>>,
 }
 
 impl SharedFrees {
@@ -224,20 +224,20 @@ impl SharedFrees {
         }
     }
 
-    pub fn get_tv(&self, name: &str) -> Option<Type> {
-        self.tvs.borrow().get(name).cloned()
+    pub fn get_tv(&self, id: usize) -> Option<Type> {
+        self.tvs.borrow().get(&id).cloned()
     }
 
-    pub fn get_tp(&self, name: &str) -> Option<TyParam> {
-        self.tps.borrow().get(name).cloned()
+    pub fn get_tp(&self, id: usize) -> Option<TyParam> {
+        self.tps.borrow().get(&id).cloned()
     }
 
-    pub fn insert_tv(&self, name: Str, t: Type) {
-        self.tvs.borrow_mut().insert(name, t);
+    pub fn insert_tv(&self, id: usize, t: Type) {
+        self.tvs.borrow_mut().insert(id, t);
     }
 
-    pub fn insert_tp(&self, name: Str, tp: TyParam) {
-        self.tps.borrow_mut().insert(name, tp);
+    pub fn insert_tp(&self, id: usize, tp: TyParam) {
+        self.tps.borrow_mut().insert(id, tp);
     }
 }
 
@@ -1778,6 +1778,14 @@ impl CanbeFree for Type {
     fn unbound_name(&self) -> Option<Str> {
         if let Some(fv) = self.as_free() {
             fv.unbound_name()
+        } else {
+            None
+        }
+    }
+
+    fn unbound_id(&self) -> Option<usize> {
+        if let Some(fv) = self.as_free() {
+            fv.unbound_id()
         } else {
             None
         }
@@ -4431,19 +4439,6 @@ impl Type {
         }
     }
 
-    pub(crate) fn eliminate_and_or_recursion(self, target: &Type) -> Self {
-        match self {
-            Self::And(tys, idx) => Self::checked_and(
-                tys.into_iter().filter(|t| !t.addr_eq(target)).collect(),
-                idx,
-            ),
-            Self::Or(tys) => {
-                Self::checked_or(tys.into_iter().filter(|t| !t.addr_eq(target)).collect())
-            }
-            _ => self,
-        }
-    }
-
     pub fn replace(self, target: &Type, to: &Type) -> Type {
         let table = ReplaceTable::make(target, to);
         table.replace(self)
@@ -4525,8 +4520,8 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().map(f, tvs),
             Self::FreeVar(fv) => {
-                if let Some(name) = fv.unbound_name() {
-                    if let Some(tv) = tvs.get_tv(&name) {
+                if let Some(id) = fv.unbound_id() {
+                    if let Some(tv) = tvs.get_tv(id) {
                         return tv;
                     }
                 }
@@ -4539,8 +4534,8 @@ impl Type {
                         let fv_clone = fv.deep_clone();
                         fv_clone
                             .update_constraint(Constraint::new_sandwiched(new_sub, new_sup), true);
-                        if let Some(name) = fv.unbound_name() {
-                            tvs.insert_tv(name, Self::FreeVar(fv_clone.clone()));
+                        if let Some(id) = fv.unbound_id() {
+                            tvs.insert_tv(id, Self::FreeVar(fv_clone.clone()));
                         }
                         Self::FreeVar(fv_clone)
                     } else {
@@ -4551,8 +4546,8 @@ impl Type {
                     if new_ty != ty {
                         let fv_clone = fv.deep_clone();
                         fv_clone.update_constraint(Constraint::new_type_of(new_ty), true);
-                        if let Some(name) = fv.unbound_name() {
-                            tvs.insert_tv(name, Self::FreeVar(fv_clone.clone()));
+                        if let Some(id) = fv.unbound_id() {
+                            tvs.insert_tv(id, Self::FreeVar(fv_clone.clone()));
                         }
                         Self::FreeVar(fv_clone)
                     } else {
@@ -4638,8 +4633,8 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked()._replace_tp(target, to, tvs),
             Self::FreeVar(fv) => {
-                if let Some(name) = fv.unbound_name() {
-                    if let Some(tv) = tvs.get_tv(&name) {
+                if let Some(id) = fv.unbound_id() {
+                    if let Some(tv) = tvs.get_tv(id) {
                         return tv;
                     }
                 }
@@ -4652,8 +4647,8 @@ impl Type {
                         let fv_clone = fv.deep_clone();
                         fv_clone
                             .update_constraint(Constraint::new_sandwiched(new_sub, new_sup), true);
-                        if let Some(name) = fv.unbound_name() {
-                            tvs.insert_tv(name, Self::FreeVar(fv_clone.clone()));
+                        if let Some(id) = fv.unbound_id() {
+                            tvs.insert_tv(id, Self::FreeVar(fv_clone.clone()));
                         }
                         Self::FreeVar(fv_clone)
                     } else {
@@ -4664,8 +4659,8 @@ impl Type {
                     if new_ty != ty {
                         let fv_clone = fv.deep_clone();
                         fv_clone.update_constraint(Constraint::new_type_of(new_ty), true);
-                        if let Some(name) = fv.unbound_name() {
-                            tvs.insert_tv(name, Self::FreeVar(fv_clone.clone()));
+                        if let Some(id) = fv.unbound_id() {
+                            tvs.insert_tv(id, Self::FreeVar(fv_clone.clone()));
                         }
                         Self::FreeVar(fv_clone)
                     } else {
@@ -4756,8 +4751,8 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().map_tp(f, tvs),
             Self::FreeVar(fv) => {
-                if let Some(name) = fv.unbound_name() {
-                    if let Some(tv) = tvs.get_tv(&name) {
+                if let Some(id) = fv.unbound_id() {
+                    if let Some(tv) = tvs.get_tv(id) {
                         return tv;
                     }
                 }
@@ -4770,8 +4765,8 @@ impl Type {
                         let fv_clone = fv.deep_clone();
                         fv_clone
                             .update_constraint(Constraint::new_sandwiched(new_sub, new_sup), true);
-                        if let Some(name) = fv.unbound_name() {
-                            tvs.insert_tv(name, Self::FreeVar(fv_clone.clone()));
+                        if let Some(id) = fv.unbound_id() {
+                            tvs.insert_tv(id, Self::FreeVar(fv_clone.clone()));
                         }
                         Self::FreeVar(fv_clone)
                     } else {
@@ -4782,8 +4777,8 @@ impl Type {
                     if new_ty != ty {
                         let fv_clone = fv.deep_clone();
                         fv_clone.update_constraint(Constraint::new_type_of(new_ty), true);
-                        if let Some(name) = fv.unbound_name() {
-                            tvs.insert_tv(name, Self::FreeVar(fv_clone.clone()));
+                        if let Some(id) = fv.unbound_id() {
+                            tvs.insert_tv(id, Self::FreeVar(fv_clone.clone()));
                         }
                         Self::FreeVar(fv_clone)
                     } else {
@@ -4862,8 +4857,8 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().try_map_tp(f, tvs),
             Self::FreeVar(fv) => {
-                if let Some(name) = fv.unbound_name() {
-                    if let Some(tv) = tvs.get_tv(&name) {
+                if let Some(id) = fv.unbound_id() {
+                    if let Some(tv) = tvs.get_tv(id) {
                         return Ok(tv);
                     }
                 }
@@ -4876,8 +4871,8 @@ impl Type {
                         let fv_clone = fv.deep_clone();
                         fv_clone
                             .update_constraint(Constraint::new_sandwiched(new_sub, new_sup), true);
-                        if let Some(name) = fv.unbound_name() {
-                            tvs.insert_tv(name, Self::FreeVar(fv_clone.clone()));
+                        if let Some(id) = fv.unbound_id() {
+                            tvs.insert_tv(id, Self::FreeVar(fv_clone.clone()));
                         }
                         Ok(Self::FreeVar(fv_clone))
                     } else {
@@ -4888,8 +4883,8 @@ impl Type {
                     if new_ty != ty {
                         let fv_clone = fv.deep_clone();
                         fv_clone.update_constraint(Constraint::new_type_of(new_ty), true);
-                        if let Some(name) = fv.unbound_name() {
-                            tvs.insert_tv(name, Self::FreeVar(fv_clone.clone()));
+                        if let Some(id) = fv.unbound_id() {
+                            tvs.insert_tv(id, Self::FreeVar(fv_clone.clone()));
                         }
                         Ok(Self::FreeVar(fv_clone))
                     } else {
@@ -5215,11 +5210,7 @@ impl Type {
         }
         match self {
             Self::FreeVar(fv) => {
-                // NOTE: we can't use `eliminate_recursion`
-                let to_ = to
-                    .clone()
-                    .eliminate_subsup(self)
-                    .eliminate_and_or_recursion(self);
+                let to_ = to.clone().eliminate_subsup(self).eliminate_recursion(self);
                 if self.addr_eq(&to_) {
                     self.inc_undo_count();
                 } else {
