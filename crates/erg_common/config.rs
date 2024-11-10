@@ -180,6 +180,8 @@ pub struct ErgConfig {
     pub effect_check: bool,
     pub ownership_check: bool,
     pub use_pylyzer: bool,
+    pub no_infer_fn_type: bool,
+    pub fast_error_report: bool,
 }
 
 impl Default for ErgConfig {
@@ -208,6 +210,8 @@ impl Default for ErgConfig {
             effect_check: true,
             ownership_check: true,
             use_pylyzer: false,
+            no_infer_fn_type: false,
+            fast_error_report: false,
         }
     }
 }
