@@ -2913,6 +2913,9 @@ impl Context {
     }
 
     pub(crate) fn get_similar_name(&self, name: &str) -> Option<&str> {
+        if self.cfg.fast_error_report {
+            return None;
+        }
         levenshtein::get_similar_name(
             self.dir().into_iter().map(|(vn, _)| &vn.inspect()[..]),
             name,
@@ -2924,6 +2927,9 @@ impl Context {
     }
 
     pub(crate) fn get_similar_name_and_info(&self, name: &str) -> Option<(&VarInfo, &str)> {
+        if self.cfg.fast_error_report {
+            return None;
+        }
         levenshtein::get_similar_name_and_some(
             self.dir()
                 .into_iter()
@@ -2948,6 +2954,9 @@ impl Context {
     }
 
     pub(crate) fn get_similar_attr<'a>(&'a self, self_t: &'a Type, name: &str) -> Option<&'a str> {
+        if self.cfg.fast_error_report {
+            return None;
+        }
         for ctx in self.get_nominal_super_type_ctxs(self_t)? {
             if let Some(name) = ctx.get_similar_name(name) {
                 return Some(name);
@@ -2973,6 +2982,9 @@ impl Context {
         self_t: &'a Type,
         name: &str,
     ) -> Option<(&'a VarInfo, &'a str)> {
+        if self.cfg.fast_error_report {
+            return None;
+        }
         for ctx in self.get_nominal_super_type_ctxs(self_t)? {
             if let Some((vi, name)) = ctx.get_similar_name_and_info(name) {
                 return Some((vi, name));

@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 use crate::normalize_path;
-use crate::python_util::get_sys_path;
+use crate::python_util::{_opt_which_python, get_sys_path};
 use crate::style::colors::*;
 use crate::style::RESET;
 
@@ -115,6 +115,7 @@ pub static ERG_PYSTD_PATH: OnceLock<PathBuf> = OnceLock::new();
 pub static ERG_PKGS_PATH: OnceLock<PathBuf> = OnceLock::new();
 pub static PYTHON_SYS_PATH: OnceLock<Vec<PathBuf>> = OnceLock::new();
 pub static PYTHON_SITE_PACKAGES: OnceLock<Vec<PathBuf>> = OnceLock::new();
+pub static PYTHON_PATH: OnceLock<Result<String, String>> = OnceLock::new();
 
 /// == `Path::new("~/.erg")` if ERG_PATH is not set
 pub fn erg_path() -> &'static PathBuf {
@@ -152,6 +153,10 @@ pub fn python_sys_path() -> &'static Vec<PathBuf> {
 
 pub fn python_site_packages() -> &'static Vec<PathBuf> {
     PYTHON_SITE_PACKAGES.get_or_init(|| _python_site_packages().collect())
+}
+
+pub fn opt_which_python() -> Result<&'static String, &'static String> {
+    PYTHON_PATH.get_or_init(_opt_which_python).as_ref()
 }
 
 pub fn is_std_decl_path(path: &Path) -> bool {

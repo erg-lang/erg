@@ -256,6 +256,8 @@ impl Context {
         let mut tmp_tv_cache = TyVarCache::new(self.level, self);
         let spec_t = if let Some(t_spec) = t_spec {
             self.instantiate_typespec_full(t_spec, None, &mut tmp_tv_cache, mode, false)?
+        } else if self.cfg.no_infer_fn_type {
+            Type::Failure
         } else {
             free_var(self.level, Constraint::new_type_of(Type))
         };
@@ -405,6 +407,8 @@ impl Context {
                     ty
                 }
             }
+        } else if self.cfg.no_infer_fn_type {
+            Type::Failure
         } else {
             // preregisterならouter scopeで型宣言(see inference.md)
             let level = if mode.is_preregister() {
@@ -451,6 +455,9 @@ impl Context {
     ) -> Failable<Type> {
         let mut errs = TyCheckErrors::empty();
         let gen_free_t = || {
+            if self.cfg.no_infer_fn_type {
+                return Type::Failure;
+            }
             let level = if mode.is_preregister() {
                 self.level
             } else {

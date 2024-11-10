@@ -7,7 +7,8 @@ use std::path::{Component, Path, PathBuf};
 use crate::consts::PYTHON_MODE;
 use crate::env::erg_pkgs_path;
 use crate::traits::Immutable;
-use crate::{normalize_path, Str};
+use crate::vfs::VFS;
+use crate::{cheap_canonicalize_path, normalize_path, Str};
 
 /// Guaranteed equivalence path.
 ///
@@ -59,7 +60,7 @@ impl Deref for NormalizedPathBuf {
 
 impl NormalizedPathBuf {
     pub fn new(path: PathBuf) -> Self {
-        NormalizedPathBuf(normalize_path(path.canonicalize().unwrap_or(path)))
+        NormalizedPathBuf(normalize_path(cheap_canonicalize_path(&path)))
     }
 
     pub fn as_path(&self) -> &Path {
@@ -71,7 +72,7 @@ impl NormalizedPathBuf {
     }
 
     pub fn try_read(&self) -> std::io::Result<String> {
-        std::fs::read_to_string(&self.0)
+        VFS.read(self)
     }
 }
 
