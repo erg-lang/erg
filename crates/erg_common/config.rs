@@ -182,6 +182,7 @@ pub struct ErgConfig {
     pub use_pylyzer: bool,
     pub no_infer_fn_type: bool,
     pub fast_error_report: bool,
+    pub do_not_show_ext_errors: bool,
 }
 
 impl Default for ErgConfig {
@@ -212,6 +213,7 @@ impl Default for ErgConfig {
             use_pylyzer: false,
             no_infer_fn_type: false,
             fast_error_report: false,
+            do_not_show_ext_errors: false,
         }
     }
 }
