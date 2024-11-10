@@ -27,6 +27,7 @@ use erg_common::spawn::spawn_new_thread;
 use erg_common::str::Str;
 use erg_common::traits::{ExitStatus, New, Runnable, Stream};
 
+use erg_common::vfs::VFS;
 use erg_parser::ast::{ClassAttr, Expr, InlineModule, Record, RecordAttrOrIdent, VarName, AST};
 use erg_parser::build_ast::{ASTBuildable, ASTBuilder as DefaultASTBuilder};
 use erg_parser::parse::SimpleParser;
@@ -703,6 +704,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
                 .resolve_decl_path(path, cfg)
                 .or_else(|| cfg.input.resolve_real_path(path, cfg))
         };
+        VFS.cache_path(cfg.input.clone(), path.to_path_buf(), resolved.clone());
         let import_path = match resolved {
             Some(path) => path,
             None if ERG_MODE => {

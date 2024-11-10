@@ -7,6 +7,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
 
+use crate::env::opt_which_python;
 use crate::fn_name_full;
 use crate::io::Output;
 use crate::pathutil::remove_verbatim;
@@ -608,7 +609,7 @@ fn get_poetry_virtualenv_path() -> Option<String> {
         .then_some(path.trim().to_string())
 }
 
-pub fn opt_which_python() -> Result<String, String> {
+pub fn _opt_which_python() -> Result<String, String> {
     if let Some(path) = which_python_from_toml() {
         return Ok(path);
     }
@@ -642,8 +643,8 @@ pub fn opt_which_python() -> Result<String, String> {
     Ok(res)
 }
 
-fn which_python() -> String {
-    opt_which_python().unwrap()
+fn which_python() -> &'static str {
+    opt_which_python().as_ref().unwrap()
 }
 
 pub fn detect_magic_number(py_command: &str) -> u32 {
@@ -672,7 +673,7 @@ pub fn detect_magic_number(py_command: &str) -> u32 {
 }
 
 pub fn env_magic_number() -> u32 {
-    detect_magic_number(&which_python())
+    detect_magic_number(which_python())
 }
 
 pub fn module_exists(py_command: &str, module: &str) -> bool {
@@ -786,7 +787,7 @@ pub fn get_python_version(py_command: &str) -> Option<PythonVersion> {
 }
 
 pub fn env_python_version() -> Option<PythonVersion> {
-    get_python_version(&which_python())
+    get_python_version(which_python())
 }
 
 pub fn get_sys_path(working_dir: Option<&Path>) -> Result<Vec<PathBuf>, std::io::Error> {
@@ -834,9 +835,7 @@ fn exec_pyc_in(
         "import marshal; exec(marshal.loads(open(r\"{}\", \"rb\").read()[16:]))",
         file.as_ref().display()
     );
-    let command = py_command
-        .map(ToString::to_string)
-        .unwrap_or(which_python());
+    let command = py_command.map_or_else(|| which_python().to_string(), ToString::to_string);
     let mut out = if cfg!(windows) {
         Command::new("cmd")
             .arg("/C")
@@ -876,9 +875,7 @@ pub fn exec_pyc(
     if let Some(working_dir) = working_dir {
         return exec_pyc_in(file, py_command, working_dir, args, stdout);
     }
-    let command = py_command
-        .map(ToString::to_string)
-        .unwrap_or_else(which_python);
+    let command = py_command.map_or_else(|| which_python().to_string(), ToString::to_string);
     let mut out = if cfg!(windows) {
         Command::new("cmd")
             .arg("/C")
@@ -902,9 +899,7 @@ pub fn exec_pyc(
 
 /// evaluates over a shell, cause `python` may not exist as an executable file (like pyenv)
 pub fn _eval_pyc<S: Into<String>>(file: S, py_command: Option<&str>) -> String {
-    let command = py_command
-        .map(ToString::to_string)
-        .unwrap_or_else(which_python);
+    let command = py_command.map_or_else(|| which_python().to_string(), ToString::to_string);
     let out = if cfg!(windows) {
         Command::new("cmd")
             .arg("/C")
@@ -966,7 +961,7 @@ pub fn env_spawn_py(code: &str) {
 
 pub fn spawn_py(py_command: Option<&str>, code: &str) {
     if cfg!(windows) {
-        Command::new(py_command.unwrap_or(&which_python()))
+        Command::new(py_command.unwrap_or(which_python()))
             .arg("-c")
             .arg(code)
             .spawn()
@@ -974,7 +969,7 @@ pub fn spawn_py(py_command: Option<&str>, code: &str) {
     } else {
         let exec_command = format!(
             "{} -c \"{}\"",
-            py_command.unwrap_or(&which_python()),
+            py_command.unwrap_or(which_python()),
             escape_py_code(code)
         );
         Command::new("sh")
