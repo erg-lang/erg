@@ -22,7 +22,7 @@ use erg_parser::token::{Token, TokenKind};
 use crate::ty::constructors::{
     bounded, callable, closed_range, dict_t, func, guard, list_t, mono, mono_q, named_free_var,
     poly, proj, proj_call, ref_, ref_mut, refinement, set_t, subr_t, subtypeof, tp_enum,
-    try_v_enum, tuple_t, unknown_len_list_t, v_enum,
+    try_v_enum, tuple_t, unknown_len_list_t, unsized_list_t, v_enum,
 };
 use crate::ty::free::HasLevel;
 use crate::ty::typaram::{OpKind, TyParam};
@@ -4289,6 +4289,10 @@ impl Context {
                 let t = list_t(tp_t, TyParam::value(tps.len()));
                 Ok(t)
             }
+            TyParam::UnsizedList(tp) => {
+                let tp_t = self.get_tp_t(&tp)?;
+                Ok(unsized_list_t(tp_t))
+            }
             TyParam::Tuple(tps) => {
                 let mut tps_t = vec![];
                 for tp in tps {
@@ -4342,6 +4346,7 @@ impl Context {
                     )
                 }
             },
+            TyParam::Proj { obj, attr } => self.get_proj_t(&obj, &attr),
             TyParam::ProjCall { obj, attr, args } => {
                 let Ok(tp) = self.eval_proj_call(*obj.clone(), attr.clone(), args, &()) else {
                     let Some(obj_ctx) = self.get_nominal_type_ctx(&self.get_tp_t(&obj)?) else {
@@ -4368,11 +4373,36 @@ impl Context {
                 let ty = self.get_tp_t(&tp).unwrap_or(Type::Obj).derefine();
                 Ok(tp_enum(ty, set![tp]))
             }
-            other => feature_error!(
-                self,
+            TyParam::Lambda(lambda) => lambda
+                .body
+                .last()
+                .map_or(Ok(Type::Obj), |tp| self.get_tp_t(tp)),
+            TyParam::Failure => Ok(Type::Failure),
+            other @ (TyParam::DataClass { .. } | TyParam::UnaryOp { .. }) => {
+                feature_error!(
+                    self,
+                    Location::Unknown,
+                    &format!("getting the type of {other}")
+                )
+            }
+        }
+    }
+
+    pub(crate) fn get_proj_t(&self, obj: &TyParam, attr: &str) -> EvalResult<Type> {
+        let obj_t = self.get_tp_t(obj)?;
+        let obj_ctx = self.get_nominal_type_ctx(&obj_t).ok_or_else(|| {
+            EvalErrors::from(EvalError::type_not_found(
+                self.cfg.input.clone(),
+                line!() as usize,
                 Location::Unknown,
-                &format!("getting the type of {other}")
-            ),
+                self.caused_by(),
+                &obj_t,
+            ))
+        })?;
+        if let Some((_, vi)) = obj_ctx.get_var_info(attr) {
+            Ok(vi.t.clone())
+        } else {
+            Ok(Type::Obj)
         }
     }
 
