@@ -1,0 +1,35 @@
+.BadGzipFile: ClassType
+.BadGzipFile <: OSError
+
+.GzipFile!: ClassType
+.GzipFile! <: File!
+.GzipFile!.
+    mode: Str
+    mtime: Float
+    name: Str
+    __call__: (
+        filename: PathLike,
+        mode := Str,
+        compresslevel := Nat,
+        fileobj := FileLike,
+        mtime := Float,
+    ) -> GzipFile!
+    peek: (self: Ref(GzipFile!), n: Nat) -> Bytes
+
+.open!: (
+    filename: PathLike,
+    mode := Str,
+    compresslevel := Nat,
+    encoding := Str,
+    errors := Str,
+    newline := Str,
+) => GzipFile!
+.compress!: (
+    data: Bytes or ByteArray!,
+    compresslevel := Nat,
+    mtime := Float,
+) => Bytes
+.decompress!: (
+    data: Bytes or ByteArray!,
+    mtime := Float,
+) => Bytes
