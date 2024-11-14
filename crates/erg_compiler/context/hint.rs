@@ -44,6 +44,9 @@ impl Context {
         expected: &Type,
         found: &Type,
     ) -> Option<String> {
+        if self.cfg.fast_error_report {
+            return None;
+        }
         if &callee_t.qual_name()[..] == "List" && attr == Some("__getitem__") && nth == 1 {
             let len = &callee_t.typarams().get(1).cloned()?;
             let (_, _, pred) = found.clone().deconstruct_refinement().ok()?;
@@ -73,6 +76,9 @@ impl Context {
         expected: &Type,
         found: &Type,
     ) -> Option<String> {
+        if self.cfg.fast_error_report {
+            return None;
+        }
         let expected = if let Some(fv) = expected.as_free() {
             if fv.is_linked() {
                 fv.crack().clone()
@@ -284,6 +290,9 @@ impl Context {
     }
 
     pub(crate) fn get_no_candidate_hint(&self, proj: &Type) -> Option<String> {
+        if self.cfg.fast_error_report {
+            return None;
+        }
         match proj {
             Type::Proj { lhs, rhs: _ } => {
                 if let Some(fv) = lhs.as_free() {

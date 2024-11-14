@@ -877,7 +877,7 @@ impl Context {
                 }
                 if l.len() == r.len() {
                     let mut r = r.clone();
-                    for _ in 1..l.len() {
+                    for _ in 0..r.len() {
                         if l.iter().zip(&r).all(|(l, r)| self.supertype_of(l, r)) {
                             return true;
                         }

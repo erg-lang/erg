@@ -1401,26 +1401,12 @@ impl Context {
     /// This is needed because the trait implementation spec can contain projection types.
     /// e.g. `Tuple(Ts) <: Container(Ts.union())`
     fn poly_class_trait_impl_exists(&self, class: &Type, trait_: &Type) -> bool {
-        let class_hash = get_hash(&class);
-        let trait_hash = get_hash(&trait_);
         for imp in self.get_trait_impls(trait_).into_iter() {
             let _sub_subs = Substituter::substitute_typarams(self, &imp.sub_type, class).ok();
             let _sup_subs = Substituter::substitute_typarams(self, &imp.sup_trait, trait_).ok();
             if self.supertype_of(&imp.sub_type, class) && self.supertype_of(&imp.sup_trait, trait_)
             {
-                if class_hash != get_hash(&class) {
-                    class.undo();
-                }
-                if trait_hash != get_hash(&trait_) {
-                    trait_.undo();
-                }
                 return true;
-            }
-            if class_hash != get_hash(&class) {
-                class.undo();
-            }
-            if trait_hash != get_hash(&trait_) {
-                trait_.undo();
             }
         }
         false

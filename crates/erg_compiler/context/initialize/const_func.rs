@@ -243,9 +243,12 @@ pub(crate) fn sub_vdict_get<'d>(
         if key == k {
             return Some(v);
         }
-        match (ctx.convert_value_into_type(key.clone()), ctx.convert_value_into_type(k.clone())) {
+        match (
+            ctx.convert_value_into_type(key.clone()),
+            ctx.convert_value_into_type(k.clone()),
+        ) {
             (Ok(idx), Ok(kt))
-                if ctx.subtype_of(&idx.lower_bounded(), &kt.lower_bounded()) /*|| dict.len() == 1*/ =>
+                if dict.len() == 1 || ctx.subtype_of(&idx.lower_bounded(), &kt.lower_bounded()) =>
             {
                 matches.push((idx, kt, v));
             }
