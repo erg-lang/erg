@@ -1,0 +1,4 @@
+.kwlist: List Str
+.softkwlist: List Str
+.iskeyword: (s: Str) -> Bool
+.issoftkeyword: (s: Str) -> Bool

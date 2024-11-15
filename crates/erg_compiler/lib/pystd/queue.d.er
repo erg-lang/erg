@@ -1,0 +1,40 @@
+.Empty: ClassType
+.Empty <: Exception
+.Full: ClassType
+.Full <: Exception
+.Shutdown: ClassType
+.Shutdown <: Exception
+
+.Queue!: ClassType
+.Queue!.
+    __call__: (maxsize := Nat) -> Queue!
+    qsize: (self: Ref Queue!) -> Nat
+    empty: (self: Ref Queue!) -> Bool
+    full: (self: Ref Queue!) -> Bool
+    put!: (self: RefMut Queue!, item: Obj, block := Bool, timeout := Float) => NoneType
+    put_nowait!: (self: RefMut Queue!, item: Obj) => NoneType
+    get!: (self: RefMut Queue!, block := Bool, timeout := Float) => Obj
+    get_nowait!: (self: RefMut Queue!) => Obj
+    task_done!: (self: RefMut Queue!) => NoneType
+    join!: (self: RefMut Queue!) => NoneType
+    shutdown!: (self: RefMut Queue!, immediate := Bool) => NoneType
+
+.LifoQueue!: ClassType
+.LifoQueue! <: Queue!
+.LifoQueue!.
+    __call__: (maxsize := Nat) -> LifoQueue!
+
+.PriorityQueue!: ClassType
+.PriorityQueue! <: Queue!
+.PriorityQueue!.
+    __call__: (maxsize := Nat) -> PriorityQueue!
+
+.SimpleQueue!: ClassType
+.SimpleQueue!.
+    __call__: () -> SimpleQueue!
+    qsize: (self: Ref SimpleQueue!) -> Nat
+    empty: (self: Ref SimpleQueue!) -> Bool
+    put!: (self: RefMut SimpleQueue!, item: Obj, block := Bool, timeout := Float) => NoneType
+    put_nowait!: (self: RefMut SimpleQueue!, item: Obj) => NoneType
+    get!: (self: RefMut SimpleQueue!, block := Bool, timeout := Float) => Obj
+    get_nowait!: (self: RefMut SimpleQueue!) => Obj
