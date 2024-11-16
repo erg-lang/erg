@@ -158,9 +158,28 @@ impl Linter {
             self.lint_too_many_params(chunk);
             self.lint_bool_comparison(chunk);
             self.lint_too_many_instance_attributes(chunk);
+            self.lint_tautology(chunk);
         }
         log!(info "Finished linting");
         self.warns.take()
+    }
+
+    fn lint_tautology(&mut self, expr: &Expr) {
+        if let Expr::BinOp(binop) = expr {
+            if binop.op.kind == TokenKind::GreEq
+                || binop.op.kind == TokenKind::LessEq
+                || binop.op.kind == TokenKind::DblEq
+            {
+                self.warns.push(tautology(
+                    self.input(),
+                    line!() as usize,
+                    self.caused_by(),
+                    binop.loc(),
+                ));
+            }
+        } else {
+            self.check_recursively(&Self::lint_tautology, expr);
+        }
     }
 
     fn lint_too_many_params(&mut self, expr: &Expr) {

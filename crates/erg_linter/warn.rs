@@ -19,6 +19,26 @@ pub(crate) fn too_many_params(input: Input, caused_by: String, loc: Location) ->
     )
 }
 
+pub(crate) fn tautology(
+    input: Input,
+    errno: usize,
+    caused_by: String,
+    loc: Location,
+) -> CompileWarning {
+    let msg = switch_lang!(
+            "japanese" => "比較演算子が冗長です",
+            "simplified_chinese" => "比较运算符是多余的",
+            "traditional_chinese" => "比較運算符號是多餘的",
+            "english" => "comparison operator is redundant",
+    )
+    .to_string();
+    CompileWarning::new(
+        ErrorCore::new(vec![], msg, errno, ErrorKind::Warning, loc),
+        input,
+        caused_by,
+    )
+}
+
 pub(crate) fn too_many_instance_attributes(
     input: Input,
     errno: usize,
