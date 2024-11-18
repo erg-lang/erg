@@ -170,16 +170,19 @@ impl Linter {
                 || binop.op.kind == TokenKind::LessEq
                 || binop.op.kind == TokenKind::DblEq
             {
-                self.warns.push(tautology(
-                    self.input(),
-                    line!() as usize,
-                    self.caused_by(),
-                    binop.loc(),
-                ));
+                let lhs = binop.lhs.as_ref();
+                let rhs = binop.rhs.as_ref();
+                if lhs == rhs {
+                    self.warns.push(tautology(
+                        self.input(),
+                        line!() as usize,
+                        self.caused_by(),
+                        binop.loc(),
+                    ));
+                }
             }
-        } else {
-            self.check_recursively(&Self::lint_tautology, expr);
         }
+        self.check_recursively(&Self::lint_tautology, expr);
     }
 
     fn lint_too_many_params(&mut self, expr: &Expr) {
