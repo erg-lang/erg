@@ -63,9 +63,9 @@ checksum = "b048fb63fd8b5923fc5aa7b340d8e156aec7ec02f0c78fa8a6ddc2613f6f71de"
 
 [[package]]
 name = "cc"
-version = "1.1.37"
+version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "40545c26d092346d8a8dab71ee48e7685a7a9cba76e634790c215b41a4a7b4cf"
+checksum = "fd9de9f2205d5ef3fd67e685b0df337994ddd4495e2a28d185500d0e1edfea47"
 dependencies = [
  "shlex",
 ]
@@ -114,7 +114,7 @@ dependencies = [
 
 [[package]]
 name = "els"
-version = "0.1.60-nightly.1"
+version = "0.1.60"
 dependencies = [
  "erg_common",
  "erg_compiler",
@@ -130,7 +130,7 @@ dependencies = [
 
 [[package]]
 name = "erg"
-version = "0.6.48-nightly.1"
+version = "0.6.48"
 dependencies = [
  "els",
  "erg_common",
@@ -141,7 +141,7 @@ dependencies = [
 
 [[package]]
 name = "erg_common"
-version = "0.6.48-nightly.1"
+version = "0.6.48"
 dependencies = [
  "backtrace-on-stack-overflow",
  "crossterm",
@@ -154,7 +154,7 @@ dependencies = [
 
 [[package]]
 name = "erg_compiler"
-version = "0.6.48-nightly.1"
+version = "0.6.48"
 dependencies = [
  "erg_common",
  "erg_parser",
@@ -163,7 +163,7 @@ dependencies = [
 
 [[package]]
 name = "erg_linter"
-version = "0.6.48-nightly.1"
+version = "0.6.48"
 dependencies = [
  "erg_common",
  "erg_compiler",
@@ -172,7 +172,7 @@ dependencies = [
 
 [[package]]
 name = "erg_parser"
-version = "0.6.48-nightly.1"
+version = "0.6.48"
 dependencies = [
  "erg_common",
  "erg_proc_macros",
@@ -182,7 +182,7 @@ dependencies = [
 
 [[package]]
 name = "erg_proc_macros"
-version = "0.6.48-nightly.1"
+version = "0.6.48"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -356,15 +356,15 @@ checksum = "b248f5224d1d606005e02c97f5aa4e88eeb230488bcc03bc9ca4d7991399f2b5"
 
 [[package]]
 name = "itoa"
-version = "1.0.11"
+version = "1.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49f1f14873335454500d59611f1cf4a4b0f786f9ac11f4312a78e4cf2566695b"
+checksum = "7a73e9fe3c49d7afb2ace819fa181a287ce54a0983eda4e0eb05c22f82ffe534"
 
 [[package]]
 name = "libc"
-version = "0.2.162"
+version = "0.2.164"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18d287de67fe55fd7e1581fe933d965a5a9477b38e949cfa9f8574ef01506398"
+checksum = "433bfe06b8c75da9b2e3fbea6e5329ff87748f0b144ef75306e674c3f6f7c13f"
 
 [[package]]
 name = "litemap"
@@ -630,18 +630,18 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "serde"
-version = "1.0.214"
+version = "1.0.215"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f55c3193aca71c12ad7890f1785d2b73e1b9f63a0bbc353c08ef26fe03fc56b5"
+checksum = "6513c1ad0b11a9376da888e3e0baa0077f1aed55c17f50e7b2397136129fb88f"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.214"
+version = "1.0.215"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de523f781f095e28fa605cdce0f8307e451cc0fd14e2eb4cd2e98a355b147766"
+checksum = "ad1e866f866923f252f05c889987993144fb74e722403468a4ebd70c3cd756c0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -650,9 +650,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.132"
+version = "1.0.133"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d726bfaff4b320266d395898905d0eba0345aae23b54aee3a737e260fd46db03"
+checksum = "c7fceb2473b9166b2294ef05efcb65a3db80803f0b03ef86a5fc88a2b85ee377"
 dependencies = [
  "itoa",
  "memchr",
@@ -780,9 +780,9 @@ dependencies = [
 
 [[package]]
 name = "unicode-ident"
-version = "1.0.13"
+version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e91b56cd4cadaeb79bbf1a5645f6b4f8dc5bde8834ad5894a8db35fda9efa1fe"
+checksum = "adb9e6ca4f869e1180728b7950e35922a7fc6397f7b641499e8f3ef06e50dc83"
 
 [[package]]
 name = "unicode-xid"
