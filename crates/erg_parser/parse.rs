@@ -277,7 +277,7 @@ impl Parser {
     fn next_expr(&mut self) {
         while let Some(t) = self.peek() {
             match t.category() {
-                TC::Separator | TC::DefOp | TC::LambdaOp => {
+                TC::Separator => {
                     self.skip();
                     return;
                 }

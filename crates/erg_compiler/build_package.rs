@@ -421,23 +421,8 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         debug_assert!(res.is_ok(), "{:?}", res.unwrap_err());
         log!(info "Dependency resolution process completed");
         log!("graph:\n{}", self.shared.graph.display());
-        if self.parse_errors.errors.is_empty() {
-            self.shared.warns.extend(self.parse_errors.warns.flush());
-        // continue analysis if ELS mode
-        } else if self.cfg.mode == ErgMode::LanguageServer {
-            // self.finalize();
-            self.shared.errors.extend(self.parse_errors.errors.flush());
-            self.shared.warns.extend(self.parse_errors.warns.flush());
-        } else {
-            /*
-            self.finalize();
-            return Err(IncompleteArtifact::new(
-                None,
-                self.parse_errors.errors.flush(),
-                self.parse_errors.warns.flush(),
-            ));
-            */
-        }
+        self.shared.errors.extend(self.parse_errors.errors.flush());
+        self.shared.warns.extend(self.parse_errors.warns.flush());
         self.execute(ast, mode)
     }
 
