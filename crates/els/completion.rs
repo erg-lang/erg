@@ -524,6 +524,30 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         comps
     }
 
+    fn kw_arg_completion(&self, sig_t: &Type, mod_ctx: &Context) -> Vec<CompletionItem> {
+        let mut result = vec![];
+        if let Some(d_params) = sig_t.default_params() {
+            for d_param in d_params {
+                let subst = if PYTHON_MODE { "=" } else { ":=" };
+                let mut item = CompletionItem::new_simple(
+                    format!("{}{subst}", d_param.name().unwrap()),
+                    d_param.typ().to_string(),
+                );
+                CompletionOrderSetter::new(
+                    d_param.typ(),
+                    &VarKind::Declared,
+                    None,
+                    mod_ctx,
+                    item.label.clone(),
+                )
+                .set(&mut item);
+                item.kind = Some(comp_item_kind(d_param.typ(), Mutability::Immutable));
+                result.push(item);
+            }
+        }
+        result
+    }
+
     pub(crate) fn handle_completion(
         &mut self,
         params: CompletionParams,
@@ -582,11 +606,16 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             CompletionKind::LParen => 0,
             CompletionKind::RetriggerMethod => -1,
         };
+        let Some(mod_ctx) = self.get_mod_ctx(&uri) else {
+            _log!(self, "module context not found: {uri}");
+            return Ok(Some(CompletionResponse::Array(result)));
+        };
         let arg_pt = self
             .get_min_expr(&uri, pos, offset)
             .and_then(|(token, expr)| match expr {
                 Expr::Call(call) => {
                     let sig_t = call.obj.t();
+                    result.extend(self.kw_arg_completion(&sig_t, &mod_ctx.context));
                     let nth = self.nth(&uri, &call, pos);
                     let additional = if matches!(token.kind, Comma) { 1 } else { 0 };
                     let nth = nth + additional;
@@ -620,10 +649,6 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 }
                 _ => None,
             });
-        let Some(mod_ctx) = self.get_mod_ctx(&uri) else {
-            _log!(self, "module context not found: {uri}");
-            return Ok(Some(CompletionResponse::Array(result)));
-        };
         if PYTHON_MODE {
             if let Some(receiver_t) = &receiver_t {
                 for (field, ty) in mod_ctx.context.fields(receiver_t) {
