@@ -24,6 +24,7 @@ pub(crate) fn tautology(
     errno: usize,
     caused_by: String,
     loc: Location,
+    expr: Expr,
 ) -> CompileWarning {
     let msg = switch_lang!(
             "japanese" => "比較演算子が冗長です",
@@ -32,8 +33,21 @@ pub(crate) fn tautology(
             "english" => "comparison operator is verbose",
     )
     .to_string();
+    let hint = switch_lang!(
+            "japanese" => format!("より簡潔に書きましょう: {}", expr.to_string_notype()),
+            "simplified_chinese" => format!("更简洁地写作: {}", expr.to_string_notype()),
+            "traditional_chinese" => format!("寫作更簡潔: {}", expr.to_string_notype()),
+            "english" => format!("write more succinctly: {}", expr.to_string_notype()),
+    )
+    .to_string();
     CompileWarning::new(
-        ErrorCore::new(vec![], msg, errno, ErrorKind::Warning, loc),
+        ErrorCore::new(
+            vec![SubMessage::ambiguous_new(loc, vec![], Some(hint))],
+            msg,
+            errno,
+            ErrorKind::Warning,
+            loc,
+        ),
         input,
         caused_by,
     )

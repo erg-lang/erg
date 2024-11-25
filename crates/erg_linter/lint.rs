@@ -178,6 +178,7 @@ impl Linter {
                         line!() as usize,
                         self.caused_by(),
                         binop.loc(),
+                        lhs.clone(),
                     ));
                 }
             }
