@@ -29,7 +29,7 @@ pub(crate) fn tautology(
             "japanese" => "比較演算子が冗長です",
             "simplified_chinese" => "比较运算符是多余的",
             "traditional_chinese" => "比較運算符號是多餘的",
-            "english" => "comparison operator is redundant",
+            "english" => "comparison operator is verbose",
     )
     .to_string();
     CompileWarning::new(
