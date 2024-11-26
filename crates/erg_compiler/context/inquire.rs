@@ -2215,11 +2215,10 @@ impl Context {
                 }
                 nth += 1;
             }
-            for not_passed in subr
-                .default_params
-                .iter()
-                .filter(|pt| !passed_params.contains(pt.name().unwrap()))
-            {
+            for not_passed in subr.default_params.iter().filter(|pt| {
+                pt.name()
+                    .map_or(false, |name| !passed_params.contains(name))
+            }) {
                 if let ParamTy::KwWithDefault { ty, default, .. } = &not_passed {
                     if let Err(mut es) = self.sub_unify(default, ty, obj, not_passed.name()) {
                         errs.append(&mut es);
