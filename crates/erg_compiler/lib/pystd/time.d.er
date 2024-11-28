@@ -1,5 +1,40 @@
+.CLOCK_BOOTTIME: Nat
+.CLOCK_MONOTONIC: Nat
+.CLOCK_MONOTONIC_RAW: Nat
+.CLOCK_PROCESS_CPUTIME_ID: Nat
+.CLOCK_PROF: Nat
+.CLOCK_REALTIME: Nat
+
+.altzone: Int
+.daylight: Int
+.timezone: Int
+.tzname: (Str, Str)
+
+.asctime!: (tm := StructTime) => Str
+.clock!: () => Float
+.clock_getres!: (clock_id: Nat) => Float
+.clock_gettime!: (clock_id: Nat) => Float
+.clock_gettime_ns!: (clock_id: Nat) => Int
+.clock_settime!: (clock_id: Nat, time: Float) => NoneType
+.clock_settime_ns!: (clock_id: Nat, time: Int) => NoneType
+.ctime!: (secs := Float) => Str
+.gmtime!: (secs := Float) => StructTime
+.localtime!: (secs := Float) => StructTime
+.mktime!: (tm: StructTime) => Float
+.monotonic!: () => Float
+.monotonic_ns!: () => Int
+.perf_counter!: () => Float
+.perf_counter_ns!: () => Int
+.process_time!: () => Float
+.process_time_ns!: () => Int
 .sleep!: Float => NoneType
+.strftime!: (format: Str, tm := StructTime) => Str
+.strptime!: (string: Str, format := Str) => StructTime
 .time!: () => Float
+.time_ns!: () => Int
+.thread_time!: () => Float
+.thread_time_ns!: () => Int
+.tzset!: () => NoneType
 
 .StructTime = 'struct_time': ClassType
 .StructTime.
