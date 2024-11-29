@@ -247,7 +247,7 @@ impl<'a> HIRVisitor<'a> {
         expr: &'e Expr,
         l: &impl Locational,
         r: Position,
-    ) -> Option<&Expr> {
+    ) -> Option<&'e Expr> {
         if !self.search.matches(expr) {
             return None;
         }
@@ -263,7 +263,7 @@ impl<'a> HIRVisitor<'a> {
         expr: &'e Expr,
         pos: Position,
         loc: &impl Locational,
-    ) -> Option<&Expr> {
+    ) -> Option<&'e Expr> {
         (loc.loc().contains(pos.loc()) && self.search.matches(expr)).then_some(expr)
     }
 
@@ -301,7 +301,7 @@ impl<'a> HIRVisitor<'a> {
         expr: &'e Expr,
         acc: &'e Accessor,
         pos: Position,
-    ) -> Option<&Expr> {
+    ) -> Option<&'e Expr> {
         match acc {
             Accessor::Ident(ident) => self.return_expr_if_same(expr, ident.raw.name.token(), pos),
             Accessor::Attr(attr) => self
@@ -315,7 +315,7 @@ impl<'a> HIRVisitor<'a> {
         expr: &'e Expr,
         bin: &'e BinOp,
         pos: Position,
-    ) -> Option<&Expr> {
+    ) -> Option<&'e Expr> {
         if bin.op.loc().contains(pos.loc()) && self.search.matches(expr) {
             return Some(expr);
         }
@@ -328,7 +328,7 @@ impl<'a> HIRVisitor<'a> {
         expr: &'e Expr,
         call: &'e Call,
         pos: Position,
-    ) -> Option<&Expr> {
+    ) -> Option<&'e Expr> {
         // args: `(1, 2)`, pos: `)`
         call.args
             .paren
@@ -344,7 +344,7 @@ impl<'a> HIRVisitor<'a> {
             .or_else(|| self.return_expr_if_contains(expr, pos, call))
     }
 
-    fn get_expr_from_args<'e>(&'e self, args: &'e Args, pos: Position) -> Option<&Expr> {
+    fn get_expr_from_args<'e>(&'e self, args: &'e Args, pos: Position) -> Option<&'e Expr> {
         for arg in args.pos_args.iter() {
             if let Some(expr) = self.get_expr(&arg.expr, pos) {
                 return Some(expr);
@@ -368,7 +368,7 @@ impl<'a> HIRVisitor<'a> {
         expr: &'e Expr,
         def: &'e Def,
         pos: Position,
-    ) -> Option<&Expr> {
+    ) -> Option<&'e Expr> {
         self.return_expr_if_same(expr, def.sig.ident().raw.name.token(), pos)
             .or_else(|| {
                 def.sig
@@ -384,7 +384,7 @@ impl<'a> HIRVisitor<'a> {
         expr: &'e Expr,
         class_def: &'e ClassDef,
         pos: Position,
-    ) -> Option<&Expr> {
+    ) -> Option<&'e Expr> {
         class_def
             .require_or_sup
             .as_ref()
@@ -397,7 +397,7 @@ impl<'a> HIRVisitor<'a> {
         &'e self,
         block: impl Iterator<Item = &'e Expr>,
         pos: Position,
-    ) -> Option<&Expr> {
+    ) -> Option<&'e Expr> {
         for chunk in block {
             if let Some(expr) = self.get_expr(chunk, pos) {
                 return Some(expr);
@@ -411,12 +411,12 @@ impl<'a> HIRVisitor<'a> {
         expr: &'e Expr,
         redef: &'e ReDef,
         pos: Position,
-    ) -> Option<&Expr> {
+    ) -> Option<&'e Expr> {
         self.get_expr_from_acc(expr, &redef.attr, pos)
             .or_else(|| self.get_expr_from_block(redef.block.iter(), pos))
     }
 
-    fn get_expr_from_dummy<'e>(&'e self, dummy: &'e Dummy, pos: Position) -> Option<&Expr> {
+    fn get_expr_from_dummy<'e>(&'e self, dummy: &'e Dummy, pos: Position) -> Option<&'e Expr> {
         for chunk in dummy.iter() {
             if let Some(expr) = self.get_expr(chunk, pos) {
                 return Some(expr);
@@ -430,7 +430,7 @@ impl<'a> HIRVisitor<'a> {
         expr: &'e Expr,
         patch_def: &'e PatchDef,
         pos: Position,
-    ) -> Option<&Expr> {
+    ) -> Option<&'e Expr> {
         self.return_expr_if_same(expr, patch_def.sig.name().token(), pos)
             .or_else(|| self.get_expr(&patch_def.base, pos))
             .or_else(|| self.get_expr_from_block(patch_def.methods.iter(), pos))
@@ -442,7 +442,7 @@ impl<'a> HIRVisitor<'a> {
         expr: &'e Expr,
         lambda: &'e Lambda,
         pos: Position,
-    ) -> Option<&Expr> {
+    ) -> Option<&'e Expr> {
         if util::pos_in_loc(&lambda.params, util::loc_to_pos(pos.loc())?)
             && self.search.matches(expr)
         {
@@ -456,7 +456,7 @@ impl<'a> HIRVisitor<'a> {
         expr: &'e Expr,
         lis: &'e List,
         pos: Position,
-    ) -> Option<&Expr> {
+    ) -> Option<&'e Expr> {
         if lis.ln_end() == pos.ln_end() && self.search.matches(expr) {
             // arr: `[1, 2]`, pos: `]`
             return Some(expr);
@@ -472,7 +472,7 @@ impl<'a> HIRVisitor<'a> {
         expr: &'e Expr,
         dict: &'e Dict,
         pos: Position,
-    ) -> Option<&Expr> {
+    ) -> Option<&'e Expr> {
         if dict.ln_end() == pos.ln_end() && self.search.matches(expr) {
             // arr: `{...}`, pos: `}`
             return Some(expr);
@@ -498,7 +498,7 @@ impl<'a> HIRVisitor<'a> {
         expr: &'e Expr,
         record: &'e Record,
         pos: Position,
-    ) -> Option<&Expr> {
+    ) -> Option<&'e Expr> {
         if record.ln_end() == pos.ln_end() && self.search.matches(expr) {
             // arr: `{...}`, pos: `}`
             return Some(expr);
@@ -516,7 +516,7 @@ impl<'a> HIRVisitor<'a> {
         expr: &'e Expr,
         set: &'e Set,
         pos: Position,
-    ) -> Option<&Expr> {
+    ) -> Option<&'e Expr> {
         if set.ln_end() == pos.ln_end() && self.search.matches(expr) {
             // arr: `{...}`, pos: `}`
             return Some(expr);
@@ -532,7 +532,7 @@ impl<'a> HIRVisitor<'a> {
         expr: &'e Expr,
         tuple: &'e Tuple,
         pos: Position,
-    ) -> Option<&Expr> {
+    ) -> Option<&'e Expr> {
         match tuple {
             Tuple::Normal(tuple) => {
                 // arr: `(1, 2)`, pos: `)`
@@ -551,14 +551,14 @@ impl<'a> HIRVisitor<'a> {
         expr: &'e Expr,
         type_asc: &'e TypeAscription,
         pos: Position,
-    ) -> Option<&Expr> {
+    ) -> Option<&'e Expr> {
         self.get_expr(&type_asc.expr, pos)
             .or_else(|| self.get_expr(&type_asc.spec.expr, pos))
             .or_else(|| self.return_expr_if_contains(expr, pos, type_asc))
     }
 }
 
-impl<'a> HIRVisitor<'a> {
+impl HIRVisitor<'_> {
     /// Returns the smallest expression containing `token`. Literals, accessors, containers, etc. are returned.
     pub fn get_info(&self, token: &Token) -> Option<VarInfo> {
         for chunk in self.hir.module.iter() {

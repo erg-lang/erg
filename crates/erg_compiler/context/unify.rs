@@ -55,7 +55,7 @@ impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
     }
 }
 
-impl<'c, 'l, 'u, L: Locational> Unifier<'c, 'l, 'u, L> {
+impl<L: Locational> Unifier<'_, '_, '_, L> {
     /// ```erg
     /// occur(?T, ?T) ==> OK
     /// occur(?T(<: ?U), ?U) ==> OK

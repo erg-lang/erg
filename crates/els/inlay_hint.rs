@@ -30,7 +30,7 @@ pub struct InlayHintGenerator<'s, C: BuildRunnable, P: Parsable> {
     uri: Value,
 }
 
-impl<'s, C: BuildRunnable, P: Parsable> InlayHintGenerator<'s, C, P> {
+impl<C: BuildRunnable, P: Parsable> InlayHintGenerator<'_, C, P> {
     fn anot(&self, ln: u32, col: u32, cont: String) -> InlayHint {
         let position = Position::new(ln - 1, col);
         let label = InlayHintLabel::String(cont);

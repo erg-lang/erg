@@ -12,7 +12,7 @@ use crate::varinfo::{AbsLocation, VarInfo};
 
 pub struct Members<'a>(MappedRwLockReadGuard<'a, Dict<AbsLocation, ModuleIndexValue>>);
 
-impl<'a> Members<'a> {
+impl Members<'_> {
     pub fn iter(&self) -> Iter<AbsLocation, ModuleIndexValue> {
         self.0.iter()
     }

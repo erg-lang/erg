@@ -109,7 +109,7 @@ impl From<Str> for String {
     }
 }
 
-impl<'a> From<Str> for Cow<'a, str> {
+impl From<Str> for Cow<'_, str> {
     fn from(s: Str) -> Self {
         match s {
             Str::Static(s) => Cow::Borrowed(s),

@@ -1655,14 +1655,14 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 }
                 other => {
                     let expr = other.map_or("nothing", |expr| expr.name());
-                    return Err(LowerErrors::from(LowerError::syntax_error(
+                    Err(LowerErrors::from(LowerError::syntax_error(
                         self.input().clone(),
                         line!() as usize,
                         other.loc(),
                         self.module.context.caused_by(),
                         format!("expected identifier, but found {expr}"),
                         None,
-                    )));
+                    )))
                 }
             },
             Some(OperationKind::Return | OperationKind::Yield) => {

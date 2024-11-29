@@ -809,7 +809,7 @@ impl SubrType {
         let non_defaults = self
             .non_default_params
             .iter()
-            .filter(|pt| !pt.name().is_some_and(|n| &n[..] == "self"));
+            .filter(|pt| pt.name().is_none_or(|n| &n[..] != "self"));
         let defaults = self.default_params.iter();
         if let Some(var_params) = self.var_params.as_ref() {
             non_defaults

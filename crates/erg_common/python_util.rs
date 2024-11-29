@@ -5,7 +5,7 @@ use std::env::{current_dir, set_current_dir, temp_dir};
 use std::fs::{canonicalize, remove_file, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, ExitStatus, Stdio};
+use std::process::{Child, Command, ExitStatus, Stdio};
 
 use crate::env::opt_which_python;
 use crate::fn_name_full;
@@ -942,30 +942,30 @@ pub fn exec_py(file: impl AsRef<Path>, args: &[&str]) -> std::io::Result<ExitSta
     child.wait()
 }
 
-pub fn env_spawn_py(code: &str) {
+pub fn env_spawn_py(code: &str) -> Child {
     if cfg!(windows) {
         Command::new(which_python())
             .arg("-c")
             .arg(code)
             .spawn()
-            .expect("cannot execute python");
+            .expect("cannot execute python")
     } else {
         let exec_command = format!("{} -c \"{}\"", which_python(), escape_py_code(code));
         Command::new("sh")
             .arg("-c")
             .arg(exec_command)
             .spawn()
-            .expect("cannot execute python");
+            .expect("cannot execute python")
     }
 }
 
-pub fn spawn_py(py_command: Option<&str>, code: &str) {
+pub fn spawn_py(py_command: Option<&str>, code: &str) -> Child {
     if cfg!(windows) {
         Command::new(py_command.unwrap_or(which_python()))
             .arg("-c")
             .arg(code)
             .spawn()
-            .expect("cannot execute python");
+            .expect("cannot execute python")
     } else {
         let exec_command = format!(
             "{} -c \"{}\"",
@@ -976,7 +976,7 @@ pub fn spawn_py(py_command: Option<&str>, code: &str) {
             .arg("-c")
             .arg(exec_command)
             .spawn()
-            .expect("cannot execute python");
+            .expect("cannot execute python")
     }
 }
 

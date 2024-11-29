@@ -3916,7 +3916,7 @@ impl Context {
         candidates: &'m [MethodPair],
         namespace: &Context,
     ) -> Triple<&'m MethodPair, TyCheckError> {
-        if candidates.first().is_none() {
+        if candidates.is_empty() {
             return Triple::None;
         }
         let matches = candidates
