@@ -2217,9 +2217,9 @@ impl Context {
             | Predicate::GeneralLessEqual { rhs, .. }
             | Predicate::GeneralNotEqual { rhs, .. } => self.get_pred_type(rhs),
             // x == 1 or x == "a" => Int or Str
-            Predicate::Or(lhs, rhs) => {
-                self.union(&self.get_pred_type(lhs), &self.get_pred_type(rhs))
-            }
+            Predicate::Or(ors) => ors
+                .iter()
+                .fold(Never, |l, r| self.union(&l, &self.get_pred_type(r))),
             // REVIEW:
             Predicate::And(lhs, rhs) => {
                 self.intersection(&self.get_pred_type(lhs), &self.get_pred_type(rhs))
@@ -2345,14 +2345,17 @@ impl Context {
                     (None, None) => None,
                 }
             }
-            Predicate::Or(l, r) => {
-                let l = self.eliminate_type_mismatched_preds(var, t, *l);
-                let r = self.eliminate_type_mismatched_preds(var, t, *r);
-                match (l, r) {
-                    (Some(l), Some(r)) => Some(l | r),
-                    (Some(l), None) => Some(l),
-                    (None, Some(r)) => Some(r),
-                    (None, None) => None,
+            Predicate::Or(preds) => {
+                let mut new_preds = Set::with_capacity(preds.len());
+                for pred in preds {
+                    if let Some(new_pred) = self.eliminate_type_mismatched_preds(var, t, pred) {
+                        new_preds.insert(new_pred);
+                    }
+                }
+                if new_preds.is_empty() {
+                    None
+                } else {
+                    Some(Predicate::Or(new_preds))
                 }
             }
             _ => Some(pred),
@@ -2462,7 +2465,7 @@ impl Context {
             // {I == 1 or I == 0} !:> {I == 0 or I == 1 or I == 3}
             // NG: (self.is_super_pred_of(l1, l2) && self.is_super_pred_of(r1, r2))
             //     || (self.is_super_pred_of(l1, r2) && self.is_super_pred_of(r1, l2))
-            (Pred::Or(_, _), Pred::Or(_, _)) => {
+            (Pred::Or(_), Pred::Or(_)) => {
                 let lhs_ors = self.reduce_preds("or", lhs.ors());
                 let rhs_ors = self.reduce_preds("or", rhs.ors());
                 for r_val in rhs_ors.iter() {
@@ -2509,8 +2512,8 @@ impl Context {
             (lhs, Pred::And(l, r)) => {
                 self.is_super_pred_of(lhs, l) || self.is_super_pred_of(lhs, r)
             }
-            (lhs, Pred::Or(l, r)) => self.is_super_pred_of(lhs, l) && self.is_super_pred_of(lhs, r),
-            (Pred::Or(l, r), rhs) => self.is_super_pred_of(l, rhs) || self.is_super_pred_of(r, rhs),
+            (lhs, Pred::Or(ors)) => ors.iter().all(|or| self.is_super_pred_of(lhs, or)),
+            (Pred::Or(ors), rhs) => ors.iter().any(|or| self.is_super_pred_of(or, rhs)),
             (Pred::And(l, r), rhs) => {
                 self.is_super_pred_of(l, rhs) && self.is_super_pred_of(r, rhs)
             }
@@ -2523,7 +2526,7 @@ impl Context {
         }
     }
 
-    fn is_sub_pred_of(&self, lhs: &Predicate, rhs: &Predicate) -> bool {
+    pub(crate) fn is_sub_pred_of(&self, lhs: &Predicate, rhs: &Predicate) -> bool {
         self.is_super_pred_of(rhs, lhs)
     }
 

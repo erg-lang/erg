@@ -4166,22 +4166,19 @@ impl Context {
                 };
                 lhs & rhs
             }
-            Predicate::Or(l, r) => {
-                let lhs = match self.eval_pred(*l) {
-                    Ok(pred) => pred,
-                    Err((pred, es)) => {
-                        errs.extend(es);
-                        pred
-                    }
-                };
-                let rhs = match self.eval_pred(*r) {
-                    Ok(pred) => pred,
-                    Err((pred, es)) => {
-                        errs.extend(es);
-                        pred
-                    }
-                };
-                lhs | rhs
+            Predicate::Or(preds) => {
+                let mut new_preds = Set::with_capacity(preds.len());
+                for pred in preds {
+                    let pred = match self.eval_pred(pred) {
+                        Ok(pred) => pred,
+                        Err((pred, es)) => {
+                            errs.extend(es);
+                            pred
+                        }
+                    };
+                    new_preds.insert(pred);
+                }
+                Predicate::Or(new_preds)
             }
             Predicate::Not(pred) => {
                 let pred = match self.eval_pred(*pred) {

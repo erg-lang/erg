@@ -434,11 +434,12 @@ impl<'c> Generalizer<'c> {
                 let rhs = self.generalize_pred(*rhs, uninit);
                 Predicate::and(lhs, rhs)
             }
-            Predicate::Or(lhs, rhs) => {
-                let lhs = self.generalize_pred(*lhs, uninit);
-                let rhs = self.generalize_pred(*rhs, uninit);
-                Predicate::or(lhs, rhs)
-            }
+            Predicate::Or(preds) => Predicate::Or(
+                preds
+                    .into_iter()
+                    .map(|pred| self.generalize_pred(pred, uninit))
+                    .collect(),
+            ),
             Predicate::Not(pred) => {
                 let pred = self.generalize_pred(*pred, uninit);
                 !pred
@@ -816,10 +817,12 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                 let rhs = self.deref_pred(*rhs)?;
                 Ok(Predicate::and(lhs, rhs))
             }
-            Predicate::Or(lhs, rhs) => {
-                let lhs = self.deref_pred(*lhs)?;
-                let rhs = self.deref_pred(*rhs)?;
-                Ok(Predicate::or(lhs, rhs))
+            Predicate::Or(preds) => {
+                let mut new_preds = Set::with_capacity(preds.len());
+                for pred in preds.into_iter() {
+                    new_preds.insert(self.deref_pred(pred)?);
+                }
+                Ok(Predicate::Or(new_preds))
             }
             Predicate::Not(pred) => {
                 let pred = self.deref_pred(*pred)?;

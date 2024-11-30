@@ -4,13 +4,15 @@ use std::ops::{BitAnd, BitOr, Not};
 #[allow(unused_imports)]
 use erg_common::log;
 use erg_common::set::Set;
-use erg_common::traits::{LimitedDisplay, StructuralEq};
+use erg_common::traits::{Immutable, LimitedDisplay, StructuralEq};
 use erg_common::{fmt_option, set, Str};
 
 use super::free::{Constraint, HasLevel};
 use super::typaram::TyParam;
 use super::value::ValueObj;
 use super::{SharedFrees, Type};
+
+impl Immutable for Predicate {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub enum Predicate {
@@ -61,7 +63,7 @@ pub enum Predicate {
         lhs: Box<Predicate>,
         rhs: Box<Predicate>,
     },
-    Or(Box<Predicate>, Box<Predicate>),
+    Or(Set<Predicate>),
     And(Box<Predicate>, Box<Predicate>),
     Not(Box<Predicate>),
     #[default]
@@ -97,7 +99,16 @@ impl fmt::Display for Predicate {
             Self::GeneralLessEqual { lhs, rhs } => write!(f, "{lhs} <= {rhs}"),
             Self::GeneralGreaterEqual { lhs, rhs } => write!(f, "{lhs} >= {rhs}"),
             Self::GeneralNotEqual { lhs, rhs } => write!(f, "{lhs} != {rhs}"),
-            Self::Or(l, r) => write!(f, "({l}) or ({r})"),
+            Self::Or(preds) => {
+                write!(f, "(")?;
+                for (i, pred) in preds.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, " or ")?;
+                    }
+                    write!(f, "{pred}")?;
+                }
+                write!(f, ")")
+            }
             Self::And(l, r) => write!(f, "({l}) and ({r})"),
             Self::Not(p) => write!(f, "not ({p})"),
             Self::Failure => write!(f, "<failure>"),
@@ -166,11 +177,14 @@ impl LimitedDisplay for Predicate {
                 write!(f, " != ")?;
                 rhs.limited_fmt(f, limit - 1)
             }
-            Self::Or(l, r) => {
+            Self::Or(preds) => {
                 write!(f, "(")?;
-                l.limited_fmt(f, limit - 1)?;
-                write!(f, ") or (")?;
-                r.limited_fmt(f, limit - 1)?;
+                for (i, pred) in preds.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, " or ")?;
+                    }
+                    pred.limited_fmt(f, limit - 1)?;
+                }
                 write!(f, ")")
             }
             Self::And(l, r) => {
@@ -231,9 +245,7 @@ impl StructuralEq for Predicate {
                     && name == n
                     && args.iter().zip(a.iter()).all(|(l, r)| l.structural_eq(r))
             }
-            (Self::Or(_, _), Self::Or(_, _)) => {
-                let self_ors = self.ors();
-                let other_ors = other.ors();
+            (Self::Or(self_ors), Self::Or(other_ors)) => {
                 if self_ors.len() != other_ors.len() {
                     return false;
                 }
@@ -280,9 +292,8 @@ impl HasLevel for Predicate {
             | Self::GeneralNotEqual { lhs, rhs } => {
                 lhs.level().zip(rhs.level()).map(|(a, b)| a.min(b))
             }
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
-                lhs.level().zip(rhs.level()).map(|(a, b)| a.min(b))
-            }
+            Self::Or(preds) => preds.iter().filter_map(|p| p.level()).min(),
+            Self::And(lhs, rhs) => lhs.level().zip(rhs.level()).map(|(a, b)| a.min(b)),
             Self::Not(p) => p.level(),
             Self::Call { receiver, args, .. } => receiver
                 .level()
@@ -317,7 +328,12 @@ impl HasLevel for Predicate {
                 lhs.set_level(level);
                 rhs.set_level(level);
             }
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
+            Self::Or(preds) => {
+                for pred in preds {
+                    pred.set_level(level);
+                }
+            }
+            Self::And(lhs, rhs) => {
                 lhs.set_level(level);
                 rhs.set_level(level);
             }
@@ -453,14 +469,10 @@ impl Predicate {
             | (_, Predicate::Value(ValueObj::Bool(true))) => Predicate::TRUE,
             (Predicate::Value(ValueObj::Bool(false)), p) => p,
             (p, Predicate::Value(ValueObj::Bool(false))) => p,
-            (Predicate::Or(l, r), other) | (other, Predicate::Or(l, r)) => {
-                if l.as_ref() == &other {
-                    *r | other
-                } else if r.as_ref() == &other {
-                    *l | other
-                } else {
-                    Self::Or(Box::new(Self::Or(l, r)), Box::new(other))
-                }
+            (Predicate::Or(l), Predicate::Or(r)) => Self::Or(l.union(&r)),
+            (Predicate::Or(mut preds), other) | (other, Predicate::Or(mut preds)) => {
+                preds.insert(other);
+                Self::Or(preds)
             }
             // I == 1 or I >= 1 => I >= 1
             (
@@ -474,7 +486,7 @@ impl Predicate {
                 if p1 == p2 {
                     p1
                 } else {
-                    Self::Or(Box::new(p1), Box::new(p2))
+                    Self::Or(set! { p1, p2 })
                 }
             }
         }
@@ -487,9 +499,8 @@ impl Predicate {
     pub fn consist_of_equal(&self) -> bool {
         match self {
             Self::Equal { .. } => true,
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
-                lhs.consist_of_equal() && rhs.consist_of_equal()
-            }
+            Self::Or(preds) => preds.iter().all(|p| p.consist_of_equal()),
+            Self::And(lhs, rhs) => lhs.consist_of_equal() && rhs.consist_of_equal(),
             Self::Not(pred) => pred.consist_of_equal(),
             _ => false,
         }
@@ -508,11 +519,7 @@ impl Predicate {
 
     pub fn ors(&self) -> Set<&Predicate> {
         match self {
-            Self::Or(lhs, rhs) => {
-                let mut set = lhs.ors();
-                set.extend(rhs.ors());
-                set
-            }
+            Self::Or(preds) => preds.iter().collect(),
             _ => set! { self },
         }
     }
@@ -523,7 +530,18 @@ impl Predicate {
             | Self::LessEqual { lhs, .. }
             | Self::GreaterEqual { lhs, .. }
             | Self::NotEqual { lhs, .. } => Some(&lhs[..]),
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
+            Self::Or(preds) => {
+                let mut iter = preds.iter();
+                let first = iter.next()?;
+                let subject = first.subject()?;
+                for pred in iter {
+                    if subject != pred.subject()? {
+                        return None;
+                    }
+                }
+                Some(subject)
+            }
+            Self::And(lhs, rhs) => {
                 let l = lhs.subject();
                 let r = rhs.subject();
                 if l != r {
@@ -548,9 +566,12 @@ impl Predicate {
                 lhs.change_subject_name(name.clone()),
                 rhs.change_subject_name(name),
             ),
-            Self::Or(lhs, rhs) => Self::or(
-                lhs.change_subject_name(name.clone()),
-                rhs.change_subject_name(name),
+            Self::Or(preds) => Self::Or(
+                preds
+                    .iter()
+                    .cloned()
+                    .map(|p| p.change_subject_name(name.clone()))
+                    .collect(),
             ),
             Self::Not(pred) => Self::not(pred.change_subject_name(name)),
             Self::GeneralEqual { lhs, rhs } => Self::general_eq(
@@ -588,7 +609,7 @@ impl Predicate {
             Self::LessEqual { lhs, rhs } => Self::le(lhs, rhs.substitute(var, tp)),
             Self::NotEqual { lhs, rhs } => Self::ne(lhs, rhs.substitute(var, tp)),
             Self::And(lhs, rhs) => Self::and(lhs.substitute(var, tp), rhs.substitute(var, tp)),
-            Self::Or(lhs, rhs) => Self::or(lhs.substitute(var, tp), rhs.substitute(var, tp)),
+            Self::Or(preds) => Self::Or(preds.into_iter().map(|p| p.substitute(var, tp)).collect()),
             Self::Not(pred) => Self::not(pred.substitute(var, tp)),
             Self::GeneralEqual { lhs, rhs } => {
                 Self::general_eq(lhs.substitute(var, tp), rhs.substitute(var, tp))
@@ -638,7 +659,8 @@ impl Predicate {
             | Self::GeneralGreaterEqual { lhs, rhs }
             | Self::GeneralNotEqual { lhs, rhs } => lhs.mentions(name) || rhs.mentions(name),
             Self::Not(pred) => pred.mentions(name),
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => lhs.mentions(name) || rhs.mentions(name),
+            Self::And(lhs, rhs) => lhs.mentions(name) || rhs.mentions(name),
+            Self::Or(preds) => preds.iter().any(|p| p.mentions(name)),
             _ => false,
         }
     }
@@ -647,7 +669,14 @@ impl Predicate {
         match self {
             Self::Value(l) => Some(matches!(l, ValueObj::Bool(false))),
             Self::Const(_) => None,
-            Self::Or(lhs, rhs) => Some(lhs.can_be_false()? || rhs.can_be_false()?),
+            Self::Or(preds) => {
+                for pred in preds {
+                    if pred.can_be_false()? {
+                        return Some(true);
+                    }
+                }
+                Some(false)
+            }
             Self::And(lhs, rhs) => Some(lhs.can_be_false()? && rhs.can_be_false()?),
             Self::Not(pred) => Some(!pred.can_be_false()?),
             _ => Some(true),
@@ -676,7 +705,8 @@ impl Predicate {
             | Self::GeneralNotEqual { lhs, rhs } => {
                 lhs.qvars().concat(rhs.qvars()).into_iter().collect()
             }
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => lhs.qvars().concat(rhs.qvars()),
+            Self::And(lhs, rhs) => lhs.qvars().concat(rhs.qvars()),
+            Self::Or(preds) => preds.iter().fold(set! {}, |acc, p| acc.union(&p.qvars())),
             Self::Not(pred) => pred.qvars(),
         }
     }
@@ -699,9 +729,8 @@ impl Predicate {
             | Self::GeneralNotEqual { lhs, rhs } => {
                 lhs.has_type_satisfies(f) || rhs.has_type_satisfies(f)
             }
-            Self::Or(lhs, rhs) | Self::And(lhs, rhs) => {
-                lhs.has_type_satisfies(f) || rhs.has_type_satisfies(f)
-            }
+            Self::And(lhs, rhs) => lhs.has_type_satisfies(f) || rhs.has_type_satisfies(f),
+            Self::Or(preds) => preds.iter().any(|p| p.has_type_satisfies(f)),
             Self::Not(pred) => pred.has_type_satisfies(f),
         }
     }
@@ -722,7 +751,8 @@ impl Predicate {
             | Self::GeneralLessEqual { lhs, rhs }
             | Self::GeneralGreaterEqual { lhs, rhs }
             | Self::GeneralNotEqual { lhs, rhs } => lhs.has_qvar() || rhs.has_qvar(),
-            Self::Or(lhs, rhs) | Self::And(lhs, rhs) => lhs.has_qvar() || rhs.has_qvar(),
+            Self::And(lhs, rhs) => lhs.has_qvar() || rhs.has_qvar(),
+            Self::Or(preds) => preds.iter().any(|p| p.has_qvar()),
             Self::Not(pred) => pred.has_qvar(),
         }
     }
@@ -743,9 +773,8 @@ impl Predicate {
             | Self::GeneralLessEqual { lhs, rhs }
             | Self::GeneralGreaterEqual { lhs, rhs }
             | Self::GeneralNotEqual { lhs, rhs } => lhs.has_unbound_var() || rhs.has_unbound_var(),
-            Self::Or(lhs, rhs) | Self::And(lhs, rhs) => {
-                lhs.has_unbound_var() || rhs.has_unbound_var()
-            }
+            Self::And(lhs, rhs) => lhs.has_unbound_var() || rhs.has_unbound_var(),
+            Self::Or(preds) => preds.iter().any(|p| p.has_unbound_var()),
             Self::Not(pred) => pred.has_unbound_var(),
         }
     }
@@ -769,9 +798,8 @@ impl Predicate {
             | Self::GeneralNotEqual { lhs, rhs } => {
                 lhs.has_undoable_linked_var() || rhs.has_undoable_linked_var()
             }
-            Self::Or(lhs, rhs) | Self::And(lhs, rhs) => {
-                lhs.has_undoable_linked_var() || rhs.has_undoable_linked_var()
-            }
+            Self::And(lhs, rhs) => lhs.has_undoable_linked_var() || rhs.has_undoable_linked_var(),
+            Self::Or(preds) => preds.iter().any(|p| p.has_undoable_linked_var()),
             Self::Not(pred) => pred.has_undoable_linked_var(),
         }
     }
@@ -825,9 +853,8 @@ impl Predicate {
             | Self::GeneralLessEqual { .. }
             | Self::GeneralGreaterEqual { .. }
             | Self::GeneralNotEqual { .. } => vec![],
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
-                lhs.typarams().into_iter().chain(rhs.typarams()).collect()
-            }
+            Self::And(lhs, rhs) => lhs.typarams().into_iter().chain(rhs.typarams()).collect(),
+            Self::Or(preds) => preds.iter().flat_map(|p| p.typarams()).collect(),
             Self::Not(pred) => pred.typarams(),
         }
     }
@@ -850,7 +877,7 @@ impl Predicate {
 
     pub fn possible_tps(&self) -> Vec<&TyParam> {
         match self {
-            Self::Or(lhs, rhs) => [lhs.possible_tps(), rhs.possible_tps()].concat(),
+            Self::Or(preds) => preds.iter().flat_map(|p| p.possible_tps()).collect(),
             Self::Equal { rhs, .. } => vec![rhs],
             _ => vec![],
         }
@@ -863,7 +890,7 @@ impl Predicate {
                 rhs: TyParam::Value(value),
                 ..
             } => vec![value],
-            Self::Or(lhs, rhs) => [lhs.possible_values(), rhs.possible_values()].concat(),
+            Self::Or(preds) => preds.iter().flat_map(|p| p.possible_values()).collect(),
             _ => vec![],
         }
     }
@@ -888,7 +915,10 @@ impl Predicate {
             | Self::GeneralLessEqual { lhs, rhs }
             | Self::GeneralGreaterEqual { lhs, rhs }
             | Self::GeneralNotEqual { lhs, rhs } => lhs.variables().concat(rhs.variables()),
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => lhs.variables().concat(rhs.variables()),
+            Self::And(lhs, rhs) => lhs.variables().concat(rhs.variables()),
+            Self::Or(preds) => preds
+                .iter()
+                .fold(set! {}, |acc, p| acc.union(&p.variables())),
             Self::Not(pred) => pred.variables(),
         }
     }
@@ -911,9 +941,8 @@ impl Predicate {
             | Self::GeneralNotEqual { lhs, rhs } => {
                 lhs.contains_value(value) || rhs.contains_value(value)
             }
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => {
-                lhs.contains_value(value) || rhs.contains_value(value)
-            }
+            Self::And(lhs, rhs) => lhs.contains_value(value) || rhs.contains_value(value),
+            Self::Or(preds) => preds.iter().any(|p| p.contains_value(value)),
             Self::Not(pred) => pred.contains_value(value),
             Self::Failure => false,
         }
@@ -934,7 +963,8 @@ impl Predicate {
             | Self::GeneralLessEqual { lhs, rhs }
             | Self::GeneralGreaterEqual { lhs, rhs }
             | Self::GeneralNotEqual { lhs, rhs } => lhs.contains_tp(tp) || rhs.contains_tp(tp),
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => lhs.contains_tp(tp) || rhs.contains_tp(tp),
+            Self::And(lhs, rhs) => lhs.contains_tp(tp) || rhs.contains_tp(tp),
+            Self::Or(preds) => preds.iter().any(|p| p.contains_tp(tp)),
             Self::Not(pred) => pred.contains_tp(tp),
             Self::Failure | Self::Const(_) => false,
         }
@@ -955,7 +985,8 @@ impl Predicate {
             | Self::GeneralLessEqual { lhs, rhs }
             | Self::GeneralGreaterEqual { lhs, rhs }
             | Self::GeneralNotEqual { lhs, rhs } => lhs.contains_t(t) || rhs.contains_t(t),
-            Self::And(lhs, rhs) | Self::Or(lhs, rhs) => lhs.contains_t(t) || rhs.contains_t(t),
+            Self::And(lhs, rhs) => lhs.contains_t(t) || rhs.contains_t(t),
+            Self::Or(preds) => preds.iter().any(|p| p.contains_t(t)),
             Self::Not(pred) => pred.contains_t(t),
             Self::Const(_) | Self::Failure => false,
         }
@@ -1035,9 +1066,7 @@ impl Predicate {
             Self::And(lhs, rhs) => {
                 Self::And(Box::new(lhs.map_t(f, tvs)), Box::new(rhs.map_t(f, tvs)))
             }
-            Self::Or(lhs, rhs) => {
-                Self::Or(Box::new(lhs.map_t(f, tvs)), Box::new(rhs.map_t(f, tvs)))
-            }
+            Self::Or(preds) => Self::Or(preds.into_iter().map(|p| p.map_t(f, tvs)).collect()),
             Self::Not(pred) => Self::Not(Box::new(pred.map_t(f, tvs))),
             Self::Failure => self,
         }
@@ -1095,9 +1124,7 @@ impl Predicate {
             Self::And(lhs, rhs) => {
                 Self::And(Box::new(lhs.map_tp(f, tvs)), Box::new(rhs.map_tp(f, tvs)))
             }
-            Self::Or(lhs, rhs) => {
-                Self::Or(Box::new(lhs.map_tp(f, tvs)), Box::new(rhs.map_tp(f, tvs)))
-            }
+            Self::Or(preds) => Self::Or(preds.into_iter().map(|p| p.map_tp(f, tvs)).collect()),
             Self::Not(pred) => Self::Not(Box::new(pred.map_tp(f, tvs))),
             Self::Failure => self,
         }
@@ -1147,9 +1174,11 @@ impl Predicate {
                 Box::new(lhs.try_map_tp(f, tvs)?),
                 Box::new(rhs.try_map_tp(f, tvs)?),
             )),
-            Self::Or(lhs, rhs) => Ok(Self::Or(
-                Box::new(lhs.try_map_tp(f, tvs)?),
-                Box::new(rhs.try_map_tp(f, tvs)?),
+            Self::Or(preds) => Ok(Self::Or(
+                preds
+                    .into_iter()
+                    .map(|p| p.try_map_tp(f, tvs))
+                    .collect::<Result<_, E>>()?,
             )),
             Self::Not(pred) => Ok(Self::Not(Box::new(pred.try_map_tp(f, tvs)?))),
             Self::Failure | Self::Const(_) => Ok(self),

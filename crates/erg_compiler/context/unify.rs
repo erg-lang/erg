@@ -848,11 +848,29 @@ impl<L: Locational> Unifier<'_, '_, '_, L> {
             | (Pred::NotEqual { rhs, .. }, Pred::NotEqual { rhs: rhs2, .. }) => {
                 self.sub_unify_tp(rhs, rhs2, None, false)
             }
-            (Pred::And(l1, r1), Pred::And(l2, r2)) | (Pred::Or(l1, r1), Pred::Or(l2, r2)) => {
+            (Pred::And(l1, r1), Pred::And(l2, r2)) => {
                 match (self.sub_unify_pred(l1, l2), self.sub_unify_pred(r1, r2)) {
                     (Ok(()), Ok(())) => Ok(()),
                     (Ok(()), Err(e)) | (Err(e), Ok(())) | (Err(e), Err(_)) => Err(e),
                 }
+            }
+            (Pred::Or(l_preds), Pred::Or(r_preds)) => {
+                let mut l_preds_ = l_preds.clone();
+                let mut r_preds_ = r_preds.clone();
+                for l_pred in l_preds {
+                    if r_preds_.linear_remove(l_pred) {
+                        l_preds_.linear_remove(l_pred);
+                    }
+                }
+                for l_pred in l_preds_.iter() {
+                    for r_pred in r_preds_.iter() {
+                        if self.ctx.is_sub_pred_of(l_pred, r_pred) {
+                            self.sub_unify_pred(l_pred, r_pred)?;
+                            continue;
+                        }
+                    }
+                }
+                Ok(())
             }
             (Pred::Not(l), Pred::Not(r)) => self.sub_unify_pred(r, l),
             // sub_unify_pred(I == M, I <= ?N(: Nat)) ==> ?N(: M..)

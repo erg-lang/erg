@@ -630,10 +630,12 @@ impl Context {
                 let r = self.instantiate_pred(*r, tmp_tv_cache, loc)?;
                 Ok(Predicate::and(l, r))
             }
-            Predicate::Or(l, r) => {
-                let l = self.instantiate_pred(*l, tmp_tv_cache, loc)?;
-                let r = self.instantiate_pred(*r, tmp_tv_cache, loc)?;
-                Ok(Predicate::or(l, r))
+            Predicate::Or(preds) => {
+                let mut new_preds = Set::with_capacity(preds.len());
+                for pred in preds {
+                    new_preds.insert(self.instantiate_pred(pred, tmp_tv_cache, loc)?);
+                }
+                Ok(Predicate::Or(new_preds))
             }
             Predicate::Not(pred) => {
                 let pred = self.instantiate_pred(*pred, tmp_tv_cache, loc)?;
