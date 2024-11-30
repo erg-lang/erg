@@ -1024,9 +1024,9 @@ impl Context {
             FUNC_SPLIT,
             fn_met(
                 Str,
-                vec![kw(KW_SEP, Str)],
+                vec![],
                 None,
-                vec![kw(KW_MAXSPLIT, Nat)],
+                vec![kw(KW_SEP, Str), kw(KW_MAXSPLIT, Nat)],
                 None,
                 out_unknown_len_list_t(Str),
             ),

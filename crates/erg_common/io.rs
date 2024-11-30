@@ -469,7 +469,7 @@ impl Input {
         dir.push(path);
         dir.set_extension("py");
         let path = dir.canonicalize().or_else(|_| {
-            dir.pop();
+            let mut dir = self.dir();
             dir.push(path);
             dir.push("__init__.py"); // {path}/__init__.er
             dir.canonicalize()
@@ -499,7 +499,7 @@ impl Input {
                 VFS.cache_path(self.clone(), path.to_path_buf(), Some(resolved.clone()));
                 return Ok(resolved);
             }
-            dir.pop();
+            let mut dir = sys_path.clone();
             dir.push(path);
             dir.push("__init__.py");
             if dir.exists() {
@@ -520,7 +520,7 @@ impl Input {
                 VFS.cache_path(self.clone(), path.to_path_buf(), Some(resolved.clone()));
                 return Ok(resolved);
             }
-            dir.pop();
+            let mut dir = pkgs_path.clone();
             dir.push(path);
             dir.push("__init__.py");
             if dir.exists() {
