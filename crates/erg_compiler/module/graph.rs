@@ -1,6 +1,7 @@
 use std::fmt;
 
 use erg_common::consts::DEBUG_MODE;
+use erg_common::dict::Dict;
 use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::set;
 use erg_common::set::Set;
@@ -19,12 +20,15 @@ impl IncRefError {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct ModuleGraph(Graph<NormalizedPathBuf, ()>);
+pub struct ModuleGraph {
+    graph: Graph<NormalizedPathBuf, ()>,
+    index: Dict<NormalizedPathBuf, usize>,
+}
 
 impl fmt::Display for ModuleGraph {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "ModuleGraph {{")?;
-        for node in self.0.iter() {
+        for node in self.graph.iter() {
             writeln!(f, "{} depends on {{", node.id.display())?;
             for dep in node.depends_on.iter() {
                 writeln!(f, "{}, ", dep.display())?;
@@ -40,50 +44,83 @@ impl IntoIterator for ModuleGraph {
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
+        self.graph.into_iter()
     }
 }
 
 impl ModuleGraph {
     pub fn new() -> Self {
-        Self(Graph::new())
+        Self {
+            graph: Graph::new(),
+            index: Dict::new(),
+        }
     }
 
     pub fn get_node(&self, path: &NormalizedPathBuf) -> Option<&Node<NormalizedPathBuf, ()>> {
-        self.0.iter().find(|n| &n.id == path)
+        self.index.get(path).map(|&i| &self.graph[i])
     }
 
-    /// if `path` depends on `target`, returns `true`, else `false`.
-    /// if `path` not found, returns `false`
+    pub fn get_mut_node(
+        &mut self,
+        path: &NormalizedPathBuf,
+    ) -> Option<&mut Node<NormalizedPathBuf, ()>> {
+        self.index.get(path).map(|&i| &mut self.graph[i])
+    }
+
+    /// if `path` directly depends on `target`, returns `true`, else `false`.
+    /// if `path` not found, returns `false`.
+    /// O(1)
     pub fn depends_on(&self, path: &NormalizedPathBuf, target: &NormalizedPathBuf) -> bool {
         let path = NormalizedPathBuf::new(path.to_path_buf());
         let target = NormalizedPathBuf::new(target.to_path_buf());
-        self.0
-            .iter()
-            .find(|n| n.id == path)
+        self.get_node(&path)
             .map(|n| n.depends_on.contains(&target))
             .unwrap_or(false)
     }
 
-    /// (usually) `path` is not contained
-    pub fn children(&self, path: &NormalizedPathBuf) -> Set<NormalizedPathBuf> {
-        self.0
+    /// if `path` depends on `target`, returns `true`, else `false`.
+    /// if `path` not found, returns `false`.
+    pub fn deep_depends_on(&self, path: &NormalizedPathBuf, target: &NormalizedPathBuf) -> bool {
+        let path = NormalizedPathBuf::new(path.to_path_buf());
+        let target = NormalizedPathBuf::new(target.to_path_buf());
+        self.deep_depends_on_(&path, &target)
+    }
+
+    fn deep_depends_on_(&self, path: &NormalizedPathBuf, target: &NormalizedPathBuf) -> bool {
+        self.get_node(path)
+            .map(|n| {
+                n.depends_on.contains(target)
+                    || n.depends_on
+                        .iter()
+                        .any(|p| self.deep_depends_on_(p, target))
+            })
+            .unwrap_or(false)
+    }
+
+    /// (usually) `path` is not contained.
+    /// O(N)
+    pub fn children<'p>(
+        &'p self,
+        path: &'p NormalizedPathBuf,
+    ) -> impl Iterator<Item = NormalizedPathBuf> + 'p {
+        self.graph
             .iter()
             .filter(|n| n.depends_on.contains(path))
             .map(|n| n.id.clone())
-            .collect()
     }
 
-    /// (usually) `path` is not contained
-    fn parents(&self, path: &NormalizedPathBuf) -> Option<&Set<NormalizedPathBuf>> {
-        self.0.iter().find(|n| &n.id == path).map(|n| &n.depends_on)
+    /// (usually) `path` is not contained.
+    /// O(1)
+    pub fn parents(&self, path: &NormalizedPathBuf) -> Option<&Set<NormalizedPathBuf>> {
+        self.get_node(path).map(|n| &n.depends_on)
     }
 
     /// ```erg
     /// # a.er
     /// b = import "b"
     /// ```
-    /// -> a: child, b: parent
+    /// -> a: child, b: parent<br>
+    /// O(N)
     pub fn ancestors(&self, path: &NormalizedPathBuf) -> Set<NormalizedPathBuf> {
         let mut ancestors = set! {};
         if let Some(parents) = self.parents(path) {
@@ -102,9 +139,10 @@ impl ModuleGraph {
             }
             return;
         }
-        if self.0.iter().all(|n| &n.id != path) {
+        if self.index.get(path).is_none() {
             let node = Node::new(path.clone(), (), set! {});
-            self.0.push(node);
+            self.graph.push(node);
+            self.index.insert(path.clone(), self.graph.len() - 1);
         }
     }
 
@@ -124,10 +162,10 @@ impl ModuleGraph {
         if referrer == &depends_on {
             return Ok(());
         }
-        if self.ancestors(&depends_on).contains(referrer) {
+        if self.deep_depends_on(&depends_on, referrer) {
             return Err(IncRefError::CycleDetected);
         }
-        if let Some(node) = self.0.iter_mut().find(|n| &n.id == referrer) {
+        if let Some(node) = self.get_mut_node(referrer) {
             node.push_dep(depends_on);
         } else {
             unreachable!("node not found: {}", referrer.display());
@@ -136,12 +174,19 @@ impl ModuleGraph {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Node<NormalizedPathBuf, ()>> {
-        self.0.iter()
+        self.graph.iter()
     }
 
-    #[allow(clippy::result_unit_err)]
     pub fn sorted(self) -> Result<Self, TopoSortError> {
-        tsort(self.0).map(Self)
+        tsort(self.graph).map(|graph| {
+            let index = graph
+                .iter()
+                .map(|n| n.id.clone())
+                .enumerate()
+                .map(|(i, path)| (path, i))
+                .collect();
+            Self { graph, index }
+        })
     }
 
     #[allow(clippy::result_unit_err)]
@@ -150,16 +195,27 @@ impl ModuleGraph {
         Ok(())
     }
 
-    /// Do not erase relationships with modules that depend on `path`
+    /// Do not erase relationships with modules that depend on `path`.
+    /// O(N)
     pub fn remove(&mut self, path: &NormalizedPathBuf) {
-        self.0.retain(|n| &n.id != path);
-        for node in self.0.iter_mut() {
+        if let Some(&i) = self.index.get(path) {
+            self.graph.remove(i);
+            self.index.remove(path);
+            // shift indices
+            for index in self.index.values_mut() {
+                if *index > i {
+                    *index -= 1;
+                }
+            }
+        }
+        for node in self.graph.iter_mut() {
             node.depends_on.retain(|p| p != path);
         }
     }
 
+    /// O(N)
     pub fn rename_path(&mut self, old: &NormalizedPathBuf, new: NormalizedPathBuf) {
-        for node in self.0.iter_mut() {
+        for node in self.graph.iter_mut() {
             if &node.id == old {
                 node.id = new.clone();
             }
@@ -171,7 +227,8 @@ impl ModuleGraph {
     }
 
     pub fn initialize(&mut self) {
-        self.0.clear();
+        self.graph.clear();
+        self.index.clear();
     }
 
     pub fn display_parents(
@@ -198,9 +255,9 @@ impl ModuleGraph {
     pub fn display(&self) -> String {
         let mut s = String::new();
         let mut appeared = set! {};
-        for node in self.0.iter() {
-            let children = self.children(&node.id);
-            if !children.is_empty() || appeared.contains(&node.id) {
+        for node in self.graph.iter() {
+            let mut children = self.children(&node.id);
+            if children.next().is_some() || appeared.contains(&node.id) {
                 continue;
             }
             s.push_str(&format!("{}\n", node.id.display()));
@@ -241,16 +298,21 @@ impl SharedModuleGraph {
         RwLockReadGuard::try_map(self.0.borrow(), |graph| graph.get_node(path)).ok()
     }
 
+    /// if `path` directly depends on `target`, returns `true`, else `false`.
+    /// if `path` not found, returns `false`.
+    /// O(1)
     pub fn depends_on(&self, path: &NormalizedPathBuf, target: &NormalizedPathBuf) -> bool {
         self.0.borrow().depends_on(path, target)
     }
 
-    /// (usually) `path` is not contained
+    /// (usually) `path` is not contained.
+    /// O(N)
     pub fn children(&self, path: &NormalizedPathBuf) -> Set<NormalizedPathBuf> {
-        self.0.borrow().children(path)
+        self.0.borrow().children(path).collect()
     }
 
-    /// (usually) `path` is not contained
+    /// (usually) `path` is not contained.
+    /// O(N)
     pub fn ancestors(&self, path: &NormalizedPathBuf) -> Set<NormalizedPathBuf> {
         self.0.borrow().ancestors(path)
     }

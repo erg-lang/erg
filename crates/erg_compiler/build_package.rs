@@ -862,7 +862,10 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
             out.flush().unwrap();
         }
         while let Some(ancestor) = ancestors.pop() {
-            if graph.ancestors(&ancestor).is_empty() {
+            if graph
+                .parents(&ancestor)
+                .is_none_or(|parents| parents.is_empty())
+            {
                 graph.remove(&ancestor);
                 if let Some(entry) = self.asts.remove(&ancestor) {
                     deps.insert(ancestor.clone());
