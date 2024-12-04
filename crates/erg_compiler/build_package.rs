@@ -851,7 +851,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         graph: &mut ModuleGraph,
     ) -> Set<NormalizedPathBuf> {
         let mut deps = Set::new();
-        let mut ancestors = graph.ancestors(path).into_vec();
+        let mut ancestors = graph.ancestors(path).cloned().into_vec();
         let nmods = ancestors.len();
         let pad = nmods.to_string().len();
         let print_progress =

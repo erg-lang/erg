@@ -83,16 +83,25 @@ impl ModuleGraph {
     pub fn deep_depends_on(&self, path: &NormalizedPathBuf, target: &NormalizedPathBuf) -> bool {
         let path = NormalizedPathBuf::new(path.to_path_buf());
         let target = NormalizedPathBuf::new(target.to_path_buf());
-        self.deep_depends_on_(&path, &target)
+        let mut visited = set! {};
+        self.deep_depends_on_(&path, &target, &mut visited)
     }
 
-    fn deep_depends_on_(&self, path: &NormalizedPathBuf, target: &NormalizedPathBuf) -> bool {
+    fn deep_depends_on_<'p>(
+        &'p self,
+        path: &'p NormalizedPathBuf,
+        target: &NormalizedPathBuf,
+        visited: &mut Set<&'p NormalizedPathBuf>,
+    ) -> bool {
+        if !visited.insert(path) {
+            return false;
+        }
         self.get_node(path)
             .map(|n| {
                 n.depends_on.contains(target)
                     || n.depends_on
                         .iter()
-                        .any(|p| self.deep_depends_on_(p, target))
+                        .any(|p| self.deep_depends_on_(p, target, visited))
             })
             .unwrap_or(false)
     }
@@ -121,15 +130,29 @@ impl ModuleGraph {
     /// ```
     /// -> a: child, b: parent<br>
     /// O(N)
-    pub fn ancestors(&self, path: &NormalizedPathBuf) -> Set<NormalizedPathBuf> {
+    pub fn ancestors<'p>(&'p self, path: &'p NormalizedPathBuf) -> Set<&'p NormalizedPathBuf> {
         let mut ancestors = set! {};
+        let mut visited = set! {};
+        self.ancestors_(path, &mut ancestors, &mut visited);
+        ancestors
+    }
+
+    fn ancestors_<'p>(
+        &'p self,
+        path: &'p NormalizedPathBuf,
+        ancestors: &mut Set<&'p NormalizedPathBuf>,
+        visited: &mut Set<&'p NormalizedPathBuf>,
+    ) {
+        if !visited.insert(path) {
+            return;
+        }
         if let Some(parents) = self.parents(path) {
             for parent in parents.iter() {
-                ancestors.insert(parent.clone());
-                ancestors.extend(self.ancestors(parent));
+                if ancestors.insert(parent) {
+                    self.ancestors_(parent, ancestors, visited);
+                }
             }
         }
-        ancestors
     }
 
     pub fn add_node_if_none(&mut self, path: &NormalizedPathBuf) {
@@ -314,7 +337,7 @@ impl SharedModuleGraph {
     /// (usually) `path` is not contained.
     /// O(N)
     pub fn ancestors(&self, path: &NormalizedPathBuf) -> Set<NormalizedPathBuf> {
-        self.0.borrow().ancestors(path)
+        self.0.borrow().ancestors(path).cloned()
     }
 
     pub fn add_node_if_none(&self, path: &NormalizedPathBuf) {

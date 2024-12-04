@@ -401,6 +401,12 @@ impl<T: Hash + Eq + Clone> Set<T> {
     }
 }
 
+impl<T: Hash + Eq + Clone> Set<&T> {
+    pub fn cloned(&self) -> Set<T> {
+        self.iter().map(|&x| x.clone()).collect()
+    }
+}
+
 impl<T: Hash + Ord> Set<T> {
     pub fn max(&self) -> Option<&T> {
         self.iter().max_by(|x, y| x.cmp(y))
