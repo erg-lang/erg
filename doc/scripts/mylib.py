@@ -1,5 +1,4 @@
 import os
-import re
 
 
 def get_file_dirname():
@@ -7,6 +6,10 @@ def get_file_dirname():
 
 
 path_join = os.path.join
+
+path_relpath = os.path.relpath
+
+path_sep = os.path.sep
 
 
 def str_slice(str: str, first_index: int):

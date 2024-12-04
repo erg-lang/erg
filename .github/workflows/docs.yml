@@ -15,12 +15,12 @@ jobs:
       run:
         working-directory: doc
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - run: pip install tqdm
-      - uses: erg-lang/setup-erg@v2.1
+      - uses: erg-lang/setup-erg@v4.1
       - run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
