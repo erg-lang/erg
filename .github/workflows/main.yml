@@ -88,9 +88,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: rustup update stable
       - uses: obi1kenobi/cargo-semver-checks-action@v2
-      - name: Check semver
-        run: |
-          cargo semver-checks --all
+        with:
+          package: erg_common, erg_compiler, erg_linter, erg_parser, els, erg_proc_macros, erg
       - name: cargo publish
         run: |
           cargo login ${{ secrets.CARGO_TOKEN }}

@@ -11,6 +11,7 @@ edition.workspace = true
 repository.workspace = true
 homepage.workspace = true
 
+# These are checked by main.yml#publish-nightly
 [workspace]
 members = [
     "crates/erg_common",
