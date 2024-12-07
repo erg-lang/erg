@@ -42,7 +42,7 @@ jobs:
       RUST_BACKTRACE: full
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
@@ -63,7 +63,7 @@ jobs:
         os: [windows-latest, ubuntu-latest, macos-13, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
       - run: rustup update stable
       - run: cargo build --all --all-targets --verbose
@@ -71,7 +71,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
       - run: rustup update stable
       - name: cargo clippy
@@ -84,12 +84,12 @@ jobs:
     runs-on: ubuntu-latest
     if: contains(github.event.head_commit.message, 'update version (nightly')
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
       - run: rustup update stable
+      - uses: obi1kenobi/cargo-semver-checks-action@v2
       - name: Check semver
         run: |
-          cargo install cargo-semver-checks --locked
           cargo semver-checks --all
       - name: cargo publish
         run: |
