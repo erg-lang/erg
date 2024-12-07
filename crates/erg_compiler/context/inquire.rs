@@ -2396,22 +2396,24 @@ impl Context {
                             namespace,
                         )?;
                     }
-                    let instance = self.instantiate_def_type(&call_vi.t)?;
-                    let instance = match self.substitute_call(
-                        obj,
-                        attr_name,
-                        &instance,
-                        pos_args,
-                        kw_args,
-                        (var_args, kw_var_args),
-                        namespace,
-                    )? {
-                        SubstituteResult::__Call__(instance)
-                        | SubstituteResult::Coerced(instance) => instance,
-                        SubstituteResult::Ok => instance,
-                    };
-                    debug_assert!(!instance.is_intersection_type());
-                    return Ok(SubstituteResult::__Call__(instance));
+                    let call_instance = self.instantiate_def_type(&call_vi.t)?;
+                    if !call_instance.contains_intersec(instance) {
+                        let instance = match self.substitute_call(
+                            obj,
+                            attr_name,
+                            &call_instance,
+                            pos_args,
+                            kw_args,
+                            (var_args, kw_var_args),
+                            namespace,
+                        )? {
+                            SubstituteResult::__Call__(instance)
+                            | SubstituteResult::Coerced(instance) => instance,
+                            SubstituteResult::Ok => call_instance,
+                        };
+                        debug_assert!(!instance.is_intersection_type());
+                        return Ok(SubstituteResult::__Call__(instance));
+                    }
                 }
             // instance method __call__
             } else if let Some(call_vi) = typ_ctx
@@ -2420,22 +2422,23 @@ impl Context {
                     method_ctx.get_current_scope_var(&VarName::from_static("__call__"))
                 })
             {
-                let instance = self.instantiate_def_type(&call_vi.t)?;
-                let instance = match self.substitute_call(
-                    obj,
-                    attr_name,
-                    &instance,
-                    pos_args,
-                    kw_args,
-                    (var_args, kw_var_args),
-                    namespace,
-                )? {
-                    SubstituteResult::__Call__(instance) | SubstituteResult::Coerced(instance) => {
-                        instance
-                    }
-                    SubstituteResult::Ok => instance,
-                };
-                return Ok(SubstituteResult::__Call__(instance));
+                let call_instance = self.instantiate_def_type(&call_vi.t)?;
+                if !call_instance.contains_intersec(instance) {
+                    let instance = match self.substitute_call(
+                        obj,
+                        attr_name,
+                        &call_instance,
+                        pos_args,
+                        kw_args,
+                        (var_args, kw_var_args),
+                        namespace,
+                    )? {
+                        SubstituteResult::__Call__(instance)
+                        | SubstituteResult::Coerced(instance) => instance,
+                        SubstituteResult::Ok => call_instance,
+                    };
+                    return Ok(SubstituteResult::__Call__(instance));
+                }
             }
         }
         let hint = if self.subtype_of(instance, &ClassType) {
@@ -4161,17 +4164,21 @@ impl Context {
 
     pub fn is_class(&self, typ: &Type) -> bool {
         match typ {
-            Type::And(_, _) => false,
             Type::Never => true,
             Type::FreeVar(fv) if fv.is_linked() => self.is_class(&fv.unwrap_linked()),
             Type::FreeVar(_) => false,
+            Type::And(_, _) => false,
             Type::Or(tys) => tys.iter().all(|t| self.is_class(t)),
+            Type::Not(ty) => self.is_class(ty),
             Type::Proj { lhs, rhs } => self
                 .get_proj_candidates(lhs, rhs)
                 .iter()
                 .all(|t| self.is_class(t)),
             Type::Refinement(refine) => self.is_class(&refine.t),
             Type::Ref(t) | Type::RefMut { before: t, .. } => self.is_class(t),
+            Type::Structural(_) => false,
+            Type::Record(_) => true,
+            Type::Subr(_) => true,
             _ => {
                 if let Some(ctx) = self.get_nominal_type_ctx(typ) {
                     ctx.kind.is_class()
@@ -4190,12 +4197,16 @@ impl Context {
             Type::FreeVar(_) => false,
             Type::And(tys, _) => tys.iter().any(|t| self.is_trait(t)),
             Type::Or(tys) => tys.iter().all(|t| self.is_trait(t)),
+            Type::Not(ty) => self.is_trait(ty),
             Type::Proj { lhs, rhs } => self
                 .get_proj_candidates(lhs, rhs)
                 .iter()
                 .all(|t| self.is_trait(t)),
             Type::Refinement(refine) => self.is_trait(&refine.t),
             Type::Ref(t) | Type::RefMut { before: t, .. } => self.is_trait(t),
+            Type::Structural(_) => false,
+            Type::Record(_) => false,
+            Type::Subr(_) => false,
             _ => {
                 if let Some(ctx) = self.get_nominal_type_ctx(typ) {
                     ctx.kind.is_trait()

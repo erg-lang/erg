@@ -1640,6 +1640,8 @@ impl<L: Locational> Unifier<'_, '_, '_, L> {
                     {
                         // contravariant
                         self.sub_unify(super_pt.typ(), sub_pt.typ())?;
+                    } else if let Some(sub_pt) = sub_subr.kw_var_params.as_ref() {
+                        self.sub_unify(super_pt.typ(), sub_pt.typ())?;
                     } else {
                         let param_name = super_pt.name().map_or("_", |s| &s[..]);
                         let similar_param = erg_common::levenshtein::get_similar_name(
@@ -1692,6 +1694,8 @@ impl<L: Locational> Unifier<'_, '_, '_, L> {
                         }
                         // contravariant
                         self.sub_unify(super_pt.typ(), sub_pt.typ())?;
+                    } else if let Some(sub_pt) = sub_subr.kw_var_params.as_ref() {
+                        self.sub_unify(super_pt.typ(), sub_pt.typ())?;
                     } else {
                         todo!("{maybe_sub} <: {maybe_super}")
                     }
@@ -1727,6 +1731,8 @@ impl<L: Locational> Unifier<'_, '_, '_, L> {
                         if !self.change_generalized && super_pt.typ().is_generalized() {
                             continue;
                         }
+                        self.sub_unify(super_pt.typ(), sub_pt.typ())?;
+                    } else if let Some(sub_pt) = sub_subr.kw_var_params.as_ref() {
                         self.sub_unify(super_pt.typ(), sub_pt.typ())?;
                     } else {
                         todo!("{maybe_sub} <: {maybe_super}")
@@ -1943,6 +1949,13 @@ impl<L: Locational> Unifier<'_, '_, '_, L> {
     /// TODO: Current implementation is inefficient because coercion is performed twice with `subtype_of` in `sub_unify`
     fn nominal_sub_unify(&self, maybe_sub: &Type, maybe_super: &Type) -> TyCheckResult<()> {
         debug_assert_ne!(maybe_sub.qual_name(), maybe_super.qual_name());
+        if (maybe_sub.is_dict() || maybe_sub.is_dict_mut())
+            && (maybe_super.is_dict() || maybe_super.is_dict_mut())
+        {
+            let sub_dict = maybe_sub.typarams().into_iter().next().unwrap();
+            let super_dict = maybe_super.typarams().into_iter().next().unwrap();
+            return self.sub_unify_tp(&sub_dict, &super_dict, None, false);
+        }
         if let Some(sub_ctx) = self.ctx.get_nominal_type_ctx(maybe_sub) {
             let sub_def_t = &sub_ctx.typ;
             // e.g.
