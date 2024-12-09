@@ -31,6 +31,7 @@ repository = "https://github.com/erg-lang/erg"
 homepage = "https://erg-lang.org/"
 
 [features]
+default = ["parallel"]
 # when "debug" feature is turned on, that of the following crates will also be turned on.
 debug = ["erg_common/debug", "erg_parser/debug", "erg_compiler/debug", "erg_linter/debug"] # "els/debug"
 backtrace = ["erg_common/backtrace", "els/backtrace"]
@@ -69,9 +70,8 @@ gal = ["erg_common/gal", "erg_compiler/gal"]
 els = ["erg_common/els", "erg_compiler/els", "dep:els"]
 full-repl = ["erg_common/full-repl"]
 full = ["els", "full-repl", "unicode", "pretty"]
-experimental = ["erg_common/experimental", "erg_parser/experimental", "erg_compiler/experimental", "erg_linter/experimental", "parallel"]
+experimental = ["erg_common/experimental", "erg_parser/experimental", "erg_compiler/experimental", "erg_linter/experimental"]
 log-level-error = ["erg_common/log-level-error", "erg_parser/log-level-error", "erg_compiler/log-level-error", "erg_linter/log-level-error"]
-# The parallelizing compiler was found to contain a bug that caused it to hang in complex dependencies, so it is disabled by default.
 parallel = ["erg_common/parallel", "erg_parser/parallel", "erg_compiler/parallel", "erg_linter/parallel"]
 
 [workspace.dependencies]

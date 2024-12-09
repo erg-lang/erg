@@ -10,6 +10,7 @@ repository.workspace = true
 homepage.workspace = true
 
 [features]
+default = ["parallel"]
 debug = ["erg_common/debug"]
 japanese = ["erg_common/japanese"]
 simplified_chinese = ["erg_common/simplified_chinese"]
@@ -17,7 +18,7 @@ traditional_chinese = ["erg_common/traditional_chinese"]
 unicode = ["erg_common/unicode"]
 pretty = ["erg_common/pretty"]
 large_thread = ["erg_common/large_thread"]
-experimental = ["erg_common/experimental", "parallel"]
+experimental = ["erg_common/experimental"]
 pylib = ["dep:pyo3", "erg_common/pylib"]
 pylib_parser = ["pylib"]
 log-level-error = ["erg_common/log-level-error"]

@@ -10,6 +10,7 @@ repository.workspace = true
 homepage.workspace = true
 
 [features]
+default = ["parallel"]
 debug = ["dep:backtrace-on-stack-overflow", "dep:w-boson"]
 backtrace = ["dep:backtrace-on-stack-overflow", "dep:w-boson"]
 japanese = []
@@ -23,7 +24,7 @@ py_compat = []
 gal = []
 no_std = []
 full-repl = ["dep:crossterm"]
-experimental = ["parallel"]
+experimental = []
 pylib = ["dep:pyo3"]
 log-level-error = []
 parallel = []

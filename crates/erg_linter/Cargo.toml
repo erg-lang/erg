@@ -10,6 +10,7 @@ repository.workspace = true
 homepage.workspace = true
 
 [features]
+default = ["parallel"]
 debug = ["erg_common/debug", "erg_parser/debug", "erg_compiler/debug"]
 backtrace = ["erg_common/backtrace"]
 japanese = [

@@ -43,7 +43,7 @@ Enable Python-compatible mode, which makes parts of the APIs and syntax compatib
 
 ## experimental
 
-Enable experimental features (contains `parallel`).
+Enable experimental features.
 
 ## log-level-error
 
@@ -51,4 +51,4 @@ Only display error logs.
 
 ## parallel
 
-Enable compiler parallelization. Unstable feature.
+Enable compiler parallelization. Default is enabled.

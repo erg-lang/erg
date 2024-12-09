@@ -17,7 +17,9 @@ pub enum Promise {
         parent: ThreadId,
         handle: JoinHandle<()>,
     },
-    Joining,
+    Joining {
+        id: ThreadId,
+    },
     Joined,
 }
 
@@ -27,7 +29,7 @@ impl fmt::Display for Promise {
             Self::Running { handle, .. } => {
                 write!(f, "running on thread {:?}", handle.thread().id())
             }
-            Self::Joining => write!(f, "joining"),
+            Self::Joining { id } => write!(f, "joining (thread {id:?})"),
             Self::Joined => write!(f, "joined"),
         }
     }
@@ -44,36 +46,40 @@ impl Promise {
     /// can be joined if `true`
     pub fn is_finished(&self) -> bool {
         match self {
-            Self::Joined => true,
-            Self::Joining => false,
+            Self::Joined { .. } => true,
+            Self::Joining { .. } => false,
             Self::Running { handle, .. } => handle.is_finished(),
         }
     }
 
     pub const fn is_joined(&self) -> bool {
-        matches!(self, Self::Joined)
+        matches!(self, Self::Joined { .. })
     }
 
     pub const fn is_joining(&self) -> bool {
-        matches!(self, Self::Joining)
+        matches!(self, Self::Joining { .. })
     }
 
     pub fn thread_id(&self) -> Option<ThreadId> {
         match self {
-            Self::Joined | Self::Joining => None,
+            Self::Joined => None,
+            Self::Joining { id } => Some(*id),
             Self::Running { handle, .. } => Some(handle.thread().id()),
         }
     }
 
     pub fn parent_thread_id(&self) -> Option<ThreadId> {
         match self {
-            Self::Joined | Self::Joining => None,
+            Self::Joined { .. } | Self::Joining { .. } => None,
             Self::Running { parent, .. } => Some(*parent),
         }
     }
 
     pub fn take(&mut self) -> Self {
-        std::mem::replace(self, Self::Joining)
+        let joining = Self::Joining {
+            id: self.thread_id().unwrap(),
+        };
+        std::mem::replace(self, joining)
     }
 }
 
@@ -176,6 +182,10 @@ impl SharedPromises {
         if !self.graph.entries().contains(path) {
             return Err(Box::new(format!("not registered: {path}")));
         }
+        // prevent deadlock
+        if self.thread_id(path).is_some_and(|id| id == current().id()) {
+            return Ok(());
+        }
         if self.graph.ancestors(path).contains(&self.root) || path == &self.root {
             // cycle detected, `self.root` must not in the dependencies
             // Erg analysis processes never join ancestor threads (although joining ancestors itself is allowed in Rust)
@@ -197,7 +207,7 @@ impl SharedPromises {
                 return Ok(());
             }
         }
-        while let Some(Promise::Joining) | None = self.promises.borrow().get(path) {
+        while let Some(Promise::Joining { .. }) | None = self.promises.borrow().get(path) {
             safe_yield();
         }
         if self.is_joined(path) {
@@ -209,10 +219,6 @@ impl SharedPromises {
             self.wait_until_finished(path);
             return Ok(());
         };
-        if handle.thread().id() == current().id() {
-            *self.promises.borrow_mut().get_mut(path).unwrap() = Promise::Joined;
-            return Ok(());
-        }
         let res = handle.join();
         *self.promises.borrow_mut().get_mut(path).unwrap() = Promise::Joined;
         res
@@ -239,6 +245,13 @@ impl SharedPromises {
         }
     }
 
+    pub fn thread_id(&self, path: &NormalizedPathBuf) -> Option<ThreadId> {
+        self.promises
+            .borrow()
+            .get(path)
+            .and_then(|promise| promise.thread_id())
+    }
+
     pub fn progress(&self) -> Progress {
         let mut total = 0;
         let mut running = 0;
@@ -246,8 +259,8 @@ impl SharedPromises {
         for promise in self.promises.borrow().values() {
             match promise {
                 Promise::Running { .. } => running += 1,
-                Promise::Joining => finished += 1,
-                Promise::Joined => finished += 1,
+                Promise::Joining { .. } => finished += 1,
+                Promise::Joined { .. } => finished += 1,
             }
             total += 1;
         }
