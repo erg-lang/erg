@@ -30,14 +30,58 @@
 .CUShort <: _SimpleCData
 .CUShort.
     __call__: (value:= Int) -> CUShort
+.CSizeT = 'c_size_t': ClassType
+.CSizeT <: _SimpleCData
+.CSizeT.
+    __call__: (value:= Int) -> CSizeT
+.CSsizeT = 'c_ssize_t': ClassType
+.CSsizeT <: _SimpleCData
+.CSsizeT.
+    __call__: (value:= Int) -> CSsizeT
+.CTimeT = 'c_time_t': ClassType
+.CTimeT <: _SimpleCData
+.CTimeT.
+    __call__: (value:= Int) -> CTimeT
 .CInt = 'c_int': ClassType
 .CInt <: _SimpleCData
 .CInt.
     __call__: (value:= Int) -> CInt
+.CInt8 = 'c_int8': ClassType
+.CInt8 <: _SimpleCData
+.CUInt8.
+    __call__: (value:= Int) -> CInt8
+.CInt16 = 'c_int16': ClassType
+.CInt16 <: _SimpleCData
+.CInt16.
+    __call__: (value:= Int) -> CUInt16
+.CInt32 = 'c_int32': ClassType
+.CInt32 <: _SimpleCData
+.CInt32.
+    __call__: (value:= Int) -> CInt32
+.CInt64 = 'c_int64': ClassType
+.CInt64 <: _SimpleCData
+.CInt64.
+    __call__: (value:= Int) -> CInt64
 .CUInt = 'c_uint': ClassType
 .CUInt <: _SimpleCData
 .CUInt.
     __call__: (value:= Int) -> CUInt
+.CUInt8 = 'c_uint8': ClassType
+.CUInt8 <: _SimpleCData
+.CUInt8.
+    __call__: (value:= Int) -> CUInt8
+.CUInt16 = 'c_uint16': ClassType
+.CUInt16 <: _SimpleCData
+.CUInt16.
+    __call__: (value:= Int) -> CUInt16
+.CUInt32 = 'c_uint32': ClassType
+.CUInt32 <: _SimpleCData
+.CUInt32.
+    __call__: (value:= Int) -> CUInt32
+.CUInt64 = 'c_uint64': ClassType
+.CUInt64 <: _SimpleCData
+.CUInt64.
+    __call__: (value:= Int) -> CUInt64
 .CLong = 'c_long': ClassType
 .CLong <: _SimpleCData
 .CLong.
@@ -62,6 +106,10 @@
 .CDouble <: _SimpleCData
 .CDouble.
     __call__: (value:= Float) -> CDouble
+.CLongDouble = 'c_longdouble': ClassType
+.CLongDouble <: _SimpleCData
+.CLongDouble.
+    __call__: (value:= Float) -> CLongDouble
 .CCharP = 'c_char_p': ClassType
 .CCharP <: _SimpleCData
 .CCharP.
