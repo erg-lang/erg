@@ -3679,7 +3679,9 @@ impl Type {
             }
             Type::FreeVar(fv) if fv.is_unbound_and_sandwiched() => {
                 let (sub, _sup) = fv.get_subsup().unwrap();
-                sub.destructive_coerce();
+                if !sub.contains_tvar(fv) {
+                    sub.destructive_coerce();
+                }
                 let sub = sub.replace(self, &Type::Never);
                 self.destructive_link(&sub);
             }
