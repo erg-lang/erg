@@ -127,8 +127,11 @@ impl ModuleGraph {
     /// ```erg
     /// # a.er
     /// b = import "b"
+    /// # -> a: child, b: parent
+    /// # b.er
+    /// c = import "c"
+    /// # -> ancestors(a) == {b, c}
     /// ```
-    /// -> a: child, b: parent<br>
     /// O(N)
     pub fn ancestors<'p>(&'p self, path: &'p NormalizedPathBuf) -> Set<&'p NormalizedPathBuf> {
         let mut ancestors = set! {};

@@ -182,13 +182,10 @@ impl SharedPromises {
         if !self.graph.entries().contains(path) {
             return Err(Box::new(format!("not registered: {path}")));
         }
-        // prevent deadlock
-        if self.thread_id(path).is_some_and(|id| id == current().id()) {
-            return Ok(());
-        }
-        if self.graph.ancestors(path).contains(&self.root) || path == &self.root {
-            // cycle detected, `self.root` must not in the dependencies
-            // Erg analysis processes never join ancestor threads (although joining ancestors itself is allowed in Rust)
+        let current = self.current_path();
+        if self.graph.ancestors(path).contains(&current) || path == &current {
+            // cycle detected, `current` must not in the dependencies
+            // Erg analysis processes never join themselves / ancestor threads
             // self.wait_until_finished(path);
             return Ok(());
         }
@@ -198,12 +195,14 @@ impl SharedPromises {
         }
         // Suppose A depends on B and C, and B depends on C.
         // In this case, B must join C before A joins C. Otherwise, a deadlock will occur.
+        // C.children() == {A, B}
         let children = self.graph.children(path);
         for child in children.iter() {
-            if child == &self.root {
+            if child == &current {
                 continue;
-            } else if self.graph.depends_on(&self.root, child) {
-                self.wait_until_finished(path);
+            } else if self.graph.depends_on(&current, child) {
+                // A.depends_on(B) => A.wait_until_finished(B)
+                self.wait_until_finished(child);
                 return Ok(());
             }
         }
@@ -250,6 +249,16 @@ impl SharedPromises {
             .borrow()
             .get(path)
             .and_then(|promise| promise.thread_id())
+    }
+
+    pub fn current_path(&self) -> NormalizedPathBuf {
+        let cur_id = current().id();
+        for (path, promise) in self.promises.borrow().iter() {
+            if promise.thread_id() == Some(cur_id) {
+                return path.clone();
+            }
+        }
+        self.root.clone()
     }
 
     pub fn progress(&self) -> Progress {
