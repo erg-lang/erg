@@ -667,7 +667,10 @@ impl Context {
             }
         }
         if acc_kind.is_local() {
-            if let Some(parent) = self.get_outer_scope().or_else(|| self.get_builtins()) {
+            if let Some(parent) = self
+                .get_outer_scope()
+                .or_else(|| self.get_builtins_not_self())
+            {
                 return parent.rec_get_var_info(ident, acc_kind, input, namespace);
             }
         }
@@ -743,7 +746,10 @@ impl Context {
             }
         }
         if acc_kind.is_local() {
-            if let Some(parent) = self.get_outer_scope().or_else(|| self.get_builtins()) {
+            if let Some(parent) = self
+                .get_outer_scope()
+                .or_else(|| self.get_builtins_not_self())
+            {
                 return parent.rec_get_decl_info(ident, acc_kind, input, namespace);
             }
         }
@@ -3312,7 +3318,7 @@ impl Context {
                     .is_some_and(|ctx| &ctx.typ.qual_name() == "ProcMetaType")
                 {
                     if let Some(ctx) = self
-                        .get_builtins()
+                        .get_builtins_not_self()
                         .unwrap_or(self)
                         .rec_local_get_mono_type("QuantifiedProcMetaType")
                     {
@@ -3323,7 +3329,7 @@ impl Context {
                     .is_some_and(|ctx| &ctx.typ.qual_name() == "FuncMetaType")
                 {
                     if let Some(ctx) = self
-                        .get_builtins()
+                        .get_builtins_not_self()
                         .unwrap_or(self)
                         .rec_local_get_mono_type("QuantifiedFuncMetaType")
                     {
@@ -3331,7 +3337,7 @@ impl Context {
                     }
                 }
                 if let Some(ctx) = self
-                    .get_builtins()
+                    .get_builtins_not_self()
                     .unwrap_or(self)
                     .rec_local_get_mono_type("QuantifiedFunc")
                 {
@@ -3342,7 +3348,7 @@ impl Context {
                 SubrKind::Func => {
                     if self.subtype_of(&subr.return_t, &Type) {
                         if let Some(ctx) = self
-                            .get_builtins()
+                            .get_builtins_not_self()
                             .unwrap_or(self)
                             .rec_local_get_mono_type("FuncMetaType")
                         {
@@ -3350,7 +3356,7 @@ impl Context {
                         }
                     }
                     if let Some(ctx) = self
-                        .get_builtins()
+                        .get_builtins_not_self()
                         .unwrap_or(self)
                         .rec_local_get_mono_type("Func")
                     {
@@ -3360,7 +3366,7 @@ impl Context {
                 SubrKind::Proc => {
                     if self.subtype_of(&subr.return_t, &Type) {
                         if let Some(ctx) = self
-                            .get_builtins()
+                            .get_builtins_not_self()
                             .unwrap_or(self)
                             .rec_local_get_mono_type("ProcMetaType")
                         {
@@ -3368,7 +3374,7 @@ impl Context {
                         }
                     }
                     if let Some(ctx) = self
-                        .get_builtins()
+                        .get_builtins_not_self()
                         .unwrap_or(self)
                         .rec_local_get_mono_type("Proc")
                     {
@@ -3385,7 +3391,7 @@ impl Context {
             Type::Record(rec) => {
                 if rec.values().all(|t| self.subtype_of(t, &Type)) {
                     if let Some(ctx) = self
-                        .get_builtins()
+                        .get_builtins_not_self()
                         .unwrap_or(self)
                         .rec_local_get_mono_type("RecordMetaType")
                     {
@@ -3393,13 +3399,13 @@ impl Context {
                     }
                 }
                 return self
-                    .get_builtins()
+                    .get_builtins_not_self()
                     .unwrap_or(self)
                     .rec_local_get_mono_type("Record");
             }
             Type::NamedTuple(_) => {
                 return self
-                    .get_builtins()
+                    .get_builtins_not_self()
                     .unwrap_or(self)
                     .rec_local_get_mono_type("GenericNamedTuple");
             }

@@ -1593,7 +1593,12 @@ impl LimitedDisplay for Type {
         }
         match self {
             Self::FreeVar(fv) => fv.limited_fmt(f, limit),
-            Self::Mono(name) => write!(f, "{name}"),
+            Self::Mono(name) => {
+                if limit.is_negative() && self.namespace().is_empty() {
+                    write!(f, "global::")?;
+                }
+                write!(f, "{name}")
+            }
             Self::Ref(t) => {
                 write!(f, "{}(", self.qual_name())?;
                 t.limited_fmt(f, limit - 1)?;
@@ -1696,6 +1701,9 @@ impl LimitedDisplay for Type {
                 ty.limited_fmt(f, limit - 1)
             }
             Self::Poly { name, params } => {
+                if limit.is_negative() && self.namespace().is_empty() {
+                    write!(f, "global::")?;
+                }
                 write!(f, "{name}(")?;
                 if !DEBUG_MODE && self.is_module() {
                     // Module("path/to/module.er") -> Module("module.er")

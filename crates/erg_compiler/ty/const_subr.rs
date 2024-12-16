@@ -1,5 +1,6 @@
 use std::fmt;
 
+use erg_common::consts::DEBUG_MODE;
 use erg_common::dict::Dict;
 #[allow(unused_imports)]
 use erg_common::log;
@@ -124,7 +125,11 @@ impl std::hash::Hash for BuiltinConstSubr {
 
 impl fmt::Display for BuiltinConstSubr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "<built-in const subroutine '{}'>", self.name)
+        if DEBUG_MODE {
+            write!(f, "<built-in const subroutine '{}'>", self.name)
+        } else {
+            write!(f, "{}", self.name)
+        }
     }
 }
 
@@ -201,7 +206,11 @@ impl std::hash::Hash for GenConstSubr {
 
 impl fmt::Display for GenConstSubr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "<const subroutine '{}'>", self.name)
+        if DEBUG_MODE {
+            write!(f, "<const subroutine '{}'>", self.name)
+        } else {
+            write!(f, "{}", self.name)
+        }
     }
 }
 
@@ -238,7 +247,11 @@ impl fmt::Display for ConstSubr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ConstSubr::User(subr) => {
-                write!(f, "<user-defined const subroutine '{}'>", subr.name)
+                if DEBUG_MODE {
+                    write!(f, "<user-defined const subroutine '{}'>", subr.name)
+                } else {
+                    write!(f, "{}", subr.name)
+                }
             }
             ConstSubr::Builtin(subr) => write!(f, "{subr}"),
             ConstSubr::Gen(subr) => write!(f, "{subr}"),
@@ -297,6 +310,14 @@ impl ConstSubr {
             }
             ConstSubr::Builtin(builtin) => builtin.as_type.clone(),
             ConstSubr::Gen(gen) => gen.as_type.clone(),
+        }
+    }
+
+    pub fn name(&self) -> Str {
+        match self {
+            Self::Builtin(subr) => subr.name.clone(),
+            Self::User(subr) => subr.name.clone(),
+            Self::Gen(subr) => subr.name.clone(),
         }
     }
 }

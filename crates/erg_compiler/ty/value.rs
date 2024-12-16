@@ -2253,6 +2253,15 @@ impl ValueObj {
             mono_value_pattern!() => Set::new(),
         }
     }
+
+    pub fn qual_name(&self) -> Option<Str> {
+        match self {
+            Self::Type(t) => Some(t.typ().qual_name()),
+            Self::Subr(subr) => Some(subr.name()),
+            Self::DataClass { name, .. } => Some(name.clone()),
+            _ => None,
+        }
+    }
 }
 
 pub mod value_set {

@@ -399,6 +399,9 @@ impl LimitedDisplay for TyParam {
                 rhs.limited_fmt(f, limit - 1)
             }
             Self::App { name, args } => {
+                if limit.is_negative() && self.namespace().is_empty() {
+                    write!(f, "global::")?;
+                }
                 write!(f, "{name}")?;
                 write!(f, "(")?;
                 for (i, arg) in args.iter().enumerate() {
@@ -414,7 +417,12 @@ impl LimitedDisplay for TyParam {
                 write!(f, "_: ")?;
                 t.limited_fmt(f, limit - 1)
             }
-            Self::Mono(name) => write!(f, "{name}"),
+            Self::Mono(name) => {
+                if limit.is_negative() && self.namespace().is_empty() {
+                    write!(f, "global::")?;
+                }
+                write!(f, "{name}")
+            }
             Self::Proj { obj, attr } => {
                 obj.limited_fmt(f, limit - 1)?;
                 write!(f, ".")?;
@@ -1071,7 +1079,8 @@ impl TyParam {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().qual_name(),
             Self::FreeVar(fv) if fv.is_generalized() => fv.unbound_name(),
             Self::Mono(name) => Some(name.clone()),
-            Self::Value(ValueObj::Type(t)) => Some(t.typ().qual_name()),
+            Self::Value(val) => val.qual_name(),
+            Self::App { name, .. } => Some(name.clone()),
             _ => None,
         }
     }

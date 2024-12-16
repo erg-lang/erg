@@ -687,7 +687,7 @@ impl ContextProvider for Context {
         let mut vars = self.type_dir(self);
         if let Some(outer) = self.get_outer_scope() {
             vars.guaranteed_extend(outer.dir());
-        } else if let Some(builtins) = self.get_builtins() {
+        } else if let Some(builtins) = self.get_builtins_not_self() {
             vars.guaranteed_extend(builtins.locals.iter());
         }
         vars
@@ -705,7 +705,7 @@ impl ContextProvider for Context {
     // this is internally recursive
     fn get_var_info(&self, name: &str) -> Option<(&VarName, &VarInfo)> {
         self.get_var_kv(name).or_else(|| {
-            self.get_builtins()
+            self.get_builtins_not_self()
                 .and_then(|builtin| builtin.get_var_kv(name))
         })
     }
@@ -1209,7 +1209,8 @@ impl Context {
     }
 
     pub(crate) fn get_outer_scope_or_builtins(&self) -> Option<&Context> {
-        self.get_outer_scope().or_else(|| self.get_builtins())
+        self.get_outer_scope()
+            .or_else(|| self.get_builtins_not_self())
     }
 
     pub(crate) fn get_mut_outer(&mut self) -> Option<&mut Context> {
@@ -1258,16 +1259,21 @@ impl Context {
 
     /// Returns None if self is `<builtins>`.
     /// This avoids infinite loops.
-    pub(crate) fn get_builtins(&self) -> Option<&Context> {
-        // builtins中で定義した型等はmod_cacheがNoneになっている
+    pub(crate) fn get_builtins_not_self(&self) -> Option<&Context> {
         if &self.path()[..] != "<builtins>" {
-            self.shared
-                .as_ref()
-                .map(|shared| shared.mod_cache.raw_ref_builtins_ctx().unwrap())
-                .map(|mod_ctx| &mod_ctx.context)
+            self.get_builtins()
         } else {
             None
         }
+    }
+
+    /// Be careful with infinite loops. See also `get_builtins_not_self`.
+    pub(crate) fn get_builtins(&self) -> Option<&Context> {
+        // builtins中で定義した型等はmod_cacheがNoneになっている
+        self.shared
+            .as_ref()
+            .map(|shared| shared.mod_cache.raw_ref_builtins_ctx().unwrap())
+            .map(|mod_ctx| &mod_ctx.context)
     }
 
     pub(crate) fn get_module(&self) -> Option<&Context> {
