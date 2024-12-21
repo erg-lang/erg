@@ -1,4 +1,13 @@
 .FrameInfo: ClassType
+.Parameter: ClassType
+.Parameter.
+    name: Str
+    annotation: Obj
+    kind: Int
+    default: Obj
+.Signature: ClassType
+.Signature.
+    parameters: [Parameter; _]
 .Traceback: ClassType
 
 .currentframe!: () => Frame
@@ -27,4 +36,6 @@
 .getdoc: (object: Obj) -> Str
 .getcomments: (object: Obj) -> Str
 .getfile: (object: Obj) -> Str
+.getmembers: (object: Obj, predicate: Obj -> Bool) -> [(Str, Obj); _]
 .getmodule: (object: Obj) -> GenericModule or NoneType
+.signature: (obj: Obj) -> Signature

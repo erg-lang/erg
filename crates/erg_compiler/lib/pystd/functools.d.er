@@ -1,4 +1,15 @@
 .cache: |T <: Proc|(user_function: T) -> T
+.cached_property: |T <: Proc|(func: T) -> T
+.cmp_to_key: |T <: Proc|(func: T) -> T
 .lru_cache: (|T <: Proc|(user_function: T) -> T) and |T <: Proc|(maxsize := Int, typed := Bool) -> (T -> T)
 .total_ordering: (cls: ClassType) -> ClassType
 .reduce: |T: Type|(function!: T => T, iterable: Iterable(T), initializer := T or NoneType) -> T
+.partial: |T: Type|(func!: T => T, *args: T, **kwargs: T) -> T
+.partialmethod: |T: Type|(func!: T => T, *args: T, **kwargs: T) -> T
+.singledispatch: |C <: GenericCallable|(function: C) -> C
+.singledispatchmethod: |C <: GenericCallable|(function: C) -> C
+.update_wrapper: |T: Type|(wrapper: T, wrapped: T, assigned := Iterable(Str), updated := Iterable(Str)) -> T
+.wraps: |T: Type|(wrapped: T, assigned := Iterable(Str), updated := Iterable(Str)) -> (T -> T)
+
+.Partial = 'partial': ClassType
+.PartialMethod = 'partialmethod': ClassType
