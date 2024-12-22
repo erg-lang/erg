@@ -60,7 +60,7 @@ io = pyimport "io"
     .seed_bits = Nat;
     .cutoff = Int;
 }
-.hex_version: Nat
+.hexversion: Nat
 .int_info: NamedTuple {
     .bits_per_digit = Nat;
     .sizeof_digit = Nat;

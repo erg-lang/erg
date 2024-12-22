@@ -2890,10 +2890,20 @@ impl Context {
         homo_tuple
             .register_trait(self, poly(OUTPUT, vec![ty_tp(T.clone())]))
             .unwrap();
-        let homo_tuple_t = poly(HOMOGENOUS_TUPLE, vec![ty_tp(T.clone())]);
+        let homo_tup_t = poly(HOMOGENOUS_TUPLE, vec![ty_tp(T.clone())]);
+        let mut homo_tuple_mul = Self::builtin_methods(Some(poly(MUL, vec![ty_tp(Nat)])), 2);
+        let t = fn1_met(homo_tup_t.clone(), Nat, homo_tup_t.clone()).quantify();
+        homo_tuple_mul.register_builtin_erg_impl(OP_MUL, t, Immutable, Visibility::BUILTIN_PUBLIC);
+        homo_tuple_mul.register_builtin_const(
+            OUTPUT,
+            Visibility::BUILTIN_PUBLIC,
+            None,
+            ValueObj::builtin_class(homo_tup_t.clone()),
+        );
+        homo_tuple.register_trait_methods(homo_tup_t.clone(), homo_tuple_mul);
         // __getitem__: (self: HomogenousTuple(T), Nat) -> T
-        let idx_t = if PYTHON_MODE { Int } else { Nat };
-        let tuple_getitem_t = fn1_met(homo_tuple_t.clone(), idx_t, T.clone()).quantify();
+        let idx_t = if PYTHON_MODE { Int | mono(SLICE) } else { Nat };
+        let tuple_getitem_t = fn1_met(homo_tup_t.clone(), idx_t, T.clone()).quantify();
         homo_tuple.register_builtin_py_impl(
             FUNDAMENTAL_GETITEM,
             tuple_getitem_t,
@@ -2905,7 +2915,7 @@ impl Context {
             Self::builtin_methods(Some(poly(SEQUENCE, vec![ty_tp(T.clone())])), 4);
         homo_tuple_seq.register_builtin_erg_impl(
             FUNDAMENTAL_CONTAINS,
-            fn1_met(homo_tuple_t.clone(), T.clone(), Bool).quantify(),
+            fn1_met(homo_tup_t.clone(), T.clone(), Bool).quantify(),
             Const,
             Visibility::BUILTIN_PUBLIC,
         );
@@ -2924,7 +2934,7 @@ impl Context {
             None,
             ValueObj::builtin_class(tuple_iter),
         );
-        homo_tuple.register_trait_methods(homo_tuple_t.clone(), homo_tuple_seq);
+        homo_tuple.register_trait_methods(homo_tup_t.clone(), homo_tuple_seq);
         homo_tuple
             .register_trait(self, poly(SEQUENCE, vec![ty_tp(T.clone())]))
             .unwrap();
@@ -3006,8 +3016,9 @@ impl Context {
         let Slf = mono_q(SELF, subtypeof(mono(GENERIC_NAMED_TUPLE)));
         let input_t = tp_enum(Nat, set! {N.clone()});
         let return_t = proj_call(ty_tp(Slf.clone()), FUNDAMENTAL_GETITEM, vec![N.clone()]);
-        let named_tuple_getitem =
-            fn1_met(Slf.clone(), input_t.clone(), return_t.clone()).quantify();
+        let named_tuple_getitem = fn1_met(Slf.clone(), input_t.clone(), return_t.clone()).quantify()
+            // TODO:
+            & fn1_met(Slf.clone(), slice_t.clone(), homo_tuple_t(Obj)).quantify();
         let mut named_tuple_indexable = Self::builtin_methods(
             Some(poly(INDEXABLE, vec![ty_tp(input_t), ty_tp(return_t)])),
             2,
@@ -3080,13 +3091,7 @@ impl Context {
             Const,
             Some(FUNC_TUPLE),
         );
-        self.register_builtin_type(
-            homo_tuple_t,
-            homo_tuple,
-            vis.clone(),
-            Const,
-            Some(FUNC_TUPLE),
-        );
+        self.register_builtin_type(homo_tup_t, homo_tuple, vis.clone(), Const, Some(FUNC_TUPLE));
         self.register_builtin_type(_tuple_t, tuple_, vis.clone(), Const, Some(FUNC_TUPLE));
         /* Or (true or type) */
         let or_t = poly(OR, vec![ty_tp(L), ty_tp(R)]);
