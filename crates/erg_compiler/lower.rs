@@ -3029,7 +3029,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             self.var_result_t_check(&attr, &Str::from(attr.show()), attr.ref_t(), expr.ref_t())
         {
             if PYTHON_MODE {
-                let derefined = attr.ref_t().derefine();
+                let mut derefined = attr.ref_t().derefine();
+                if derefined == Type::Nat {
+                    derefined = Type::Int;
+                }
                 match self.var_result_t_check(
                     &attr,
                     &Str::from(attr.show()),
