@@ -35,7 +35,7 @@ jobs:
       fail-fast: false
       matrix:
         # M1 Mac does not support Python 3.7~3.9
-        os: [windows-latest, ubuntu-latest, macos-13]
+        os: [windows-latest, ubuntu-22.04, macos-13]
         python-version: ['3.7', '3.8', '3.9', '3.10', '3.11.3']
     runs-on: ${{ matrix.os }}
     env:
