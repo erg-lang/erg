@@ -1,0 +1,127 @@
+.Tk!: ClassType
+.Tk!.
+    __call__: () -> Tk!
+    mainloop!: (self: RefMut(Tk!), n := Int) => NoneType
+    quit!: (self: RefMut(Tk!)) => NoneType
+
+.Widget!: ClassType
+.Widget!.
+    __call__: (master := Obj, **kwargs: Obj) -> Widget!
+    destroy!: (self: RefMut(Widget!)) => NoneType
+    pack!: (self: RefMut(Widget!), **options: Obj) => NoneType
+    place!: (self: RefMut(Widget!), **options: Obj) => NoneType
+    grid!: (self: RefMut(Widget!), **options: Obj) => NoneType
+    bind!: (self: RefMut(Widget!), sequence: Str, func: Obj) => NoneType
+
+.Frame!: ClassType
+.Frame! <: .Widget!
+.Frame!.
+    __call__: (master := Obj, **kwargs: Obj) -> Frame!
+
+.Label!: ClassType
+.Label! <: .Widget!
+.Label!.
+    __call__: (master := Obj, text := Str, **kwargs: Obj) -> Label!
+
+.Button!: ClassType
+.Button! <: .Widget!
+.Button!.
+    __call__: (master := Obj, text := Str, command := Obj, **kwargs: Obj) -> Button!
+
+.Checkbutton!: ClassType
+.Checkbutton! <: Widget!
+.Checkbutton!.
+    __call__: (master := Obj, text := Str, variable := Obj, command := Obj, **kwargs: Obj) -> Checkbutton!
+
+.Entry!: ClassType
+.Entry! <: .Widget!
+.Entry!.
+    __call__: (master := Obj, **kwargs: Obj) -> Entry!
+
+.Text!: ClassType
+.Text! <: .Widget!
+.Text!.
+    __call__: (master := Obj, **kwargs: Obj) -> Text!
+
+.Canvas!: ClassType
+.Canvas! <: .Widget!
+.Canvas!.
+    __call__: (master := Obj, width := Int, height := Int, **kwargs: Obj) -> Canvas!
+    create_line!: (self: RefMut(Canvas!), x1: Int, y1: Int, x2: Int, y2: Int, **kwargs: Obj) => Nat
+    create_rectangle!: (self: RefMut(Canvas!), x1: Int, y1: Int, x2: Int, y2: Int, **kwargs: Obj) => Nat
+    create_text!: (self: RefMut(Canvas!), x: Int, y: Int, text: Str, **kwargs: Obj) => Nat
+
+.Scrollbar!: ClassType
+.Scrollbar! <: .Widget!
+.Scrollbar!.
+    __call__: (master := Obj, orient := Str, **kwargs: Obj) -> Scrollbar!
+
+.Toplevel!: ClassType
+.Toplevel! <: .Widget!
+.Toplevel!.
+    __call__: (master := Obj, **kwargs: Obj) -> Toplevel!
+    title!: (self: RefMut(Toplevel!), new_title: Str) => NoneType
+
+.Menu!: ClassType
+.Menu! <: .Widget!
+.Menu!.
+    __call__: (master := Obj, **kwargs: Obj) -> Menu!
+    add_command!: (self: RefMut(Menu!), label := Str, command := Obj, **kwargs: Obj) => NoneType
+    add_cascade!: (self: RefMut(Menu!), label := Str, menu := Menu!, **kwargs: Obj) => NoneType
+    add_separator!: (self: RefMut(Menu!), **kwargs: Obj) => NoneType
+
+.OptionMenu!: ClassType
+.OptionMenu! <: .Widget!
+.OptionMenu!.
+    __call__: (value: Str, *values: Str, master := Obj, variable := Obj, **kwargs: Obj) -> OptionMenu!
+
+.Menubutton!: ClassType
+.Menubutton! <: .Widget!
+.Menubutton!.
+    __call__: (master := Obj, text := Str, **kwargs: Obj) -> Menubutton!
+
+.Message!: ClassType
+.Message! <: .Widget!
+.Message!.
+    __call__: (master := Obj, text := Str, **kwargs: Obj) -> Message!
+
+.PanedWindow!: ClassType
+.PanedWindow! <: .Widget!
+.PanedWindow!.
+    __call__: (master := Obj, **kwargs: Obj) -> PanedWindow!
+    add!: (self: RefMut(PanedWindow!), widget: .Widget!, **kwargs: Obj) => NoneType
+
+.LabelFrame!: ClassType
+.LabelFrame! <: .Widget!
+.LabelFrame!.
+    __call__: (master := Obj, text := Str, **kwargs: Obj) -> LabelFrame!
+
+.Scale!: ClassType
+.Scale! <: .Widget!
+.Scale!.
+    __call__: (master := Obj, from_ := Float, to := Float, **kwargs: Obj) -> Scale!
+    get: (self: Ref Scale!) -> Float
+
+.Listbox!: ClassType
+.Listbox! <: .Widget!
+.Listbox!.
+    __call__: (master := Obj, **kwargs: Obj) -> Listbox!
+    insert!: (self: RefMut(Listbox!), index: Int, element: Str) => NoneType
+    delete!: (self: RefMut(Listbox!), start: Int, end: Int) => NoneType
+
+.Spinbox!: ClassType
+.Spinbox! <: .Widget!
+.Spinbox!.
+    __call__: (master := Obj, from_ := Int, to := Int, **kwargs: Obj) -> Spinbox!
+    get: (self: Ref Spinbox!) -> Str
+
+.PhotoImage!: ClassType
+.PhotoImage!.
+    __call__: (**kwargs: Obj) -> PhotoImage!
+    zoom!: (self: RefMut(PhotoImage!), x: Int, y: Int) => NoneType
+    subsample!: (self: RefMut(PhotoImage!), x: Int, y: Int) => NoneType
+
+.BitmapImage!: ClassType
+.BitmapImage!.
+    __call__: (**kwargs: Obj) -> BitmapImage!
+    config!: (self: RefMut(BitmapImage!), **kwargs: Obj) => NoneType

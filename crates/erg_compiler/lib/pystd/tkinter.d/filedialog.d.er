@@ -1,0 +1,6 @@
+.FileDialog!: ClassType
+
+.askopenfilename: (**kwargs: Obj) -> Str or NoneType
+.askopenfilenames: (**kwargs: Obj) -> [Str; _]
+.asksaveasfilename: (**kwargs: Obj) -> Str or NoneType
+.askdirectory: (**kwargs: Obj) -> Str or NoneType

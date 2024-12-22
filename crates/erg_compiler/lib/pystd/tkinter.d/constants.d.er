@@ -1,0 +1,93 @@
+.NO: Nat
+.YES: Nat
+.FALSE: Nat
+.TRUE: Nat
+.OFF: Nat
+.ON: Nat
+
+.W: Str
+.E: Str
+.N: Str
+.S: Str
+.NW: Str
+.SW: Str
+.NE: Str
+.SE: Str
+.NS: Str
+.EW: Str
+.NSEW: Str
+.CENTER: Str
+
+.NONE: Str
+.X: Str
+.Y: Str
+.BOTH: Str
+
+.LEFT: Str
+.RIGHT: Str
+.TOP: Str
+.BOTTOM: Str
+
+.RAISED: Str
+.SUNKEN: Str
+.FLAT: Str
+.RIDGE: Str
+.GROOVE: Str
+.SOLID: Str
+
+.HORIZONTAL: Str
+.VERTICAL: Str
+
+.NUMERIC: Str
+
+.CHAR: Str
+.WORD: Str
+
+.BASELINE: Str
+
+.INSIDE: Str
+.OUTSIDE: Str
+
+.SEL: Str
+.SEL_FIRST: Str
+.SEL_LAST: Str
+.END: Str
+.INSERT: Str
+.CURRENT: Str
+.ANCHOR: Str
+.ALL: Str
+
+.DISABLED: Str
+.NORMAL: Str
+.ACTIVE: Str
+.HIDDEN: Str
+
+.CASCADE: Str
+.CHECKBUTTON: Str
+.COMMAND: Str
+.RADIOBUTTON: Str
+.SEPARATOR: Str
+
+.SINGLE: Str
+.BROWSE: Str
+.MULTIPLE: Str
+.EXTENDED: Str
+
+.DOTBOX: Str
+.UNDERLINE: Str
+
+.PIESLICE: Str
+.CHORD: Str
+.ARC: Str
+.FIRST: Str
+.LAST: Str
+.BUTT: Str
+.PROJECTING: Str
+.ROUND: Str
+.BEVEL: Str
+.MITER: Str
+
+.MOVETO: Str
+.SCROLL: Str
+.UNITS: Str
+.PAGES: Str

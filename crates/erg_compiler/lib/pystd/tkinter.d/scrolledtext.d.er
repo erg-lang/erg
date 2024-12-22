@@ -1,0 +1,6 @@
+{Text!;} = import "__init__"
+
+.ScrolledText!: ClassType
+.ScrolledText! <: Text!
+.ScrolledText!.
+    __call__: (master := Obj, **kwargs: Obj) -> ScrolledText!

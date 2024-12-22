@@ -1,0 +1,7 @@
+.showinfo: (title: Str, message: Str, **kwargs: Obj) -> NoneType
+.showwarning: (title: Str, message: Str, **kwargs: Obj) -> NoneType
+.showerror: (title: Str, message: Str, **kwargs: Obj) -> NoneType
+.askquestion: (title: Str, message: Str, **kwargs: Obj) -> Str
+.askokcancel: (title: Str, message: Str, **kwargs: Obj) -> Bool
+.askyesno: (title: Str, message: Str, **kwargs: Obj) -> Bool
+.askretrycancel: (title: Str, message: Str, **kwargs: Obj) -> Bool

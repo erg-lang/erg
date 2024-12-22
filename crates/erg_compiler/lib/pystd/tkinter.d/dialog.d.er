@@ -1,0 +1,3 @@
+.Dialog!: ClassType
+.Dialog!.
+    __call__: (**kwargs: Obj) -> Dialog!

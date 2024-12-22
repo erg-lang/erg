@@ -1,0 +1,1 @@
+.askcolor: (**kwargs: Obj) -> (Str or NoneType, Str or NoneType)

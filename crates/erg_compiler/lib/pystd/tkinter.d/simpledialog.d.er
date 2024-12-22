@@ -1,0 +1,5 @@
+.SimpleDialog!: ClassType
+
+.askstring: (title: Str, prompt: Str, **kwargs: Obj) -> Str or NoneType
+.askinteger: (title: Str, prompt: Str, **kwargs: Obj) -> Int or NoneType
+.askfloat: (title: Str, prompt: Str, **kwargs: Obj) -> Float or NoneType

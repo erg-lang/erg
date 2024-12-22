@@ -1,0 +1,7 @@
+.Font!: ClassType
+.Font!.
+    __call__: (**kwargs: Obj) -> Font!
+    config!: (self: RefMut(Font!), **kwargs: Obj) => NoneType
+    configure!: (self: RefMut(Font!), **kwargs: Obj) => NoneType
+    measure: (self: Font!, text: Str) -> Int
+    metrics: (self: Font!, **kwargs: Obj) -> {Str: Int}

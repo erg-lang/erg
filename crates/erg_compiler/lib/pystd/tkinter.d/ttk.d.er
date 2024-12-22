@@ -1,0 +1,58 @@
+{Widget!;} = import "__init__"
+
+.Combobox!: ClassType
+.Combobox! <: Widget!
+.Combobox!.
+    __call__: (master := Obj, **kwargs: Obj) -> Combobox!
+    get: (self: Ref Combobox!) -> Str
+    set!: (self: RefMut(Combobox!), value: Str) => NoneType
+
+.Checkbutton!: ClassType
+.Checkbutton! <: Widget!
+.Checkbutton!.
+    __call__: (master := Obj, text := Str, variable := Obj, command := Obj, **kwargs: Obj) -> Checkbutton!
+
+.Notebook!: ClassType
+.Notebook! <: Widget!
+.Notebook!.
+    __call__: (master := Obj, **kwargs: Obj) -> Notebook!
+    add!: (self: RefMut(Notebook!), child: .Widget!, **kwargs: Obj) => NoneType
+    remove!: (self: RefMut(Notebook!), child: .Widget!) => NoneType
+    select!: (self: RefMut(Notebook!), child: .Widget!) => NoneType
+
+.Progressbar!: ClassType
+.Progressbar! <: Widget!
+.Progressbar!.
+    __call__: (master := Obj, **kwargs: Obj) -> Progressbar!
+    start!: (self: RefMut(Progressbar!), interval := Int) => NoneType
+    stop!: (self: RefMut(Progressbar!)) => NoneType
+    step!: (self: RefMut(Progressbar!), amount := Int) => NoneType
+
+.Radiobutton!: ClassType
+.Radiobutton! <: Widget!
+.Radiobutton!.
+    __call__: (master := Obj, text := Str, variable := Obj, value := Obj, command := Obj, **kwargs: Obj) -> Radiobutton!
+
+.Separator!: ClassType
+.Separator! <: Widget!
+.Separator!.
+    __call__: (master := Obj, **kwargs: Obj) -> Separator!
+
+.Sizegrip!: ClassType
+.Sizegrip! <: Widget!
+.Sizegrip!.
+    __call__: (master := Obj, **kwargs: Obj) -> Sizegrip!
+
+.Style!: ClassType
+.Style!.
+    __call__: () -> Style!
+    configure!: (self: RefMut(Style!), style: Str, **kwargs: Obj) => NoneType
+    theme_use!: (self: RefMut(Style!), theme_name: Str) => NoneType
+
+.Treeview!: ClassType
+.Treeview! <: Widget!
+.Treeview!.
+    __call__: (master := Obj, **kwargs: Obj) -> Treeview!
+    insert!: (self: RefMut(Treeview!), parent: Str, index: Str, iid: Str, **kwargs: Obj) -> Str
+    delete!: (self: RefMut(Treeview!), *items: Str) => NoneType
+    item: (self: Ref(Treeview!), item: Str, **kwargs: Obj) -> {Str: Obj}

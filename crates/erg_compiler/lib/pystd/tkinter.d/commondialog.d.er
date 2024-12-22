@@ -1,0 +1,4 @@
+.Dialog!: ClassType
+.Dialog!.
+    __call__: (**kwargs: Obj) -> Dialog!
+    activate!: (self: RefMut(Dialog!)) => NoneType
