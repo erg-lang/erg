@@ -1998,6 +1998,12 @@ impl<L: Locational> Unifier<'_, '_, '_, L> {
             let super_params = maybe_super.typarams();
             'l: for sup_of_sub in compatibles {
                 let _substituter = Substituter::substitute_self(sup_of_sub, maybe_sub, self.ctx);
+                let _substituter2 =
+                    if let Some((class, _)) = sub_ctx.get_trait_impl_types(sup_of_sub) {
+                        Substituter::substitute_typarams(self.ctx, class, maybe_sub)?
+                    } else {
+                        None
+                    };
                 let sub_instance = self.ctx.instantiate_def_type(sup_of_sub)?;
                 let sub_params = sub_instance.typarams();
                 let variances = self

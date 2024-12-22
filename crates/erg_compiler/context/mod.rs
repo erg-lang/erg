@@ -284,6 +284,17 @@ impl TypeContext {
             None
         })
     }
+
+    pub(crate) fn get_trait_impl_types(&self, trait_: &Type) -> Option<(&Type, &Type)> {
+        self.ctx.methods_list.iter().find_map(|mc| match &mc.typ {
+            ClassDefType::ImplTrait { class, impl_trait }
+                if impl_trait.qual_name() == trait_.qual_name() =>
+            {
+                Some((class, impl_trait))
+            }
+            _ => None,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

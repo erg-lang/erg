@@ -166,6 +166,7 @@ impl<'c> Substituter<'c> {
     /// ```erg
     /// qt: List(T, N), st: List(Int, 3)
     /// qt: T or NoneType, st: NoneType or Int (T == Int)
+    /// qt: {M}, st: {3}
     /// ```
     /// invalid (no effect):
     /// ```erg
@@ -180,8 +181,12 @@ impl<'c> Substituter<'c> {
         if qt == st {
             return Ok(None);
         }
-        let mut qtps = qt.typarams();
-        let mut stps = st.typarams();
+        let (mut qtps, mut stps) =
+            if let Some((qtp, stp)) = qt.singleton_value().zip(st.singleton_value()) {
+                (vec![qtp.clone()], vec![stp.clone()])
+            } else {
+                (qt.typarams(), st.typarams())
+            };
         // Or, And are commutative, choose fitting order
         if qt.qual_name() == st.qual_name() {
             if st.is_union_type() || st.is_intersection_type() {
@@ -257,8 +262,12 @@ impl<'c> Substituter<'c> {
         if qt == st {
             return Ok(None);
         }
-        let mut qtps = qt.typarams();
-        let mut stps = st.typarams();
+        let (mut qtps, mut stps) =
+            if let Some((qtp, stp)) = qt.singleton_value().zip(st.singleton_value()) {
+                (vec![qtp.clone()], vec![stp.clone()])
+            } else {
+                (qt.typarams(), st.typarams())
+            };
         if qt.qual_name() == st.qual_name() {
             if st.is_union_type() || st.is_intersection_type() {
                 let mut q_indices = vec![];

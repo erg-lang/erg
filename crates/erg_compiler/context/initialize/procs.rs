@@ -29,30 +29,30 @@ impl Context {
         let U = mono_q("U", instanceof(Type));
         let t_dir = no_var_proc(
             vec![],
-            vec![kw("object", ref_(Obj))],
+            vec![kw(KW_OBJECT, ref_(Obj))],
             out_list_t(Str, TyParam::erased(Nat)),
         );
         let t_print = proc(
             vec![],
             Some(kw("objects", ref_(Obj))),
             vec![
-                kw("sep", Str),
-                kw("end", Str),
-                kw("file", mono("Writable!")),
-                kw("flush", Bool),
+                kw(KW_SEP, Str),
+                kw(KW_END, Str),
+                kw(KW_FILE, mono("Writable!")),
+                kw(KW_FLUSH, Bool),
             ],
             None,
             NoneType,
         );
-        let t_id = nd_func(vec![kw("old", Obj)], None, Nat);
-        let t_input = no_var_proc(vec![], vec![kw("msg", Str)], Str);
+        let t_id = nd_func(vec![kw(KW_OLD, Obj)], None, Nat);
+        let t_input = no_var_proc(vec![], vec![kw(KW_MSG, Str)], Str);
         let t_if = no_var_proc(
             vec![
-                kw("cond", Bool),
-                kw("then", nd_proc(vec![], None, T.clone())),
+                kw(KW_COND, Bool),
+                kw(KW_THEN, nd_proc(vec![], None, T.clone())),
             ],
             vec![kw_default(
-                "else",
+                KW_ELSE,
                 nd_proc(vec![], None, U.clone()),
                 nd_proc(vec![], None, NoneType),
             )],
@@ -62,9 +62,9 @@ impl Context {
         let t_proc_ret = if PYTHON_MODE { Obj } else { NoneType };
         let t_for = proc(
             vec![
-                kw("iterable", poly("Iterable", vec![ty_tp(T.clone())])),
+                kw(KW_ITERABLE, poly("Iterable", vec![ty_tp(T.clone())])),
                 kw(
-                    "proc!",
+                    KW_PROC,
                     nd_proc(vec![anon(T.clone())], None, t_proc_ret.clone()),
                 ),
             ],
@@ -75,13 +75,15 @@ impl Context {
         )
         .quantify();
         let t_globals = no_var_proc(vec![], vec![], out_dict_t(dict! { Str => Obj }.into()));
-        let t_help = nd_proc(vec![kw("object", ref_(Obj))], None, NoneType);
+        let t_help = nd_proc(vec![kw(KW_OBJECT, ref_(Obj))], None, NoneType);
         let t_locals = no_var_proc(vec![], vec![], out_dict_t(dict! { Str => Obj }.into()));
-        let t_next = nd_proc(
+        let t_next = proc(
             vec![kw(
-                "iterable",
+                KW_ITERABLE,
                 ref_mut(poly("Iterable", vec![ty_tp(T.clone())]), None),
             )],
+            None,
+            vec![kw(KW_DEFAULT, T.clone())],
             None,
             T.clone(),
         )
@@ -95,7 +97,7 @@ impl Context {
         let t_while = proc(
             vec![
                 kw("cond!", t_cond),
-                kw("proc!", nd_proc(vec![], None, t_proc_ret.clone())),
+                kw(KW_PROC, nd_proc(vec![], None, t_proc_ret.clone())),
             ],
             None,
             vec![kw("else!", nd_proc(vec![], None, t_proc_ret.clone()))],
@@ -104,12 +106,12 @@ impl Context {
         );
         let P = mono_q("P", subtypeof(mono("PathLike")));
         let t_open = no_var_proc(
-            vec![kw("file", P)],
+            vec![kw(KW_FILE, P)],
             vec![
-                kw("mode", Str),
+                kw(KW_MODE, Str),
                 kw("buffering", Int),
-                kw("encoding", or(Str, NoneType)),
-                kw("errors", or(Str, NoneType)),
+                kw(KW_ENCODING, or(Str, NoneType)),
+                kw(KW_ERRORS, or(Str, NoneType)),
                 kw("newline", or(Str, NoneType)),
                 kw("closefd", Bool),
                 // param_t("opener", option),
@@ -125,8 +127,8 @@ impl Context {
         let t_with = if PYTHON_MODE {
             nd_proc(
                 vec![
-                    kw("obj", C),
-                    kw("proc!", nd_proc(vec![anon(T)], None, Obj.clone())),
+                    kw(KW_OBJ, C),
+                    kw(KW_PROC, nd_proc(vec![anon(T)], None, Obj.clone())),
                 ],
                 None,
                 NoneType,
@@ -135,8 +137,8 @@ impl Context {
         } else {
             nd_proc(
                 vec![
-                    kw("obj", C),
-                    kw("proc!", nd_proc(vec![anon(T)], None, U.clone())),
+                    kw(KW_OBJ, C),
+                    kw(KW_PROC, nd_proc(vec![anon(T)], None, U.clone())),
                 ],
                 None,
                 U,

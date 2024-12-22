@@ -1816,10 +1816,21 @@ impl Context {
         .quantify();
         list_.register_builtin_erg_impl(
             FUNC_REPEAT,
-            repeat_t,
+            repeat_t.clone(),
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
+        let mut list_mul =
+            Self::builtin_methods(Some(poly(MUL, vec![ty_tp(singleton(Nat, M.clone()))])), 2);
+        list_mul.register_builtin_erg_impl(OP_MUL, repeat_t, Immutable, Visibility::BUILTIN_PUBLIC);
+        let out_t = out_list_t(T.clone(), N.clone() * M.clone());
+        list_mul.register_builtin_const(
+            OUTPUT,
+            Visibility::BUILTIN_PUBLIC,
+            None,
+            ValueObj::builtin_class(out_t),
+        );
+        list_.register_trait_methods(lis_t.clone(), list_mul);
         // [T; N].MutType! = [T; !N] (neither [T!; N] nor [T; N]!)
         let mut_type =
             ValueObj::builtin_class(poly(MUT_LIST, vec![TyParam::t(T.clone()), N.clone()]));
