@@ -1301,11 +1301,11 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             expr.unwrap_or(hir::Expr::Dummy(hir::Dummy::new(vec![])))
         });
         let rhs = hir::PosArg::new(rhs);
-        let args = [lhs, rhs];
+        let mut args = [lhs, rhs];
         let mut vi = self
             .module
             .context
-            .get_binop_t(&bin.op, &args, &self.cfg.input, &self.module.context)
+            .get_binop_t(&bin.op, &mut args, &self.cfg.input, &self.module.context)
             .unwrap_or_else(|errs| {
                 errors.extend(errs);
                 VarInfo::ILLEGAL
@@ -1359,11 +1359,11 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 errors.extend(errs);
                 expr.unwrap_or(hir::Expr::Dummy(hir::Dummy::new(vec![])))
             });
-        let args = [hir::PosArg::new(arg)];
+        let mut args = [hir::PosArg::new(arg)];
         let vi = self
             .module
             .context
-            .get_unaryop_t(&unary.op, &args, &self.cfg.input, &self.module.context)
+            .get_unaryop_t(&unary.op, &mut args, &self.cfg.input, &self.module.context)
             .unwrap_or_else(|errs| {
                 errors.extend(errs);
                 VarInfo::ILLEGAL
@@ -1572,11 +1572,11 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 // self.errs.extend(errs);
             }
         }
-        let hir_args = self.lower_args(call.args, expect_subr, &mut errs);
+        let mut hir_args = self.lower_args(call.args, expect_subr, &mut errs);
         let mut vi = match self.module.context.get_call_t(
             &obj,
             &call.attr_name,
-            &hir_args.pos_args,
+            &mut hir_args.pos_args,
             &hir_args.kw_args,
             (hir_args.var_args.as_deref(), hir_args.kw_var.as_deref()),
             &self.cfg.input,
@@ -1728,7 +1728,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 args
             }
         };
-        let args = vec![hir::PosArg::new(hir::Expr::Record(args))];
+        let mut args = vec![hir::PosArg::new(hir::Expr::Record(args))];
         let attr_name = ast::Identifier::new(
             VisModifierSpec::Public(
                 Token::new(
@@ -1749,7 +1749,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         let vi = match self.module.context.get_call_t(
             &class,
             &Some(attr_name.clone()),
-            &args,
+            &mut args,
             &[],
             (None, None),
             &self.cfg.input,
@@ -3029,31 +3029,8 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             self.var_result_t_check(&attr, &Str::from(attr.show()), attr.ref_t(), expr.ref_t())
         {
             if PYTHON_MODE {
-                let mut derefined = attr.ref_t().derefine();
-                if derefined == Type::Nat {
-                    derefined = Type::Int;
-                }
-                match self.var_result_t_check(
-                    &attr,
-                    &Str::from(attr.show()),
-                    &derefined,
-                    expr.ref_t(),
-                ) {
-                    Err(err) => errors.push(err),
-                    Ok(_) => {
-                        if let Some(attr_t) = attr.ref_mut_t() {
-                            *attr_t = derefined.clone();
-                        }
-                        if let hir::Accessor::Ident(ident) = &attr {
-                            if let Some(vi) = self
-                                .module
-                                .context
-                                .rec_get_mut_var_info(&ident.raw, AccessKind::Name)
-                            {
-                                vi.t = derefined;
-                            }
-                        }
-                    }
+                if !self.widen_type(&mut attr, &expr) {
+                    errors.push(err);
                 }
             } else {
                 errors.push(err);
@@ -3065,6 +3042,38 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         } else {
             Err((Some(hir::Expr::ReDef(redef)), errors))
         }
+    }
+
+    fn widen_type(&mut self, attr: &mut hir::Accessor, expr: &hir::Expr) -> bool {
+        for sup in self
+            .module
+            .context
+            .get_super_classes_or_self(attr.ref_t())
+            .skip(1)
+        {
+            if sup == Type::Obj {
+                break;
+            }
+            if self
+                .var_result_t_check(attr, &Str::from(attr.show()), &sup, expr.ref_t())
+                .is_ok()
+            {
+                if let Some(attr_t) = attr.ref_mut_t() {
+                    *attr_t = sup.clone();
+                }
+                if let hir::Accessor::Ident(ident) = &attr {
+                    if let Some(vi) = self
+                        .module
+                        .context
+                        .rec_get_mut_var_info(&ident.raw, AccessKind::Name)
+                    {
+                        vi.t = sup;
+                    }
+                }
+                return true;
+            }
+        }
+        false
     }
 
     fn check_inheritable(

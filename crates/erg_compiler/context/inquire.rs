@@ -1135,7 +1135,7 @@ impl Context {
         &self,
         obj: &hir::Expr,
         attr_name: &Option<Identifier>,
-        pos_args: &[hir::PosArg],
+        pos_args: &mut [hir::PosArg],
         kw_args: &[hir::KwArg],
         (var_args, kw_var_args): (Option<&hir::PosArg>, Option<&hir::PosArg>),
         input: &Input,
@@ -1760,7 +1760,7 @@ impl Context {
     pub(crate) fn get_binop_t(
         &self,
         op: &Token,
-        args: &[hir::PosArg],
+        args: &mut [hir::PosArg],
         input: &Input,
         namespace: &Context,
     ) -> TyCheckResult<VarInfo> {
@@ -1815,7 +1815,7 @@ impl Context {
     pub(crate) fn get_unaryop_t(
         &self,
         op: &Token,
-        args: &[hir::PosArg],
+        args: &mut [hir::PosArg],
         input: &Input,
         namespace: &Context,
     ) -> TyCheckResult<VarInfo> {
@@ -2775,7 +2775,7 @@ impl Context {
         &self,
         obj: &hir::Expr,
         attr_name: &Option<Identifier>,
-        pos_args: &[hir::PosArg],
+        pos_args: &mut [hir::PosArg],
         kw_args: &[hir::KwArg],
         (var_args, kw_var_args): (Option<&hir::PosArg>, Option<&hir::PosArg>),
         input: &Input,
@@ -2831,6 +2831,20 @@ impl Context {
                 (var_args, kw_var_args),
                 namespace,
             )
+            .or_else(|errs| {
+                if let Some(res) = self.widen_call_type(
+                    obj,
+                    &found.t,
+                    attr_name,
+                    pos_args,
+                    kw_args,
+                    (var_args, kw_var_args),
+                ) {
+                    Ok(res)
+                } else {
+                    Err(errs)
+                }
+            })
             .map_err(|errs| {
                 (
                     Some(VarInfo {
@@ -2860,6 +2874,53 @@ impl Context {
         log!(info "Params evaluated:\nres: {res}\n");
         let res = VarInfo { t: res, ..found };
         Ok(res)
+    }
+
+    // e.g.
+    // ```
+    // found_t: (Structural({ .__sub__ = (self: L, other: R) -> O }), R) -> O
+    // pos_args [100, 1.0]
+    // 100: Nat ==> Float
+    // => Coerced((Float, Float) -> Float) # not (Nat, Nat) -> Nat
+    // ```
+    fn widen_call_type(
+        &self,
+        obj: &hir::Expr,
+        found_t: &Type,
+        attr_name: &Option<Identifier>,
+        pos_args: &mut [hir::PosArg],
+        kw_args: &[hir::KwArg],
+        (var_args, kw_var_args): (Option<&hir::PosArg>, Option<&hir::PosArg>),
+    ) -> Option<SubstituteResult> {
+        let found = <&SubrType>::try_from(found_t).ok()?;
+        if found.has_type_satisfies(|t| t.is_structural()) {
+            let idx_structural = found
+                .non_default_params
+                .iter()
+                .position(|pt| pt.typ().is_structural())?;
+            pos_args.get(idx_structural)?;
+            let old_type = pos_args[idx_structural].expr.t();
+            for sub in self.get_super_classes_or_self(&old_type).skip(1) {
+                let Ok(Type::Subr(subr)) = self.instantiate(found_t.clone(), obj) else {
+                    return None;
+                };
+                let pos_arg = pos_args.get_mut(idx_structural)?;
+                *pos_arg.expr.ref_mut_t()? = sub.clone();
+                let res = self.substitute_subr_call(
+                    obj,
+                    attr_name,
+                    &subr,
+                    pos_args,
+                    kw_args,
+                    (var_args, kw_var_args),
+                );
+                if res.is_ok() {
+                    return Some(SubstituteResult::Coerced(Type::Subr(subr)));
+                }
+            }
+            *pos_args[idx_structural].expr.ref_mut_t()? = old_type;
+        }
+        None
     }
 
     pub(crate) fn get_const_local(
@@ -3251,6 +3312,25 @@ impl Context {
                 vec![ctx.typ.clone()].into_iter().chain(super_classes)
             }
         })
+    }
+
+    pub(crate) fn get_super_classes_or_self(
+        &self,
+        typ: &Type,
+    ) -> impl Iterator<Item = Type> + Clone {
+        self.get_nominal_type_ctx(typ)
+            .map(|ctx| {
+                let super_classes = ctx.super_classes.clone();
+                let derefined = typ.derefine();
+                if typ != &derefined {
+                    vec![ctx.typ.clone(), derefined]
+                        .into_iter()
+                        .chain(super_classes)
+                } else {
+                    vec![ctx.typ.clone()].into_iter().chain(super_classes)
+                }
+            })
+            .unwrap_or(vec![typ.clone()].into_iter().chain(vec![]))
     }
 
     /// include `typ` itself.
