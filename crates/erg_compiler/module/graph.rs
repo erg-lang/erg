@@ -331,6 +331,10 @@ impl SharedModuleGraph {
         self.0.borrow().depends_on(path, target)
     }
 
+    pub fn deep_depends_on(&self, path: &NormalizedPathBuf, target: &NormalizedPathBuf) -> bool {
+        self.0.borrow().deep_depends_on(path, target)
+    }
+
     /// (usually) `path` is not contained.
     /// O(N)
     pub fn children(&self, path: &NormalizedPathBuf) -> Set<NormalizedPathBuf> {

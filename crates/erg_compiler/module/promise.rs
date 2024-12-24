@@ -189,6 +189,13 @@ impl SharedPromises {
             // self.wait_until_finished(path);
             return Ok(());
         }
+        if !self.graph.deep_depends_on(&current, path) {
+            // no relation, so no need to join
+            if DEBUG_MODE {
+                panic!("not depends on: {current} -> {path}");
+            }
+            return Ok(());
+        }
         if !PARALLEL {
             assert!(self.is_joined(path));
             return Ok(());
