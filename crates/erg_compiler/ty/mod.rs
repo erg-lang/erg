@@ -882,7 +882,14 @@ impl SubrType {
             let ownership = match nd_param.typ() {
                 Type::Ref(_) => Ownership::Ref,
                 Type::RefMut { .. } => Ownership::RefMut,
-                _ => Ownership::Owned,
+                other => {
+                    if other.is_mut_type() {
+                        Ownership::Owned
+                    } else {
+                        // e.g. passed `Nat!`, but coerced to `Nat`
+                        Ownership::Ref
+                    }
+                }
             };
             nd_args.push((nd_param.name().cloned(), ownership));
         }
@@ -895,7 +902,13 @@ impl SubrType {
             let ownership = match d_param.typ() {
                 Type::Ref(_) => Ownership::Ref,
                 Type::RefMut { .. } => Ownership::RefMut,
-                _ => Ownership::Owned,
+                other => {
+                    if other.is_mut_type() {
+                        Ownership::Owned
+                    } else {
+                        Ownership::Ref
+                    }
+                }
             };
             d_args.push((d_param.name().unwrap().clone(), ownership));
         }

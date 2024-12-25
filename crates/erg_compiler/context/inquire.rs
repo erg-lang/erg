@@ -580,7 +580,7 @@ impl Context {
         for arg_t in branch_ts.iter().skip(1) {
             return_t = self.union(&return_t, arg_t.typ().return_t().unwrap_or(&Type::Never));
         }
-        let param_ty = ParamTy::Pos(match_target_expr_t.clone());
+        let param_ty = ParamTy::Pos(match_target_expr_t.clone().into_ref());
         let param_ts = [vec![param_ty], branch_ts.to_vec()].concat();
         let t = if kind.is_func() {
             func(param_ts, None, vec![], None, return_t)

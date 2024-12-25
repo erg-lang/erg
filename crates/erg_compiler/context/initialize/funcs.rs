@@ -389,7 +389,7 @@ impl Context {
         )
         .quantify();
         let t_staticmethod = nd_func(vec![kw(KW_FUNC, F.clone())], None, F.clone()).quantify();
-        let t_str = nd_func(vec![kw(KW_OBJECT, Obj)], None, Str)
+        let t_str = nd_func(vec![kw(KW_OBJECT, ref_(Obj))], None, Str)
             & no_var_func(
                 vec![kw(KW_BYTES_OR_BUFFER, mono(BYTES)), kw(KW_ENCODING, Str)],
                 vec![kw(KW_ERRORS, Str)],
