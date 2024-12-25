@@ -1,6 +1,7 @@
 use std::fmt;
 use std::thread::{current, JoinHandle, ThreadId};
 
+use erg_common::config::ErgConfig;
 use erg_common::consts::{DEBUG_MODE, PARALLEL};
 use erg_common::dict::Dict;
 use erg_common::pathutil::NormalizedPathBuf;
@@ -178,7 +179,7 @@ impl SharedPromises {
         }
     }
 
-    pub fn join(&self, path: &NormalizedPathBuf) -> std::thread::Result<()> {
+    pub fn join(&self, path: &NormalizedPathBuf, cfg: &ErgConfig) -> std::thread::Result<()> {
         if !self.graph.entries().contains(path) {
             return Err(Box::new(format!("not registered: {path}")));
         }
@@ -189,7 +190,7 @@ impl SharedPromises {
             // self.wait_until_finished(path);
             return Ok(());
         }
-        if !self.graph.deep_depends_on(&current, path) {
+        if !cfg.mode.is_language_server() && !self.graph.deep_depends_on(&current, path) {
             // no relation, so no need to join
             if DEBUG_MODE {
                 panic!("not depends on: {current} -> {path}");
@@ -230,7 +231,7 @@ impl SharedPromises {
         res
     }
 
-    pub fn join_children(&self) {
+    pub fn join_children(&self, cfg: &ErgConfig) {
         let cur_id = std::thread::current().id();
         let mut paths = vec![];
         for (path, promise) in self.promises.borrow().iter() {
@@ -240,14 +241,14 @@ impl SharedPromises {
             paths.push(path.clone());
         }
         for path in paths {
-            let _result = self.join(&path);
+            let _result = self.join(&path, cfg);
         }
     }
 
-    pub fn join_all(&self) {
+    pub fn join_all(&self, cfg: &ErgConfig) {
         let paths = self.promises.borrow().keys().cloned().collect::<Vec<_>>();
         for path in paths {
-            let _result = self.join(&path);
+            let _result = self.join(&path, cfg);
         }
     }
 

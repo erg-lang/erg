@@ -73,7 +73,7 @@ impl Context {
         }
         if self.shared.is_some() && self.promises().is_registered(&path) && !self.mod_cached(&path)
         {
-            let _result = self.promises().join(&path);
+            let _result = self.promises().join(&path, &self.cfg);
         }
         self.opt_mod_cache()?
             .raw_ref_ctx(&path)

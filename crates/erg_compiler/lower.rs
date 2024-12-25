@@ -3913,9 +3913,13 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         self.lint(&hir, mode);
         if &self.module.context.name[..] == "<module>" || ELS {
             if ELS {
-                self.module.context.shared().promises.join_children();
+                self.module
+                    .context
+                    .shared()
+                    .promises
+                    .join_children(&self.cfg);
             } else {
-                self.module.context.shared().promises.join_all();
+                self.module.context.shared().promises.join_all(&self.cfg);
             }
             let errs = self.module.context.shared().errors.take();
             let warns = self.module.context.shared().warns.take();
