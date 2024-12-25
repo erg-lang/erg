@@ -2778,14 +2778,6 @@ impl PyCodeGenerator {
     fn emit_call_method(&mut self, obj: Expr, method_name: Identifier, args: Args) {
         log!(info "entered {}", fn_name!());
         match &method_name.inspect()[..] {
-            // mut value class `update!` can be optimized
-            "update!" if method_name.ref_t().self_t().is_some_and(|t| t.ref_mut_inner().is_some_and(|t| t.is_mut_value_class())) => {
-                if self.py_version.minor >= Some(11) {
-                    return self.emit_call_update_311(obj, args);
-                } else {
-                    return self.emit_call_update_310(obj, args);
-                }
-            }
             "return" if obj.ref_t().is_callable() => {
                 return self.emit_return_instr(args);
             }
@@ -2934,59 +2926,6 @@ impl PyCodeGenerator {
         }
         // (1 (subroutine) + argc) input objects -> 1 return object
         self.stack_dec_n((1 + argc) - 1);
-    }
-
-    /// X.update! x -> x + 1
-    /// => X = mutate_operator((x -> x + 1)(X))
-    /// TODO: should be `X = X + 1` in the above case
-    fn emit_call_update_311(&mut self, obj: Expr, mut args: Args) {
-        log!(info "entered {}", fn_name!());
-        let Expr::Accessor(acc) = obj else {
-            unreachable!()
-        };
-        let func = args.remove_left_or_key("f").unwrap();
-        if !self.mutate_op_loaded {
-            self.load_mutate_op();
-        }
-        self.emit_push_null();
-        self.emit_load_name_instr(Identifier::private("#mutate_operator"));
-        self.emit_push_null();
-        self.emit_expr(func);
-        self.emit_acc(acc.clone());
-        self.emit_precall_and_call(1);
-        // (1 (subroutine) + argc) input objects -> 1 return object
-        // self.stack_dec_n((1 + 1) - 1);
-        self.stack_dec();
-        self.emit_precall_and_call(1);
-        self.stack_dec();
-        self.store_acc(acc);
-        self.emit_load_const(ValueObj::None);
-    }
-
-    /// X.update! x -> x + 1
-    /// X = mutate_operator((x -> x + 1)(X))
-    /// X = X + 1
-    fn emit_call_update_310(&mut self, obj: Expr, mut args: Args) {
-        log!(info "entered {}", fn_name!());
-        let Expr::Accessor(acc) = obj else {
-            unreachable!()
-        };
-        let func = args.remove_left_or_key("f").unwrap();
-        if !self.mutate_op_loaded {
-            self.load_mutate_op();
-        }
-        self.emit_load_name_instr(Identifier::private("#mutate_operator"));
-        self.emit_expr(func);
-        self.emit_acc(acc.clone());
-        self.write_instr(Opcode310::CALL_FUNCTION);
-        self.write_arg(1);
-        // (1 (subroutine) + argc) input objects -> 1 return object
-        self.stack_dec_n((1 + 1) - 1);
-        self.write_instr(Opcode310::CALL_FUNCTION);
-        self.write_arg(1);
-        self.stack_dec();
-        self.store_acc(acc);
-        self.emit_load_const(ValueObj::None);
     }
 
     // TODO: use exception
