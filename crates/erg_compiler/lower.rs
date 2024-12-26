@@ -2705,9 +2705,9 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             let (class, impl_trait) =
                 match self.module.context.get_class_and_impl_trait(&methods.class) {
                     Ok(x) => x,
-                    Err(errs) => {
+                    Err((class, trait_, errs)) => {
                         errors.extend(errs);
-                        continue;
+                        (class.unwrap_or(Type::Obj), trait_)
                     }
                 };
             if let Some(class_root) = self.module.context.get_nominal_type_ctx(&class) {
@@ -3224,16 +3224,27 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
     ) -> (Set<&VarName>, CompileErrors) {
         let mut errors = CompileErrors::empty();
         let mut unverified_names = self.module.context.locals.keys().collect::<Set<_>>();
+        let mut super_impls = set! {};
         let tys_decls = if let Some(sups) = self.module.context.get_super_types(trait_type) {
             sups.map(|sup| {
                 if implemented.linear_contains(&sup) {
                     return (sup, Dict::new());
                 }
-                let decls = self
-                    .module
-                    .context
-                    .get_nominal_type_ctx(&sup)
-                    .map_or(Dict::new(), |ctx| ctx.decls.clone());
+                let decls =
+                    self.module
+                        .context
+                        .get_nominal_type_ctx(&sup)
+                        .map_or(Dict::new(), |ctx| {
+                            super_impls.extend(ctx.locals.keys());
+                            for methods in &ctx.methods_list {
+                                super_impls.extend(methods.locals.keys());
+                            }
+                            ctx.decls.clone().retained(|k, _| {
+                                let implemented_in_super = super_impls.contains(k);
+                                let class_decl = ctx.kind.is_class();
+                                !implemented_in_super && !class_decl
+                            })
+                        });
                 (sup, decls)
             })
             .collect::<Vec<_>>()

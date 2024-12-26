@@ -218,6 +218,11 @@ impl<K, V> Dict<K, V> {
         self.dict.retain(f);
     }
 
+    pub fn retained(mut self, f: impl FnMut(&K, &mut V) -> bool) -> Self {
+        self.retain(f);
+        self
+    }
+
     pub fn get_by(&self, k: &K, cmp: impl Fn(&K, &K) -> bool) -> Option<&V> {
         for (k_, v) in self.dict.iter() {
             if cmp(k, k_) {

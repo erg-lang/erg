@@ -171,7 +171,7 @@ impl SharedPromises {
     }
 
     pub fn wait_until_finished(&self, path: &NormalizedPathBuf) {
-        if self.promises.borrow().get(path).is_none() {
+        if !self.graph.entries().contains(path) {
             panic!("not registered: {path}");
         }
         while !self.is_finished(path) {

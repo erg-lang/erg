@@ -46,6 +46,13 @@ use super::instantiate::TyVarCache;
 use super::instantiate_spec::ParamKind;
 use super::{ControlKind, MethodContext, ParamSpec, TraitImpl, TypeContext};
 
+type ClassTrait<'c> = (Type, Option<(Type, &'c TypeSpecWithOp)>);
+type ClassTraitErrors<'c> = (
+    Option<Type>,
+    Option<(Type, &'c TypeSpecWithOp)>,
+    TyCheckErrors,
+);
+
 pub fn valid_mod_name(name: &str) -> bool {
     !name.is_empty() && !name.starts_with('/') && name.trim() == name
 }
@@ -987,7 +994,7 @@ impl Context {
     pub(crate) fn get_class_and_impl_trait<'c>(
         &mut self,
         class_spec: &'c ast::TypeSpec,
-    ) -> TyCheckResult<(Type, Option<(Type, &'c TypeSpecWithOp)>)> {
+    ) -> Result<ClassTrait<'c>, ClassTraitErrors<'c>> {
         let mut errs = TyCheckErrors::empty();
         let mut dummy_tv_cache = TyVarCache::new(self.level, self);
         match class_spec {
@@ -1013,14 +1020,21 @@ impl Context {
                                 (t, &tasc.t_spec)
                             }
                             other => {
-                                return Err(TyCheckErrors::from(TyCheckError::syntax_error(
-                                    self.cfg.input.clone(),
-                                    line!() as usize,
-                                    other.loc(),
-                                    self.caused_by(),
-                                    format!("expected type ascription, but found {}", other.name()),
+                                return Err((
                                     None,
-                                )))
+                                    None,
+                                    TyCheckErrors::from(TyCheckError::syntax_error(
+                                        self.cfg.input.clone(),
+                                        line!() as usize,
+                                        other.loc(),
+                                        self.caused_by(),
+                                        format!(
+                                            "expected type ascription, but found {}",
+                                            other.name()
+                                        ),
+                                        None,
+                                    )),
+                                ))
                             }
                         };
                         let class = match self.instantiate_typespec_full(
@@ -1039,7 +1053,7 @@ impl Context {
                         if errs.is_empty() {
                             Ok((class, Some((impl_trait, t_spec))))
                         } else {
-                            Err(errs)
+                            Err((Some(class), Some((impl_trait, t_spec)), errs))
                         }
                     }
                     ast::TypeAppArgsKind::SubtypeOf(trait_spec) => {
@@ -1052,8 +1066,10 @@ impl Context {
                         ) {
                             Ok(t) => t,
                             Err((t, es)) => {
-                                errs.extend(es);
-                                t
+                                if !PYTHON_MODE {
+                                    errs.extend(es);
+                                }
+                                t.replace(&Type::Failure, &Type::Never)
                             }
                         };
                         let class = match self.instantiate_typespec_full(
@@ -1072,7 +1088,7 @@ impl Context {
                         if errs.is_empty() {
                             Ok((class, Some((impl_trait, trait_spec.as_ref()))))
                         } else {
-                            Err(errs)
+                            Err((Some(class), Some((impl_trait, trait_spec.as_ref())), errs))
                         }
                     }
                 }
@@ -1094,7 +1110,7 @@ impl Context {
                 if errs.is_empty() {
                     Ok((t, None))
                 } else {
-                    Err(errs)
+                    Err((Some(t), None, errs))
                 }
             }
         }
@@ -1243,10 +1259,14 @@ impl Context {
                         .instantiate_vis_modifier(class_def.def.sig.vis())
                         .unwrap_or(VisibilityModifier::Public);
                     for methods in class_def.methods_list.iter() {
-                        let Ok((class, impl_trait)) = self.get_class_and_impl_trait(&methods.class)
-                        else {
-                            continue;
-                        };
+                        let (class, impl_trait) =
+                            match self.get_class_and_impl_trait(&methods.class) {
+                                Ok(x) => x,
+                                Err((class, trait_, errs)) => {
+                                    total_errs.extend(errs);
+                                    (class.unwrap_or(Type::Obj), trait_)
+                                }
+                            };
                         // assume the class has implemented the trait, regardless of whether the implementation is correct
                         if let Some((trait_, trait_loc)) = &impl_trait {
                             if let Err(errs) = self.register_trait_impl(&class, trait_, *trait_loc)
