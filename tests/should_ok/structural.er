@@ -29,3 +29,9 @@ assert length({1, 2, 3}) == 3
 assert length((1, 2, 3)) == 3
 s as Str or Bytes = "a"
 assert length(s) == 1
+
+Imag = Trait {
+    .imag = Nat
+}
+imag x: Structural Imag = x.imag
+assert imag(1) == 0 # OK

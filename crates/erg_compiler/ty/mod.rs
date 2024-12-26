@@ -4322,6 +4322,15 @@ impl Type {
         }
     }
 
+    pub fn destructuralize(&self) -> Type {
+        if let Type::Structural(t) = self {
+            *t.clone()
+        } else {
+            self.clone()
+                .map(&mut |t| t.destructuralize(), &SharedFrees::new())
+        }
+    }
+
     /// ```erg
     /// (T or U).eliminate_subsup(T) == U
     /// ?X(<: T or U).eliminate_subsup(T) == ?X(<: U)

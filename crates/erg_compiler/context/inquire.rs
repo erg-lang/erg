@@ -944,9 +944,9 @@ impl Context {
         input: &Input,
         namespace: &Context,
     ) -> Triple<VarInfo, TyCheckError> {
-        let self_t = obj.t();
+        let self_t = obj.t().derefine().destructuralize();
         // NOTE: get_nominal_super_type_ctxs({Nat}) == [<Nat>, ...], so we need to derefine
-        if let Some(sups) = self.get_nominal_super_type_ctxs(&self_t.derefine()) {
+        if let Some(sups) = self.get_nominal_super_type_ctxs(&self_t) {
             for ctx in sups {
                 match ctx.rec_get_var_info(ident, AccessKind::BoundAttr, input, namespace) {
                     Triple::Ok(vi) => {
