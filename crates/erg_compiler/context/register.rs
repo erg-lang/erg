@@ -540,7 +540,8 @@ impl Context {
                         kind,
                         false,
                     ) {
-                        Ok(ty) => (ty, TyCheckErrors::empty()),
+                        Ok(ty @ Type::Ref(_)) => (ty, TyCheckErrors::empty()),
+                        Ok(ty) => (ty.into_ref(), TyCheckErrors::empty()),
                         Err((ty, errs)) => (ty, errs),
                     };
                     if &name.inspect()[..] == "self" {
@@ -592,7 +593,8 @@ impl Context {
                         kind,
                         false,
                     ) {
-                        Ok(ty) => (ty, TyCheckErrors::empty()),
+                        Ok(ty @ Type::RefMut { .. }) => (ty, TyCheckErrors::empty()),
+                        Ok(ty) => (ty.into_ref_mut(None), TyCheckErrors::empty()),
                         Err((ty, errs)) => (ty, errs),
                     };
                     if &name.inspect()[..] == "self" {

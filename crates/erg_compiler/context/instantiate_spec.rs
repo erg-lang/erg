@@ -466,7 +466,7 @@ impl Context {
             free_var(level, Constraint::new_type_of(Type))
         };
         let spec_t = if let Some(spec_with_op) = &sig.t_spec {
-            match self.instantiate_typespec_full(
+            let t = match self.instantiate_typespec_full(
                 &spec_with_op.t_spec,
                 opt_decl_t,
                 tmp_tv_cache,
@@ -481,6 +481,11 @@ impl Context {
                     }
                     t
                 }
+            };
+            match &sig.pat {
+                ast::ParamPattern::Ref(_) => ref_(t),
+                ast::ParamPattern::RefMut(_) => ref_mut(t, None),
+                _ => t,
             }
         } else {
             match &sig.pat {

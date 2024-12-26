@@ -17,3 +17,10 @@ assert ss == "abc"
 discard ss.remove! 0
 assert ss == "bc"
 assert ss.capitalize() == "Bc"
+
+write1!(ref! x: Nat!) =
+    x.update! _ -> 1
+
+n = !0
+write1! n
+assert n == 1

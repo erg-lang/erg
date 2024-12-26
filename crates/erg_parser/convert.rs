@@ -521,27 +521,63 @@ impl Parser {
             Expr::UnaryOp(unary) => match unary.op.kind {
                 TokenKind::RefOp => {
                     let var = unary.args.into_iter().next().unwrap();
-                    let Expr::Accessor(Accessor::Ident(var)) = *var else {
-                        let err = ParseError::simple_syntax_error(line!() as usize, var.loc());
-                        self.errs.push(err);
-                        debug_exit_info!(self);
-                        return Err(());
+                    let (var, t_spec) = match *var {
+                        Expr::Accessor(Accessor::Ident(var)) => (var, None),
+                        Expr::TypeAscription(tasc) => {
+                            let var = match *tasc.expr {
+                                Expr::Accessor(Accessor::Ident(var)) => var,
+                                _ => {
+                                    let err = ParseError::simple_syntax_error(
+                                        line!() as usize,
+                                        tasc.loc(),
+                                    );
+                                    self.errs.push(err);
+                                    debug_exit_info!(self);
+                                    return Err(());
+                                }
+                            };
+                            (var, Some(tasc.t_spec))
+                        }
+                        _ => {
+                            let err = ParseError::simple_syntax_error(line!() as usize, var.loc());
+                            self.errs.push(err);
+                            debug_exit_info!(self);
+                            return Err(());
+                        }
                     };
                     let pat = ParamPattern::Ref(var.name);
-                    let param = NonDefaultParamSignature::new(pat, None);
+                    let param = NonDefaultParamSignature::new(pat, t_spec);
                     debug_exit_info!(self);
                     Ok(param)
                 }
                 TokenKind::RefMutOp => {
                     let var = unary.args.into_iter().next().unwrap();
-                    let Expr::Accessor(Accessor::Ident(var)) = *var else {
-                        let err = ParseError::simple_syntax_error(line!() as usize, var.loc());
-                        self.errs.push(err);
-                        debug_exit_info!(self);
-                        return Err(());
+                    let (var, t_spec) = match *var {
+                        Expr::Accessor(Accessor::Ident(var)) => (var, None),
+                        Expr::TypeAscription(tasc) => {
+                            let var = match *tasc.expr {
+                                Expr::Accessor(Accessor::Ident(var)) => var,
+                                _ => {
+                                    let err = ParseError::simple_syntax_error(
+                                        line!() as usize,
+                                        tasc.loc(),
+                                    );
+                                    self.errs.push(err);
+                                    debug_exit_info!(self);
+                                    return Err(());
+                                }
+                            };
+                            (var, Some(tasc.t_spec))
+                        }
+                        _ => {
+                            let err = ParseError::simple_syntax_error(line!() as usize, var.loc());
+                            self.errs.push(err);
+                            debug_exit_info!(self);
+                            return Err(());
+                        }
                     };
                     let pat = ParamPattern::RefMut(var.name);
-                    let param = NonDefaultParamSignature::new(pat, None);
+                    let param = NonDefaultParamSignature::new(pat, t_spec);
                     debug_exit_info!(self);
                     Ok(param)
                 }
