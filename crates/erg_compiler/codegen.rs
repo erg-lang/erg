@@ -39,9 +39,9 @@ use crate::hir::DefaultParamSignature;
 use crate::hir::GlobSignature;
 use crate::hir::ListWithLength;
 use crate::hir::{
-    Accessor, Args, BinOp, Block, Call, ClassDef, Def, DefBody, Expr, GuardClause, Identifier,
-    Lambda, List, Literal, NonDefaultParamSignature, Params, PatchDef, PosArg, ReDef, Record,
-    Signature, SubrSignature, Tuple, UnaryOp, VarSignature, HIR,
+    Accessor, Args, BinOp, Block, Call, ClassDef, Def, DefBody, Dict, Expr, GuardClause,
+    Identifier, Lambda, List, Literal, NonDefaultParamSignature, Params, PatchDef, PosArg, ReDef,
+    Record, Set, Signature, SubrSignature, Tuple, UnaryOp, VarSignature, HIR,
 };
 use crate::ty::codeobj::{CodeObj, CodeObjFlags, MakeFunctionFlags};
 use crate::ty::value::{GenTypeObj, ValueObj};
@@ -862,6 +862,51 @@ impl PyCodeGenerator {
                 let none = Expr::Literal(Literal::new(ValueObj::None, Token::DUMMY));
                 let args = Args::single(PosArg::new(none));
                 self.emit_args_311(args, AccessKind::Name);
+                return;
+            }
+            "list_iterator" => {
+                let list = Expr::Literal(Literal::new(ValueObj::List(vec![].into()), Token::DUMMY));
+                let iter = Identifier::static_public("iter");
+                let iter_call = iter.call(Args::single(PosArg::new(list)));
+                let typ = Identifier::static_public("type");
+                let typ_call = typ.call(Args::single(PosArg::new(iter_call.into())));
+                self.emit_call(typ_call);
+                return;
+            }
+            "set_iterator" => {
+                let set = Expr::Set(Set::empty());
+                let iter = Identifier::static_public("iter");
+                let iter_call = iter.call(Args::single(PosArg::new(set)));
+                let typ = Identifier::static_public("type");
+                let typ_call = typ.call(Args::single(PosArg::new(iter_call.into())));
+                self.emit_call(typ_call);
+                return;
+            }
+            "dict_items" => {
+                let dict = Expr::Dict(Dict::empty());
+                let items = Identifier::static_public("iter");
+                let items_call = items.call(Args::single(PosArg::new(dict)));
+                let typ = Identifier::static_public("type");
+                let typ_call = typ.call(Args::single(PosArg::new(items_call.into())));
+                self.emit_call(typ_call);
+                return;
+            }
+            "dict_keys" => {
+                let dict = Expr::Dict(Dict::empty());
+                let keys = Identifier::static_public("keys");
+                let keys_call = dict.method_call(keys, Args::empty());
+                let typ = Identifier::static_public("type");
+                let typ_call = typ.call(Args::single(PosArg::new(keys_call.into())));
+                self.emit_call(typ_call);
+                return;
+            }
+            "dict_values" => {
+                let dict = Expr::Dict(Dict::empty());
+                let values = Identifier::static_public("values");
+                let values_call = dict.method_call(values, Args::empty());
+                let typ = Identifier::static_public("type");
+                let typ_call = typ.call(Args::single(PosArg::new(values_call.into())));
+                self.emit_call(typ_call);
                 return;
             }
             _ => {}
@@ -2753,6 +2798,46 @@ impl PyCodeGenerator {
                 self.load_builtins();
                 self.emit_load_name_instr(Identifier::private("#sum"));
                 self.emit_args_311(args, Name);
+            }
+            "ListIterator" => {
+                let list = Expr::Literal(Literal::new(ValueObj::List(vec![].into()), Token::DUMMY));
+                let iter = Identifier::static_public("iter");
+                let iter_call = iter.call(Args::single(PosArg::new(list)));
+                let typ = Identifier::static_public("type");
+                let typ_call = typ.call(Args::single(PosArg::new(iter_call.into())));
+                self.emit_call(typ_call);
+            }
+            "SetIterator" => {
+                let set = Expr::Set(Set::empty());
+                let iter = Identifier::static_public("iter");
+                let iter_call = iter.call(Args::single(PosArg::new(set)));
+                let typ = Identifier::static_public("type");
+                let typ_call = typ.call(Args::single(PosArg::new(iter_call.into())));
+                self.emit_call(typ_call);
+            }
+            "DictItems" => {
+                let dict = Expr::Dict(Dict::empty());
+                let iter = Identifier::static_public("iter");
+                let items_call = iter.call(Args::single(PosArg::new(dict)));
+                let typ = Identifier::static_public("type");
+                let typ_call = typ.call(Args::single(PosArg::new(items_call.into())));
+                self.emit_call(typ_call);
+            }
+            "DictKeys" => {
+                let dict = Expr::Dict(Dict::empty());
+                let keys = Identifier::static_public("keys");
+                let keys_call = dict.method_call(keys, Args::empty());
+                let typ = Identifier::static_public("type");
+                let typ_call = typ.call(Args::single(PosArg::new(keys_call.into())));
+                self.emit_call(typ_call);
+            }
+            "DictValues" => {
+                let dict = Expr::Dict(Dict::empty());
+                let values = Identifier::static_public("values");
+                let values_call = dict.method_call(values, Args::empty());
+                let typ = Identifier::static_public("type");
+                let typ_call = typ.call(Args::single(PosArg::new(values_call.into())));
+                self.emit_call(typ_call);
             }
             other if local.ref_t().is_poly_meta_type() && other != "classof" => {
                 if self.py_version.minor <= Some(9) {

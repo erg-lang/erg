@@ -24,3 +24,26 @@ s: Int = p * q
 assert s == 11
 assert r == Point.new 4, 6
 assert r.norm() == 52
+
+MyList = Class {
+    .list = List(Obj)
+}
+MyList|<: Iterable(Obj)|.
+    Iter = ListIterator(Obj)
+    iter self = self.list.iter()
+MyList|<: Sized|.
+    __len__ self = len self.list
+MyList|<: Container(Obj)|.
+    __contains__ self, x: Obj = x in self.list
+MyList|<: Sequence(Obj)|.
+    __getitem__ self, idx = self.list[idx]
+
+MyList2 = Class {
+    .list = List(Obj)
+}
+MyList2|<: Sequence(Obj)|.
+    Iter = ListIterator(Obj)
+    iter self = self.list.iter()
+    __contains__ self, x: Obj = x in self.list
+    __len__ self = len self.list
+    __getitem__ self, idx = self.list[idx]

@@ -31,7 +31,8 @@ impl Context {
         let mut named = Self::builtin_mono_trait(NAMED, 2);
         named.register_builtin_erg_decl(FUNC_NAME, Str, Visibility::BUILTIN_PUBLIC);
         let mut sized = Self::builtin_mono_trait(SIZED, 2);
-        let t = fn0_met(mono(SIZED), Nat).quantify();
+        let ret_t = if PYTHON_MODE { Int } else { Nat };
+        let t = fn0_met(mono(SIZED), ret_t).quantify();
         sized.register_builtin_erg_decl(FUNDAMENTAL_LEN, t, Visibility::BUILTIN_PUBLIC);
         let mut copy = Self::builtin_mono_trait(COPY, 2);
         let Slf = mono_q(SELF, subtypeof(mono(COPY)));
@@ -227,15 +228,24 @@ impl Context {
         /* Iterable */
         let mut iterable = Self::builtin_poly_trait(ITERABLE, vec![PS::t_nd(TY_T)], 2);
         iterable.register_superclass(poly(OUTPUT, vec![ty_tp(T.clone())]), &output);
-        let Slf = mono_q(SELF, subtypeof(poly(ITERABLE, vec![ty_tp(T.clone())])));
-        let t = fn0_met(Slf.clone(), proj(Slf, ITER)).quantify();
-        iterable.register_builtin_decl(
-            FUNC_ITER,
-            t,
-            Visibility::BUILTIN_PUBLIC,
-            Some(FUNDAMENTAL_ITER),
-        );
-        iterable.register_builtin_erg_decl(ITER, Type, Visibility::BUILTIN_PUBLIC);
+        if PYTHON_MODE {
+            let t = fn0_met(
+                poly(ITERABLE, vec![ty_tp(T.clone())]),
+                poly(ITERATOR, vec![ty_tp(T.clone())]),
+            )
+            .quantify();
+            iterable.register_builtin_erg_decl(FUNDAMENTAL_ITER, t, Visibility::BUILTIN_PUBLIC);
+        } else {
+            let Slf = mono_q(SELF, subtypeof(poly(ITERABLE, vec![ty_tp(T.clone())])));
+            let t = fn0_met(Slf.clone(), proj(Slf, ITER)).quantify();
+            iterable.register_builtin_decl(
+                FUNC_ITER,
+                t,
+                Visibility::BUILTIN_PUBLIC,
+                Some(FUNDAMENTAL_ITER),
+            );
+            iterable.register_builtin_erg_decl(ITER, Type, Visibility::BUILTIN_PUBLIC);
+        }
         let Slf = poly(ITERABLE, vec![ty_tp(T.clone())]);
         let U = type_q(TY_U);
         let t_map = fn1_met(
@@ -244,9 +254,10 @@ impl Context {
             poly(MAP, vec![ty_tp(U.clone())]),
         )
         .quantify();
-        iterable.register_builtin_decl(
+        iterable.register_builtin_py_impl(
             FUNC_MAP,
             t_map,
+            Mutability::Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some("Function::iterable_map"),
         );
@@ -268,9 +279,10 @@ impl Context {
             )
             .quantify();
         let t_filter = t_filter.with_default_intersec_index(1);
-        iterable.register_builtin_decl(
+        iterable.register_builtin_py_impl(
             FUNC_FILTER,
             t_filter,
+            Mutability::Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some("Function::iterable_filter"),
         );
@@ -279,9 +291,10 @@ impl Context {
             vec![TyParam::List(vec![ty_tp(Nat), ty_tp(T.clone())])],
         );
         let t_enumerate = fn0_met(Slf.clone(), poly(ITERATOR, vec![ty_tp(ret_t)])).quantify();
-        iterable.register_builtin_decl(
+        iterable.register_builtin_py_impl(
             FUNC_ENUMERATE,
             t_enumerate,
+            Mutability::Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some("Function::enumerate"),
         );
@@ -291,9 +304,10 @@ impl Context {
             poly(ZIP, vec![ty_tp(T.clone()), ty_tp(U.clone())]),
         )
         .quantify();
-        iterable.register_builtin_decl(
+        iterable.register_builtin_py_impl(
             FUNC_ZIP,
             t_zip,
+            Mutability::Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some("Function::zip"),
         );
@@ -304,59 +318,67 @@ impl Context {
             T.clone(),
         )
         .quantify();
-        iterable.register_builtin_decl(
+        iterable.register_builtin_py_impl(
             FUNC_REDUCE,
             t_reduce,
+            Mutability::Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some("Function::iterable_reduce"),
         );
         let t_nth = fn1_met(Slf.clone(), Nat, T.clone()).quantify();
-        iterable.register_builtin_decl(
+        iterable.register_builtin_py_impl(
             FUNC_NTH,
             t_nth,
+            Mutability::Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some("Function::iterable_nth"),
         );
         let t_skip = fn1_met(Slf.clone(), Nat, poly(ITERATOR, vec![ty_tp(T.clone())])).quantify();
-        iterable.register_builtin_decl(
+        iterable.register_builtin_py_impl(
             FUNC_SKIP,
             t_skip,
+            Mutability::Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some("Function::iterable_skip"),
         );
         let t_all = fn1_met(Slf.clone(), func1(T.clone(), Bool), Bool).quantify();
-        iterable.register_builtin_decl(
+        iterable.register_builtin_py_impl(
             FUNC_ALL,
             t_all,
+            Mutability::Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some("Function::iterable_all"),
         );
         let t_any = fn1_met(Slf.clone(), func1(T.clone(), Bool), Bool).quantify();
-        iterable.register_builtin_decl(
+        iterable.register_builtin_py_impl(
             FUNC_ANY,
             t_any,
+            Mutability::Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some("Function::iterable_any"),
         );
         let t_reversed = fn0_met(Slf.clone(), poly(ITERATOR, vec![ty_tp(T.clone())])).quantify();
-        iterable.register_builtin_decl(
+        iterable.register_builtin_py_impl(
             FUNC_REVERSED,
             t_reversed,
+            Mutability::Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some("Function::reversed"),
         );
         let t_position = fn1_met(Slf.clone(), func1(T.clone(), Bool), or(Nat, NoneType)).quantify();
-        iterable.register_builtin_decl(
+        iterable.register_builtin_py_impl(
             FUNC_POSITION,
             t_position,
+            Mutability::Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some("Function::iterable_position"),
         );
         let t_find =
             fn1_met(Slf.clone(), func1(T.clone(), Bool), or(T.clone(), NoneType)).quantify();
-        iterable.register_builtin_decl(
+        iterable.register_builtin_py_impl(
             FUNC_FIND,
             t_find,
+            Mutability::Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some("Function::iterable_find"),
         );
@@ -369,16 +391,18 @@ impl Context {
             poly(ITERATOR, vec![ty_tp(T.clone())]),
         )
         .quantify();
-        iterable.register_builtin_decl(
+        iterable.register_builtin_py_impl(
             FUNC_CHAIN,
             t_chain,
+            Mutability::Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some("Function::iterable_chain"),
         );
         let t_to_list = fn0_met(Slf.clone(), unknown_len_list_t(T.clone())).quantify();
-        iterable.register_builtin_decl(
+        iterable.register_builtin_py_impl(
             FUNC_TO_LIST,
             t_to_list,
+            Mutability::Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some("Function::list"),
         );
@@ -396,7 +420,7 @@ impl Context {
         );
         /* Container */
         let mut container = Self::builtin_poly_trait(CONTAINER, vec![PS::t_nd(TY_T)], 2);
-        let op_t = fn1_met(mono(CONTAINER), T.clone(), Bool).quantify();
+        let op_t = fn1_met(poly(CONTAINER, vec![ty_tp(T.clone())]), T.clone(), Bool).quantify();
         container.register_superclass(poly(OUTPUT, vec![ty_tp(T.clone())]), &output);
         container.register_builtin_erg_decl(FUNDAMENTAL_CONTAINS, op_t, Visibility::BUILTIN_PUBLIC);
         /* Collection */

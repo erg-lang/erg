@@ -2699,6 +2699,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             }
         };
         let mut hir_methods_list = vec![];
+        let mut implemented = set! {};
         for methods in class_def.methods_list.into_iter() {
             let mut hir_methods = hir::Block::empty();
             let (class, impl_trait) =
@@ -2832,7 +2833,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             } else {
                 self.check_override(&class, None);
             }
-            if let Err(err) = self.check_trait_impl(impl_trait.clone(), &class) {
+            if let Err(err) = self.check_trait_impl(impl_trait.clone(), &class, &mut implemented) {
                 errors.push(err);
             }
             let impl_trait = impl_trait.map(|(t, _)| t);
@@ -3152,6 +3153,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         &mut self, //: methods context
         impl_trait: Option<(Type, &TypeSpecWithOp)>,
         class: &Type,
+        implemented: &mut Set<Type>,
     ) -> SingleLowerResult<()> {
         if let Some((impl_trait, t_spec)) = impl_trait {
             if let Some(mut sups) = self.module.context.get_super_traits(&impl_trait) {
@@ -3177,7 +3179,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 .unwrap()
                 .get_nominal_type_ctx(&impl_trait)
             {
-                self.check_methods_compatibility(&impl_trait, class, typ_ctx, t_spec)
+                self.check_methods_compatibility(&impl_trait, class, typ_ctx, t_spec, implemented)
             } else {
                 return Err(LowerError::no_type_error(
                     self.cfg.input.clone(),
@@ -3190,17 +3192,19 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                         .get_similar_name(&impl_trait.local_name()),
                 ));
             };
-            for unverified in unverified_names {
-                errors.push(LowerError::not_in_trait_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    self.module.context.caused_by(),
-                    unverified.inspect(),
-                    &impl_trait,
-                    class,
-                    None,
-                    unverified.loc(),
-                ));
+            if !PYTHON_MODE {
+                for unverified in unverified_names {
+                    errors.push(LowerError::not_in_trait_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        self.module.context.caused_by(),
+                        unverified.inspect(),
+                        &impl_trait,
+                        class,
+                        None,
+                        unverified.loc(),
+                    ));
+                }
             }
             self.errs.extend(errors);
         }
@@ -3216,48 +3220,68 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             ctx: trait_ctx,
         }: &TypeContext,
         t_spec: &TypeSpecWithOp,
+        implemented: &mut Set<Type>,
     ) -> (Set<&VarName>, CompileErrors) {
         let mut errors = CompileErrors::empty();
         let mut unverified_names = self.module.context.locals.keys().collect::<Set<_>>();
-        for (decl_name, decl_vi) in trait_ctx.decls.iter() {
-            if let Some((name, vi)) = self.module.context.get_var_kv(decl_name.inspect()) {
-                let def_t = &vi.t;
-                let replaced_decl_t = decl_vi
-                    .t
-                    .clone()
-                    .replace(trait_type, impl_trait)
-                    .replace(impl_trait, class);
-                unverified_names.remove(name);
-                if !self.module.context.supertype_of(&replaced_decl_t, def_t) {
-                    let hint = self
-                        .module
-                        .context
-                        .get_simple_type_mismatch_hint(&replaced_decl_t, def_t);
-                    errors.push(LowerError::trait_member_type_error(
+        let tys_decls = if let Some(sups) = self.module.context.get_super_types(trait_type) {
+            sups.map(|sup| {
+                if implemented.linear_contains(&sup) {
+                    return (sup, Dict::new());
+                }
+                let decls = self
+                    .module
+                    .context
+                    .get_nominal_type_ctx(&sup)
+                    .map_or(Dict::new(), |ctx| ctx.decls.clone());
+                (sup, decls)
+            })
+            .collect::<Vec<_>>()
+        } else {
+            vec![(impl_trait.clone(), trait_ctx.decls.clone())]
+        };
+        for (impl_trait, decls) in tys_decls {
+            for (decl_name, decl_vi) in decls {
+                if let Some((name, vi)) = self.module.context.get_var_kv(decl_name.inspect()) {
+                    let def_t = &vi.t;
+                    let replaced_decl_t = decl_vi
+                        .t
+                        .clone()
+                        .replace(trait_type, &impl_trait)
+                        .replace(&impl_trait, class);
+                    unverified_names.remove(name);
+                    if !self.module.context.supertype_of(&replaced_decl_t, def_t) {
+                        let hint = self
+                            .module
+                            .context
+                            .get_simple_type_mismatch_hint(&replaced_decl_t, def_t);
+                        errors.push(LowerError::trait_member_type_error(
+                            self.cfg.input.clone(),
+                            line!() as usize,
+                            name.loc(),
+                            self.module.context.caused_by(),
+                            name.inspect(),
+                            &impl_trait,
+                            &decl_vi.t,
+                            &vi.t,
+                            hint,
+                        ));
+                    }
+                } else {
+                    errors.push(LowerError::trait_member_not_defined_error(
                         self.cfg.input.clone(),
                         line!() as usize,
-                        name.loc(),
                         self.module.context.caused_by(),
-                        name.inspect(),
-                        impl_trait,
-                        &decl_vi.t,
-                        &vi.t,
-                        hint,
+                        decl_name.inspect(),
+                        &impl_trait,
+                        class,
+                        None,
+                        t_spec.loc(),
                     ));
                 }
-            } else {
-                errors.push(LowerError::trait_member_not_defined_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    self.module.context.caused_by(),
-                    decl_name.inspect(),
-                    impl_trait,
-                    class,
-                    None,
-                    t_spec.loc(),
-                ));
             }
         }
+        implemented.insert(trait_type.clone());
         (unverified_names, errors)
     }
 

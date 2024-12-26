@@ -554,6 +554,10 @@ impl Identifier {
         Call::new(Expr::Accessor(Accessor::Ident(self)), None, args)
     }
 
+    pub fn method_call(self, attr_name: Identifier, args: Args) -> Call {
+        Call::new(Expr::Accessor(Accessor::Ident(self)), Some(attr_name), args)
+    }
+
     pub fn is_py_api(&self) -> bool {
         self.vi.py_name.is_some()
     }
@@ -1095,6 +1099,14 @@ impl_display_for_enum!(Dict; Normal, Comprehension);
 impl_locational_for_enum!(Dict; Normal, Comprehension);
 impl_t_for_enum!(Dict; Normal, Comprehension);
 
+impl Dict {
+    pub fn empty() -> Self {
+        let l_brace = Token::from_str(TokenKind::LBrace, "{");
+        let r_brace = Token::from_str(TokenKind::RBrace, "}");
+        Self::Normal(NormalDict::new(l_brace, r_brace, HashMap::new(), vec![]))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NormalSet {
     pub l_brace: Token,
@@ -1193,6 +1205,19 @@ impl_no_type_display_for_enum!(Set; Normal, WithLength);
 impl_display_for_enum!(Set; Normal, WithLength);
 impl_locational_for_enum!(Set; Normal, WithLength);
 impl_t_for_enum!(Set; Normal, WithLength);
+
+impl Set {
+    pub fn empty() -> Self {
+        let l_brace = Token::from_str(TokenKind::LBrace, "{");
+        let r_brace = Token::from_str(TokenKind::RBrace, "}");
+        Self::Normal(NormalSet::new(
+            l_brace,
+            r_brace,
+            Type::Uninited,
+            Args::empty(),
+        ))
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RecordAttrs(Vec<Def>);
@@ -3121,6 +3146,14 @@ impl Expr {
             vec![PosArg::new(expr1), PosArg::new(expr2)],
             None,
         ))
+    }
+
+    pub fn method_call(self, attr_name: Identifier, args: Args) -> Call {
+        Call::new(self, Some(attr_name), args)
+    }
+
+    pub fn method_call_expr(self, attr_name: Identifier, args: Args) -> Self {
+        Self::Call(self.method_call(attr_name, args))
     }
 
     pub fn attr(self, ident: Identifier) -> Accessor {
