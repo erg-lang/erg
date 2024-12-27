@@ -2317,6 +2317,14 @@ impl Context {
         dict_
             .register_trait(self, poly(OUTPUT, vec![D.clone()]))
             .unwrap();
+        let fromkeys_t = no_var_fn_met(
+            poly(ITERABLE, vec![ty_tp(T.clone())]),
+            vec![],
+            vec![kw_default(KW_VALUE, U.clone(), NoneType)],
+            dict! { T.clone() => U.clone() }.into(),
+        )
+        .quantify();
+        dict_.register_py_builtin(FUNC_FROMKEYS, fromkeys_t, Some(FUNC_FROMKEYS), 8);
         let mut dict_mutizable = Self::builtin_methods(Some(mono(MUTIZABLE)), 2);
         dict_mutizable.register_builtin_const(
             MUTABLE_MUT_TYPE,
@@ -3921,15 +3929,30 @@ impl Context {
         )
         .quantify();
         dict_mut.register_py_builtin(PROC_INSERT, insert_t, Some(FUNDAMENTAL_SETITEM), 12);
-        let remove_t = pr_met(
+        let pop_t = pr_met(
             ref_mut(dict_mut_kv_t.clone(), None),
             vec![kw(KW_KEY, K.clone())],
             None,
-            vec![],
-            V.clone() | NoneType,
+            vec![kw(KW_DEFAULT, V.clone())],
+            V.clone(),
         )
         .quantify();
-        dict_mut.register_py_builtin(PROC_REMOVE, remove_t, Some(FUNC_REMOVE), 19);
+        dict_mut.register_py_builtin(PROC_POP, pop_t, Some(FUNC_POP), 19);
+        let popitem_t = pr0_met(
+            ref_mut(dict_mut_kv_t.clone(), None),
+            tuple_t(vec![K.clone(), V.clone()]),
+        )
+        .quantify();
+        dict_mut.register_py_builtin(PROC_POPITEM, popitem_t, Some(FUNC_POPITEM), 57);
+        let setdefault_t = pr_met(
+            ref_mut(dict_mut_kv_t.clone(), None),
+            vec![kw(KW_KEY, K.clone())],
+            None,
+            vec![kw(KW_DEFAULT, V.clone())],
+            V.clone(),
+        )
+        .quantify();
+        dict_mut.register_py_builtin(PROC_SETDEFAULT, setdefault_t, Some(FUNC_SETDEFAULT), 69);
         let update_t = pr_met(
             ref_mut(dict_mut_kv_t.clone(), None),
             vec![kw(

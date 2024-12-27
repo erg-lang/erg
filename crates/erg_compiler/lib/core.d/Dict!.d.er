@@ -12,11 +12,11 @@ dict = pyimport "Dict"
     insert!: |K, V|(self: RefMut(.Dict!(K, V)), key: K, value: V) => NoneType
     '''erg
     dic = !{"a": 1}
-    x = dic.remove!("a")
+    x = dic.pop!("a")
     assert dic == {}
     assert x == 1
     '''
-    remove!: |K, V|(self: RefMut(.Dict!(K, V)), key: K) => V or NoneType
+    pop!: |K, V|(self: RefMut(.Dict!(K, V)), key: K, default := V) => V or NoneType
     '''
     Update the dictionary with the key-value pairs in `other`.
     If `conflict_resolver` is specified, it will be called with the two values and store as a value when there is a conflict.
@@ -44,3 +44,26 @@ dict = pyimport "Dict"
     assert dic == {"a": 1, "b": 5}
     '''
     merge!: |K, V|(self: RefMut(.Dict!(K, V)), other: .Dict!(K, V), confilct_resolver := (V, V) -> V) => NoneType
+    '''
+    Remove and return a (key, value) pair as a 2-tuple.
+
+    Pairs are returned in LIFO (last-in, first-out) order.
+    Raises KeyError if the dict is empty.
+    '''
+    '''erg
+    dic = !{"a": 1}
+    assert dic.popitem!() == ("a", 1)
+    '''
+    popitem!: |K, V|(self: RefMut(.Dict!(K, V))) => (K, V)
+    '''
+    Insert key with a value of default if key is not in the dictionary.
+
+    Return the value for key if key is in the dictionary, else default.
+    '''
+    '''erg
+    dic = !{"a": 1}
+    assert dic.setdefault!("b", 2) == 2
+    assert dic.setdefault!("a", 3) == 1
+    assert dic == {"a": 1, "b": 2}
+    '''
+    setdefault!: |K, V|(self: RefMut(.Dict!(K, V)), key: K, default: V) => V

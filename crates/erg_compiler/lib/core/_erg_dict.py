@@ -34,12 +34,6 @@ class Dict(dict):
     def insert(self, key, value):
         self[key] = value
 
-    def remove(self, key):
-        res = self.get(key)
-        if res is not None:
-            del self[key]
-        return res
-
     def as_record(self):
         from collections import namedtuple
 

@@ -6,7 +6,7 @@ assert dic.get("a") == 1
 assert dic.get("b") == 2
 
 dic.merge!({ "a": 1 })
-x = dic.remove!("a")
+x = dic.pop!("a")
 assert x == 1
 
 dics as Dict!({Str: [Int; _]}) = !{:}

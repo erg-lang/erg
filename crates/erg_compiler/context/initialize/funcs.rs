@@ -344,8 +344,15 @@ impl Context {
             proj(M, OUTPUT),
         )
         .quantify();
-        let t_pyimport = nd_func(
+        let t_pyimport = func(
             vec![anon(tp_enum(Str, set! {Path.clone()}))],
+            None,
+            vec![
+                kw(KW_GLOBALS, dict! { Str => Obj }.into()),
+                kw(KW_LOCALS, dict! { Str => Obj }.into()),
+                kw(KW_FROMLIST, unknown_len_list_t(Str)),
+                kw(KW_LEVEL, Int),
+            ],
             None,
             py_module(TyParam::app(FUNC_RESOLVE_DECL_PATH.into(), vec![Path])),
         )
