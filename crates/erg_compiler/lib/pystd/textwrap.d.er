@@ -1,0 +1,64 @@
+.TextWrapper: ClassType
+.TextWrapper.
+    width: Nat
+    expand_tabs: Bool
+    tabsize: Nat
+    replace_whitespace: Bool
+    drop_whitespace: Bool
+    initial_indent: Str
+    subsequent_indent: Str
+    fix_sentence_endings: Bool
+    break_long_words: Bool
+    break_on_hyphens: Bool
+    max_lines: Nat
+    placeholder: Str
+    __call__: (
+        width := Nat,
+        initial_indent := Str,
+        subsequent_indent := Str,
+        expand_tabs := Bool,
+        replace_whitespace := Bool,
+        fix_sentence_endings := Bool,
+        break_long_words := Bool,
+        drop_whitespace := Bool,
+        break_on_hyphens := Bool,
+        tabsize := Nat,
+        max_lines := Nat,
+        placeholder := Str,
+    ) -> TextWrapper
+    .wrap: (self: TextWrapper, text: Str) -> [Str; _]
+    .fill: (self: TextWrapper, text: Str) -> Str
+
+.wrap: (
+    text: Str,
+    width := Nat,
+    initial_indent := Str,
+    subsequent_indent := Str,
+    expand_tabs := Bool,
+    replace_whitespace := Bool,
+    fix_sentence_endings := Bool,
+    break_long_words := Bool,
+    drop_whitespace := Bool,
+    break_on_hyphens := Bool,
+    tabsize := Nat,
+    max_lines := Nat,
+    placeholder := Str,
+) -> [Str; _]
+.fill: (
+    text: Str,
+    width := Nat,
+    initial_indent := Str,
+    subsequent_indent := Str,
+    expand_tabs := Bool,
+    replace_whitespace := Bool,
+    fix_sentence_endings := Bool,
+    break_long_words := Bool,
+    drop_whitespace := Bool,
+    break_on_hyphens := Bool,
+    tabsize := Nat,
+    max_lines := Nat,
+    placeholder := Str,
+) -> Str
+.indent: (text: Str, prefix: Str, predicate := (line: Str) -> Bool) -> Str
+.dedent: (text: Str) -> Str
+.shorten: (text: Str, width: Int) -> Str
