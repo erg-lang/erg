@@ -8,21 +8,21 @@
 .TypeAlias: ClassType
 .Tuple: ClassType
 .Tuple.
-    __getitem__: (HomogenousTuple Type) -> Type
+    __getitem__: (Type or HomogenousTuple Type) -> Type
 .Union: ClassType
 .Union.
-    __getitem__: (HomogenousTuple Type) -> Type
+    __getitem__: (Type or HomogenousTuple Type) -> Type
 .Optional: ClassType
 .Optional.
-    __getitem__: (HomogenousTuple Type) -> Type
+    __getitem__: (Type or HomogenousTuple Type) -> Type
 .Callable: ClassType
 .Callable.
-    __getitem__: (HomogenousTuple Type) -> Type
+    __getitem__: (Type or HomogenousTuple Type) -> Type
 .Concatenate: (*Type) -> Type
 .Type: (Type) -> Type
 .Literal: ClassType
 .Literal.
-    __getitem__: (HomogenousTuple Obj) -> Type
+    __getitem__: (Obj or HomogenousTuple Obj) -> Type
 .ClassVar: (Type) -> Type
 .Final: (Type) -> Type
 .Required: (Type) -> Type
@@ -45,7 +45,7 @@
         *constraints: Type,
         bound := Type,
         covariant := Bool,
-        cotravariant := Bool,
+        contravariant := Bool,
         infer_variance := Bool,
     ) -> Type
 .TypeVarTuple: ClassType
