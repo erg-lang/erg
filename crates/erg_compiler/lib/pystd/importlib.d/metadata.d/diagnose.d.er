@@ -1,0 +1,2 @@
+.inspect!: (path: Str) => NoneType
+.run!: () => NoneType

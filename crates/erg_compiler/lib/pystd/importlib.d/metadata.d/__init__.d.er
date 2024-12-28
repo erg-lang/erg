@@ -1,0 +1,35 @@
+re = pyimport "re"
+{PurePath;} = pyimport "pathlib"
+
+.PackageNotFoundError: ClassType
+.PackageNotFoundError <: ModuleNotFoundError
+
+.Distribution: ClassType
+.DistributionFinder: ClassType
+.EntryPoint: ClassType
+.EntryPoint.
+    pattern: re.Pattern
+    name: Str
+    value: Str
+    group: Str
+    dist: Distribution or NoneType
+.EntryPoints: ClassType
+.FastPath: ClassType
+.Lookup: ClassType
+.Prepared: ClassType
+.PathDistribution: ClassType
+.PathDistribution <: Distribution
+.PackageMetadata: ClassType
+.PackageMetadata <: {Str: Str}
+.PackagePath: ClassType
+.PackagePath <: PurePath
+.Sectioned: ClassType
+
+.entry_points!: (**params: Obj) -> EntryPoints
+.metadata!: (distribution_name: Str) => PackageMetadata
+.version!: (distribution_name: Str) => Str
+.files!: (distribution_name: Str) => [Str; _]
+.requires!: (distribution_name: Str) => [Str; _]
+.packages_distributions!: () => {Str: [Str; _]}
+.distribution!: (distribution_name: Str) => Distribution
+.distributions!: (**kwargs: Obj) -> Iterable Distribution

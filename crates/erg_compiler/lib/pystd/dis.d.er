@@ -1,9 +1,50 @@
-.dis!: (x: Code or ClassType or TraitType or GenericCallable or Str or Bytes or NoneType := NoneType) => NoneType
+.opname: [Str; _]
+.opmap: {Str: Nat}
+.cmp_op: [Str; _]
+.hasarg: [Nat; _]
+.hasconst: [Nat; _]
+.hasfree: [Nat; _]
+.hasname: [Nat; _]
+.hasjump: [Nat; _]
+.haslocal: [Nat; _]
+.hascompare: [Nat; _]
+.hasexec: [Nat; _]
+
+.dis!: (
+    x: Code or ClassType or TraitType or GenericCallable or Str or Bytes or NoneType := NoneType,
+) => NoneType
 .code_info: (x: Code or ClassType or TraitType or GenericCallable or Str or Bytes) -> Str
 .show_code!: (x: Code or ClassType or TraitType or GenericCallable or Str or Bytes) => NoneType
+.disco!: (code: Code) => NoneType
 
-.ByteCode: ClassType
-.ByteCode.__call__: (x: GenericCallable or ClassType or TraitType or Str or Code) => .ByteCode
+.Bytecode: ClassType
+.Bytecode <: Iterable Instruction
+.Bytecode.
+    __call__: (
+        x: GenericCallable or ClassType or TraitType or Str or Code
+    ) => Bytecode
 
 .Instruction: ClassType
+.Instruction.
+    opcode: Nat
+    opname: Str
+    baseopcode: Nat
+    arg: Nat or NoneType
+    oparg: Nat or NoneType
+    argval: Str or NoneType
+    argrepr: Str or NoneType
+    offset: Nat
+    start_offset: Nat
+    cache_offset: Nat
+    end_offset: Nat
+    starts_line: Bool
+    line_number: Nat or NoneType
+    is_jump_target: Bool
+    jump_target: Nat or NoneType
+    positions: Positions or NoneType
 .Positions: ClassType
+.Positions.
+    lineno: Nat
+    end_lineno: Nat
+    col_offset: Nat
+    end_col_offset: Nat

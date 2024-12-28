@@ -44,6 +44,7 @@
     st_file_attributes: Nat
     st_reparse_tag: Nat
 
+.curdir: Str
 # TODO: _Environ
 .environ: {Str: Str}
 .environb: {Bytes: Bytes}
