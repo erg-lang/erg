@@ -371,7 +371,7 @@ impl<'a> StyledStr<'a> {
     }
 
     pub fn destyle(styled: &str) -> &str {
-        Attribute::deattr(Color::decolor(styled))
+        Attribute::deattr(Color::decolor(styled)).trim_end_matches(RESET)
     }
 }
 
