@@ -439,8 +439,19 @@ impl Context {
             SELF,
             subtypeof(poly(INDEXABLE, vec![ty_tp(K.clone()), ty_tp(V.clone())])),
         );
-        let t = fn1_met(Slf, K.clone(), V.clone()).quantify();
+        let t = fn1_met(Slf.clone(), K.clone(), V.clone()).quantify();
         indexable.register_builtin_erg_decl(FUNDAMENTAL_GETITEM, t, Visibility::BUILTIN_PUBLIC);
+        let De = type_q(TY_D);
+        let t = fn_met(
+            Slf,
+            vec![kw(KW_KEY, K.clone())],
+            None,
+            vec![kw_default(KW_DEFAULT, De.clone(), NoneType)],
+            None,
+            V.clone() | De,
+        )
+        .quantify();
+        indexable.register_builtin_erg_impl(FUNC_GET, t, Immutable, Visibility::BUILTIN_PUBLIC);
         /* Sequence */
         let mut sequence = Self::builtin_poly_trait(SEQUENCE, vec![PS::t_nd(TY_T)], 2);
         sequence.register_superclass(mono(SIZED), &sized);
