@@ -1,0 +1,36 @@
+.ConfigParser!: ClassType
+.ConfigParser! <: Indexable Str, Obj
+.ConfigParser!.
+    __call__: (
+        defaults := {Str: Obj},
+        dict_type := Type,
+        allow_no_value := Bool,
+        delimiters := [Str; _],
+        comment_prefixes := [Str; _],
+        inline_comment_prefixes := [Str; _],
+        strict := Bool,
+        empty_lines_in_values := Bool,
+        default_section := Str,
+        interpolation := Obj,
+        converters := {Str: Obj},
+        allow_unnamed_section := Bool,
+    ) -> ConfigParser!
+    defaults: (self: Ref ConfigParser!) -> {Str: Obj}
+    sections: (self: Ref(ConfigParser!), raw := Bool) -> [Str; _]
+    add_section!: (self: RefMut(ConfigParser!), section: Str) => NoneType
+    has_section: (self: Ref(ConfigParser!), section: Str) -> Bool
+    options: (self: Ref(ConfigParser!), section: Str, raw := Bool, vars := {Str: Str}) -> [Str; _]
+    has_option: (self: Ref(ConfigParser!), section: Str, option: Str) -> Bool
+    read!: (self: RefMut(ConfigParser!), filenames: [Str; _], encoding := Str) => [Str; _]
+    read_file!: (self: RefMut(ConfigParser!), f := FileLike or Iterable(Str)) => [Str; _]
+    read_string: (self: Ref(ConfigParser!), string: Str, source := Str) -> [Str; _]
+    read_dict: (self: Ref(ConfigParser!), dictionary: {Str: {Str: Str}}, source := Str) -> [Str; _]
+    get: (self: Ref(ConfigParser!), section: Str, option: Str, raw := Bool, vars := {Str: Str}) -> Str
+    getint: (self: Ref(ConfigParser!), section: Str, option: Str, raw := Bool, vars := {Str: Str}) -> Int
+    getfloat: (self: Ref(ConfigParser!), section: Str, option: Str, raw := Bool, vars := {Str: Str}) -> Float
+    getboolean: (self: Ref(ConfigParser!), section: Str, option: Str, raw := Bool, vars := {Str: Str}) -> Bool
+    items: (self: Ref(ConfigParser!), section: Str, raw := Bool, vars := {Str: Str}) -> [(Str, Str); _]
+    set!: (self: RefMut(ConfigParser!), section: Str, option: Str, value: Str) => NoneType
+    write!: (self: Ref(ConfigParser!), fp: FileLike, space_around_delimiters := Bool) => NoneType
+    remove_option!: (self: RefMut(ConfigParser!), section: Str, option: Str) => Bool
+    remove_section!: (self: RefMut(ConfigParser!), section: Str) => Bool
