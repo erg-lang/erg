@@ -393,6 +393,7 @@ impl Context {
         pat: &ast::ParamPattern,
         name: &VarName,
         spec_t: &Type,
+        sig_t: Option<&SubrType>,
         errs: &mut TyCheckErrors,
     ) {
         if let Some(self_t) = self.rec_get_self_t() {
@@ -405,6 +406,14 @@ impl Context {
             if let Err(es) = self.sub_unify(spec_t, &self_t, name, Some(name.inspect())) {
                 errs.extend(es);
             }
+            if let Some(sig_t) = sig_t {
+                if sig_t.return_t.has_no_unbound_var() && !sig_t.return_t.contains_type(spec_t) {
+                    // spec_t == self_t
+                    if let Err(es) = self.sub_unify(&self_t, spec_t, name, Some(name.inspect())) {
+                        errs.extend(es);
+                    }
+                }
+            }
         } else {
             log!(err "self_t is None");
         }
@@ -416,6 +425,7 @@ impl Context {
         &mut self,
         sig: &mut hir::NonDefaultParamSignature,
         opt_decl_t: Option<&ParamTy>,
+        sig_t: Option<&SubrType>,
         tmp_tv_cache: &mut TyVarCache,
         kind: ParamKind,
     ) -> TyCheckResult<()> {
@@ -493,7 +503,7 @@ impl Context {
                         _ => spec_t,
                     };
                     if &name.inspect()[..] == "self" {
-                        self.type_self_param(&sig.raw.pat, name, &spec_t, &mut errs);
+                        self.type_self_param(&sig.raw.pat, name, &spec_t, sig_t, &mut errs);
                     }
                     let def_id = DefId(get_hash(&(&self.name, name)));
                     let kind = VarKind::parameter(def_id, is_var_params, default);
@@ -545,7 +555,7 @@ impl Context {
                         Err((ty, errs)) => (ty, errs),
                     };
                     if &name.inspect()[..] == "self" {
-                        self.type_self_param(&sig.raw.pat, name, &spec_t, &mut errs);
+                        self.type_self_param(&sig.raw.pat, name, &spec_t, sig_t, &mut errs);
                     }
                     let kind = VarKind::parameter(
                         DefId(get_hash(&(&self.name, name))),
@@ -598,7 +608,7 @@ impl Context {
                         Err((ty, errs)) => (ty, errs),
                     };
                     if &name.inspect()[..] == "self" {
-                        self.type_self_param(&sig.raw.pat, name, &spec_t, &mut errs);
+                        self.type_self_param(&sig.raw.pat, name, &spec_t, sig_t, &mut errs);
                     }
                     let kind = VarKind::parameter(
                         DefId(get_hash(&(&self.name, name))),
@@ -662,23 +672,35 @@ impl Context {
                 .iter_mut()
                 .zip(subr_t.non_default_params.iter())
             {
-                if let Err(es) =
-                    self.assign_param(non_default, Some(pt), tmp_tv_cache, ParamKind::NonDefault)
-                {
+                if let Err(es) = self.assign_param(
+                    non_default,
+                    Some(pt),
+                    Some(&subr_t),
+                    tmp_tv_cache,
+                    ParamKind::NonDefault,
+                ) {
                     errs.extend(es);
                 }
             }
             if let Some(var_params) = &mut params.var_params {
                 if let Some(pt) = &subr_t.var_params {
                     let pt = pt.clone().map_type(&mut unknown_len_list_t);
-                    if let Err(es) =
-                        self.assign_param(var_params, Some(&pt), tmp_tv_cache, ParamKind::VarParams)
-                    {
+                    if let Err(es) = self.assign_param(
+                        var_params,
+                        Some(&pt),
+                        Some(&subr_t),
+                        tmp_tv_cache,
+                        ParamKind::VarParams,
+                    ) {
                         errs.extend(es);
                     }
-                } else if let Err(es) =
-                    self.assign_param(var_params, None, tmp_tv_cache, ParamKind::VarParams)
-                {
+                } else if let Err(es) = self.assign_param(
+                    var_params,
+                    None,
+                    Some(&subr_t),
+                    tmp_tv_cache,
+                    ParamKind::VarParams,
+                ) {
                     errs.extend(es);
                 }
             }
@@ -686,6 +708,7 @@ impl Context {
                 if let Err(es) = self.assign_param(
                     &mut default.sig,
                     Some(pt),
+                    Some(&subr_t),
                     tmp_tv_cache,
                     ParamKind::Default(default.default_val.t()),
                 ) {
@@ -698,28 +721,33 @@ impl Context {
                     if let Err(es) = self.assign_param(
                         kw_var_params,
                         Some(&pt),
+                        Some(&subr_t),
                         tmp_tv_cache,
                         ParamKind::KwVarParams,
                     ) {
                         errs.extend(es);
                     }
-                } else if let Err(es) =
-                    self.assign_param(kw_var_params, None, tmp_tv_cache, ParamKind::KwVarParams)
-                {
+                } else if let Err(es) = self.assign_param(
+                    kw_var_params,
+                    None,
+                    Some(&subr_t),
+                    tmp_tv_cache,
+                    ParamKind::KwVarParams,
+                ) {
                     errs.extend(es);
                 }
             }
         } else {
             for non_default in params.non_defaults.iter_mut() {
                 if let Err(es) =
-                    self.assign_param(non_default, None, tmp_tv_cache, ParamKind::NonDefault)
+                    self.assign_param(non_default, None, None, tmp_tv_cache, ParamKind::NonDefault)
                 {
                     errs.extend(es);
                 }
             }
             if let Some(var_params) = &mut params.var_params {
                 if let Err(es) =
-                    self.assign_param(var_params, None, tmp_tv_cache, ParamKind::VarParams)
+                    self.assign_param(var_params, None, None, tmp_tv_cache, ParamKind::VarParams)
                 {
                     errs.extend(es);
                 }
@@ -728,6 +756,7 @@ impl Context {
                 if let Err(es) = self.assign_param(
                     &mut default.sig,
                     None,
+                    None,
                     tmp_tv_cache,
                     ParamKind::Default(default.default_val.t()),
                 ) {
@@ -735,9 +764,13 @@ impl Context {
                 }
             }
             if let Some(kw_var_params) = &mut params.kw_var_params {
-                if let Err(es) =
-                    self.assign_param(kw_var_params, None, tmp_tv_cache, ParamKind::KwVarParams)
-                {
+                if let Err(es) = self.assign_param(
+                    kw_var_params,
+                    None,
+                    None,
+                    tmp_tv_cache,
+                    ParamKind::KwVarParams,
+                ) {
                     errs.extend(es);
                 }
             }
