@@ -3953,17 +3953,20 @@ impl Context {
         )
         .quantify();
         dict_mut.register_py_builtin(PROC_SETDEFAULT, setdefault_t, Some(FUNC_SETDEFAULT), 69);
-        let update_t = pr_met(
+        let update_t = kw_var_pr_met(
             ref_mut(dict_mut_kv_t.clone(), None),
-            vec![kw(
-                KW_ITERABLE,
-                poly(ITERABLE, vec![ty_tp(tuple_t(vec![K.clone(), V.clone()]))]),
-            )],
+            vec![],
             None,
-            vec![kw(
-                KW_CONFLICT_RESOLVER,
-                func2(V.clone(), V.clone(), V.clone()),
-            )],
+            vec![
+                kw(
+                    KW_ITERABLE,
+                    // TODO: Iterable((K, V)) | {K: V}(<: Iterable(K))
+                    poly(ITERABLE, vec![ty_tp(tuple_t(vec![K.clone(), V.clone()]))])
+                        | mono(GENERIC_DICT),
+                ),
+                kw(KW_CONFLICT_RESOLVER, func2(V.clone(), V.clone(), V.clone())),
+            ],
+            Some(pos(Obj)),
             NoneType,
         )
         .quantify();

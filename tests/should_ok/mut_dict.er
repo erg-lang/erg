@@ -20,3 +20,9 @@ Manager.
     show_tasks! self, id: Int =
         for! self.tasks, task =>
             print! task[id]
+
+sd as Dict! {Str: Int} = !{"a": 1}
+sd.update!([("b", 2)])
+sd.update! {"c": 3}
+sd.update! d := 1
+assert sd == {"a": 1, "b": 2, "c": 3, "d": 1}

@@ -547,6 +547,7 @@ impl Context {
                         return self.supertype_of(&evaled, rhs);
                     }
                 }
+                // REVIEW: is this OK?
                 if lhs.has_unbound_var() {
                     return true;
                 }

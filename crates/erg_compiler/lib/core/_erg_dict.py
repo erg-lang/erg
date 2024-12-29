@@ -15,9 +15,9 @@ class Dict(dict):
         return Dict({k: v for k, v in self.items() if k not in other})
 
     # other: Iterable
-    def update(self, other, conflict_resolver=None):
+    def update(self, other={}, conflict_resolver=None, **kwargs):
         if conflict_resolver is None:
-            super().update(other)
+            super().update(other, **kwargs)
         elif isinstance(other, dict):
             self.merge(other, conflict_resolver)
         else:
@@ -26,10 +26,15 @@ class Dict(dict):
                     self[k] = conflict_resolver(self[k], v)
                 else:
                     self[k] = v
+            self.merge(kwargs, conflict_resolver)
 
     # other: Dict
     def merge(self, other, conflict_resolver=None):
-        self.update(other, conflict_resolver)
+        for k, v in other.items():
+            if k in self and conflict_resolver is not None:
+                self[k] = conflict_resolver(self[k], v)
+            else:
+                self[k] = v
 
     def insert(self, key, value):
         self[key] = value

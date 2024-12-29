@@ -201,6 +201,8 @@ impl OwnershipChecker {
                         .find(|(k, _)| k.as_ref() == Some(kw_arg.keyword.inspect()))
                     {
                         self.check_expr(&kw_arg.expr, *ownership, false);
+                    } else if let Some((_, ownership)) = args_owns.kw_var_params.as_ref() {
+                        self.check_expr(&kw_arg.expr, *ownership, false);
                     } else {
                         todo!()
                     }

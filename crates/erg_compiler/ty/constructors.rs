@@ -498,20 +498,19 @@ pub fn fn2_met(self_t: Type, l: Type, r: Type, return_t: Type) -> Type {
 
 pub fn pr_met(
     self_t: Type,
-    mut non_default_params: Vec<ParamTy>,
+    non_default_params: Vec<ParamTy>,
     var_params: Option<ParamTy>,
     default_params: Vec<ParamTy>,
     return_t: Type,
 ) -> Type {
-    non_default_params.insert(0, ParamTy::kw(Str::ever("self"), self_t));
-    Type::Subr(SubrType::new(
-        SubrKind::Proc,
+    kw_var_pr_met(
+        self_t,
         non_default_params,
         var_params,
         default_params,
         None,
         return_t,
-    ))
+    )
 }
 
 pub fn pr0_met(self_t: Type, return_t: Type) -> Type {
@@ -524,6 +523,25 @@ pub fn pr1_met(self_t: Type, input_t: Type, return_t: Type) -> Type {
 
 pub fn pr1_kw_met(self_t: Type, input: ParamTy, return_t: Type) -> Type {
     pr_met(self_t, vec![input], None, vec![], return_t)
+}
+
+pub fn kw_var_pr_met(
+    self_t: Type,
+    mut non_default_params: Vec<ParamTy>,
+    var_params: Option<ParamTy>,
+    default_params: Vec<ParamTy>,
+    kw_var_params: Option<ParamTy>,
+    return_t: Type,
+) -> Type {
+    non_default_params.insert(0, ParamTy::kw(Str::ever("self"), self_t));
+    Type::Subr(SubrType::new(
+        SubrKind::Proc,
+        non_default_params,
+        var_params,
+        default_params,
+        kw_var_params,
+        return_t,
+    ))
 }
 
 /// function type with non-default parameters
