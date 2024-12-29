@@ -2255,6 +2255,10 @@ impl Context {
         let unifier = Unifier::new(self, loc, None, false, param_name.cloned());
         unifier.sub_unify(maybe_sub, maybe_super).or_else(|err| {
             log!(err "{err}");
+            // don't coerce to Never
+            if maybe_sub.get_sub().is_some_and(|sub| sub == Never) {
+                return Err(err);
+            }
             maybe_sub.coerce(unifier.undoable);
             // maybe_sup.coerce(unifier.undoable);
             let new_sub = self
