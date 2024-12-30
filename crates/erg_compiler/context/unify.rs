@@ -1818,14 +1818,14 @@ impl<L: Locational> Unifier<'_, '_, '_, L> {
                 }
                 self.sub_unify(maybe_sub, tys.iter().next().unwrap())?;
             }
-            (Ref(sub), Ref(sup)) => {
-                self.sub_unify(sub, sup)?;
+            (Ref(sub), Ref(supe)) => {
+                self.sub_unify(sub, supe)?;
             }
-            (_, Ref(t)) => {
-                self.sub_unify(maybe_sub, t)?;
+            (_, Ref(supe)) => {
+                self.sub_unify(maybe_sub, supe)?;
             }
-            (RefMut { before: l, .. }, RefMut { before: r, .. }) => {
-                self.sub_unify(l, r)?;
+            (RefMut { before: sub, .. }, RefMut { before: supe, .. }) => {
+                self.sub_unify(sub, supe)?;
             }
             (_, RefMut { before, .. }) => {
                 self.sub_unify(maybe_sub, before)?;
@@ -1837,6 +1837,17 @@ impl<L: Locational> Unifier<'_, '_, '_, L> {
                 {
                     if maybe_super != &evaled {
                         self.sub_unify(maybe_sub, &evaled)?;
+                    } else {
+                        let mut compatible = vec![];
+                        for (imp, cand) in self.ctx.get_proj_impl_candidates(lhs, rhs) {
+                            if self.ctx.subtype_of(&maybe_sub.derefine(), &cand) {
+                                compatible.push((imp, cand));
+                            }
+                        }
+                        if let Some((imp, _)) = self.ctx.min_by_type(compatible) {
+                            self.sub_unify(&imp.sub_type, lhs)?;
+                            self.sub_unify(lhs, &imp.sub_type)?;
+                        }
                     }
                 }
             }
@@ -1847,6 +1858,18 @@ impl<L: Locational> Unifier<'_, '_, '_, L> {
                 {
                     if maybe_sub != &evaled {
                         self.sub_unify(&evaled, maybe_super)?;
+                    } else if self.ctx.is_class(maybe_super)
+                        && lhs.get_super().is_some_and(|sup| sup.is_monomorphized())
+                    {
+                        let mut compatible = vec![];
+                        for (imp, cand) in self.ctx.get_proj_impl_candidates(lhs, rhs) {
+                            if self.ctx.subtype_of(&cand, maybe_super) {
+                                compatible.push((imp, cand));
+                            }
+                        }
+                        if let Some((imp, _)) = self.ctx.max_by_type(compatible) {
+                            self.sub_unify(lhs, &imp.sub_type)?;
+                        }
                     }
                 }
             }

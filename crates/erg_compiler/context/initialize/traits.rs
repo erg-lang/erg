@@ -43,7 +43,12 @@ impl Context {
         let immut_t = proj(Slf.clone(), IMMUT_TYPE);
         let f_t = no_var_func(vec![kw(KW_OLD, immut_t.clone())], vec![], immut_t);
         let t = pr1_met(ref_mut(Slf, None), f_t, NoneType).quantify();
-        mutable.register_builtin_erg_decl(PROC_UPDATE, t, Visibility::BUILTIN_PUBLIC);
+        mutable.register_builtin_decl(
+            PROC_UPDATE,
+            t,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_UPDATE),
+        );
         // REVIEW: Immutatable?
         let mut immutizable = Self::builtin_mono_trait(IMMUTIZABLE, 2);
         immutizable.register_superclass(mono(MUTABLE), &mutable);

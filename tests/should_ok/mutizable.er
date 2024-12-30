@@ -1,0 +1,13 @@
+set1! x =
+    x.update!(_ -> 1)
+
+x = !0
+set1! x
+assert x == 1
+
+set_plus1! x =
+    x.update!((_: Nat) -> x + 1)
+
+y = !0
+set_plus1! y
+assert y == 1

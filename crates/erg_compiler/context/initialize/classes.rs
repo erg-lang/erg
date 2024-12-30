@@ -3297,8 +3297,8 @@ impl Context {
         memoryview.register_superclass(Obj, &obj);
         let mut obj_mut = Self::builtin_mono_class(MUTABLE_OBJ, 2);
         obj_mut.register_superclass(Obj, &obj);
-        let mut obj_mut_mutable = Self::builtin_methods(Some(mono(MUTABLE)), 2);
-        obj_mut_mutable.register_builtin_const(
+        let mut obj_mut_immutizable = Self::builtin_methods(Some(mono(IMMUTIZABLE)), 2);
+        obj_mut_immutizable.register_builtin_const(
             IMMUT_TYPE,
             Visibility::BUILTIN_PUBLIC,
             None,
@@ -3312,18 +3312,18 @@ impl Context {
             vec![],
             NoneType,
         );
-        obj_mut_mutable.register_builtin_erg_impl(
+        obj_mut_immutizable.register_builtin_erg_impl(
             PROC_UPDATE,
             t,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
-        obj_mut.register_trait_methods(mono(MUTABLE_OBJ), obj_mut_mutable);
+        obj_mut.register_trait_methods(mono(MUTABLE_OBJ), obj_mut_immutizable);
         /* Float! */
         let mut float_mut = Self::builtin_mono_class(MUT_FLOAT, 2);
         float_mut.register_superclass(Float, &float);
-        let mut float_mut_mutable = Self::builtin_methods(Some(mono(MUTABLE)), 2);
-        float_mut_mutable.register_builtin_const(
+        let mut float_mut_immutizable = Self::builtin_methods(Some(mono(IMMUTIZABLE)), 2);
+        float_mut_immutizable.register_builtin_const(
             IMMUT_TYPE,
             Visibility::BUILTIN_PUBLIC,
             None,
@@ -3337,7 +3337,7 @@ impl Context {
             vec![],
             NoneType,
         );
-        float_mut_mutable.register_builtin_py_impl(
+        float_mut_immutizable.register_builtin_py_impl(
             PROC_UPDATE,
             t,
             Immutable,
@@ -3351,7 +3351,7 @@ impl Context {
             vec![],
             NoneType,
         );
-        float_mut_mutable.register_builtin_py_impl(
+        float_mut_immutizable.register_builtin_py_impl(
             PROC_INC,
             t,
             Immutable,
@@ -3365,14 +3365,14 @@ impl Context {
             vec![],
             NoneType,
         );
-        float_mut_mutable.register_builtin_py_impl(
+        float_mut_immutizable.register_builtin_py_impl(
             PROC_DEC,
             t,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_DEC),
         );
-        float_mut.register_trait_methods(mono(MUT_FLOAT), float_mut_mutable);
+        float_mut.register_trait_methods(mono(MUT_FLOAT), float_mut_immutizable);
         let mut float_mut_copy = Self::builtin_methods(Some(mono(COPY)), 1);
         float_mut_copy.register_builtin_erg_impl(
             FUNC_COPY,
@@ -3384,8 +3384,8 @@ impl Context {
         /* Ratio! */
         let mut ratio_mut = Self::builtin_mono_class(MUT_RATIO, 2);
         ratio_mut.register_superclass(Ratio, &ratio);
-        let mut ratio_mut_mutable = Self::builtin_methods(Some(mono(MUTABLE)), 2);
-        ratio_mut_mutable.register_builtin_const(
+        let mut ratio_mut_immutizable = Self::builtin_methods(Some(mono(IMMUTIZABLE)), 2);
+        ratio_mut_immutizable.register_builtin_const(
             IMMUT_TYPE,
             Visibility::BUILTIN_PUBLIC,
             None,
@@ -3399,14 +3399,14 @@ impl Context {
             vec![],
             NoneType,
         );
-        ratio_mut_mutable.register_builtin_py_impl(
+        ratio_mut_immutizable.register_builtin_py_impl(
             PROC_UPDATE,
             t,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_UPDATE),
         );
-        ratio_mut.register_trait_methods(mono(MUT_RATIO), ratio_mut_mutable);
+        ratio_mut.register_trait_methods(mono(MUT_RATIO), ratio_mut_immutizable);
         let mut ratio_mut_copy = Self::builtin_methods(Some(mono(COPY)), 1);
         ratio_mut_copy.register_builtin_erg_impl(
             FUNC_COPY,
@@ -3434,8 +3434,8 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_DEC),
         );
-        let mut int_mut_mutable = Self::builtin_methods(Some(mono(MUTABLE)), 2);
-        int_mut_mutable.register_builtin_const(
+        let mut int_mut_immutizable = Self::builtin_methods(Some(mono(IMMUTIZABLE)), 2);
+        int_mut_immutizable.register_builtin_const(
             IMMUT_TYPE,
             Visibility::BUILTIN_PUBLIC,
             None,
@@ -3449,14 +3449,14 @@ impl Context {
             vec![],
             NoneType,
         );
-        int_mut_mutable.register_builtin_py_impl(
+        int_mut_immutizable.register_builtin_py_impl(
             PROC_UPDATE,
             t,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_UPDATE),
         );
-        int_mut.register_trait_methods(mono(MUT_INT), int_mut_mutable);
+        int_mut.register_trait_methods(mono(MUT_INT), int_mut_immutizable);
         let mut int_mut_copy = Self::builtin_methods(Some(mono(COPY)), 1);
         int_mut_copy.register_builtin_erg_impl(
             FUNC_COPY,
@@ -3469,8 +3469,8 @@ impl Context {
         nat_mut.register_superclass(Nat, &nat);
         nat_mut.register_superclass(mono(MUT_INT), &int_mut);
         /* Nat! */
-        let mut nat_mut_mutable = Self::builtin_methods(Some(mono(MUTABLE)), 2);
-        nat_mut_mutable.register_builtin_const(
+        let mut nat_mut_immutizable = Self::builtin_methods(Some(mono(IMMUTIZABLE)), 2);
+        nat_mut_immutizable.register_builtin_const(
             IMMUT_TYPE,
             Visibility::BUILTIN_PUBLIC,
             None,
@@ -3484,14 +3484,14 @@ impl Context {
             vec![],
             NoneType,
         );
-        nat_mut_mutable.register_builtin_py_impl(
+        nat_mut_immutizable.register_builtin_py_impl(
             PROC_UPDATE,
             t,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_UPDATE),
         );
-        nat_mut.register_trait_methods(mono(MUT_NAT), nat_mut_mutable);
+        nat_mut.register_trait_methods(mono(MUT_NAT), nat_mut_immutizable);
         let mut nat_mut_copy = Self::builtin_methods(Some(mono(COPY)), 1);
         nat_mut_copy.register_builtin_erg_impl(
             FUNC_COPY,
@@ -3504,8 +3504,8 @@ impl Context {
         let mut bool_mut = Self::builtin_mono_class(MUT_BOOL, 2);
         bool_mut.register_superclass(Bool, &bool_);
         bool_mut.register_superclass(mono(MUT_NAT), &nat_mut);
-        let mut bool_mut_mutable = Self::builtin_methods(Some(mono(MUTABLE)), 2);
-        bool_mut_mutable.register_builtin_const(
+        let mut bool_mut_immutizable = Self::builtin_methods(Some(mono(IMMUTIZABLE)), 2);
+        bool_mut_immutizable.register_builtin_const(
             IMMUT_TYPE,
             Visibility::BUILTIN_PUBLIC,
             None,
@@ -3519,14 +3519,14 @@ impl Context {
             vec![],
             NoneType,
         );
-        bool_mut_mutable.register_builtin_py_impl(
+        bool_mut_immutizable.register_builtin_py_impl(
             PROC_UPDATE,
             t,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_UPDATE),
         );
-        bool_mut.register_trait_methods(mono(MUT_BOOL), bool_mut_mutable);
+        bool_mut.register_trait_methods(mono(MUT_BOOL), bool_mut_immutizable);
         let mut bool_mut_copy = Self::builtin_methods(Some(mono(COPY)), 1);
         bool_mut_copy.register_builtin_erg_impl(
             FUNC_COPY,
@@ -3546,8 +3546,8 @@ impl Context {
         /* Str! */
         let mut str_mut = Self::builtin_mono_class(MUT_STR, 2);
         str_mut.register_superclass(Str, &str_);
-        let mut str_mut_mutable = Self::builtin_methods(Some(mono(MUTABLE)), 2);
-        str_mut_mutable.register_builtin_const(
+        let mut str_mut_immutizable = Self::builtin_methods(Some(mono(IMMUTIZABLE)), 2);
+        str_mut_immutizable.register_builtin_const(
             IMMUT_TYPE,
             Visibility::BUILTIN_PUBLIC,
             None,
@@ -3561,14 +3561,14 @@ impl Context {
             vec![],
             NoneType,
         );
-        str_mut_mutable.register_builtin_py_impl(
+        str_mut_immutizable.register_builtin_py_impl(
             PROC_UPDATE,
             t,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_UPDATE),
         );
-        str_mut.register_trait_methods(mono(MUT_STR), str_mut_mutable);
+        str_mut.register_trait_methods(mono(MUT_STR), str_mut_immutizable);
         let mut str_mut_copy = Self::builtin_methods(Some(mono(COPY)), 1);
         str_mut_copy.register_builtin_erg_impl(
             FUNC_COPY,
@@ -3785,15 +3785,21 @@ impl Context {
             NoneType,
         )
         .quantify();
-        let mut list_mut_mutable = Self::builtin_methods(Some(mono(MUTABLE)), 2);
-        list_mut_mutable.register_builtin_py_impl(
+        let mut list_mut_immutizable = Self::builtin_methods(Some(mono(IMMUTIZABLE)), 2);
+        list_mut_immutizable.register_builtin_const(
+            IMMUT_TYPE,
+            Visibility::BUILTIN_PUBLIC,
+            None,
+            ValueObj::builtin_class(lis_t.clone()),
+        );
+        list_mut_immutizable.register_builtin_py_impl(
             PROC_UPDATE,
             t,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
             Some(FUNC_UPDATE),
         );
-        list_mut_.register_trait_methods(list_mut_t.clone(), list_mut_mutable);
+        list_mut_.register_trait_methods(list_mut_t.clone(), list_mut_immutizable);
         self.register_builtin_type(lis_t, list_, vis.clone(), Const, Some(LIST));
         self.register_builtin_type(list_mut_t, list_mut_, vis.clone(), Const, Some(LIST));
         /* ByteArray! */
@@ -4038,14 +4044,20 @@ impl Context {
             NoneType,
         )
         .quantify();
-        let mut set_mut_mutable = Self::builtin_methods(Some(mono(MUTABLE)), 2);
-        set_mut_mutable.register_builtin_erg_impl(
+        let mut set_mut_immutizable = Self::builtin_methods(Some(mono(IMMUTIZABLE)), 2);
+        set_mut_immutizable.register_builtin_const(
+            IMMUT_TYPE,
+            Visibility::BUILTIN_PUBLIC,
+            None,
+            ValueObj::builtin_class(set_t.clone()),
+        );
+        set_mut_immutizable.register_builtin_erg_impl(
             PROC_UPDATE,
             t,
             Immutable,
             Visibility::BUILTIN_PUBLIC,
         );
-        set_mut_.register_trait_methods(set_mut_t.clone(), set_mut_mutable);
+        set_mut_.register_trait_methods(set_mut_t.clone(), set_mut_immutizable);
         /* Range */
         let range_t = poly(RANGE, vec![TyParam::t(T.clone())]);
         let mut range = Self::builtin_poly_class(RANGE, vec![PS::t_nd(TY_T)], 2);

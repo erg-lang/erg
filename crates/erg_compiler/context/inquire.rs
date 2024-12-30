@@ -3224,6 +3224,42 @@ impl Context {
         opt_max
     }
 
+    pub fn min_by_type<T>(&self, types: Vec<(T, Type)>) -> Option<(T, Type)> {
+        let mut opt_min = None;
+        for (x, t) in types {
+            if let Some((_, min)) = opt_min.as_ref() {
+                if self.subtype_of(min, &t) {
+                    continue;
+                } else if self.subtype_of(&t, min) {
+                    opt_min = Some((x, t));
+                } else {
+                    return None;
+                }
+            } else {
+                opt_min = Some((x, t));
+            }
+        }
+        opt_min
+    }
+
+    pub fn max_by_type<T>(&self, types: Vec<(T, Type)>) -> Option<(T, Type)> {
+        let mut opt_max = None;
+        for (x, t) in types {
+            if let Some((_, max)) = opt_max.as_ref() {
+                if self.supertype_of(max, &t) {
+                    continue;
+                } else if self.supertype_of(&t, max) {
+                    opt_max = Some((x, t));
+                } else {
+                    return None;
+                }
+            } else {
+                opt_max = Some((x, t));
+            }
+        }
+        opt_max
+    }
+
     /// ```erg
     /// get_nominal_super_type_ctxs(Nat) == [<Nat>, <Int>, <Float>, ..., <Obj>, <Eq>, ...]
     /// # FIXME: ↓ should be [<Type>, <Obj>, <Eq>, ...]
@@ -4241,6 +4277,38 @@ impl Context {
             if self.supertype_of(&imp.sup_trait, trait_) {
                 self.eval_t_params(proj(imp.sub_type, rhs), self.level, &())
                     .ok()
+            } else {
+                None
+            }
+        });
+        candidates.collect()
+    }
+
+    pub(crate) fn get_proj_impl_candidates(&self, lhs: &Type, rhs: &Str) -> Set<(TraitImpl, Type)> {
+        match lhs {
+            Type::FreeVar(fv) => {
+                if let Some(sup) = fv.get_super() {
+                    if self.is_trait(&sup) {
+                        self.get_trait_proj_impl_candidates(&sup, rhs)
+                    } else {
+                        set! {}
+                    }
+                } else {
+                    set! {}
+                }
+            }
+            _ => set! {},
+        }
+    }
+
+    fn get_trait_proj_impl_candidates(&self, trait_: &Type, rhs: &Str) -> Set<(TraitImpl, Type)> {
+        let impls = self.get_trait_impls(trait_);
+        let candidates = impls.into_iter().filter_map(move |imp| {
+            if self.supertype_of(&imp.sup_trait, trait_) {
+                let evaled = self
+                    .eval_t_params(proj(imp.sub_type.clone(), rhs), self.level, &())
+                    .ok()?;
+                Some((imp, evaled))
             } else {
                 None
             }

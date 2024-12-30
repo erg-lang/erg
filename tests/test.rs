@@ -308,6 +308,11 @@ fn exec_mut() -> Result<(), ()> {
 }
 
 #[test]
+fn exec_mutizable() -> Result<(), ()> {
+    expect_success("tests/should_ok/mutizable.er", 0)
+}
+
+#[test]
 fn exec_mut_list() -> Result<(), ()> {
     expect_success("tests/should_ok/mut_list.er", 0)
 }
