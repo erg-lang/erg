@@ -1054,8 +1054,7 @@ impl<L: Locational> Unifier<'_, '_, '_, L> {
         log!(info "trying {}sub_unify:\nmaybe_sub: {maybe_sub}\nmaybe_super: {maybe_super}", self.undoable.map_or("", |_| "undoable_"));
         set_recursion_limit!(
             panic,
-            "recursion limit exceed: sub_unify({maybe_sub}, {maybe_super})",
-            128
+            "recursion limit exceed: sub_unify({maybe_sub}, {maybe_super})"
         );
         // In this case, there is no new information to be gained
         if maybe_sub == &Type::Never

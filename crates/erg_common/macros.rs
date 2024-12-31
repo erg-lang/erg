@@ -627,6 +627,9 @@ impl RecursionCounter {
 
 #[macro_export]
 macro_rules! set_recursion_limit {
+    (panic, $msg:expr) => {
+        set_recursion_limit!(panic, $msg, 256);
+    };
     (panic, $msg:expr, $limit:expr) => {
         use std::sync::atomic::AtomicU32;
 

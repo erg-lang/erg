@@ -361,8 +361,7 @@ impl Context {
     pub(crate) fn structural_supertype_of(&self, lhs: &Type, rhs: &Type) -> bool {
         set_recursion_limit!(
             panic,
-            "recursion limit exceed: structural_supertype_of({lhs}, {rhs})",
-            128
+            "recursion limit exceed: structural_supertype_of({lhs}, {rhs})"
         );
         match (lhs, rhs) {
             // Proc :> Func if params are compatible
