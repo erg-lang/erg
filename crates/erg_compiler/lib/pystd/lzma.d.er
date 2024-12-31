@@ -1,0 +1,107 @@
+.CHECK_CRC32: Nat
+.CHECK_CRC64: Nat
+.CHECK_ID_MAX: Nat
+.CHECK_NONE: Nat
+.CHECK_SHA256: Nat
+.CHECK_UNKNOWN: Nat
+.FILTER_LZMA1: Nat
+.FILTER_LZMA2: Nat
+.FILTER_DELTA: Nat
+.FILTER_X86: Nat
+.FILTER_IA64: Nat
+.FILTER_ARM: Nat
+.FILTER_ARMTHUMB: Nat
+.FILTER_POWERPC: Nat
+.FILTER_SPARC: Nat
+.FORMAT_ALONE: Nat
+.FORMAT_AUTO: Nat
+.FORMAT_RAW: Nat
+.FORMAT_XZ: Nat
+.MF_BT2: Nat
+.MF_BT3: Nat
+.MF_BT4: Nat
+.MF_HC3: Nat
+.MF_HC4: Nat
+.MODE_FAST: Nat
+.MODE_NORMAL: Nat
+.PRESET_DEFAULT: Nat
+.PRESET_EXTREME: Nat
+
+.LZMAError: ClassType
+.LZMAError <: Exception
+
+.LZMAFile!: ClassType
+.LZMAFile! <: FileLike!
+.LZMAFile!.
+    mode: Str
+    name: Str
+    __call__: (
+        path: PathLike or FileLike!,
+        mode := Str,
+        format := Int,
+        check := Int,
+        preset := Int,
+        filters := [Int; _],
+    ) => LZMAFile!
+    read!: (self: RefMut(LZMAFile!), size := Int) => Bytes
+    write!: (self: RefMut(LZMAFile!), data: Bytes) => NoneType
+    close!: (self: LZMAFile!) => NoneType
+    peek: (self: Ref(LZMAFile!), size := Int) -> Bytes
+
+.LZMACompressor: ClassType
+.LZMACompressor.
+    check: Int
+    eof: Bool
+    unused_data: Bytes
+    need_input: Bool
+    __call__: (
+        format := Int,
+        check := Int,
+        preset := Int,
+        filters := [Int; _],
+    ) => LZMACompressor
+    decompress: (
+        self: Ref(LZMACompressor),
+        max_length := Int,
+    ) -> Bytes
+
+.LZMADecompressor: ClassType
+.LZMADecompressor.
+    eof: Bool
+    unused_data: Bytes
+    need_input: Bool
+    __call__: (
+        format := Int,
+        memlimit := Nat,
+        filters := [Int; _],
+    ) => LZMADecompressor
+    decompress: (
+        self: Ref(LZMADecompressor),
+        max_length := Int,
+    ) -> Bytes
+
+.open!: (
+    path: PathLike or FileLike!,
+    mode := Str,
+    format := Int,
+    check := Int,
+    preset := Int,
+    filters := [Int; _],
+    encoding := Str,
+    errors := Str,
+    newline := Str,
+) => .LZMAFile!
+.compress: (
+    data: Bytes,
+    format := Int,
+    check := Int,
+    preset := Int,
+    filters := [Int; _],
+) -> Bytes
+.decompress: (
+    data: Bytes,
+    format := Int,
+    memlimit := Nat,
+    filters := [Int; _],
+) -> Bytes
+.is_check_supported!: (check: Int) => Bool
