@@ -424,7 +424,7 @@ impl Location {
         }
     }
 
-    pub fn stream<L: Locational>(ls: &[L]) -> Self {
+    pub fn slow_stream<L: Locational>(ls: &[L]) -> Self {
         if ls.is_empty() {
             return Self::Unknown;
         }
@@ -434,6 +434,15 @@ impl Location {
         let Some(last_known) = ls.iter().rfind(|l| !l.loc().is_unknown()) else {
             return Self::Unknown;
         };
+        Self::concat(first_known, last_known)
+    }
+
+    pub fn stream<L: Locational>(ls: &[L]) -> Self {
+        if ls.is_empty() {
+            return Self::Unknown;
+        }
+        let first_known = ls.first().unwrap();
+        let last_known = ls.last().unwrap();
         Self::concat(first_known, last_known)
     }
 
