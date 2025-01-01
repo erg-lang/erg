@@ -2134,6 +2134,7 @@ impl Context {
         let there_var = var_args.is_some() || kw_var_args.is_some();
         if (params_len < pos_args.len()
             || params_len < pos_args.len() + kw_args.len()
+            // if there are extra *args or **kwargs
             || (params_len == pos_args.len() + kw_args.len() && there_var))
             && subr.is_no_var()
         {

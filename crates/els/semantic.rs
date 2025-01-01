@@ -187,7 +187,7 @@ impl ASTSemanticState {
         if let Some(t_spec) = def.sig.t_spec() {
             tokens.extend(self.gen_from_typespec(t_spec.clone()));
         }*/
-        let params = def.sig.params();
+        let params = def.sig.into_params();
         tokens.extend(self.gen_from_block(params, def.body.block));
         tokens
     }

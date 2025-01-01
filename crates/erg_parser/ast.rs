@@ -6246,10 +6246,17 @@ impl Signature {
         }
     }
 
-    pub fn params(self) -> Option<Params> {
+    pub fn into_params(self) -> Option<Params> {
         match self {
             Self::Var(_) => None,
             Self::Subr(subr) => Some(subr.params),
+        }
+    }
+
+    pub fn params(&self) -> Option<&Params> {
+        match self {
+            Self::Var(_) => None,
+            Self::Subr(subr) => Some(&subr.params),
         }
     }
 
@@ -6952,6 +6959,25 @@ impl Expr {
             vec![PosArg::new(expr1), PosArg::new(expr2)],
             None,
         ))
+    }
+
+    pub fn method_call(self, ident: Identifier, args: Args) -> Call {
+        Call::new(self, Some(ident), args)
+    }
+
+    pub fn method_call_expr(self, ident: Identifier, args: Args) -> Self {
+        Self::Call(self.method_call(ident, args))
+    }
+
+    pub fn method_call1(self, ident: Identifier, expr: Expr) -> Self {
+        self.method_call_expr(ident, Args::pos_only(vec![PosArg::new(expr)], None))
+    }
+
+    pub fn method_call2(self, ident: Identifier, expr1: Expr, expr2: Expr) -> Self {
+        self.method_call_expr(
+            ident,
+            Args::pos_only(vec![PosArg::new(expr1), PosArg::new(expr2)], None),
+        )
     }
 
     pub fn type_asc(self, t_spec: TypeSpecWithOp) -> TypeAscription {
