@@ -2171,6 +2171,77 @@ impl Context {
         )
         .quantify();
         set_.register_builtin_erg_impl(FUNC_CONCAT, t, Immutable, Visibility::BUILTIN_PUBLIC);
+        let difference_t = no_var_fn_met(
+            set_t.clone(),
+            vec![kw(KW_RHS, set_t.clone())],
+            vec![],
+            out_set.clone(),
+        )
+        .quantify();
+        set_.register_builtin_erg_impl(
+            FUNC_DIFFERENCE,
+            difference_t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        let intersection_t = no_var_fn_met(
+            set_t.clone(),
+            vec![kw(KW_RHS, set_t.clone())],
+            vec![],
+            out_set.clone(),
+        )
+        .quantify();
+        set_.register_builtin_erg_impl(
+            FUNC_INTERSECTION,
+            intersection_t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        let isdisjoint_t =
+            no_var_fn_met(set_t.clone(), vec![kw(KW_RHS, set_t.clone())], vec![], Bool).quantify();
+        set_.register_builtin_erg_impl(
+            FUNC_ISDISJOINT,
+            isdisjoint_t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        let issubset_t =
+            no_var_fn_met(set_t.clone(), vec![kw(KW_RHS, set_t.clone())], vec![], Bool).quantify();
+        set_.register_builtin_erg_impl(
+            FUNC_ISSUBSET,
+            issubset_t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        let issuperset_t =
+            no_var_fn_met(set_t.clone(), vec![kw(KW_RHS, set_t.clone())], vec![], Bool).quantify();
+        set_.register_builtin_erg_impl(
+            FUNC_ISSUPERSET,
+            issuperset_t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        let symmetric_difference_t = no_var_fn_met(
+            set_t.clone(),
+            vec![kw(KW_RHS, set_t.clone())],
+            vec![],
+            out_set.clone(),
+        )
+        .quantify();
+        set_.register_builtin_erg_impl(
+            FUNC_SYMMETRIC_DIFFERENCE,
+            symmetric_difference_t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        let union_t = no_var_fn_met(
+            set_t.clone(),
+            vec![kw(KW_RHS, set_t.clone())],
+            vec![],
+            out_set.clone(),
+        )
+        .quantify();
+        set_.register_builtin_erg_impl(FUNC_UNION, union_t, Immutable, Visibility::BUILTIN_PUBLIC);
         let mut_type = ValueObj::builtin_class(poly(MUT_SET, vec![TyParam::t(T.clone())]));
         let mut set_mutizable = Self::builtin_methods(Some(mono(MUTIZABLE)), 2);
         set_mutizable.register_builtin_const(
@@ -4058,6 +4129,97 @@ impl Context {
             Visibility::BUILTIN_PUBLIC,
         );
         set_mut_.register_trait_methods(set_mut_t.clone(), set_mut_immutizable);
+        let discard_t = pr_met(
+            ref_mut(set_mut_t.clone(), None),
+            vec![kw(KW_ELEM, T.clone())],
+            None,
+            vec![],
+            NoneType,
+        )
+        .quantify();
+        set_mut_.register_builtin_py_impl(
+            PROC_DISCARD,
+            discard_t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_DISCARD),
+        );
+        let remove_t = pr_met(
+            ref_mut(set_mut_t.clone(), None),
+            vec![kw(KW_ELEM, T.clone())],
+            None,
+            vec![],
+            NoneType,
+        )
+        .quantify();
+        set_mut_.register_builtin_py_impl(
+            PROC_REMOVE,
+            remove_t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_REMOVE),
+        );
+        let pop_t = pr0_met(ref_mut(set_mut_t.clone(), None), T.clone()).quantify();
+        set_mut_.register_builtin_py_impl(
+            PROC_POP,
+            pop_t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_POP),
+        );
+        let clear_t = pr0_met(ref_mut(set_mut_t.clone(), None), NoneType).quantify();
+        set_mut_.register_builtin_py_impl(
+            PROC_CLEAR,
+            clear_t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_CLEAR),
+        );
+        let difference_update_t = pr_met(
+            ref_mut(set_mut_t.clone(), None),
+            vec![kw(KW_OTHER, set_t.clone())],
+            None,
+            vec![],
+            NoneType,
+        )
+        .quantify();
+        set_mut_.register_builtin_py_impl(
+            PROC_DIFFERENCE_UPDATE,
+            difference_update_t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_DIFFERENCE_UPDATE),
+        );
+        let symmetric_difference_update_t = pr_met(
+            ref_mut(set_mut_t.clone(), None),
+            vec![kw(KW_OTHER, set_t.clone())],
+            None,
+            vec![],
+            NoneType,
+        )
+        .quantify();
+        set_mut_.register_builtin_py_impl(
+            PROC_SYMMETRIC_DIFFERENCE_UPDATE,
+            symmetric_difference_update_t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_SYMMETRIC_DIFFERENCE_UPDATE),
+        );
+        let intersection_update_t = pr_met(
+            ref_mut(set_mut_t.clone(), None),
+            vec![kw(KW_OTHER, set_t.clone())],
+            None,
+            vec![],
+            NoneType,
+        )
+        .quantify();
+        set_mut_.register_builtin_py_impl(
+            PROC_INTERSECTION_UPDATE,
+            intersection_update_t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+            Some(FUNC_INTERSECTION_UPDATE),
+        );
         /* Range */
         let range_t = poly(RANGE, vec![TyParam::t(T.clone())]);
         let mut range = Self::builtin_poly_class(RANGE, vec![PS::t_nd(TY_T)], 2);
