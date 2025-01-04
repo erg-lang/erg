@@ -754,14 +754,16 @@ impl Context {
 
     fn tp_eval_const_call(&self, call: &Call) -> Failable<TyParam> {
         if let Some(attr) = &call.attr_name {
-            let obj = self.eval_const_expr(&call.obj);
-            let callee = match obj.clone() {
+            let res_obj = self.eval_const_expr(&call.obj);
+            let mut is_method = true;
+            let callee = match res_obj.clone() {
                 Ok(obj) => self
                     .eval_attr(obj, attr)
                     .map_err(|err| (TyParam::Failure, err.into()))?,
                 Err((_val, errs)) => {
                     let acc = Accessor::attr(*call.obj.clone(), attr.clone());
                     self.eval_const_acc(&acc)
+                        .inspect(|_| is_method = false)
                         .map_err(|(_val, _errs)| (TyParam::Failure, errs))?
                 }
             };
@@ -787,14 +789,14 @@ impl Context {
                 Ok(args) => (args, EvalErrors::empty()),
                 Err((args, es)) => (args, es),
             };
-            if subr.sig_t().is_method() {
-                let obj = match obj {
-                    Ok(obj) => obj,
-                    Err((obj, es)) => {
-                        errs.extend(es);
-                        obj
-                    }
-                };
+            let obj = match res_obj {
+                Ok(obj) => obj,
+                Err((obj, es)) => {
+                    errs.extend(es);
+                    obj
+                }
+            };
+            if is_method {
                 args.pos_args.insert(0, obj);
             }
             let tp = match self.call(subr.clone(), args, call.loc()) {
