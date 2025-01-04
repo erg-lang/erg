@@ -126,6 +126,7 @@ impl_u8_enum! { CompletionOrder; i32;
     Normal = 1000000,
     Builtin = 1,
     OtherNamespace = 2,
+    PseudoMethod = 16,
     Escaped = 32,
     DoubleEscaped = 64,
 }
@@ -172,6 +173,8 @@ impl<'b> CompletionOrderSetter<'b> {
             orders.push(CompletionOrder::DoubleEscaped);
         } else if self.label.starts_with('_') {
             orders.push(CompletionOrder::Escaped);
+        } else if self.label.starts_with("Function::") {
+            orders.push(CompletionOrder::PseudoMethod);
         }
         if self.kind.is_builtin() {
             orders.push(CompletionOrder::Builtin);
@@ -663,6 +666,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     )
                     .set(&mut item);
                     item.kind = Some(comp_item_kind(&ty, Mutability::Immutable));
+                    self.set_pseudo_method_comp(&uri, pos, &comp_kind, &mut item)?;
                     already_appeared.insert(item.label.clone());
                     result.push(item);
                 }
@@ -728,20 +732,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             .set(&mut item);
             item.kind = Some(comp_item_kind(&vi.t, vi.muty));
             item.data = Some(Value::String(vi.def_loc.to_string()));
-            // s.`Function::map` => map(s)
-            if comp_kind.should_be_method() && item.label.starts_with("Function::") {
-                let receiver = self.get_receiver(&uri, pos)?;
-                if let Some(mut range) = receiver.as_ref().and_then(|expr| loc_to_range(expr.loc()))
-                {
-                    // FIXME:
-                    let s_receiver = self.file_cache.get_ranged(&uri, range)?.unwrap_or_default();
-                    range.end.character += 1;
-                    let name = item.label.trim_start_matches("Function::");
-                    let remove = TextEdit::new(range, "".to_string());
-                    item.insert_text = Some(format!("{name}({s_receiver})"));
-                    item.additional_text_edits = Some(vec![remove]);
-                }
-            }
+            self.set_pseudo_method_comp(&uri, pos, &comp_kind, &mut item)?;
             already_appeared.insert(item.label.clone());
             result.push(item);
         }
@@ -757,6 +748,29 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         }
         _log!(self, "completion items: {}", result.len());
         Ok(Some(CompletionResponse::Array(result)))
+    }
+
+    // s.`Function::map` => map(s)
+    fn set_pseudo_method_comp(
+        &self,
+        uri: &NormalizedUrl,
+        pos: Position,
+        comp_kind: &CompletionKind,
+        item: &mut CompletionItem,
+    ) -> ELSResult<()> {
+        if comp_kind.should_be_method() && item.label.starts_with("Function::") {
+            let receiver = self.get_receiver(uri, pos)?;
+            if let Some(mut range) = receiver.as_ref().and_then(|expr| loc_to_range(expr.loc())) {
+                // FIXME:
+                let s_receiver = self.file_cache.get_ranged(uri, range)?.unwrap_or_default();
+                range.end.character += 1;
+                let name = item.label.trim_start_matches("Function::");
+                let remove = TextEdit::new(range, "".to_string());
+                item.insert_text = Some(format!("{name}({s_receiver})"));
+                item.additional_text_edits = Some(vec![remove]);
+            }
+        }
+        Ok(())
     }
 
     fn get_attr_completion_by_name(

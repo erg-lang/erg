@@ -4060,7 +4060,7 @@ impl Context {
         /* Set! */
         let set_mut_t = poly(MUT_SET, vec![ty_tp(T.clone()), N]);
         let mut set_mut_ =
-            Self::builtin_poly_class(MUT_SET, vec![PS::t_nd(TY_T), PS::named_nd(TY_N, Nat)], 2);
+            Self::builtin_poly_class(MUT_SET, vec![PS::t_nd(TY_T), PS::default(TY_N, Nat)], 2);
         set_mut_.register_superclass(set_t.clone(), &set_);
         let mut set_mut_copy = Self::builtin_methods(Some(mono(COPY)), 1);
         set_mut_copy.register_py_builtin(
