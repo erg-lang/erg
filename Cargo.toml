@@ -23,7 +23,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.6.51-nightly.1"
+version = "0.6.51-nightly.2"
 authors = ["erg-lang team <moderation.erglang@gmail.com>"]
 license = "MIT OR Apache-2.0"
 edition = "2021"
@@ -75,12 +75,12 @@ log-level-error = ["erg_common/log-level-error", "erg_parser/log-level-error", "
 parallel = ["erg_common/parallel", "erg_parser/parallel", "erg_compiler/parallel", "erg_linter/parallel"]
 
 [workspace.dependencies]
-erg_common = { version = "0.6.51-nightly.1", path = "./crates/erg_common" }
-erg_parser = { version = "0.6.51-nightly.1", path = "./crates/erg_parser" }
-erg_compiler = { version = "0.6.51-nightly.1", path = "./crates/erg_compiler" }
-erg_linter = { version = "0.6.51-nightly.1", path = "./crates/erg_linter" }
-els = { version = "0.1.63-nightly.1", path = "./crates/els" }
-erg_proc_macros = { version = "0.6.51-nightly.1", path = "./crates/erg_proc_macros" }
+erg_common = { version = "0.6.51-nightly.2", path = "./crates/erg_common" }
+erg_parser = { version = "0.6.51-nightly.2", path = "./crates/erg_parser" }
+erg_compiler = { version = "0.6.51-nightly.2", path = "./crates/erg_compiler" }
+erg_linter = { version = "0.6.51-nightly.2", path = "./crates/erg_linter" }
+els = { version = "0.1.63-nightly.2", path = "./crates/els" }
+erg_proc_macros = { version = "0.6.51-nightly.2", path = "./crates/erg_proc_macros" }
 pyo3 = { version = "0.21", features = ["extension-module"] }
 
 [dependencies]
