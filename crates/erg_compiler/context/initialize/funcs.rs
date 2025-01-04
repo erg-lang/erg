@@ -99,7 +99,7 @@ impl Context {
                 KW_ITERABLE,
                 poly(ITERABLE, vec![ty_tp(tuple_t(vec![T.clone(), U.clone()]))]),
             )],
-            dict! { T.clone() => U.clone() }.into(),
+            out_dict_t(dict! { T.clone() => U.clone() }.into()),
         )
         .quantify();
         let t_discard = nd_func(vec![kw(KW_OBJ, Obj)], None, NoneType);
@@ -381,7 +381,7 @@ impl Context {
         let t_set = no_var_func(
             vec![],
             vec![kw(KW_ITERABLE, poly(ITERABLE, vec![ty_tp(T.clone())]))],
-            set_t(T.clone(), TyParam::erased(Nat)),
+            out_set_t(T.clone(), TyParam::erased(Nat)),
         )
         .quantify();
         let t_slice = no_var_func(
