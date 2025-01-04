@@ -754,12 +754,17 @@ impl Context {
 
     fn tp_eval_const_call(&self, call: &Call) -> Failable<TyParam> {
         if let Some(attr) = &call.attr_name {
-            let obj = self
-                .eval_const_expr(&call.obj)
-                .map_err(|(val, errs)| (TyParam::value(val), errs))?;
-            let callee = self
-                .eval_attr(obj.clone(), attr)
-                .map_err(|err| (TyParam::Failure, err.into()))?;
+            let obj = self.eval_const_expr(&call.obj);
+            let callee = match obj.clone() {
+                Ok(obj) => self
+                    .eval_attr(obj, attr)
+                    .map_err(|err| (TyParam::Failure, err.into()))?,
+                Err((_val, errs)) => {
+                    let acc = Accessor::attr(*call.obj.clone(), attr.clone());
+                    self.eval_const_acc(&acc)
+                        .map_err(|(_val, _errs)| (TyParam::Failure, errs))?
+                }
+            };
             let ValueObj::Subr(subr) = callee else {
                 return Err((
                     TyParam::Failure,
@@ -782,7 +787,16 @@ impl Context {
                 Ok(args) => (args, EvalErrors::empty()),
                 Err((args, es)) => (args, es),
             };
-            args.pos_args.insert(0, obj);
+            if subr.sig_t().is_method() {
+                let obj = match obj {
+                    Ok(obj) => obj,
+                    Err((obj, es)) => {
+                        errs.extend(es);
+                        obj
+                    }
+                };
+                args.pos_args.insert(0, obj);
+            }
             let tp = match self.call(subr.clone(), args, call.loc()) {
                 Ok(tp) => tp,
                 Err((tp, es)) => {
@@ -796,78 +810,10 @@ impl Context {
                 Err((tp, errs))
             }
         } else {
-            match call.obj.as_ref() {
-                Expr::Accessor(Accessor::Ident(ident)) => {
-                    let callee = self.rec_get_const_obj(ident.inspect()).ok_or_else(|| {
-                        (
-                            TyParam::Failure,
-                            EvalError::not_comptime_fn_error(
-                                self.cfg.input.clone(),
-                                line!() as usize,
-                                ident.loc(),
-                                self.caused_by(),
-                                ident.inspect(),
-                                self.get_similar_name(ident.inspect()),
-                            )
-                            .into(),
-                        )
-                    })?;
-                    // TODO: __call__
-                    let ValueObj::Subr(subr) = callee else {
-                        return Err((
-                            TyParam::Failure,
-                            EvalError::type_mismatch_error(
-                                self.cfg.input.clone(),
-                                line!() as usize,
-                                ident.loc(),
-                                self.caused_by(),
-                                ident.inspect(),
-                                None,
-                                &mono("Subroutine"),
-                                &callee.t(),
-                                self.get_candidates(&callee.t()),
-                                None,
-                            )
-                            .into(),
-                        ));
-                    };
-                    let (args, mut errs) = match self.eval_args(&call.args) {
-                        Ok(args) => (args, EvalErrors::empty()),
-                        Err((args, es)) => (args, es),
-                    };
-                    let tp = match self.call(subr.clone(), args, call.loc()) {
-                        Ok(tp) => tp,
-                        Err((tp, es)) => {
-                            errs.extend(es);
-                            tp
-                        }
-                    };
-                    if errs.is_empty() {
-                        Ok(tp)
-                    } else {
-                        Err((tp, errs))
-                    }
-                }
-                // TODO: eval attr
-                Expr::Accessor(Accessor::Attr(_attr)) => Err((
-                    TyParam::Failure,
-                    EvalErrors::from(EvalError::not_const_expr(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        call.loc(),
-                        self.caused_by(),
-                    )),
-                )),
-                // TODO: eval type app
-                Expr::Accessor(Accessor::TypeApp(_type_app)) => Err((
-                    TyParam::Failure,
-                    EvalErrors::from(EvalError::not_const_expr(
-                        self.cfg.input.clone(),
-                        line!() as usize,
-                        call.loc(),
-                        self.caused_by(),
-                    )),
-                )),
+            let callee = match call.obj.as_ref() {
+                Expr::Accessor(acc) => self
+                    .eval_const_acc(acc)
+                    .map_err(|(val, errs)| (TyParam::value(val), errs)),
                 other => Err((
                     TyParam::Failure,
                     EvalErrors::from(EvalError::feature_error(
@@ -878,6 +824,41 @@ impl Context {
                         self.caused_by(),
                     )),
                 )),
+            }?;
+            // TODO: __call__
+            let ValueObj::Subr(subr) = callee else {
+                return Err((
+                    TyParam::Failure,
+                    EvalError::type_mismatch_error(
+                        self.cfg.input.clone(),
+                        line!() as usize,
+                        call.obj.loc(),
+                        self.caused_by(),
+                        &call.obj.full_name().unwrap_or("_".into()),
+                        None,
+                        &mono("Subroutine"),
+                        &callee.t(),
+                        self.get_candidates(&callee.t()),
+                        None,
+                    )
+                    .into(),
+                ));
+            };
+            let (args, mut errs) = match self.eval_args(&call.args) {
+                Ok(args) => (args, EvalErrors::empty()),
+                Err((args, es)) => (args, es),
+            };
+            let tp = match self.call(subr.clone(), args, call.loc()) {
+                Ok(tp) => tp,
+                Err((tp, es)) => {
+                    errs.extend(es);
+                    tp
+                }
+            };
+            if errs.is_empty() {
+                Ok(tp)
+            } else {
+                Err((tp, errs))
             }
         }
     }
@@ -2003,6 +1984,24 @@ impl Context {
                     tp
                 }
             },
+            TyParam::DataClass { name, fields } => {
+                let mut new_fields = dict! {};
+                for (name, tp) in fields.into_iter() {
+                    match self.eval_tp(tp) {
+                        Ok(tp) => {
+                            new_fields.insert(name, tp);
+                        }
+                        Err((tp, es)) => {
+                            new_fields.insert(name, tp);
+                            errs.extend(es);
+                        }
+                    }
+                }
+                TyParam::DataClass {
+                    name,
+                    fields: new_fields,
+                }
+            }
             TyParam::BinOp { op, lhs, rhs } => match self.eval_bin_tp(op, *lhs, *rhs) {
                 Ok(tp) => tp,
                 Err(es) => {
@@ -2138,16 +2137,8 @@ impl Context {
                     return Err((TyParam::Failure, errs));
                 }
             },
-            other => {
-                errs.push(EvalError::feature_error(
-                    self.cfg.input.clone(),
-                    line!() as usize,
-                    Location::Unknown,
-                    &format!("evaluating {other}"),
-                    self.caused_by(),
-                ));
-                other
-            }
+            TyParam::Lambda(lambda) => TyParam::Lambda(lambda),
+            TyParam::Failure => TyParam::Failure,
         };
         if errs.is_empty() {
             Ok(tp)
@@ -2662,10 +2653,10 @@ impl Context {
     ) -> EvalResult<TyParam> {
         let lhs = self.eval_tp(lhs).map_err(|(_, errs)| errs)?;
         // in Methods
-        if let Some(ctx) = lhs
-            .qual_name()
-            .and_then(|name| self.get_same_name_context(&name))
-        {
+        if let Some(ctx) = lhs.qual_name().and_then(|name| {
+            self.get_same_name_context(&name)
+                .or_else(|| self.get_mod(&name))
+        }) {
             if let Some(value) = ctx.rec_get_const_obj(&rhs) {
                 return Ok(TyParam::value(value.clone()));
             }
@@ -4057,14 +4048,20 @@ impl Context {
                 }
             }
             Predicate::Attr { receiver, name } => {
-                let receiver = match self.eval_tp(receiver) {
-                    Ok(tp) => tp,
-                    Err((tp, es)) => {
-                        errs.extend(es);
-                        tp
-                    }
-                };
-                Predicate::attr(receiver, name)
+                if let Ok(TyParam::Value(val)) =
+                    self.eval_tp_proj(receiver.clone(), name.clone(), &())
+                {
+                    Predicate::Value(val)
+                } else {
+                    let receiver = match self.eval_tp(receiver) {
+                        Ok(tp) => tp,
+                        Err((tp, es)) => {
+                            errs.extend(es);
+                            tp
+                        }
+                    };
+                    Predicate::attr(receiver, name)
+                }
             }
             Predicate::GeneralEqual { lhs, rhs } => {
                 match (self.eval_pred(*lhs)?, self.eval_pred(*rhs)?) {

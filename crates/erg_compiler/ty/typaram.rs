@@ -2136,6 +2136,50 @@ impl TyParam {
             _ => false,
         }
     }
+
+    pub fn is_failure(&self) -> bool {
+        match self {
+            Self::Failure => true,
+            Self::Value(val) => val.is_failure(),
+            Self::Type(t) => t.is_failure(),
+            _ => false,
+        }
+    }
+
+    pub const fn is_str_value(&self) -> bool {
+        match self {
+            Self::Value(val) => val.is_str(),
+            _ => false,
+        }
+    }
+
+    pub const fn is_nat_value(&self) -> bool {
+        match self {
+            Self::Value(val) => val.is_nat(),
+            _ => false,
+        }
+    }
+
+    pub const fn is_int_value(&self) -> bool {
+        match self {
+            Self::Value(val) => val.is_int(),
+            _ => false,
+        }
+    }
+
+    pub const fn is_float_value(&self) -> bool {
+        match self {
+            Self::Value(val) => val.is_float(),
+            _ => false,
+        }
+    }
+
+    pub const fn is_bool_value(&self) -> bool {
+        match self {
+            Self::Value(val) => val.is_bool(),
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

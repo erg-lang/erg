@@ -3719,6 +3719,8 @@ impl Context {
         }
     }
 
+    /// get a module by its name in the current scope
+    ///
     /// name: Identifier.inspect()
     // FIXME: imported modules can access from any scope with the current implementation
     // 現在の実装だとimportしたモジュールはどこからでも見れる

@@ -2262,6 +2262,14 @@ impl ValueObj {
             _ => None,
         }
     }
+
+    pub fn is_failure(&self) -> bool {
+        match self {
+            Self::Type(t) => t.typ().is_failure(),
+            Self::Failure => true,
+            _ => false,
+        }
+    }
 }
 
 pub mod value_set {
