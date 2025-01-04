@@ -13,14 +13,15 @@ use erg_common::{enum_unwrap, get_hash, log, set};
 
 use crate::ast::{
     Accessor, Args, BinOp, Block, Call, ClassAttr, ClassAttrs, ClassDef, Compound, ConstExpr,
-    DataPack, Def, DefBody, DefId, DefaultParamSignature, Dict, Dummy, Expr, GuardClause,
-    Identifier, InlineModule, KeyValue, KwArg, Lambda, LambdaSignature, List, ListComprehension,
-    ListTypeSpec, ListWithLength, Literal, Methods, MixedRecord, Module, NonDefaultParamSignature,
-    NormalDict, NormalList, NormalRecord, NormalSet, NormalTuple, ParamPattern, ParamRecordAttr,
-    ParamTuplePattern, Params, PatchDef, PosArg, ReDef, Record, RecordAttrOrIdent, RecordAttrs,
-    RecordTypeSpec, Set as astSet, SetComprehension, SetWithLength, Signature, SubrSignature,
-    Tuple, TupleTypeSpec, TypeAppArgs, TypeAppArgsKind, TypeBoundSpecs, TypeSpec, TypeSpecWithOp,
-    UnaryOp, VarName, VarPattern, VarRecordAttr, VarSignature, VisModifierSpec, AST,
+    DataPack, Def, DefBody, DefId, DefaultParamSignature, Dict, DictComprehension, Dummy, Expr,
+    GuardClause, Identifier, InlineModule, KeyValue, KwArg, Lambda, LambdaSignature, List,
+    ListComprehension, ListTypeSpec, ListWithLength, Literal, Methods, MixedRecord, Module,
+    NonDefaultParamSignature, NormalDict, NormalList, NormalRecord, NormalSet, NormalTuple,
+    ParamPattern, ParamRecordAttr, ParamTuplePattern, Params, PatchDef, PosArg, ReDef, Record,
+    RecordAttrOrIdent, RecordAttrs, RecordTypeSpec, Set as astSet, SetComprehension, SetWithLength,
+    Signature, SubrSignature, Tuple, TupleTypeSpec, TypeAppArgs, TypeAppArgsKind, TypeBoundSpecs,
+    TypeSpec, TypeSpecWithOp, UnaryOp, VarName, VarPattern, VarRecordAttr, VarSignature,
+    VisModifierSpec, AST,
 };
 use crate::token::{Token, TokenKind, COLON, DOT};
 
@@ -278,7 +279,23 @@ impl Desugarer {
                     let tup = NormalDict::new(dic.l_brace, dic.r_brace, new_kvs);
                     Expr::Dict(Dict::Normal(tup))
                 }
-                _ => todo!("dict comprehension"),
+                Dict::Comprehension(dic) => {
+                    let key = desugar(dic.kv.key);
+                    let value = desugar(dic.kv.value);
+                    let mut new_generators = vec![];
+                    for (ident, gen) in dic.generators.into_iter() {
+                        new_generators.push((ident, desugar(gen)));
+                    }
+                    let new_guard = dic.guard.map(|ex| desugar(*ex));
+                    let dic = DictComprehension::new(
+                        dic.l_brace,
+                        dic.r_brace,
+                        KeyValue::new(key, value),
+                        new_generators,
+                        new_guard,
+                    );
+                    Expr::Dict(Dict::Comprehension(dic))
+                }
             },
             Expr::BinOp(binop) => {
                 let mut args = binop.args.into_iter();

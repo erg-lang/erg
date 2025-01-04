@@ -1351,8 +1351,8 @@ impl NormalDict {
 #[pyclass]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DictComprehension {
-    l_brace: Token,
-    r_brace: Token,
+    pub l_brace: Token,
+    pub r_brace: Token,
     pub kv: Box<KeyValue>,
     pub generators: Vec<(Identifier, Expr)>,
     pub guard: Option<Box<Expr>>,
