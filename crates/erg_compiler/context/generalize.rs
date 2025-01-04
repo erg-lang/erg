@@ -223,8 +223,9 @@ impl<'c> Generalizer<'c> {
                 subr.non_default_params.iter_mut().for_each(|nd_param| {
                     *nd_param.typ_mut() = self.generalize_t(mem::take(nd_param.typ_mut()), uninit);
                 });
-                if let Some(var_args) = &mut subr.var_params {
-                    *var_args.typ_mut() = self.generalize_t(mem::take(var_args.typ_mut()), uninit);
+                if let Some(var_params) = &mut subr.var_params {
+                    *var_params.typ_mut() =
+                        self.generalize_t(mem::take(var_params.typ_mut()), uninit);
                 }
                 subr.default_params.iter_mut().for_each(|d_param| {
                     *d_param.typ_mut() = self.generalize_t(mem::take(d_param.typ_mut()), uninit);
@@ -232,9 +233,12 @@ impl<'c> Generalizer<'c> {
                         *default = self.generalize_t(mem::take(default), uninit);
                     }
                 });
-                if let Some(kw_var_args) = &mut subr.kw_var_params {
-                    *kw_var_args.typ_mut() =
-                        self.generalize_t(mem::take(kw_var_args.typ_mut()), uninit);
+                if let Some(kw_var_params) = &mut subr.kw_var_params {
+                    *kw_var_params.typ_mut() =
+                        self.generalize_t(mem::take(kw_var_params.typ_mut()), uninit);
+                    if let Some(default) = kw_var_params.default_typ_mut() {
+                        *default = self.generalize_t(mem::take(default), uninit);
+                    }
                 }
                 self.variance = Covariant;
                 let return_t = self.generalize_t(*subr.return_t, uninit);
@@ -1006,10 +1010,10 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                     }
                     self.pop_variance();
                 }
-                if let Some(var_args) = &mut subr.var_params {
+                if let Some(var_params) = &mut subr.var_params {
                     self.push_variance(Contravariant);
-                    match self.deref_tyvar(mem::take(var_args.typ_mut())) {
-                        Ok(t) => *var_args.typ_mut() = t,
+                    match self.deref_tyvar(mem::take(var_params.typ_mut())) {
+                        Ok(t) => *var_params.typ_mut() = t,
                         Err(es) => errs.extend(es),
                     }
                     self.pop_variance();
@@ -1021,6 +1025,20 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                         Err(es) => errs.extend(es),
                     }
                     if let Some(default) = d_param.default_typ_mut() {
+                        match self.deref_tyvar(mem::take(default)) {
+                            Ok(t) => *default = t,
+                            Err(es) => errs.extend(es),
+                        }
+                    }
+                    self.pop_variance();
+                }
+                if let Some(kw_var_params) = &mut subr.kw_var_params {
+                    self.push_variance(Contravariant);
+                    match self.deref_tyvar(mem::take(kw_var_params.typ_mut())) {
+                        Ok(t) => *kw_var_params.typ_mut() = t,
+                        Err(es) => errs.extend(es),
+                    }
+                    if let Some(default) = kw_var_params.default_typ_mut() {
                         match self.deref_tyvar(mem::take(default)) {
                             Ok(t) => *default = t,
                             Err(es) => errs.extend(es),
@@ -1312,6 +1330,18 @@ impl<'c, 'q, 'l, L: Locational> Dereferencer<'c, 'q, 'l, L> {
                     _self.pop_variance();
                 })?;
             if let Some(default) = d_param.default_typ_mut() {
+                *default = _self
+                    .deref_tyvar(mem::take(default))
+                    .inspect_err(|_e| _self.pop_variance())?;
+            }
+            _self.pop_variance();
+        }
+        if let Some(kw_var_args) = &mut subr.kw_var_params {
+            _self.push_variance(Contravariant);
+            *kw_var_args.typ_mut() = _self
+                .deref_tyvar(mem::take(kw_var_args.typ_mut()))
+                .inspect_err(|_e| _self.pop_variance())?;
+            if let Some(default) = kw_var_args.default_typ_mut() {
                 *default = _self
                     .deref_tyvar(mem::take(default))
                     .inspect_err(|_e| _self.pop_variance())?;

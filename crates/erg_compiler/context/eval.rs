@@ -2252,6 +2252,15 @@ impl Context {
                                 t
                             }
                         };
+                    if let Some(default) = kw_var_args.default_typ_mut() {
+                        *default = match self.eval_t_params(mem::take(default), level, t_loc) {
+                            Ok(t) => t,
+                            Err((t, es)) => {
+                                errs.extend(es);
+                                t
+                            }
+                        };
+                    }
                 }
                 let return_t = match self.eval_t_params(*subr.return_t, level, t_loc) {
                     Ok(return_t) => return_t,
@@ -3505,9 +3514,10 @@ impl Context {
                         .map_default_type(&mut |t| self.detach(t, tv_cache));
                     new_d.push(pt);
                 }
-                let new_kv = subr
-                    .kw_var_params
-                    .map(|t| t.map_type(&mut |t| self.detach(t, tv_cache)));
+                let new_kv = subr.kw_var_params.map(|t| {
+                    t.map_type(&mut |t| self.detach(t, tv_cache))
+                        .map_default_type(&mut |t| self.detach(t, tv_cache))
+                });
                 let return_t = self.detach(*subr.return_t, tv_cache);
                 let new_subr = SubrType::new(subr.kind, new_nd, new_var, new_d, new_kv, return_t);
                 Type::Subr(new_subr)

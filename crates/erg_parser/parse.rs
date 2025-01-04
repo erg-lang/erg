@@ -2374,6 +2374,44 @@ impl Parser {
                     return Err(());
                 }
             }
+            // foo, arg/*args/**kwargs | := rhs
+            Expr::Tuple(Tuple::Normal(mut tuple)) => {
+                self.skip(); // :=
+                let rhs = self
+                    .try_reduce_expr(false, false, in_brace, false)
+                    .map_err(|_| {
+                        if let Some(err) = self.errs.last_mut() {
+                            err.set_hint(switch_lang!(
+                                "japanese" => "予期: デフォルト引数",
+                                "simplified_chinese" => "期望: 默认参数",
+                                "traditional_chinese" => "期望: 默認參數",
+                                "english" => "expect: default parameter",
+                            ))
+                        }
+                        self.stack_dec(fn_name!())
+                    })?;
+                if tuple.elems.kw_var_args.is_some() {
+                    tuple.elems.set_kw_var(PosArg::new(rhs));
+                } else if tuple.elems.var_args.is_some() {
+                    tuple.elems.set_var_args(PosArg::new(rhs));
+                } else {
+                    let (kw, t_spec) = match tuple.elems.pos_args.pop().unwrap().expr {
+                        Expr::Accessor(Accessor::Ident(ident)) => (ident.name.into_token(), None),
+                        Expr::TypeAscription(tasc) => {
+                            let kw = if let Expr::Accessor(Accessor::Ident(ident)) = *tasc.expr {
+                                ident.name.into_token()
+                            } else {
+                                Token::symbol("_")
+                            };
+                            (kw, Some(tasc.t_spec))
+                        }
+                        _ => (Token::symbol("_"), None),
+                    };
+                    tuple.elems.push_kw(KwArg::new(kw, t_spec, rhs));
+                }
+                debug_exit_info!(self);
+                return Ok(Tuple::Normal(tuple));
+            }
             other => {
                 let caused_by = caused_by!();
                 log!(err "error caused by: {caused_by}");
