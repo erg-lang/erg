@@ -1238,7 +1238,7 @@ impl TyParam {
     pub fn contains_tvar(&self, target: &FreeTyVar) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_tvar(target),
-            Self::FreeVar(fv) => fv.get_type().map_or(false, |t| t.contains_tvar(target)),
+            Self::FreeVar(fv) => fv.get_type().is_some_and(|t| t.contains_tvar(target)),
             Self::Type(t) => t.contains_tvar(target),
             Self::Erased(t) => t.contains_tvar(target),
             Self::Proj { obj, .. } => obj.contains_tvar(target),
@@ -1266,7 +1266,7 @@ impl TyParam {
     pub fn contains_type(&self, target: &Type) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_type(target),
-            Self::FreeVar(fv) => fv.get_type().map_or(false, |t| t.contains_type(target)),
+            Self::FreeVar(fv) => fv.get_type().is_some_and(|t| t.contains_type(target)),
             Self::Type(t) => t.contains_type(target),
             Self::Erased(t) => t.contains_type(target),
             Self::Proj { obj, .. } => obj.contains_type(target),
@@ -1294,7 +1294,7 @@ impl TyParam {
     pub fn has_type_satisfies(&self, f: impl Fn(&Type) -> bool + Copy) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().has_type_satisfies(f),
-            Self::FreeVar(fv) => fv.get_type().map_or(false, |t| f(&t)),
+            Self::FreeVar(fv) => fv.get_type().is_some_and(|t| f(&t)),
             Self::Type(t) => f(t),
             Self::Erased(t) => f(t),
             Self::Proj { obj, .. } => obj.has_type_satisfies(f),
@@ -1325,7 +1325,7 @@ impl TyParam {
         }
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_tp(target),
-            Self::FreeVar(fv) => fv.get_type().map_or(false, |t| t.contains_tp(target)),
+            Self::FreeVar(fv) => fv.get_type().is_some_and(|t| t.contains_tp(target)),
             Self::Type(t) => t.contains_tp(target),
             Self::Erased(t) => t.contains_tp(target),
             Self::Proj { obj, .. } => obj.contains_tp(target),
@@ -1353,7 +1353,7 @@ impl TyParam {
     pub fn contains_value(&self, target: &ValueObj) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().contains_value(target),
-            Self::FreeVar(fv) => fv.get_type().map_or(false, |t| t.contains_value(target)),
+            Self::FreeVar(fv) => fv.get_type().is_some_and(|t| t.contains_value(target)),
             Self::Type(t) => t.contains_value(target),
             Self::Erased(t) => t.contains_value(target),
             Self::Proj { obj, .. } => obj.contains_value(target),
@@ -1389,7 +1389,7 @@ impl TyParam {
     pub fn is_recursive(&self) -> bool {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.crack().is_recursive(),
-            Self::FreeVar(fv) => fv.get_type().map_or(false, |t| t.contains_tp(self)),
+            Self::FreeVar(fv) => fv.get_type().is_some_and(|t| t.contains_tp(self)),
             Self::Proj { obj, .. } => obj.contains_tp(self),
             Self::ProjCall { obj, args, .. } => {
                 obj.contains_tp(self) || args.iter().any(|t| t.contains_tp(self))

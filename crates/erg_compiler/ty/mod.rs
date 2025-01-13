@@ -663,7 +663,7 @@ impl SubrType {
             || self
                 .var_params
                 .as_ref()
-                .map_or(false, |pt| pt.typ().contains_value(target))
+                .is_some_and(|pt| pt.typ().contains_value(target))
             || self.default_params.iter().any(|pt| {
                 pt.typ().contains_value(target)
                     || pt.default_typ().is_some_and(|t| t.contains_value(target))
@@ -699,7 +699,7 @@ impl SubrType {
         let structural_qname = self.non_default_params.iter().find_map(|pt| {
             pt.typ()
                 .get_super()
-                .map_or(false, |t| t.is_structural())
+                .is_some_and(|t| t.is_structural())
                 .then(|| pt.typ().unbound_name().unwrap())
         });
         let qnames_sets = self
@@ -719,12 +719,12 @@ impl SubrType {
 
     pub fn has_type_satisfies(&self, f: impl Fn(&Type) -> bool + Copy) -> bool {
         self.non_default_params.iter().any(|pt| f(pt.typ()))
-            || self.var_params.as_ref().map_or(false, |pt| f(pt.typ()))
+            || self.var_params.as_ref().is_some_and(|pt| f(pt.typ()))
             || self
                 .default_params
                 .iter()
                 .any(|pt| f(pt.typ()) || pt.default_typ().is_some_and(f))
-            || self.kw_var_params.as_ref().map_or(false, |pt| f(pt.typ()))
+            || self.kw_var_params.as_ref().is_some_and(|pt| f(pt.typ()))
             || f(&self.return_t)
     }
 
@@ -767,7 +767,7 @@ impl SubrType {
     pub fn self_t(&self) -> Option<&Type> {
         self.non_default_params.first().and_then(|p| {
             if p.name()
-                .map_or(false, |n| &n[..] == "self" || &n[..] == "Self")
+                .is_some_and(|n| &n[..] == "self" || &n[..] == "Self")
             {
                 Some(p.typ())
             } else {
@@ -779,7 +779,7 @@ impl SubrType {
     pub fn mut_self_t(&mut self) -> Option<&mut Type> {
         self.non_default_params.first_mut().and_then(|p| {
             if p.name()
-                .map_or(false, |n| &n[..] == "self" || &n[..] == "Self")
+                .is_some_and(|n| &n[..] == "self" || &n[..] == "Self")
             {
                 Some(p.typ_mut())
             } else {
@@ -3056,7 +3056,7 @@ impl Type {
             Self::Or(tys) => tys.iter().any(f),
             Self::Not(t) => f(t),
             Self::Ref(t) => f(t),
-            Self::RefMut { before, after } => f(before) || after.as_ref().map_or(false, |t| f(t)),
+            Self::RefMut { before, after } => f(before) || after.as_ref().is_some_and(|t| f(t)),
             Self::Bounded { sub, sup } => f(sub) || f(sup),
             Self::Callable { param_ts, return_t } => param_ts.iter().any(f) || f(return_t),
             Self::Guard(guard) => f(&guard.to),
@@ -3103,12 +3103,12 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().contains_type(target),
             Self::FreeVar(fv) => {
-                fv.get_subsup().map_or(false, |(sub, sup)| {
+                fv.get_subsup().is_some_and(|(sub, sup)| {
                     fv.dummy_link();
                     let res = sub.contains_type(target) || sup.contains_type(target);
                     fv.undo();
                     res
-                }) || fv.get_type().map_or(false, |t| t.contains_type(target))
+                }) || fv.get_type().is_some_and(|t| t.contains_type(target))
             }
             Self::Record(rec) => rec.iter().any(|(_, t)| t.contains_type(target)),
             Self::NamedTuple(rec) => rec.iter().any(|(_, t)| t.contains_type(target)),
@@ -3129,7 +3129,7 @@ impl Type {
             Self::Ref(t) => t.contains_type(target),
             Self::RefMut { before, after } => {
                 before.contains_type(target)
-                    || after.as_ref().map_or(false, |t| t.contains_type(target))
+                    || after.as_ref().is_some_and(|t| t.contains_type(target))
             }
             Self::Bounded { sub, sup } => sub.contains_type(target) || sup.contains_type(target),
             Self::Callable { param_ts, return_t } => {
@@ -3144,9 +3144,9 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().contains_tp(target),
             Self::FreeVar(fv) => {
-                fv.get_subsup().map_or(false, |(sub, sup)| {
+                fv.get_subsup().is_some_and(|(sub, sup)| {
                     fv.do_avoiding_recursion(|| sub.contains_tp(target) || sup.contains_tp(target))
-                }) || fv.get_type().map_or(false, |t| t.contains_tp(target))
+                }) || fv.get_type().is_some_and(|t| t.contains_tp(target))
             }
             Self::Record(rec) => rec.iter().any(|(_, t)| t.contains_tp(target)),
             Self::NamedTuple(rec) => rec.iter().any(|(_, t)| t.contains_tp(target)),
@@ -3166,8 +3166,7 @@ impl Type {
             Self::Not(t) => t.contains_tp(target),
             Self::Ref(t) => t.contains_tp(target),
             Self::RefMut { before, after } => {
-                before.contains_tp(target)
-                    || after.as_ref().map_or(false, |t| t.contains_tp(target))
+                before.contains_tp(target) || after.as_ref().is_some_and(|t| t.contains_tp(target))
             }
             Self::Bounded { sub, sup } => sub.contains_tp(target) || sup.contains_tp(target),
             Self::Callable { param_ts, return_t } => {
@@ -3201,7 +3200,7 @@ impl Type {
             Self::Ref(t) => t.contains_value(target),
             Self::RefMut { before, after } => {
                 before.contains_value(target)
-                    || after.as_ref().map_or(false, |t| t.contains_value(target))
+                    || after.as_ref().is_some_and(|t| t.contains_value(target))
             }
             Self::Bounded { sub, sup } => sub.contains_value(target) || sup.contains_value(target),
             Self::Callable { param_ts, return_t } => {
@@ -3248,8 +3247,7 @@ impl Type {
             Self::Not(t) => t.contains_type(self),
             Self::Ref(t) => t.contains_type(self),
             Self::RefMut { before, after } => {
-                before.contains_type(self)
-                    || after.as_ref().map_or(false, |t| t.contains_type(self))
+                before.contains_type(self) || after.as_ref().is_some_and(|t| t.contains_type(self))
             }
             Self::Bounded { sub, sup } => sub.contains_type(self) || sup.contains_type(self),
             Self::Callable { param_ts, return_t } => {
@@ -3905,7 +3903,7 @@ impl Type {
                     fv.do_avoiding_recursion(|| sub.has_qvar() || sup.has_qvar())
                 } else {
                     let opt_t = fv.get_type();
-                    opt_t.map_or(false, |t| t.has_qvar())
+                    opt_t.is_some_and(|t| t.has_qvar())
                 }
             }
             Self::Subr(subr) => subr.has_qvar(),
@@ -3939,7 +3937,7 @@ impl Type {
                     })
                 } else {
                     let opt_t = fv.get_type();
-                    opt_t.map_or(false, |t| t.has_undoable_linked_var())
+                    opt_t.is_some_and(|t| t.has_undoable_linked_var())
                 }
             }
             Self::Subr(subr) => subr.has_undoable_linked_var(),

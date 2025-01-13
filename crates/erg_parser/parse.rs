@@ -2516,7 +2516,7 @@ impl Parser {
                         err.set_hint(switch_lang!(
                             "japanese" => "期待: デコレータ",
                             "simplified_chinese" => "期望: 装饰器",
-                            "traditions_chinese" => "期望: 裝飾器",
+                            "traditional_chinese" => "期望: 裝飾器",
                             "english" => "expect: decorator",
                         ))
                     }

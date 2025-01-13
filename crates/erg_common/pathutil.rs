@@ -145,10 +145,7 @@ impl FileKind {
 }
 
 pub fn is_cur_dir<P: AsRef<Path>>(path: P) -> bool {
-    path.as_ref()
-        .components()
-        .next()
-        .map_or(false, |c| c == Component::CurDir)
+    path.as_ref().components().next() == Some(Component::CurDir)
 }
 
 /// ```

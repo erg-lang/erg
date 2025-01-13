@@ -1951,7 +1951,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 .module
                 .context
                 .control_kind()
-                .map_or(false, |k| k.makes_scope());
+                .is_some_and(|k| k.makes_scope());
         let is_procedural = lambda.is_procedural();
         let id = lambda.id.0;
         let name = format!("<lambda_{id}>");
@@ -2881,7 +2881,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             .map_or(Type::FAILURE, |vi| &vi.t);
         let need_to_gen_new = class_ctx
             .and_then(|ctx| ctx.get_current_scope_var(&VarName::from_static("new")))
-            .map_or(false, |vi| vi.kind == VarKind::Auto);
+            .is_some_and(|vi| vi.kind == VarKind::Auto);
         let require_or_sup = Self::get_require_or_sup_or_base(block.remove(0));
         let class_def = hir::ClassDef::new(
             type_obj,

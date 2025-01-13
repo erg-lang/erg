@@ -12,6 +12,7 @@ homepage.workspace = true
 
 [features]
 default = ["parallel"]
+backtrace = ["erg_common/backtrace"]
 # when "debug" feature is turned on, that of parser will also be turned on.
 debug = ["erg_common/debug", "erg_parser/debug"]
 japanese = ["erg_common/japanese", "erg_parser/japanese"]

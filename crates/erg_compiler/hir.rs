@@ -1587,7 +1587,7 @@ impl Call {
                     && self
                         .attr_name
                         .as_ref()
-                        .map_or(false, |ident| &ident.inspect()[..] == "cast")
+                        .is_some_and(|ident| &ident.inspect()[..] == "cast")
                 {
                     return Some(OperationKind::Cast);
                 }

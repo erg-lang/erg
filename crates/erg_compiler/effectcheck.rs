@@ -546,7 +546,7 @@ impl<'c> SideEffectChecker<'c> {
                     .any(|elem| Self::is_impure(&elem.expr)),
                 List::WithLength(lis) => {
                     Self::is_impure(&lis.elem)
-                        || lis.len.as_ref().map_or(false, |len| Self::is_impure(len))
+                        || lis.len.as_ref().is_some_and(|len| Self::is_impure(len))
                 }
                 _ => todo!(),
             },

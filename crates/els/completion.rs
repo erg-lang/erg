@@ -181,17 +181,17 @@ impl<'b> CompletionOrderSetter<'b> {
         }
         if self
             .arg_pt
-            .map_or(false, |pt| pt.name().map(|s| &s[..]) == Some(&self.label))
+            .is_some_and(|pt| pt.name().map(|s| &s[..]) == Some(&self.label))
         {
             orders.push(CompletionOrder::NameMatched);
         }
         #[allow(clippy::blocks_in_conditions)]
         if self
             .arg_pt
-            .map_or(false, |pt| self.mod_ctx.subtype_of(self.t, pt.typ()))
+            .is_some_and(|pt| self.mod_ctx.subtype_of(self.t, pt.typ()))
         {
             orders.push(CompletionOrder::TypeMatched);
-        } else if self.arg_pt.map_or(false, |pt| {
+        } else if self.arg_pt.is_some_and(|pt| {
             let Some(return_t) = self.t.return_t() else {
                 return false;
             };
@@ -564,7 +564,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         if self
             .file_cache
             .get_line(&uri, pos.line)
-            .map_or(false, |line| line.starts_with('#'))
+            .is_some_and(|line| line.starts_with('#'))
         {
             return Ok(None);
         }

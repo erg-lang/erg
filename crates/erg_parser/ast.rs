@@ -4455,7 +4455,7 @@ impl VarName {
             .content
             .chars()
             .next()
-            .map_or(false, |c| c.is_uppercase())
+            .is_some_and(|c| c.is_uppercase())
     }
 
     #[inline]
@@ -4465,7 +4465,7 @@ impl VarName {
 
     #[inline]
     pub fn is_procedural(&self) -> bool {
-        self.0.content.chars().last().map_or(false, |c| c == '!')
+        self.0.content.ends_with('!')
     }
 
     pub fn is_raw(&self) -> bool {

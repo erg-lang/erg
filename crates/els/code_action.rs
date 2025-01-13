@@ -214,7 +214,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         }
         if diags
             .first()
-            .map_or(false, |diag| diag.message.ends_with("is not used"))
+            .is_some_and(|diag| diag.message.ends_with("is not used"))
         {
             let actions = self.gen_eliminate_unused_vars_action(params)?;
             result.extend(actions);

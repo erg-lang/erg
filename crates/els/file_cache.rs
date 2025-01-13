@@ -274,7 +274,7 @@ impl FileCache {
         let lock = self.files.borrow_mut();
         let entry = lock.get(uri);
         if let Some(entry) = entry {
-            if ver.map_or(false, |ver| ver <= entry.ver) {
+            if ver.is_some_and(|ver| ver <= entry.ver) {
                 // crate::_log!(self, "171: double update detected: {ver:?}, {}, code:\n{}", entry.ver, entry.code);
                 return;
             }

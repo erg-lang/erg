@@ -491,7 +491,7 @@ impl EffectError {
     pub fn touch_mut_error(input: Input, errno: usize, expr: &Expr, caused_by: String) -> Self {
         let (hint, def_loc) = match expr {
             Expr::Accessor(acc)
-                if acc.root_obj().map_or(false, |obj| {
+                if acc.root_obj().is_some_and(|obj| {
                     obj.var_info().is_some_and(|vi| vi.is_parameter()) && !obj.ref_t().is_ref()
                 }) =>
             {
