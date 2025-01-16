@@ -18,3 +18,5 @@
         mandatory: (Nat, Nat, Nat, Str, Nat) or NoneType,
         compiler_flag : Nat,
     ) -> ._Feature
+    getOptionalRelease: (self: _Feature) -> (Nat, Nat, Nat, Str, Nat)
+    getMandatoryRelease: (self: _Feature) -> (Nat, Nat, Nat, Str, Nat)

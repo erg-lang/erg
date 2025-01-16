@@ -15,7 +15,8 @@ use crate::random::random;
 use crate::serialize::get_magic_num_from_bytes;
 
 #[cfg(unix)]
-pub const BUILTIN_PYTHON_MODS: [&str; 177] = [
+pub const BUILTIN_PYTHON_MODS: [&str; 178] = [
+    "__future__",
     "abc",
     "argparse",
     "array",
@@ -195,7 +196,8 @@ pub const BUILTIN_PYTHON_MODS: [&str; 177] = [
     "zoneinfo",
 ];
 #[cfg(windows)]
-pub const BUILTIN_PYTHON_MODS: [&str; 172] = [
+pub const BUILTIN_PYTHON_MODS: [&str; 173] = [
+    "__future__",
     "abc",
     "argparse",
     "array",
@@ -370,7 +372,8 @@ pub const BUILTIN_PYTHON_MODS: [&str; 172] = [
     "zoneinfo",
 ];
 #[cfg(not(any(windows, unix)))]
-pub const BUILTIN_PYTHON_MODS: [&str; 166] = [
+pub const BUILTIN_PYTHON_MODS: [&str; 167] = [
+    "__future__",
     "abc",
     "argparse",
     "array",
