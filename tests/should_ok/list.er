@@ -47,3 +47,9 @@ assert l3.from(5) == []
 l4 as List Obj = l3
 assert 1 in l4
 assert not "a" in l4
+
+add x: [Int; _] = x + x
+mul x: [Int; _] = x * len([])
+
+_ = add [1, 1]
+_ = mul [1, 1]

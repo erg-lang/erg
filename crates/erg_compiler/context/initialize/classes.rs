@@ -1831,6 +1831,22 @@ impl Context {
             ValueObj::builtin_class(out_t),
         );
         list_.register_trait_methods(lis_t.clone(), list_mul);
+        let mut fallback_list_mul = Self::builtin_methods(Some(poly(MUL, vec![ty_tp(Nat)])), 2);
+        let mul_t = fn1_met(lis_t.clone(), Nat, out_unknown_len_list_t(T.clone())).quantify();
+        fallback_list_mul.register_builtin_erg_impl(
+            OP_MUL,
+            mul_t,
+            Immutable,
+            Visibility::BUILTIN_PUBLIC,
+        );
+        let out_t = out_unknown_len_list_t(T.clone());
+        fallback_list_mul.register_builtin_const(
+            OUTPUT,
+            Visibility::BUILTIN_PUBLIC,
+            None,
+            ValueObj::builtin_class(out_t),
+        );
+        list_.register_trait_methods(lis_t.clone(), fallback_list_mul);
         // [T; N].MutType! = [T; !N] (neither [T!; N] nor [T; N]!)
         let mut_type =
             ValueObj::builtin_class(poly(MUT_LIST, vec![TyParam::t(T.clone()), N.clone()]));
