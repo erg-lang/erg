@@ -34,4 +34,8 @@ Imag = Trait {
     .imag = Nat
 }
 imag x: Structural Imag = x.imag
+imag2 x =
+    n = imag x
+    n + x.imag
 assert imag(1) == 0 # OK
+assert imag2(1) == 0 # OK

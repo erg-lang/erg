@@ -1901,11 +1901,15 @@ impl BitAnd for Type {
             (Self::Obj, other) | (other, Self::Obj) => other,
             (Self::Never, _) | (_, Self::Never) => Self::Never,
             (Self::And(mut l, idx), r) => {
-                l.push(r);
+                if !l.contains(&r) {
+                    l.push(r);
+                }
                 Self::And(l, idx)
             }
             (l, Self::And(mut r, idx)) => {
-                r.push(l);
+                if !r.contains(&l) {
+                    r.push(l);
+                }
                 Self::And(r, idx)
             }
             (l, r) => Self::checked_and(vec![l, r], None),
@@ -3583,7 +3587,9 @@ impl Type {
     }
 
     /// ```erg
+    /// assert ?T.is_totally_unbound()
     /// assert (?T or ?U).totally_unbound()
+    /// assert !(?T or Int).totally_unbound()
     /// ```
     pub fn is_totally_unbound(&self) -> bool {
         match self {

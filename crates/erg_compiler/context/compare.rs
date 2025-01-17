@@ -13,7 +13,7 @@ use erg_common::{Str, Triple};
 use crate::context::eval::UndoableLinkedList;
 use crate::context::initialize::const_func::sub_tpdict_get;
 use crate::ty::constructors::{self, and, bounded, not, or, poly, refinement};
-use crate::ty::free::{Constraint, FreeTyVar};
+use crate::ty::free::{CanbeFree, Constraint, FreeTyVar};
 use crate::ty::typaram::{TyParam, TyParamOrdering};
 use crate::ty::value::ValueObj;
 use crate::ty::value::ValueObj::Inf;
@@ -1778,7 +1778,9 @@ impl Context {
             free.undo();
             res
         } else {
-            if lhs.is_totally_unbound() || rhs.is_totally_unbound() {
+            if (lhs.is_totally_unbound() || rhs.is_totally_unbound())
+                && lhs.unbound_id() != rhs.unbound_id()
+            {
                 return or(lhs.clone(), rhs.clone());
             }
             match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
@@ -2068,7 +2070,9 @@ impl Context {
 
     fn simple_intersection(&self, lhs: &Type, rhs: &Type) -> Type {
         // ?T and ?U will not be unified
-        if lhs.is_unbound_var() || rhs.is_unbound_var() {
+        if (lhs.is_totally_unbound() || rhs.is_totally_unbound())
+            && lhs.unbound_name() != rhs.unbound_name()
+        {
             and(lhs.clone(), rhs.clone())
         } else {
             match (self.supertype_of(lhs, rhs), self.subtype_of(lhs, rhs)) {
