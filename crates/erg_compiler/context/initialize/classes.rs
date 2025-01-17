@@ -1807,30 +1807,37 @@ impl Context {
         )
         .quantify();
         list_.register_builtin_erg_impl(FUNC_PUSH, t, Immutable, Visibility::BUILTIN_PUBLIC);
-        let repeat_t = no_var_fn_met(
-            lis_t.clone(),
-            vec![pos(singleton(Nat, M.clone()))],
-            vec![],
-            out_list_t(T.clone(), N.clone() * M.clone()),
-        )
-        .quantify();
-        list_.register_builtin_erg_impl(
-            FUNC_REPEAT,
-            repeat_t.clone(),
-            Immutable,
-            Visibility::BUILTIN_PUBLIC,
-        );
-        let mut list_mul =
-            Self::builtin_methods(Some(poly(MUL, vec![ty_tp(singleton(Nat, M.clone()))])), 2);
-        list_mul.register_builtin_erg_impl(OP_MUL, repeat_t, Immutable, Visibility::BUILTIN_PUBLIC);
-        let out_t = out_list_t(T.clone(), N.clone() * M.clone());
-        list_mul.register_builtin_const(
-            OUTPUT,
-            Visibility::BUILTIN_PUBLIC,
-            None,
-            ValueObj::builtin_class(out_t),
-        );
-        list_.register_trait_methods(lis_t.clone(), list_mul);
+        if ERG_MODE {
+            let repeat_t = no_var_fn_met(
+                lis_t.clone(),
+                vec![pos(singleton(Nat, M.clone()))],
+                vec![],
+                out_list_t(T.clone(), N.clone() * M.clone()),
+            )
+            .quantify();
+            list_.register_builtin_erg_impl(
+                FUNC_REPEAT,
+                repeat_t.clone(),
+                Immutable,
+                Visibility::BUILTIN_PUBLIC,
+            );
+            let mut list_mul =
+                Self::builtin_methods(Some(poly(MUL, vec![ty_tp(singleton(Nat, M.clone()))])), 2);
+            list_mul.register_builtin_erg_impl(
+                OP_MUL,
+                repeat_t,
+                Immutable,
+                Visibility::BUILTIN_PUBLIC,
+            );
+            let out_t = out_list_t(T.clone(), N.clone() * M.clone());
+            list_mul.register_builtin_const(
+                OUTPUT,
+                Visibility::BUILTIN_PUBLIC,
+                None,
+                ValueObj::builtin_class(out_t),
+            );
+            list_.register_trait_methods(lis_t.clone(), list_mul);
+        }
         let mut fallback_list_mul = Self::builtin_methods(Some(poly(MUL, vec![ty_tp(Nat)])), 2);
         let mul_t = fn1_met(lis_t.clone(), Nat, out_unknown_len_list_t(T.clone())).quantify();
         fallback_list_mul.register_builtin_erg_impl(
