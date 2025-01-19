@@ -28,7 +28,9 @@ use erg_common::str::Str;
 use erg_common::traits::{ExitStatus, New, Runnable, Stream};
 
 use erg_common::vfs::VFS;
-use erg_parser::ast::{ClassAttr, Expr, InlineModule, Record, RecordAttrOrIdent, VarName, AST};
+use erg_parser::ast::{
+    ClassAttr, Expr, InlineModule, Module, Record, RecordAttrOrIdent, VarName, AST,
+};
 use erg_parser::build_ast::{ASTBuildable, ASTBuilder as DefaultASTBuilder};
 use erg_parser::parse::SimpleParser;
 
@@ -759,9 +761,9 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         {
             return Ok(());
         }
-        let Some(mut ast) = self.parse(&import_path) else {
-            return Ok(());
-        };
+        let mut ast = self
+            .parse(&import_path)
+            .unwrap_or_else(|| AST::new(__name__.clone(), Module::new(vec![])));
         if let Err(mut errs) = self.resolve(&mut ast, &import_cfg) {
             self.inlines.insert(import_path.clone(), from_path.clone());
             *expr = Expr::InlineModule(InlineModule::new(
