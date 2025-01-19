@@ -24,6 +24,7 @@ use erg_parser::ast::{
 };
 use erg_parser::token::{Token, TokenKind, DOT};
 
+use crate::context::ControlKind;
 use crate::ty::constructors::{dict_t, set_t, tuple_t};
 use crate::ty::typaram::TyParam;
 use crate::ty::value::{GenTypeObj, ValueObj};
@@ -1573,6 +1574,12 @@ impl Call {
 
     pub fn is_method_call(&self) -> bool {
         self.call_signature_t().self_t().is_some()
+    }
+
+    pub fn control_kind(&self) -> Option<ControlKind> {
+        self.obj
+            .show_acc()
+            .and_then(|acc| ControlKind::try_from(&acc[..]).ok())
     }
 
     pub fn additional_operation(&self) -> Option<OperationKind> {
