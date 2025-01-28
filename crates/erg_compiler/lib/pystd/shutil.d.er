@@ -1,8 +1,33 @@
 logging = pyimport "logging"
 ._WINDOWS: Bool
 
-.chown!: (path: PathLike, user := Str, group := Str) => NoneType
-.copyfile!: (src: PathLike, dst: PathLike,) => NoneType
+.chown!: (
+    path: PathLike,
+    user := Str,
+    group := Str,
+    dir_fd := Nat or FileDescriptor,
+    follow_symlinks := Bool,
+) => NoneType
+.copyfile!: (
+    src: PathLike,
+    dst: PathLike,
+    follow_symlinks := Bool,
+) => NoneType
+.copyfileobj!: (
+    fsrc: File! or FileDescriptor,
+    fdst: File! or FileDescriptor,
+    length := Int,
+) => NoneType
+.copymode!: (
+    src: PathLike,
+    dst: PathLike,
+    follow_symlinks := Bool,
+) => NoneType
+.copystat!: (
+    src: PathLike,
+    dst: PathLike,
+    follow_symlinks := Bool,
+) => NoneType
 .copy!: (src: PathLike, dst: PathLike,) => NoneType
 .copy2!: (src: PathLike, dst: PathLike,) => NoneType
 .copytree!: (
@@ -30,7 +55,7 @@ logging = pyimport "logging"
 .register_unpack_format!: (name: Str, extensions: [Str; _], function: GenericCallable) => NoneType
 .rmtree!: (
     path: PathLike,
-    ignore_tree := Bool,
+    ignore_errors := Bool,
     onerror := Obj,
     onexc := Obj,
     dir_fd := Nat or FileDescriptor,
@@ -51,7 +76,12 @@ logging = pyimport "logging"
     filename: PathLike,
     extract_dir := PathLike,
     format := Str,
+    filter := GenericCallable,
 ) => NoneType
 .unregister_archive_format!: (name: Str) => NoneType
 .unregister_unpack_format!: (name: Str) => NoneType
-.which!: (cmd: Str,) => Str or NoneType
+.which!: (
+    cmd: Str,
+    mode := Str,
+    path := Str or NoneType,
+) => Str or NoneType

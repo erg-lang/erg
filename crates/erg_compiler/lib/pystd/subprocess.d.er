@@ -70,10 +70,19 @@
 .run!: (
     args: Str or [Str; _],
     stdin: File! or NoneType := NoneType,
+    input: Bytes or Str or NoneType := NoneType,
     stdout: File! or NoneType := NoneType,
     stderr: File! or NoneType := NoneType,
     capture_output := Bool,
     shell := Bool,
+    cwd: Str or NoneType := NoneType,
+    timeout: Float or NoneType := NoneType,
+    check := Bool,
+    encoding: Str or NoneType := NoneType,
+    errors: Str or NoneType := NoneType,
+    text := Bool,
+    env: {Str: Str} or NoneType := NoneType,
+    universal_newlines := Bool,
 ) => .CompletedProcess
 .call!: (
     args: Str or [Str; _],
@@ -81,16 +90,26 @@
     stdout: File! or NoneType := NoneType,
     stderr: File! or NoneType := NoneType,
     shell := Bool,
+    cwd: Str or NoneType := NoneType,
+    timeout: Float or NoneType := NoneType,
 ) => Int
 .check_call!: (
     args: Str or [Str; _],
     stdin: File! or NoneType := NoneType,
     stderr: File! or NoneType := NoneType,
     shell := Bool,
+    cwd: Str or NoneType := NoneType,
+    timeout: Float or NoneType := NoneType,
 ) => {0} or Never
 .check_output!: (
     args: Str or [Str; _],
     stdin: File! or NoneType := NoneType,
     stderr: File! or NoneType := NoneType,
     shell := Bool,
+    cwd: Str or NoneType := NoneType,
+    encoding: Str or NoneType := NoneType,
+    errors: Str or NoneType := NoneType,
+    universal_newlines := Bool,
+    timeout: Float or NoneType := NoneType,
+    text := Bool,
 ) => Bytes or NoneType
