@@ -63,9 +63,9 @@ checksum = "8f68f53c83ab957f72c32642f3868eec03eb974d1fb82e453128456482613d36"
 
 [[package]]
 name = "cc"
-version = "1.2.9"
+version = "1.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c8293772165d9345bdaaa39b45b2109591e63fe5e6fbc23c6ff930a048aa310b"
+checksum = "13208fcbb66eaeffe09b99fffbe1af420f00a7b35aa99ad683dfc1aa76145229"
 dependencies = [
  "shlex",
 ]
@@ -114,7 +114,7 @@ dependencies = [
 
 [[package]]
 name = "els"
-version = "0.1.64-nightly.0"
+version = "0.1.64-nightly.1"
 dependencies = [
  "erg_common",
  "erg_compiler",
@@ -130,7 +130,7 @@ dependencies = [
 
 [[package]]
 name = "erg"
-version = "0.6.52-nightly.0"
+version = "0.6.52-nightly.1"
 dependencies = [
  "els",
  "erg_common",
@@ -141,7 +141,7 @@ dependencies = [
 
 [[package]]
 name = "erg_common"
-version = "0.6.52-nightly.0"
+version = "0.6.52-nightly.1"
 dependencies = [
  "backtrace-on-stack-overflow",
  "crossterm",
@@ -154,7 +154,7 @@ dependencies = [
 
 [[package]]
 name = "erg_compiler"
-version = "0.6.52-nightly.0"
+version = "0.6.52-nightly.1"
 dependencies = [
  "erg_common",
  "erg_parser",
@@ -163,7 +163,7 @@ dependencies = [
 
 [[package]]
 name = "erg_linter"
-version = "0.6.52-nightly.0"
+version = "0.6.52-nightly.1"
 dependencies = [
  "erg_common",
  "erg_compiler",
@@ -172,7 +172,7 @@ dependencies = [
 
 [[package]]
 name = "erg_parser"
-version = "0.6.52-nightly.0"
+version = "0.6.52-nightly.1"
 dependencies = [
  "erg_common",
  "erg_proc_macros",
@@ -182,7 +182,7 @@ dependencies = [
 
 [[package]]
 name = "erg_proc_macros"
-version = "0.6.52-nightly.0"
+version = "0.6.52-nightly.1"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -618,9 +618,9 @@ checksum = "719b953e2095829ee67db738b3bfa9fa368c94900df327b3f07fe6e794d2fe1f"
 
 [[package]]
 name = "ryu"
-version = "1.0.18"
+version = "1.0.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3cb5ba0dc43242ce17de99c180e96db90b235b8a9fdc9543c96d2209116bd9f"
+checksum = "6ea1a2d0a644769cc99faa24c3ad26b379b786fe7c36fd3c546254801650e6dd"
 
 [[package]]
 name = "scopeguard"
@@ -650,9 +650,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.135"
+version = "1.0.138"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b0d7ba2887406110130a978386c4e1befb98c674b4fba677954e4db976630d9"
+checksum = "d434192e7da787e94a6ea7e9670b26a036d0ca41e0b7efb2676dd32bae872949"
 dependencies = [
  "itoa",
  "memchr",
@@ -780,9 +780,9 @@ dependencies = [
 
 [[package]]
 name = "unicode-ident"
-version = "1.0.14"
+version = "1.0.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "adb9e6ca4f869e1180728b7950e35922a7fc6397f7b641499e8f3ef06e50dc83"
+checksum = "a210d160f08b701c8721ba1c726c11662f877ea6b7094007e1ca9a1041945034"
 
 [[package]]
 name = "unicode-xid"
