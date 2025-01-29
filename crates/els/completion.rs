@@ -617,8 +617,8 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             .get_min_expr(&uri, pos, offset)
             .and_then(|(token, expr)| match expr {
                 Expr::Call(call) => {
-                    let sig_t = call.obj.t();
-                    result.extend(self.kw_arg_completion(&sig_t, &mod_ctx.context));
+                    let sig_t = call.signature_t().unwrap();
+                    result.extend(self.kw_arg_completion(sig_t, &mod_ctx.context));
                     let nth = self.nth(&uri, &call, pos);
                     let additional = if matches!(token.kind, Comma) { 1 } else { 0 };
                     let nth = nth + additional;
