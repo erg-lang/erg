@@ -2,6 +2,7 @@
 //! What is implemented here affects subsequent optimizations,
 //! and `erg_linter` does linting that does not affect optimizations.
 
+use erg_common::consts::PYTHON_MODE;
 #[allow(unused_imports)]
 use erg_common::log;
 use erg_common::pathutil::NormalizedPathBuf;
@@ -68,6 +69,13 @@ impl<ASTBuilder: ASTBuildable> GenericASTLowerer<ASTBuilder> {
     /// OK: exec `None`
     fn expr_use_check(&self, expr: &hir::Expr) -> LowerResult<()> {
         if !expr.ref_t().is_nonelike() && !expr.is_type_asc() && !expr.is_doc_comment() {
+            if PYTHON_MODE
+                && expr
+                    .as_call()
+                    .is_some_and(|call| call.control_kind().is_some())
+            {
+                return self.block_use_check(expr);
+            }
             if expr.ref_t().is_subr() {
                 Err(LowerWarnings::from(
                     LowerWarning::unused_subroutine_warning(

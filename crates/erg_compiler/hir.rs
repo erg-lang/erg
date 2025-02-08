@@ -658,6 +658,25 @@ impl_display_from_nested!(Accessor);
 impl_locational_for_enum!(Accessor; Ident, Attr);
 impl_t_for_enum!(Accessor; Ident, Attr);
 
+impl<'x> TryFrom<&'x Accessor> for &'x Identifier {
+    type Error = ();
+    fn try_from(acc: &'x Accessor) -> Result<Self, ()> {
+        match acc {
+            Accessor::Ident(ident) => Ok(ident),
+            _ => Err(()),
+        }
+    }
+}
+impl<'x> TryFrom<&'x Accessor> for &'x Attribute {
+    type Error = ();
+    fn try_from(acc: &'x Accessor) -> Result<Self, ()> {
+        match acc {
+            Accessor::Attr(attr) => Ok(attr),
+            _ => Err(()),
+        }
+    }
+}
+
 impl Accessor {
     pub fn private_with_line(name: Str, line: u32) -> Self {
         Self::Ident(Identifier::private_with_line(name, line))
@@ -770,6 +789,20 @@ impl Accessor {
             Some(Expr::Accessor(acc)) => acc.root_obj(),
             Some(obj) => Some(obj),
             None => None,
+        }
+    }
+
+    pub fn as_ident(&self) -> Option<&Identifier> {
+        match self {
+            Self::Ident(ident) => Some(ident),
+            _ => None,
+        }
+    }
+
+    pub fn as_attr(&self) -> Option<&Attribute> {
+        match self {
+            Self::Attr(attr) => Some(attr),
+            _ => None,
         }
     }
 }
@@ -3014,6 +3047,46 @@ impl Expr {
             Self::TypeAsc(t_asc) => t_asc.expr.receiver_t(),
             _other => None,
         }
+    }
+
+    pub fn as_call(&self) -> Option<&Call> {
+        <&Call>::try_from(self).ok()
+    }
+
+    pub fn as_binop(&self) -> Option<&BinOp> {
+        <&BinOp>::try_from(self).ok()
+    }
+
+    pub fn as_unaryop(&self) -> Option<&UnaryOp> {
+        <&UnaryOp>::try_from(self).ok()
+    }
+
+    pub fn as_def(&self) -> Option<&Def> {
+        <&Def>::try_from(self).ok()
+    }
+
+    pub fn as_lambda(&self) -> Option<&Lambda> {
+        <&Lambda>::try_from(self).ok()
+    }
+
+    pub fn as_class_def(&self) -> Option<&ClassDef> {
+        <&ClassDef>::try_from(self).ok()
+    }
+
+    pub fn as_literal(&self) -> Option<&Literal> {
+        <&Literal>::try_from(self).ok()
+    }
+
+    pub fn as_accessor(&self) -> Option<&Accessor> {
+        <&Accessor>::try_from(self).ok()
+    }
+
+    pub fn as_ident(&self) -> Option<&Identifier> {
+        self.as_accessor().and_then(|acc| acc.as_ident())
+    }
+
+    pub fn as_attr(&self) -> Option<&Attribute> {
+        self.as_accessor().and_then(|acc| acc.as_attr())
     }
 
     pub fn show_acc(&self) -> Option<String> {

@@ -3074,7 +3074,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 if let Some(attr_t) = attr.ref_mut_t() {
                     *attr_t = sup.clone();
                 }
-                if let hir::Accessor::Ident(ident) = &attr {
+                if let Some(ident) = attr.as_ident() {
                     if let Some(vi) = self
                         .module
                         .context

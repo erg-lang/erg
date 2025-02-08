@@ -1886,7 +1886,7 @@ impl Context {
                 {
                     log!(info "~> {after}\n");
                     *self_t = *after.clone();
-                    if let hir::Expr::Accessor(hir::Accessor::Ident(ident)) = receiver {
+                    if let Some(ident) = receiver.as_ident() {
                         if let Some(vi) = self.rec_get_mut_var_info(&ident.raw, AccessKind::Name) {
                             vi.t = self_t.clone();
                         }
@@ -2783,7 +2783,7 @@ impl Context {
         input: &Input,
         namespace: &Context,
     ) -> FailableOption<VarInfo> {
-        if let hir::Expr::Accessor(hir::Accessor::Ident(local)) = obj {
+        if let Some(local) = obj.as_ident() {
             if local.vis().is_private() {
                 match &local.inspect()[..] {
                     "match" => {

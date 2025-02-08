@@ -14,7 +14,7 @@ use erg_common::{
     fmt_option, fmt_vec, impl_display_for_enum, impl_display_from_nested,
     impl_displayable_stream_for_wrapper, impl_from_trait_for_enum, impl_locational,
     impl_locational_for_enum, impl_nested_display_for_chunk_enum, impl_nested_display_for_enum,
-    impl_stream, impl_traversable_for_enum,
+    impl_stream, impl_traversable_for_enum, impl_try_from_trait_for_enum,
 };
 use erg_common::{fmt_vec_split_with, Str};
 
@@ -1017,6 +1017,20 @@ impl Accessor {
             Self::TupleAttr(attr) => attr.obj.is_const_acc(),
             Self::Attr(attr) => attr.obj.is_const_acc() && attr.ident.is_const(),
             Self::TypeApp(app) => app.obj.is_const_acc(),
+        }
+    }
+
+    pub fn as_ident(&self) -> Option<&Identifier> {
+        match self {
+            Self::Ident(ident) => Some(ident),
+            _ => None,
+        }
+    }
+
+    pub fn as_attr(&self) -> Option<&Attribute> {
+        match self {
+            Self::Attr(attr) => Some(attr),
+            _ => None,
         }
     }
 }
@@ -2177,6 +2191,17 @@ impl TryFrom<Expr> for Call {
             Expr::Call(call) => Ok(call),
             Expr::TypeAscription(tasc) => Self::try_from(*tasc.expr),
             Expr::Accessor(Accessor::TypeApp(tapp)) => Self::try_from(*tapp.obj),
+            _ => Err(()),
+        }
+    }
+}
+impl<'x> TryFrom<&'x Expr> for &'x Call {
+    type Error = ();
+    fn try_from(expr: &'x Expr) -> Result<Self, Self::Error> {
+        match expr {
+            Expr::Call(call) => Ok(call),
+            Expr::TypeAscription(tasc) => Self::try_from(&*tasc.expr),
+            Expr::Accessor(Accessor::TypeApp(tapp)) => Self::try_from(&*tapp.obj),
             _ => Err(()),
         }
     }
@@ -6820,6 +6845,7 @@ pub enum Expr {
 
 impl_nested_display_for_chunk_enum!(Expr; Literal, Accessor, List, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, Dummy);
 impl_from_trait_for_enum!(Expr; Literal, Accessor, List, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, Dummy);
+impl_try_from_trait_for_enum!(Expr; Literal, Accessor, List, Tuple, Dict, Set, Record, BinOp, UnaryOp, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, Dummy);
 impl_display_from_nested!(Expr);
 impl_locational_for_enum!(Expr; Literal, Accessor, List, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, Dummy);
 impl_into_py_for_enum!(Expr; Literal, Accessor, List, Tuple, Dict, Set, Record, BinOp, UnaryOp, Call, DataPack, Lambda, TypeAscription, Def, Methods, ClassDef, PatchDef, ReDef, Compound, InlineModule, Dummy);
@@ -7071,6 +7097,34 @@ impl Expr {
             }
             _ => 5,
         }
+    }
+
+    pub fn as_call(&self) -> Option<&Call> {
+        <&Call>::try_from(self).ok()
+    }
+
+    pub fn as_def(&self) -> Option<&Def> {
+        <&Def>::try_from(self).ok()
+    }
+
+    pub fn as_class_def(&self) -> Option<&ClassDef> {
+        <&ClassDef>::try_from(self).ok()
+    }
+
+    pub fn as_lambda(&self) -> Option<&Lambda> {
+        <&Lambda>::try_from(self).ok()
+    }
+
+    pub fn as_accessor(&self) -> Option<&Accessor> {
+        <&Accessor>::try_from(self).ok()
+    }
+
+    pub fn as_ident(&self) -> Option<&Identifier> {
+        self.as_accessor().and_then(|acc| acc.as_ident())
+    }
+
+    pub fn as_attr(&self) -> Option<&Attribute> {
+        self.as_accessor().and_then(|acc| acc.as_attr())
     }
 }
 

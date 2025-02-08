@@ -1320,9 +1320,7 @@ impl Context {
                                     }
                                 }
                                 ClassAttr::Decl(decl) => {
-                                    if let ast::Expr::Accessor(ast::Accessor::Ident(ident)) =
-                                        decl.expr.as_ref()
-                                    {
+                                    if let Some(ident) = decl.expr.as_ident() {
                                         if let Err((_, errs)) =
                                             self.declare_var(ident, &decl.t_spec)
                                         {
@@ -1362,7 +1360,7 @@ impl Context {
                     if !self.kind.is_module() {
                         continue;
                     }
-                    if let ast::Expr::Accessor(ast::Accessor::Ident(ident)) = tasc.expr.as_ref() {
+                    if let Some(ident) = tasc.expr.as_ident() {
                         if let Err((_, errs)) = self.declare_var(ident, &tasc.t_spec) {
                             total_errs.extend(errs);
                         }
