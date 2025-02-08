@@ -1141,35 +1141,45 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
     }
 
     fn get_call_guard_type(&self, call: &ast::Call) -> Option<Type> {
-        if let (ast::Expr::Accessor(ast::Accessor::Ident(ident)), None, Some(lhs), Some(rhs)) = (
+        match (
             call.obj.as_ref(),
             &call.attr_name,
             &call.args.nth_or_key(0, "object"),
             &call.args.nth_or_key(1, "classinfo"),
         ) {
-            match &ident.inspect()[..] {
-                "isinstance" | "issubclass" => {
-                    self.get_bin_guard_type(ident.name.token(), lhs, rhs)
-                }
-                "hasattr" => {
-                    let ast::Expr::Literal(lit) = rhs else {
-                        return None;
-                    };
-                    if !lit.is(TokenKind::StrLit) {
-                        return None;
+            (ast::Expr::Accessor(ast::Accessor::Ident(ident)), None, Some(lhs), Some(rhs)) => {
+                match &ident.inspect()[..] {
+                    "isinstance" | "issubclass" => {
+                        self.get_bin_guard_type(ident.name.token(), lhs, rhs)
                     }
-                    let name = lit.token.content.trim_matches('\"');
-                    let target = self.expr_to_cast_target(lhs);
-                    let rec = dict! {
-                        Field::new(VisibilityModifier::Public, Str::rc(name)) => Type::Obj,
-                    };
-                    let to = Type::Record(rec).structuralize();
-                    Some(guard(self.module.context.name.clone(), target, to))
+                    "hasattr" => {
+                        let ast::Expr::Literal(lit) = rhs else {
+                            return None;
+                        };
+                        if !lit.is(TokenKind::StrLit) {
+                            return None;
+                        }
+                        let name = lit.token.content.trim_matches('\"');
+                        let target = self.expr_to_cast_target(lhs);
+                        let rec = dict! {
+                            Field::new(VisibilityModifier::Public, Str::rc(name)) => Type::Obj,
+                        };
+                        let to = Type::Record(rec).structuralize();
+                        Some(guard(self.module.context.name.clone(), target, to))
+                    }
+                    _ => None,
                 }
-                _ => None,
             }
-        } else {
-            None
+            (ast::Expr::Accessor(ast::Accessor::Ident(ident)), None, Some(arg), None) => {
+                match &ident.inspect()[..] {
+                    "not" => {
+                        let arg = self.get_guard_type(arg)?;
+                        Some(self.module.context.complement(&arg))
+                    }
+                    _ => None,
+                }
+            }
+            _ => None,
         }
     }
 
@@ -1428,7 +1438,9 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         for (nth, (arg, param)) in pos_args {
             match self.lower_expr(arg.expr, param) {
                 Ok(expr) => {
-                    if let Some(kind) = self.module.context.control_kind() {
+                    // e.g. `if not isinstance(x, Int)`
+                    // push {x in not Int}, not {x in Int}
+                    if let Some(kind) = self.module.context.current_control_flow() {
                         self.push_guard(nth, kind, expr.ref_t());
                     }
                     hir_pos_args[nth] = hir::PosArg::new(expr);

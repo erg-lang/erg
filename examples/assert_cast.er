@@ -25,3 +25,9 @@ is_int(x: Obj) = x in Int
 y as Obj = 1
 assert is_int y
 y: Int
+
+bs x: Bytes or Str =
+    discard if not(isinstance(x, Str)), do:
+        # x: Bytes
+        str(x, "ascii")
+_ = bs "abc"
