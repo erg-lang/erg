@@ -2,6 +2,7 @@ use std::any::type_name;
 use std::io;
 use std::io::{stdin, BufRead, Read};
 use std::ops::Not;
+use std::panic;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -264,6 +265,12 @@ impl<C: BuildRunnable, P: Parsable> Clone for Server<C, P> {
 
 impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub fn new(cfg: ErgConfig, stdout_redirect: Option<mpsc::Sender<Value>>) -> Self {
+        let default_hook = panic::take_hook();
+        panic::set_hook(Box::new(move |panic_info| {
+            lsp_log!("{panic_info}");
+            default_hook(panic_info);
+        }));
+
         let flags = Flags::default();
         let cfg = Self::register_packages(cfg);
         let shared = SharedCompilerResource::new(cfg.copy());
@@ -861,7 +868,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                         break;
                     }
                 }
-            },
+            }, // The receiver channel will be dropped and closed
             R::METHOD,
         );
     }
