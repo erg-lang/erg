@@ -37,7 +37,7 @@ Increase the thread stack size. Used for Windows execution and test execution.
 `--language-server` option becomes available.
 `erg --language-server` will start the Erg language server.
 
-## py_compatible
+## py_compat
 
 Enable Python-compatible mode, which makes parts of the APIs and syntax compatible with Python. Used for [pylyzer](https://github.com/mtshiba/pylyzer).
 
