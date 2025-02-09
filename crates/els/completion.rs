@@ -33,7 +33,7 @@ use lsp_types::{
 };
 
 use crate::_log;
-use crate::server::{ELSResult, Flags, RedirectableStdout, Server};
+use crate::server::{DefaultFeatures, ELSResult, Flags, RedirectableStdout, Server};
 use crate::util::{self, loc_to_pos, loc_to_range, NormalizedUrl};
 
 fn comp_item_kind(t: &Type, muty: Mutability) -> CompletionItemKind {
@@ -388,67 +388,74 @@ fn load_modules<'a>(
 }
 
 impl CompletionCache {
-    pub fn new(cfg: ErgConfig, flags: Flags, shared: SharedCompilerResource) -> Self {
+    pub fn new(
+        cfg: ErgConfig,
+        flags: Flags,
+        shared: SharedCompilerResource,
+        external_items: bool,
+    ) -> Self {
         let cache = Shared::new(Dict::default());
         let clone = cache.clone();
-        spawn_new_thread(
-            move || {
-                // crate::_log!("load_modules");
-                let major_mods = [
-                    "argparse",
-                    "array",
-                    "asyncio",
-                    "base64",
-                    "datetime",
-                    "decimal",
-                    "fraction",
-                    "glob",
-                    "html",
-                    "http",
-                    "http/client",
-                    "http/server",
-                    "io",
-                    "json",
-                    "logging",
-                    "math",
-                    "os",
-                    "os/path",
-                    "pathlib",
-                    "platform",
-                    "random",
-                    "re",
-                    "shutil",
-                    "socket",
-                    "sqlite3",
-                    "ssl",
-                    "string",
-                    "subprocess",
-                    "sys",
-                    "tempfile",
-                    "time",
-                    "timeit",
-                    "unittest",
-                    "urllib",
-                    "zipfile",
-                ];
-                #[cfg(feature = "py_compat")]
-                let py_specific_mods = ["dataclasses", "typing", "collections/abc"];
-                #[cfg(not(feature = "py_compat"))]
-                let py_specific_mods = [];
-                load_modules(
-                    cfg.clone(),
-                    clone.clone(),
-                    erg_pystd_path(),
-                    major_mods.into_iter().chain(py_specific_mods),
-                    shared,
-                );
-                // TODO: load modules from site-packages
-                flags
-                    .builtin_modules_loaded
-                    .store(true, std::sync::atomic::Ordering::Relaxed);
-            },
-            "load_modules",
-        );
+        if external_items {
+            spawn_new_thread(
+                move || {
+                    // crate::_log!("load_modules");
+                    let major_mods = [
+                        "argparse",
+                        "array",
+                        "asyncio",
+                        "base64",
+                        "datetime",
+                        "decimal",
+                        "fraction",
+                        "glob",
+                        "html",
+                        "http",
+                        "http/client",
+                        "http/server",
+                        "io",
+                        "json",
+                        "logging",
+                        "math",
+                        "os",
+                        "os/path",
+                        "pathlib",
+                        "platform",
+                        "random",
+                        "re",
+                        "shutil",
+                        "socket",
+                        "sqlite3",
+                        "ssl",
+                        "string",
+                        "subprocess",
+                        "sys",
+                        "tempfile",
+                        "time",
+                        "timeit",
+                        "unittest",
+                        "urllib",
+                        "zipfile",
+                    ];
+                    #[cfg(feature = "py_compat")]
+                    let py_specific_mods = ["dataclasses", "typing", "collections/abc"];
+                    #[cfg(not(feature = "py_compat"))]
+                    let py_specific_mods = [];
+                    load_modules(
+                        cfg.clone(),
+                        clone.clone(),
+                        erg_pystd_path(),
+                        major_mods.into_iter().chain(py_specific_mods),
+                        shared,
+                    );
+                    // TODO: load modules from site-packages
+                    flags
+                        .builtin_modules_loaded
+                        .store(true, std::sync::atomic::Ordering::Relaxed);
+                },
+                "load_modules",
+            );
+        }
         Self { cache }
     }
 
@@ -744,7 +751,12 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 self.comp_cache.insert("<module>".into(), comps.clone());
                 result.extend(comps);
             }
-            result.extend(self.neighbor_completion(&uri, arg_pt, &mut already_appeared));
+            if !self
+                .disabled_features
+                .contains(&DefaultFeatures::DeepCompletion)
+            {
+                result.extend(self.neighbor_completion(&uri, arg_pt, &mut already_appeared));
+            }
         }
         _log!(self, "completion items: {}", result.len());
         Ok(Some(CompletionResponse::Array(result)))

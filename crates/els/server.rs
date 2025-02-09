@@ -274,16 +274,36 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let flags = Flags::default();
         let cfg = Self::register_packages(cfg);
         let shared = SharedCompilerResource::new(cfg.copy());
+        let mut args = cfg.runtime_args.iter();
+        let mut disabled_features = vec![];
+        let mut opt_features = vec![];
+        while let Some(&arg) = args.next() {
+            if arg == "--disable" {
+                if let Some(&feature) = args.next() {
+                    disabled_features.push(DefaultFeatures::from(feature));
+                }
+            } else if arg == "--enable" {
+                if let Some(&feature) = args.next() {
+                    opt_features.push(OptionalFeatures::from(feature));
+                }
+            }
+        }
+        let external_items = !disabled_features.contains(&DefaultFeatures::DeepCompletion);
         Self {
-            comp_cache: CompletionCache::new(cfg.copy(), flags.clone(), shared.clone()),
+            comp_cache: CompletionCache::new(
+                cfg.copy(),
+                flags.clone(),
+                shared.clone(),
+                external_items,
+            ),
             shared,
             cfg,
             home: normalize_path(std::env::current_dir().unwrap_or_default()),
             erg_path: erg_path().clone(), // already normalized
             init_params: InitializeParams::default(),
             client_answers: Shared::new(Dict::new()),
-            disabled_features: vec![],
-            opt_features: vec![],
+            disabled_features,
+            opt_features,
             file_cache: FileCache::new(stdout_redirect.clone()),
             channels: None,
             flags,
@@ -446,18 +466,6 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         if msg.get("params").is_some() && msg["params"].get("capabilities").is_some() {
             self.init_params = InitializeParams::deserialize(&msg["params"])?;
             // self.send_log(format!("set client capabilities: {:?}", self.client_capas))?;
-        }
-        let mut args = self.cfg.runtime_args.iter();
-        while let Some(&arg) = args.next() {
-            if arg == "--disable" {
-                if let Some(&feature) = args.next() {
-                    self.disabled_features.push(DefaultFeatures::from(feature));
-                }
-            } else if arg == "--enable" {
-                if let Some(&feature) = args.next() {
-                    self.opt_features.push(OptionalFeatures::from(feature));
-                }
-            }
         }
         let mut result = InitializeResult::default();
         result.capabilities = self.init_capabilities();
