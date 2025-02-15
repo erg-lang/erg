@@ -51,8 +51,8 @@ use lsp_types::{
     DocumentLinkOptions, ExecuteCommandOptions, FoldingRangeProviderCapability,
     HoverProviderCapability, ImplementationProviderCapability, InitializeParams, InitializeResult,
     InlayHintOptions, InlayHintServerCapabilities, NumberOrString, OneOf, Position, ProgressParams,
-    ProgressParamsValue, SelectionRangeProviderCapability, SemanticTokenType,
-    SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions,
+    ProgressParamsValue, SelectionRangeProviderCapability, SemanticTokenModifier,
+    SemanticTokenType, SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions,
     SemanticTokensServerCapabilities, ServerCapabilities, SignatureHelpOptions,
     TypeDefinitionProviderCapability, WorkDoneProgress, WorkDoneProgressBegin,
     WorkDoneProgressCreateParams, WorkDoneProgressEnd, WorkDoneProgressOptions,
@@ -532,7 +532,18 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 SemanticTokenType::NUMBER,
                 SemanticTokenType::OPERATOR,
             ],
-            token_modifiers: vec![],
+            token_modifiers: vec![
+                SemanticTokenModifier::DECLARATION,
+                SemanticTokenModifier::DEFINITION,
+                SemanticTokenModifier::READONLY,
+                SemanticTokenModifier::STATIC,
+                SemanticTokenModifier::DEPRECATED,
+                SemanticTokenModifier::ABSTRACT,
+                SemanticTokenModifier::ASYNC,
+                SemanticTokenModifier::MODIFICATION,
+                SemanticTokenModifier::DOCUMENTATION,
+                SemanticTokenModifier::DEFAULT_LIBRARY,
+            ],
         };
         capabilities.semantic_tokens_provider = self
             .disabled_features
