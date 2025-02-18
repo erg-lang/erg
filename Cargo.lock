@@ -63,9 +63,9 @@ checksum = "8f68f53c83ab957f72c32642f3868eec03eb974d1fb82e453128456482613d36"
 
 [[package]]
 name = "cc"
-version = "1.2.13"
+version = "1.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7777341816418c02e033934a09f20dc0ccaf65a5201ef8a450ae0105a573fda"
+checksum = "0c3d1b2e905a3a7b00a6141adb0e4c0bb941d11caf55349d863942a1cc44e3c9"
 dependencies = [
  "shlex",
 ]
@@ -114,7 +114,7 @@ dependencies = [
 
 [[package]]
 name = "els"
-version = "0.1.64-nightly.3"
+version = "0.1.64"
 dependencies = [
  "erg_common",
  "erg_compiler",
@@ -130,7 +130,7 @@ dependencies = [
 
 [[package]]
 name = "erg"
-version = "0.6.52-nightly.3"
+version = "0.6.52"
 dependencies = [
  "els",
  "erg_common",
@@ -141,7 +141,7 @@ dependencies = [
 
 [[package]]
 name = "erg_common"
-version = "0.6.52-nightly.3"
+version = "0.6.52"
 dependencies = [
  "backtrace-on-stack-overflow",
  "crossterm",
@@ -154,7 +154,7 @@ dependencies = [
 
 [[package]]
 name = "erg_compiler"
-version = "0.6.52-nightly.3"
+version = "0.6.52"
 dependencies = [
  "erg_common",
  "erg_parser",
@@ -163,7 +163,7 @@ dependencies = [
 
 [[package]]
 name = "erg_linter"
-version = "0.6.52-nightly.3"
+version = "0.6.52"
 dependencies = [
  "erg_common",
  "erg_compiler",
@@ -172,7 +172,7 @@ dependencies = [
 
 [[package]]
 name = "erg_parser"
-version = "0.6.52-nightly.3"
+version = "0.6.52"
 dependencies = [
  "erg_common",
  "erg_proc_macros",
@@ -182,7 +182,7 @@ dependencies = [
 
 [[package]]
 name = "erg_proc_macros"
-version = "0.6.52-nightly.3"
+version = "0.6.52"
 dependencies = [
  "quote",
  "syn 1.0.109",
@@ -427,9 +427,9 @@ dependencies = [
 
 [[package]]
 name = "miniz_oxide"
-version = "0.8.3"
+version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8402cab7aefae129c6977bb0ff1b8fd9a04eb5b51efc50a70bea51cda0c7924"
+checksum = "b3b1c9bd4fe1f0f8b387f6eb9eb3b4a1aa26185e5750efb9140301703f62cd1b"
 dependencies = [
  "adler2",
 ]
@@ -709,9 +709,9 @@ dependencies = [
 
 [[package]]
 name = "smallvec"
-version = "1.13.2"
+version = "1.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c5e1a9a646d36c3599cd173a41282daf47c44583ad367b8e6837255952e5c67"
+checksum = "7fcf8323ef1faaee30a44a340193b1ac6814fd9b7b4e88e9d4519a3e4abe1cfd"
 
 [[package]]
 name = "stable_deref_trait"
