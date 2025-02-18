@@ -676,6 +676,9 @@ impl Input {
         }
         if PYTHON_MODE {
             if let Ok(resolved) = self.resolve_py(path) {
+                if cfg.respect_pyi && resolved.with_extension("pyi").exists() {
+                    return Some(resolved.with_extension("pyi"));
+                }
                 return Some(resolved);
             }
         }

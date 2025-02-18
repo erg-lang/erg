@@ -177,12 +177,14 @@ pub struct ErgConfig {
     pub ps2: &'static str,
     pub runtime_args: ArcArray<&'static str>,
     pub packages: ArcArray<Package>,
+    /* ↓ options for pylyzer ↓ */
     pub effect_check: bool,
     pub ownership_check: bool,
     pub use_pylyzer: bool,
     pub no_infer_fn_type: bool,
     pub fast_error_report: bool,
     pub do_not_show_ext_errors: bool,
+    pub respect_pyi: bool,
 }
 
 impl Default for ErgConfig {
@@ -214,6 +216,7 @@ impl Default for ErgConfig {
             no_infer_fn_type: false,
             fast_error_report: false,
             do_not_show_ext_errors: false,
+            respect_pyi: true,
         }
     }
 }

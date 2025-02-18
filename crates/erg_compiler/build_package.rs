@@ -935,7 +935,9 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
         let _path = path.to_path_buf();
         let cfg = self.cfg.inherit(path.to_path_buf());
         let shared = self.shared.inherit(path.clone());
-        let mode = if _path.to_string_lossy().ends_with(".d.er") {
+        let mode = if _path.to_string_lossy().ends_with(".d.er")
+            || _path.to_string_lossy().ends_with(".pyi")
+        {
             "declare"
         } else {
             "exec"
