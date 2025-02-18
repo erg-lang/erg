@@ -1,37 +1,70 @@
 # The ABCs in this file are not defined as a collection of traits.
 # Use `std/abc` instead.
 .Container: ClassType
+.Container.
+    __getitem__: (ty := Type) -> Type
+.Generator: ClassType
+.Generator.
+    __getitem__: (t: (Type, Type, Type)) -> Type
 .Hashable: ClassType
 .Sized: ClassType
 .Callable: ClassType
 .Callable.
-    __getitem__: (params: [Type; _], Type) -> Type
+    __getitem__: (Type or HomogenousTuple(Type), Type) -> Type
 .Iterable: ClassType
 .Iterable.
-    __getitem__: Type -> Type
+    __getitem__: (ty := Type) -> Type
 .Collection: ClassType
+.Collection.
+    __getitem__: (ty := Type) -> Type
 .Iterator: ClassType
 .Iterator.
-    __getitem__: Type -> Type
+    __getitem__: (ty := Type) -> Type
 .Reversible: ClassType
-.Genertor: ClassType
 .Sequence: ClassType
 .Sequence.
-    __getitem__: Type -> Type
+    __getitem__: (ty := Type) -> Type
 .MutableSequence: ClassType
+.MutableSequence.
+    __getitem__: (ty := Type) -> Type
+.MutableSet: ClassType
+.MutableSet.
+    __getitem__: (ty := Type) -> Type
 .ByteString: ClassType
 .Set: ClassType
-.MutableSet: ClassType
+.Set.
+    __getitem__: (ty := Type) -> Type
 .Mapping: ClassType
 .Mapping.
-    __getitem__: (Type, Type) -> Type
+    __getitem__: (kv: (Type, Type)) -> Type
 .MutableMapping: ClassType
+.MutableMapping.
+    __getitem__: (kv: (Type, Type)) -> Type
 .MappingView: ClassType
 .ItemsView: ClassType
 .KeysView: ClassType
 .ValuesView: ClassType
 .Awaitable: ClassType
+.Awaitable.
+    __getitem__: (ty := Type) -> Type
 .Coroutine: ClassType
+.Coroutine.
+    __getitem__: (t := (Type, Type, Type)) -> Type
 .AsyncIterable: ClassType
+.AsyncIterable.
+    __getitem__: (ty := Type) -> Type
 .AsyncIterator: ClassType
+.AsyncIterator.
+    __getitem__: (ty := Type) -> Type
 .AsyncGenerator: ClassType
+.AsyncGenerator.
+    __getitem__: (t := (Type, Type, Type)) -> Type
+.ContextManager: ClassType
+.ContextManager.
+    __enter__: (self: ContextManager) -> ContextManager
+    __exit__: (self: ContextManager, exc_type: Type, exc_value: Obj, traceback: Obj) -> NoneType
+.AsyncContextManager: ClassType
+.AsyncContextManager.
+    __aenter__: (self: AsyncContextManager) -> AsyncContextManager
+    __aexit__: (self: AsyncContextManager, exc_type: Type, exc_value: Obj, traceback: Obj) -> NoneType
+.Buffer: ClassType

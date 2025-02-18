@@ -1,3 +1,38 @@
+{
+    .Callable;
+    .Collection;
+    .Container;
+    .ItemsView;
+    .KeysView;
+    .ValuesView;
+    .Iterable;
+    .Iterator;
+    .MutableSet;
+    .Mapping;
+    .MappingView;
+    .MutableMapping;
+    .Sequence;
+    .MutableSequence;
+    .Coroutine;
+    .AsyncIterable;
+    .AsyncIterator;
+    .AsyncGenerator;
+    .Awaitable;
+    .Generator;
+    .Hashable;
+    .Reversible;
+    .Sized;
+    .ContextManager;
+    .AsyncContextManager;
+} = pyimport "collections/abc"
+{
+    .DefaultDict;
+    .OrderedDict!;
+    .ChainMap;
+    .Counter!;
+    .Deque!;
+} = pyimport "collections"
+
 .TYPE_CHECKING: Bool
 
 .Any: ClassType
@@ -14,9 +49,6 @@
     __getitem__: (Type or HomogenousTuple Type) -> Type
 .Optional: ClassType
 .Optional.
-    __getitem__: (Type or HomogenousTuple Type) -> Type
-.Callable: ClassType
-.Callable.
     __getitem__: (Type or HomogenousTuple Type) -> Type
 .Concatenate: (*Type) -> Type
 .Type: (Type) -> Type
@@ -79,15 +111,6 @@
 .FrozenSet: (Type) -> ClassType
 .FrozenSet.
     __getitem__: Type -> Type
-.OrderedDict: (Type, Type) -> ClassType
-.OrderedDict.
-    __getitem__: (kv: (Type, Type)) -> Type
-.ChainMap: (Type, Type) -> Type
-.Counter: (Type, Int) -> Type
-.Deque: (T: Type) -> ClassType
-.Deque.
-    __call__: |T|(iter: global::Iterable(T)) -> Deque T
-    __getitem__: (Type) -> Type
 .IO: Type -> ClassType
 .IO.
     __call__: () -> IO Obj
@@ -103,9 +126,6 @@
 .Pattern: ClassType
 .Match: ClassType
 .Text: ClassType
-.Sequence: ClassType
-.Sequence.
-    __getitem__: (Type) -> Type
 
 .assert_never: (arg: Obj) -> NoneType
 .assert_type: (val: Obj, typ: Type) -> NoneType
@@ -129,56 +149,6 @@
 .AbstractSet.
     __getitem__: (Type) -> Type
 .ByteString: ClassType
-.Container: ClassType
-.ContextManager: ClassType
-.ContextManager.
-    __enter__: (self: ContextManager) -> ContextManager
-    __exit__: (self: ContextManager, exc_type: Type, exc_value: Obj, traceback: Obj) -> NoneType
-.Hashable: ClassType
-.ItemsView: ClassType
-.Iterable: ClassType
-.Iterable.
-    __getitem__: Type -> Type
-.Iterator: ClassType
-.Iterator.
-    __getitem__: Type -> Type
-.KeysView: ClassType
-.Mapping: ClassType
-.Mapping.
-    __getitem__: (kv: (Type, Type)) -> Type
-.MappingView: ClassType
-.MappingView.
-    __getitem__: (Type) -> Type
-.MutableMapping: ClassType
-.MutableMapping.
-    __getitem__: (kv: (Type, Type)) -> Type
-.MutableSequence: ClassType
-.MutableSequence.
-    __getitem__: Type -> Type
-.MutableSet: ClassType
-.MutableSet.
-    __getitem__: Type -> Type
-.Sized: ClassType
-.ValuesView: ClassType
-.Awaitable: ClassType
-.AsyncIterator: ClassType
-.AsyncIterator.
-    __getitem__: Type -> Type
-.AsyncIterable: ClassType
-.AsyncIterable.
-    __getitem__: Type -> Type
-.Coroutine: ClassType
-.Coroutine.
-    __getitem__: (t: (Type, Type, Type)) -> Type
-.Collection: ClassType
-.Collection.
-    __getitem__: Type -> Type
-.AsyncGenerator: ClassType
-.AsyncGenerator.
-    __getitem__: (t: (Type, Type)) -> Type
-.AsyncContextManager: ClassType
-.AsyncContextManager.
-    __getitem__: Type -> Type
 .SupportsAbs: ClassType
 .SupportsBytes: ClassType
 .SupportsComplex: ClassType
@@ -186,10 +156,3 @@
 .SupportsIndex: ClassType
 .SupportsInt: ClassType
 .SupportsRound: ClassType
-
-.Generator: ClassType
-.Generator.
-    __getitem__: (t: (Type, Type, Type)) -> Type
-.Reversible: ClassType
-.Reversible.
-    __getitem__: Type -> Type
