@@ -5417,14 +5417,14 @@ impl Type {
     pub fn contained_ts(&self) -> Set<Type> {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().contained_ts(),
-            Self::FreeVar(fv) if fv.constraint_is_sandwiched() => {
+            /*Self::FreeVar(fv) if fv.constraint_is_sandwiched() => {
                 let (sub, sup) = fv.get_subsup().unwrap();
                 fv.do_avoiding_recursion(|| {
                     set! { self.clone() }
                         .union(&sub.contained_ts())
                         .union(&sup.contained_ts())
                 })
-            }
+            }*/
             Self::FreeVar(_) => set! { self.clone() },
             Self::Refinement(refine) => refine.t.contained_ts(),
             Self::Ref(t) => t.contained_ts(),
