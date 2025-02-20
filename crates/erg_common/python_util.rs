@@ -596,13 +596,33 @@ fn get_poetry_virtualenv_path() -> Option<String> {
     let out = if cfg!(windows) {
         Command::new("cmd")
             .arg("/C")
-            .arg("poetry env info -p")
+            .args(["poetry", "env", "info", "-p"])
             .output()
             .ok()?
     } else {
         Command::new("sh")
             .arg("-c")
-            .arg("poetry env info -p")
+            .args(["poetry", "env", "info", "-p"])
+            .output()
+            .ok()?
+    };
+    let path = String::from_utf8(out.stdout).ok()?;
+    Path::new(path.trim())
+        .exists()
+        .then_some(path.trim().to_string())
+}
+
+fn get_uv_python_venv_path() -> Option<String> {
+    let out = if cfg!(windows) {
+        Command::new("cmd")
+            .arg("/C")
+            .args(["uv", "python", "find"])
+            .output()
+            .ok()?
+    } else {
+        Command::new("sh")
+            .arg("-c")
+            .args(["uv", "python", "find"])
             .output()
             .ok()?
     };
@@ -616,19 +636,32 @@ pub fn _opt_which_python() -> Result<String, String> {
     if let Some(path) = which_python_from_toml() {
         return Ok(path);
     }
-    if Path::new("./.venv/bin/python").is_file() {
-        let path = canonicalize("./.venv/bin/python").unwrap();
-        return Ok(path.to_string_lossy().to_string());
-    } else if let Some(path) = get_poetry_virtualenv_path() {
+    if let Some(path) = get_poetry_virtualenv_path() {
         return Ok(format!("{path}/bin/python"));
+    } else if let Some(path) = get_uv_python_venv_path() {
+        return Ok(path);
     }
-    let (cmd, python) = if cfg!(windows) {
-        ("where", "python")
+
+    let path = if cfg!(windows) {
+        r".venv\Scripts\python.exe"
     } else {
-        ("which", "python3")
+        ".venv/bin/python"
     };
-    let Ok(out) = Command::new(cmd).arg(python).output() else {
-        return Err(format!("{}: {python} not found", fn_name_full!()));
+    if Path::new(&path).is_file() {
+        let path = canonicalize(path).unwrap();
+        return Ok(path.to_string_lossy().to_string());
+    }
+    let out = if cfg!(windows) {
+        Command::new("cmd")
+            .arg("/C")
+            .arg("where")
+            .arg("python")
+            .output()
+    } else {
+        Command::new("sh").arg("-c").arg("which python3").output()
+    };
+    let Ok(out) = out else {
+        return Err(format!("{}: python not found", fn_name_full!()));
     };
     let Ok(res) = String::from_utf8(out.stdout) else {
         return Err(format!(
@@ -638,7 +671,7 @@ pub fn _opt_which_python() -> Result<String, String> {
     };
     let res = res.split('\n').next().unwrap_or("").replace('\r', "");
     if res.is_empty() {
-        return Err(format!("{}: {python} not found", fn_name_full!()));
+        return Err(format!("{}: python not found", fn_name_full!()));
     } else if res.contains("pyenv") && cfg!(windows) {
         // because pyenv-win does not support `-c` option
         return Err("cannot use pyenv-win".into());
