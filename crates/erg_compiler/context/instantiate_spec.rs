@@ -603,6 +603,7 @@ impl Context {
                 ast::ConstAccessor::Local(local) => self.instantiate_local_poly_t(
                     local,
                     &poly.args,
+                    self,
                     opt_decl_t,
                     tmp_tv_cache,
                     not_found_is_qvar,
@@ -612,9 +613,10 @@ impl Context {
                         .get_singular_ctxs(&attr.obj.clone().downgrade(), self)
                         .map_err(|errs| (Type::Failure, errs.into()))?;
                     for ctx in ctxs {
-                        match ctx.instantiate_local_poly_t(
+                        match self.instantiate_local_poly_t(
                             &attr.name,
                             &poly.args,
+                            ctx,
                             opt_decl_t,
                             tmp_tv_cache,
                             not_found_is_qvar,
@@ -796,6 +798,7 @@ impl Context {
         &self,
         name: &Identifier,
         args: &ConstArgs,
+        ctx_of_type: &Context,
         opt_decl_t: Option<&ParamTy>,
         tmp_tv_cache: &mut TyVarCache,
         not_found_is_qvar: bool,
@@ -1043,16 +1046,18 @@ impl Context {
                 self.get_tp_t(&tp).map_err(|errs| (Type::Failure, errs))
             }
             other => {
-                let Some(ctx) = self.get_type_ctx(other).or_else(|| {
-                    self.consts
+                let Some(ctx) = ctx_of_type.get_type_ctx(other).or_else(|| {
+                    ctx_of_type
+                        .consts
                         .get(other)
-                        .and_then(|v| self.convert_value_into_type(v.clone()).ok())
-                        .and_then(|typ| self.get_nominal_type_ctx(&typ))
+                        .and_then(|v| ctx_of_type.convert_value_into_type(v.clone()).ok())
+                        .and_then(|typ| ctx_of_type.get_nominal_type_ctx(&typ))
                 }) else {
                     if let Some(outer) = &self.outer {
                         if let Ok(t) = outer.instantiate_local_poly_t(
                             name,
                             args,
+                            outer,
                             opt_decl_t,
                             tmp_tv_cache,
                             not_found_is_qvar,
