@@ -16,3 +16,8 @@ _, _ = f2, g2
 Packages = [{ .name = Str; .version = Str }; _]
 _: Packages = [{ .name = "a"; .version = "1.0.0" }]
 _: Packages = [{ .name = "a"; .version = "1.0.0" }, { .name = "b"; .version = "1.0.0" }]
+
+C = Class {
+    .foo = global::List(Int)
+}
+_ = C.new { .foo = [] }

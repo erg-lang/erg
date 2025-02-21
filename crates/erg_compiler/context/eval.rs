@@ -792,7 +792,9 @@ impl Context {
             let obj = match res_obj {
                 Ok(obj) => obj,
                 Err((obj, es)) => {
-                    errs.extend(es);
+                    if is_method {
+                        errs.extend(es);
+                    }
                     obj
                 }
             };
