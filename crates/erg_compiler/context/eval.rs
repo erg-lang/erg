@@ -225,8 +225,12 @@ impl<'c> Substituter<'c> {
                         if st == &sup {
                             return Ok(Some(child));
                         } else {
-                            return Self::substitute_typarams(ctx, qt, &sup)
-                                .map(|opt_subs| opt_subs.map(|sub| sub.with_child(child)));
+                            return Self::substitute_typarams(ctx, qt, &sup).map(|opt_subs| {
+                                Some(match opt_subs {
+                                    None => child,
+                                    Some(sub) => sub.with_child(child),
+                                })
+                            });
                         }
                     }
                 }
@@ -305,8 +309,12 @@ impl<'c> Substituter<'c> {
                         if st == &sup {
                             return Ok(Some(child));
                         } else {
-                            return Self::overwrite_typarams(ctx, qt, &sup)
-                                .map(|opt_subs| opt_subs.map(|sub| sub.with_child(child)));
+                            return Self::overwrite_typarams(ctx, qt, &sup).map(|opt_subs| {
+                                Some(match opt_subs {
+                                    None => child,
+                                    Some(sub) => sub.with_child(child),
+                                })
+                            });
                         }
                     }
                 }
