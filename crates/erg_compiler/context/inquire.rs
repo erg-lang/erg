@@ -859,7 +859,8 @@ impl Context {
                         return Triple::Err(errs);
                     }
                     drop(list);
-                    let res = self.sub_unify(obj.ref_t(), self_t, obj, Some(&"self".into()));
+                    let res =
+                        self.self_unify(obj.ref_t(), self_t, &vi.t, obj, Some(&"self".into()));
                     if DEBUG_MODE {
                         res.unwrap();
                     }
@@ -2150,7 +2151,13 @@ impl Context {
         let non_default_params = if is_method_call {
             let mut non_default_params = subr.non_default_params.iter();
             let self_pt = non_default_params.next().unwrap();
-            if let Err(mut es) = self.sub_unify(obj.ref_t(), self_pt.typ(), obj, self_pt.name()) {
+            if let Err(mut es) = self.self_unify(
+                obj.ref_t(),
+                self_pt.typ(),
+                &Type::Subr(subr.clone()),
+                obj,
+                self_pt.name(),
+            ) {
                 errs.append(&mut es);
             }
             passed_params.insert("self".into());

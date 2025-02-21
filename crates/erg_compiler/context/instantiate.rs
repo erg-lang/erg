@@ -1037,7 +1037,13 @@ impl Context {
                 let mut tmp_tv_cache = TyVarCache::new(self.level, self);
                 let ty = self.instantiate_t_inner(*quant, &mut tmp_tv_cache, callee)?;
                 if let Some(self_t) = ty.self_t() {
-                    self.sub_unify(callee.ref_t(), self_t, callee, Some(&Str::ever("self")))?;
+                    self.self_unify(
+                        callee.ref_t(),
+                        self_t,
+                        &ty,
+                        callee,
+                        Some(&Str::ever("self")),
+                    )?;
                 }
                 if DEBUG_MODE && ty.has_qvar() {
                     panic!("{ty} has qvar")
@@ -1050,9 +1056,10 @@ impl Context {
                 match &t {
                     Type::Subr(subr) => {
                         if let Some(self_t) = subr.self_t() {
-                            self.sub_unify(
+                            self.self_unify(
                                 callee.ref_t(),
                                 self_t,
+                                &t,
                                 callee,
                                 Some(&Str::ever("self")),
                             )?;
@@ -1061,9 +1068,10 @@ impl Context {
                     Type::And(tys, _) => {
                         for ty in tys {
                             if let Some(self_t) = ty.self_t() {
-                                self.sub_unify(
+                                self.self_unify(
                                     callee.ref_t(),
                                     self_t,
+                                    ty,
                                     callee,
                                     Some(&Str::ever("self")),
                                 )?;

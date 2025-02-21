@@ -2267,6 +2267,33 @@ impl Context {
         unifier.sub_unify(maybe_sub, maybe_super)
     }
 
+    pub(crate) fn self_unify(
+        &self,
+        sub_self: &Type,
+        super_self: &Type,
+        subr: &Type,
+        loc: &impl Locational,
+        param_name: Option<&Str>,
+    ) -> TyCheckResult<()> {
+        let unifier = Unifier::new(self, loc, None, false, param_name.cloned());
+        unifier.sub_unify(sub_self, super_self)?;
+        let super_self = match super_self {
+            Type::Ref(inner) => inner,
+            Type::RefMut { before, .. } => before,
+            _ => super_self,
+        };
+        let sub_self = sub_self.derefine();
+        if self.subtype_of(super_self, &sub_self) {
+            if let Some(return_t) = subr.return_t() {
+                if return_t.has_no_unbound_var() && !return_t.contains_type(&sub_self) {
+                    // callee.ref_t() == self_t
+                    let _ = unifier.sub_unify(super_self, &sub_self);
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn sub_unify_with_coercion(
         &self,
         maybe_sub: &Type,

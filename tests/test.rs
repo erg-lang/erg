@@ -766,7 +766,7 @@ fn exec_mut_err() -> Result<(), ()> {
 
 #[test]
 fn exec_mut_list_err() -> Result<(), ()> {
-    expect_compile_failure("tests/should_err/mut_list.er", 0, 5)
+    expect_compile_failure("tests/should_err/mut_list.er", 0, 7)
 }
 
 #[test]

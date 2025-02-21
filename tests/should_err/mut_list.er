@@ -14,3 +14,9 @@ i_s.push! None # ERR
 
 _: List!(Int, _) = !["a"] # ERR
 _: List!(Int, 1) = ![1, 2] # ERR
+
+C! = Class(List!(List!(Int)))
+C!.
+    append! ref! self =
+        self::base.insert! 0, !["a"] # ERR
+        self::base.insert! 0, [1] # ERR
