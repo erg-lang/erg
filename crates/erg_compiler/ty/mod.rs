@@ -2258,7 +2258,7 @@ impl StructuralEq for Type {
                     && after
                         .as_ref()
                         .zip(after2.as_ref())
-                        .map_or(true, |(a, b)| a.structural_eq(b))
+                        .is_none_or(|(a, b)| a.structural_eq(b))
             }
             (
                 Self::Proj { lhs, rhs },
@@ -2594,7 +2594,7 @@ impl Type {
             Self::Record(attrs) => attrs.values().all(|t| t.is_singleton()),
             Self::Ref(t) => t.is_singleton(),
             Self::RefMut { before, after } => {
-                before.is_singleton() && after.as_ref().map_or(true, |t| t.is_singleton())
+                before.is_singleton() && after.as_ref().is_none_or(|t| t.is_singleton())
             }
             Self::Structural(ty) => ty.is_singleton(),
             Self::Bounded { sub, sup } => sub.is_singleton() && sup.is_singleton(),

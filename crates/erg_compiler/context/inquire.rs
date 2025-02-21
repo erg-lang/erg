@@ -2268,7 +2268,7 @@ impl Context {
                 .non_default_params
                 .iter()
                 .enumerate()
-                .filter(|(_, pt)| pt.name().map_or(true, |name| !passed_params.contains(name)))
+                .filter(|(_, pt)| pt.name().is_none_or(|name| !passed_params.contains(name)))
                 .map(|(i, pt)| {
                     let n = if is_method_call { i } else { i + 1 };
                     let nth = format!("({} param)", ordinal_num(n));
@@ -4011,14 +4011,14 @@ impl Context {
             if cand
                 .return_t()
                 .zip(first.return_t())
-                .map_or(true, |(a, b)| a != b)
+                .is_none_or(|(a, b)| a != b)
             {
                 return false;
             }
             if cand
                 .non_default_params()
                 .zip(first.non_default_params())
-                .map_or(true, |(a, b)| a.len() != b.len())
+                .is_none_or(|(a, b)| a.len() != b.len())
             {
                 return false;
             }
@@ -4028,7 +4028,7 @@ impl Context {
             if cand
                 .default_params()
                 .zip(first.default_params())
-                .map_or(true, |(a, b)| {
+                .is_none_or(|(a, b)| {
                     a.len() != b.len() || a.iter().zip(b.iter()).any(|(a, b)| a.name() != b.name())
                 })
             {

@@ -688,7 +688,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 &mod_ctx.context,
             )?);
         }
-        if receiver_t.as_ref().map_or(true, |t| t == &Type::Never) {
+        if receiver_t.as_ref().is_none_or(|t| t == &Type::Never) {
             let pos = params.text_document_position.position;
             if let Some(attr) = self.file_cache.get_symbol(&uri, pos) {
                 result.extend(self.get_attr_completion_by_name(
@@ -704,7 +704,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
             }
             // only show static methods, if the receiver is a type
             if vi.t.is_method()
-                && receiver_t.as_ref().map_or(true, |receiver| {
+                && receiver_t.as_ref().is_none_or(|receiver| {
                     !mod_ctx
                         .context
                         .subtype_of(receiver, vi.t.self_t().unwrap_or(Type::OBJ))

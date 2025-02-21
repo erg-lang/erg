@@ -471,7 +471,7 @@ impl<'c> SideEffectChecker<'c> {
                 if !self.in_context_effects_allowed()
                     && !acc.var_info().is_parameter()
                     && acc.ref_t().is_mut_type()
-                    && acc.root_obj().map_or(true, |obj| !obj.ref_t().is_ref())
+                    && acc.root_obj().is_none_or(|obj| !obj.ref_t().is_ref())
                     && acc.var_info().def_namespace() != &self.full_path()
                 {
                     self.errs.push(EffectError::touch_mut_error(

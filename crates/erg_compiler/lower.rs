@@ -1427,7 +1427,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             .module
             .context
             .current_control_flow()
-            .map_or(true, |kind| !kind.is_if())
+            .is_none_or(|kind| !kind.is_if())
             && expect.is_some_and(|subr| !subr.essential_qnames().is_empty())
         {
             pos_args
@@ -3172,7 +3172,7 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
                 let outer = self.module.context.get_outer_scope().unwrap();
                 let trait_ctx = outer.get_nominal_type_ctx(&impl_trait);
                 let external_trait =
-                    trait_ctx.map_or(true, |tr| !tr.name.starts_with(&outer.name[..]));
+                    trait_ctx.is_none_or(|tr| !tr.name.starts_with(&outer.name[..]));
                 if sups.any(|t| t == mono("Sealed")) && external_trait {
                     return Err(LowerError::sealed_trait_error(
                         self.cfg.input.clone(),
