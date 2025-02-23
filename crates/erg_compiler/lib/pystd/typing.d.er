@@ -35,12 +35,24 @@
 
 .TYPE_CHECKING: Bool
 
+._SpecialForm: ClassType
+._SpecialForm <: Type
+._SpecialForm.
+    __call__: (getitem: GenericCallable) -> _SpecialForm
+
 .Any: ClassType
 .LiteralString: ClassType
-.Never: ClassType
-.NoReturn: ClassType
-.Self: ClassType
-.TypeAlias: ClassType
+.Never: _SpecialForm
+.NoReturn: _SpecialForm
+.NoDefault: ClassType
+.Self: _SpecialForm
+.TypeAlias: _SpecialForm
+.TypeAliasType: ClassType
+.TypeAliasType.
+    __name__: Str
+    __module__: Str
+    __type_params__: [Type; _]
+    __value__: Type
 .Tuple: ClassType
 .Tuple.
     __getitem__: (Type or HomogenousTuple Type) -> Type
@@ -55,12 +67,17 @@
 .Literal: ClassType
 .Literal.
     __getitem__: (Obj or HomogenousTuple Obj) -> Type
+.ForwardRef: ClassType
+.ForwardRef.
+    __getitem__: (Type) -> Type
 .ClassVar: (Type) -> Type
 .Final: (Type) -> Type
+.ReadOnly: (Type) -> Type
 .Required: (Type) -> Type
 .NotRequired: (Type) -> Type
 .Annotated: (Type, *Obj) -> Type
 .TypeGuard: (Type) -> Type
+.TypeIs: (Type) -> Type
 .Generic: ClassType
 .Generic.
     __getitem__: (*Type) -> Type
@@ -72,18 +89,26 @@
     __infer_variance__: Bool
     __bound__: Type or NoneType
     __constraints__: [Type; _]
+    __default__: Type or NoneType
     __call__: (
-        Str,
+        name: Str,
         *constraints: Type,
         bound := Type,
         covariant := Bool,
         contravariant := Bool,
         infer_variance := Bool,
-    ) -> Type
+        default := Type,
+    ) -> TypeVar
+    has_default: (self: TypeVar) -> Bool
 .TypeVarTuple: ClassType
 .TypeVarTuple.
     __name__: Str
-    __call__: (Str) -> Type
+    __default__: Type or NoneType
+    __call__: (
+        name : Str,
+        default := Type,
+    ) -> TypeVarTuple
+    has_default: (self: TypeVarTuple) -> Bool
 .Unpack: (Type) -> Type
 .ParamSpecArgs: ClassType
 .ParamSpecKwargs: ClassType
@@ -94,7 +119,9 @@
     kwargs: ParamSpecKwargs
     __call__: (Str, bound := Type, covariant := Bool, contravariant := Bool) -> ParamSpec
 .AnyStr: ClassType
-.Protocol: (Type := NoneType) -> Type
+.Protocol: ClassType
+.Protocol.
+    __getitem__: (ty := Type) -> Type
 .NamedTuple: ClassType
 .NamedTuple.
     __call__: (typename: Str, it := global::Iterable(Obj)) -> Type
@@ -136,6 +163,8 @@
 .get_type_hints: (obj: Obj, globalns: {Str: Obj}, localns: {Str: Obj}) -> {Str: Obj}
 .get_origin: (type: Type) -> Type
 .get_overloads: (func: GenericCallable) -> [Obj; _]
+.get_protocol_members: (tp: Protocol) -> FrozenSet Str
+.is_protocol: (tp: Type) -> Bool
 .is_typeddict: (type: Type) -> Bool
 .no_type_check: |C <: GenericCallable|(func: C) -> C
 .no_type_check_decorator: |C <: GenericCallable|(func: C) -> C
