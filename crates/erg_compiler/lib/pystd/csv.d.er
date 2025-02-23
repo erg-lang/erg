@@ -20,8 +20,13 @@
 .UnixDialect = 'unix_dialect': ClassType
 .UnixDialect <: .Dialect
 
+.Sniffer: ClassType
+.Sniffer.
+    has_header: (self: .Sniffer, sample: Iterable(Str)) -> Bool
+    sniff: (self: .Sniffer, sample: Iterable(Str), delimiters := Iterable(Str)) -> .Dialect
+
 .Reader = 'reader': ClassType
-.Reader <: Iterator(Str)
+.Reader <: Iterator({Str: Str})
 .Reader.
     dialect: .Dialect
     line_num: Nat
