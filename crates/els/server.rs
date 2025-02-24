@@ -741,10 +741,11 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     }
 
     /// Restart the server. Clear caches and close & reopen channels.
+    /// The server does not erase client-dependent information because it cannot notify the client of the restart and receive resources (such as workspace files) again.
     #[allow(unused)]
     pub(crate) fn restart(&mut self) {
         lsp_log!("restarting ELS");
-        self.file_cache.clear();
+        // self.file_cache.clear();
         self.comp_cache.clear();
         if let Some(chan) = self.channels.as_ref() {
             chan.close();

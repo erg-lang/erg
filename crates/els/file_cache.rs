@@ -84,6 +84,7 @@ impl FileCache {
         }
     }
 
+    #[allow(unused)]
     pub fn clear(&self) {
         self.files.borrow_mut().clear();
         self.editing.borrow_mut().clear();
