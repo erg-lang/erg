@@ -1,66 +1,444 @@
+.PyCF_ALLOW_TOP_LEVEL_AWAIT: Nat
+.PyCF_ONLY_AST: Nat
+.PyCF_OPTIMIZED_AST: Nat
+.PyCF_TYPE_COMMENTS: Nat
+
+.NodeVisitor: ClassType
+.NodeVisitor.
+    visit: (self: NodeVisitor, node: .AST) -> Obj
+    generic_visit: (self: NodeVisitor, node: .AST) -> Obj
+    visit_Constant: (self: NodeVisitor, node: .Constant) -> Obj
+.NodeTransformer: ClassType
+.NodeTransformer <: NodeVisitor
+
 .AST: ClassType
+.Stmt = 'stmt': ClassType
+.Stmt <: AST
+.Expr = 'expr': ClassType
+.Expr <: Stmt
+.ExprContext = 'expr_context': ClassType
+.ExprContext <: AST
+.Module = 'module': ClassType
+.Module <: AST
 
 .Constant: ClassType
+.Constant <: Expr
 .FormattedValue: ClassType
+.FormattedValue <: Expr
 .JoinedStr: ClassType
+.JoinedStr <: Expr
 .List: ClassType
+.List <: Expr
+.List.
+    elts: [Expr; _]
+    expr_context: ExprContext
+.Bytes: ClassType
+.Bytes <: Constant
 .Tuple: ClassType
+.Tuple <: Expr
 .Set: ClassType
+.Set <: Expr
 .Dict: ClassType
+.Dict <: Expr
+.Dict.
+    keys: [Expr; _]
+    values: [Expr; _]
 .Name: ClassType
+.Name <: Expr
+.Name.
+    id: Str
+    ctx: ExprContext
 .Load: ClassType
+.Load <: ExprContext
 .Store: ClassType
+.Store <: ExprContext
 .Del: ClassType
+.Del <: ExprContext
 .Starred: ClassType
-.Expr: ClassType
+.Starred <: Expr
+.Starred.
+    value: Expr
+    ctx: ExprContext
 .UnaryOp: ClassType
-.UAdd: ClassType
-.USub: ClassType
-.Not: ClassType
-.Invert: ClassType
-.BinOp: ClassType
-.Add: ClassType
-.Sub: ClassType
-.Mult: ClassType
-.Div: ClassType
-.FloorDiv: ClassType
-.Mod: ClassType
-.Pow: ClassType
-.LShift: ClassType
-.RShift: ClassType
-.BitOr: ClassType
-.BitXor: ClassType
-.BitAnd: ClassType
-.MatMult: ClassType
-.BoolOp: ClassType
-.And: ClassType
-.Or: ClassType
-.Compare: ClassType
-.Eq: ClassType
-.NotEq: ClassType
-.Lt: ClassType
-.LtE: ClassType
-.Gt: ClassType
-.GtE: ClassType
-.Is: ClassType
-.IsNot: ClassType
-.In: ClassType
-.NotIn: ClassType
-.Call: ClassType
-.Keyword = 'keyword': ClassType
-.IfExp: ClassType
-.Attribute: ClassType
-.NamedExpr: ClassType
-.Subscript: ClassType
-.Slice: ClassType
-.ListComp: ClassType
-.SetComp: ClassType
-.GeneratorExp: ClassType
-.DictComp: ClassType
-.Comprehension = 'comprehension': ClassType
-.Assign: ClassType
-.AnnAssign: ClassType
+.UnaryOp <: Expr
+.UnaryOp.
+    op: Unaryop
+    operand: Expr
 
+.Unaryop = 'unaryop': ClassType
+.UAdd: ClassType
+.UAdd <: Unaryop
+.USub: ClassType
+.USub <: Unaryop
+.Not: ClassType
+.Not <: Unaryop
+.Invert: ClassType
+.Invert <: Unaryop
+.Operator = 'operator': ClassType
+.BinOp: ClassType
+.BinOp <: Expr
+.BinOp.
+    left: Expr
+    op: Operator
+    right: Expr
+
+.Add: ClassType
+.Add <: Operator
+.Sub: ClassType
+.Sub <: Operator
+.Mult: ClassType
+.Mult <: Operator
+.Div: ClassType
+.Div <: Operator
+.FloorDiv: ClassType
+.FloorDiv <: Operator
+.Mod: ClassType
+.Mod <: Operator
+.Pow: ClassType
+.Pow <: Operator
+.LShift: ClassType
+.LShift <: Operator
+.RShift: ClassType
+.RShift <: Operator
+.BitOr: ClassType
+.BitOr <: Operator
+.BitXor: ClassType
+.BitXor <: Operator
+.BitAnd: ClassType
+.BitAnd <: Operator
+.MatMult: ClassType
+.MatMult <: Operator
+.BoolOp: ClassType
+.BoolOp <: Expr
+.BoolOp.
+    op: Boolop
+    values: [Expr; _]
+
+.Boolop = 'boolop': ClassType
+.Boolop <: AST
+.And: ClassType
+.And <: Boolop
+.Or: ClassType
+.Or <: Boolop
+.Compare: ClassType
+.Compare <: Expr
+.Compare.
+    left: Expr
+    ops: [Cmpop; _]
+    comparators: [Expr; _]
+
+.Cmpop = 'cmpop': ClassType
+.Cmpop <: AST
+.Eq: ClassType
+.Eq <: Cmpop
+.NotEq: ClassType
+.NotEq <: Cmpop
+.Lt: ClassType
+.Lt <: Cmpop
+.LtE: ClassType
+.LtE <: Cmpop
+.Gt: ClassType
+.Gt <: Cmpop
+.GtE: ClassType
+.GtE <: Cmpop
+.Is: ClassType
+.Is <: Cmpop
+.IsNot: ClassType
+.IsNot <: Cmpop
+.In: ClassType
+.In <: Cmpop
+.NotIn: ClassType
+.NotIn <: Cmpop
+
+.Call: ClassType
+.Call <: Expr
+.Call.
+    func: Expr
+    args: [Expr; _]
+    keywords: [Keyword; _]
+
+.Keyword = 'keyword': ClassType
+.Keyword <: AST
+.Keyword.
+    arg: Str or NoneType
+    value: Expr
+
+.IfExp: ClassType
+.IfExp <: Expr
+.IfExp.
+    test: Expr
+    body: Expr
+    orelse: Expr
+
+.Attribute: ClassType
+.Attribute <: Expr
+
+.NamedExpr: ClassType
+.NamedExpr <: Expr
+.NamedExpr.
+    target: Expr
+    value: Expr
+
+.Subscript: ClassType
+.Subscript <: Expr
+.Subscript.
+    value: Expr
+    slice: Expr
+    ctx: ExprContext
+
+.Slice: ClassType
+.Slice <: Expr
+.Slice.
+    lower: Expr or NoneType
+    upper: Expr or NoneType
+    step: Expr or NoneType
+
+.ListComp: ClassType
+.ListComp <: Expr
+.ListComp.
+    elt: Expr
+    generators: [Comprehension; _]
+
+.SetComp: ClassType
+.SetComp <: Expr
+.SetComp.
+    elt: Expr
+    generators: [Comprehension; _]
+
+.GeneratorExp: ClassType
+.GeneratorExp <: Expr
+.GeneratorExp.
+    elt: Expr
+    generators: [Comprehension; _]
+
+.DictComp: ClassType
+.DictComp <: Expr
+.DictComp.
+    key: Expr
+    value: Expr
+    generators: [Comprehension; _]
+
+.Lambda: ClassType
+.Lambda <: Expr
+
+.Comprehension = 'comprehension': ClassType
+.Comprehension <: AST
+.Comprehension.
+    target: Expr
+    iter: Expr
+    ifs: [Expr; _]
+    is_async: Bool
+
+.FunctionDef: ClassType
+.FunctionDef <: Stmt
+.FunctionDef.
+    name: Str
+    args: Arguments
+    body: [Stmt; _]
+    decorator_list: [Expr; _]
+    returns: Expr or NoneType
+    type_comment: Str or NoneType
+
+.AsyncFunctionDef: ClassType
+.AsyncFunctionDef <: Stmt
+.AsyncFunctionDef.
+    name: Str
+    args: Arguments
+    body: [Stmt; _]
+    decorator_list: [Expr; _]
+    returns: Expr or NoneType
+    type_comment: Str or NoneType
+
+.ClassDef: ClassType
+.ClassDef <: Stmt
+.ClassDef.
+    name: Str
+    bases: [Expr; _]
+    keywords: [Keyword; _]
+    body: [Stmt; _]
+    decorator_list: [Expr; _]
+.Return: ClassType
+.Return <: Stmt
+.Delete: ClassType
+.Delete <: Stmt
+.Assign: ClassType
+.Assign <: Stmt
+.Assign.
+    targets: [Expr; _]
+    value: Expr
+    type_comment: Str or NoneType
+.TypeAlias: ClassType
+.TypeAlias <: Stmt
+.AugAssign: ClassType
+.AugAssign <: Stmt
+.AnnAssign: ClassType
+.AnnAssign <: Stmt
+.For: ClassType
+.For <: Stmt
+.For.
+    target: Expr
+    iter: Expr
+    body: [Stmt; _]
+    orelse: [Stmt; _]
+.AsyncFor: ClassType
+.AsyncFor <: Stmt
+.While: ClassType
+.While <: Stmt
+.While.
+    test: Expr
+    body: [Stmt; _]
+    orelse: [Stmt; _]
+.If: ClassType
+.If <: Stmt
+.If.
+    test: Expr
+    body: [Stmt; _]
+    orelse: [Stmt; _]
+.With: ClassType
+.With <: Stmt
+.With.
+    items: [WithItem; _]
+    body: [Stmt; _]
+    type_comment: Str or NoneType
+
+.AsyncWith: ClassType
+.AsyncWith <: Stmt
+.AsyncWith.
+    items: [WithItem; _]
+    body: [Stmt; _]
+    type_comment: Str or NoneType
+
+.Match: ClassType
+.Match <: Stmt
+.Match.
+    subject: Expr
+    cases: [MatchCase; _]
+
+.Raise: ClassType
+.Raise <: Stmt
+.Raise.
+    exc: Expr or NoneType
+    cause: Expr or NoneType
+
+.Try: ClassType
+.Try <: Stmt
+.Try.
+    body: [Stmt; _]
+    handlers: [ExceptHandler; _]
+    orelse: [Stmt; _]
+    finalbody: [Stmt; _]
+
+.TryStar: ClassType
+.TryStar <: Stmt
+.TryStar.
+    body: [Stmt; _]
+    handlers: [ExceptHandler; _]
+    orelse: [Stmt; _]
+    finalbody: [Stmt; _]
+
+.Assert: ClassType
+.Assert <: Stmt
+.Import: ClassType
+.Import <: Stmt
+.Import.
+    names: [Alias; _]
+
+.ImportFrom: ClassType
+.ImportFrom <: Stmt
+.ImportFrom.
+    module: Str or NoneType
+    names: [Alias; _]
+    level: Int or NoneType
+
+.Global: ClassType
+.Global <: Stmt
+.Nonlocal: ClassType
+.Nonlocal <: Stmt
+.Pass: ClassType
+.Pass <: Stmt
+.Break: ClassType
+.Break <: Stmt
+.Continue: ClassType
+.Continue <: Stmt
+
+.Pattern = 'pattern': ClassType
+.Pattern <: AST
+.MatchValue: ClassType
+.MatchValue <: Pattern
+.MatchSingleton: ClassType
+.MatchSingleton <: Pattern
+.MatchSequence: ClassType
+.MatchSequence <: Pattern
+.MatchMapping: ClassType
+.MatchMapping <: Pattern
+.MatchClass: ClassType
+.MatchClass <: Pattern
+.MatchStar: ClassType
+.MatchStar <: Pattern
+.MatchAs: ClassType
+.MatchAs <: Pattern
+.MatchOr: ClassType
+.MatchOr <: Pattern
+
+.ExceptHandler: ClassType
+.ExceptHandler <: AST
+.ExceptHandler.
+    type: Expr or NoneType
+    name: Str or NoneType
+    body: [Stmt; _]
+
+.WithItem = 'withitem': ClassType
+.WithItem <: AST
+.WithItem.
+    context_expr: Expr
+    optional_vars: Expr or NoneType
+
+.MatchCase: ClassType
+.MatchCase <: AST
+.MatchCase.
+    pattern: Pattern
+    guard: Expr or NoneType
+    body: [Stmt; _]
+
+.TypeIgnore: ClassType
+.TypeIgnore <: AST
+.TypeIgnore.
+    lineno: Int
+    tag: Str
+
+.Arguments = 'arguments': ClassType
+.Arguments <: AST
+.Arguments.
+    posonlyargs: [Arg; _]
+    args: [Arg; _]
+    vararg: Arg or NoneType
+    kwonlyargs: [Arg; _]
+    kw_defaults: [Expr or NoneType; _]
+    kwarg: Arg or NoneType
+    defaults: [Expr or NoneType; _]
+
+.Arg = 'arg': ClassType
+.Arg <: AST
+.Arg.
+    arg: Str
+    annotation: Expr or NoneType
+    type_comment: Str or NoneType
+
+.Alias = 'alias': ClassType
+.Alias <: AST
+.Alias.
+    name: Str
+    asname: Str or NoneType
+
+
+.dump: (
+    node: .AST,
+    annotate_fields := Bool,
+    include_attributes := Bool,
+    indent := Int,
+    show_empty := Bool,
+) -> Str
 .parse: (source: Str, filename := Str, mode := Str) -> .AST
 .unparse: (ast_obj: .AST) -> Str
 .literal_eval: (node_or_string: .AST or Str) -> Obj
+.get_docstring: (node: .AST) -> Str
