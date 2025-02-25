@@ -660,11 +660,9 @@ impl<L: Locational> Unifier<'_, '_, '_, L> {
                 self.sub_unify(&l, sup)?;
                 Ok(())
             }
-            // OK: sub: (_: Nat), sup: 0
-            // ERR: sub: (_: Nat), sup: "a"
             (TyParam::Erased(t), sup) => {
                 let sup_t = self.ctx.get_tp_t(sup)?;
-                if self.ctx.subtype_of(t, &sup_t.derefine()) {
+                if self.ctx.subtype_of(t, &sup_t) {
                     Ok(())
                 } else {
                     Err(TyCheckErrors::from(TyCheckError::subtyping_error(
