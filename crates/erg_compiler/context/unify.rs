@@ -2324,7 +2324,7 @@ impl Context {
             let new_sub = self
                 .eval_t_params(maybe_sub.clone(), self.level, loc)
                 .map_err(|(_, errs)| errs)?;
-            if maybe_sub.is_unbound_var() && new_sub != Never && &new_sub != maybe_sub {
+            if new_sub != Never && &new_sub != maybe_sub {
                 maybe_sub.link(&new_sub, unifier.undoable);
             }
             let new_super = self

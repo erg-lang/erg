@@ -3702,7 +3702,7 @@ impl Type {
             Type::FreeVar(fv) if fv.is_linked() => {
                 fv.crack().destructive_coerce();
             }
-            Type::FreeVar(fv) if !fv.is_generalized() && fv.is_unbound_and_sandwiched() => {
+            Type::FreeVar(fv) if fv.is_unbound_and_sandwiched() => {
                 let (sub, _sup) = fv.get_subsup().unwrap();
                 if !sub.contains_tvar(fv) {
                     sub.destructive_coerce();
