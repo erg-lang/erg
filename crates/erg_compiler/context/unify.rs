@@ -660,9 +660,11 @@ impl<L: Locational> Unifier<'_, '_, '_, L> {
                 self.sub_unify(&l, sup)?;
                 Ok(())
             }
+            // OK: sub: (_: Nat), sup: 0
+            // ERR: sub: (_: Nat), sup: "a"
             (TyParam::Erased(t), sup) => {
                 let sup_t = self.ctx.get_tp_t(sup)?;
-                if self.ctx.subtype_of(t, &sup_t) {
+                if self.ctx.subtype_of(t, &sup_t.derefine()) {
                     Ok(())
                 } else {
                     Err(TyCheckErrors::from(TyCheckError::subtyping_error(
@@ -1774,6 +1776,15 @@ impl<L: Locational> Unifier<'_, '_, '_, L> {
                 for (sup_field, sup_ty) in self.ctx.fields(supe) {
                     if let Some((_, sub_ty)) = sub_fields.get_key_value(&sup_field) {
                         self.sub_unify(sub_ty, &sup_ty)?;
+                    } else if let Some(sub_ty) =
+                        self.ctx.coerce(sub.clone(), &()).ok().and_then(|coerced| {
+                            let sub_fields = self.ctx.fields(&coerced);
+                            let (_, sub_ty) = sub_fields.get_key_value(&sup_field)?;
+                            Some(sub_ty.clone())
+                        })
+                    {
+                        sub.destructive_coerce();
+                        self.sub_unify(&sub_ty, &sup_ty)?;
                     } else {
                         return Err(TyCheckErrors::from(TyCheckError::no_attr_error(
                             self.ctx.cfg.input.clone(),
