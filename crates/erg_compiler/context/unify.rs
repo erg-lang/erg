@@ -1774,15 +1774,6 @@ impl<L: Locational> Unifier<'_, '_, '_, L> {
                 for (sup_field, sup_ty) in self.ctx.fields(supe) {
                     if let Some((_, sub_ty)) = sub_fields.get_key_value(&sup_field) {
                         self.sub_unify(sub_ty, &sup_ty)?;
-                    } else if let Some(sub_ty) =
-                        self.ctx.coerce(sub.clone(), &()).ok().and_then(|coerced| {
-                            let sub_fields = self.ctx.fields(&coerced);
-                            let (_, sub_ty) = sub_fields.get_key_value(&sup_field)?;
-                            Some(sub_ty.clone())
-                        })
-                    {
-                        sub.destructive_coerce();
-                        self.sub_unify(&sub_ty, &sup_ty)?;
                     } else {
                         return Err(TyCheckErrors::from(TyCheckError::no_attr_error(
                             self.ctx.cfg.input.clone(),
