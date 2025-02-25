@@ -90,6 +90,8 @@ jobs:
       - uses: obi1kenobi/cargo-semver-checks-action@v2
         with:
           package: erg_common, erg_compiler, erg_linter, erg_parser, els, erg_proc_macros, erg
+      - name: remove semver-checks build dir
+        run: rm -rf semver-checks
       - name: cargo publish
         run: |
           cargo login ${{ secrets.CARGO_TOKEN }}
