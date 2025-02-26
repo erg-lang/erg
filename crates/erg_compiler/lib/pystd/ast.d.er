@@ -20,34 +20,57 @@
 .ExprContext <: AST
 .Module = 'module': ClassType
 .Module <: AST
+.Module.
+    body: [Stmt; _]
+    type_ignores: [TypeIgnore; _]
 
 .Constant: ClassType
 .Constant <: Expr
+.Constant.
+    value: Obj
+    kind: Str or NoneType
+
 .FormattedValue: ClassType
 .FormattedValue <: Expr
+.FormattedValue.
+    value: Expr
+    conversion: Int
+    format_spec: Expr or NoneType
+
 .JoinedStr: ClassType
 .JoinedStr <: Expr
+.JoinedStr.
+    values: [Expr; _]
+
 .List: ClassType
 .List <: Expr
 .List.
     elts: [Expr; _]
-    expr_context: ExprContext
-.Bytes: ClassType
-.Bytes <: Constant
+    ctx: ExprContext
+
 .Tuple: ClassType
 .Tuple <: Expr
+.Tuple.
+    elts: [Expr; _]
+    ctx: ExprContext
+
 .Set: ClassType
 .Set <: Expr
+.Set.
+    elts: [Expr; _]
+
 .Dict: ClassType
 .Dict <: Expr
 .Dict.
     keys: [Expr; _]
     values: [Expr; _]
+
 .Name: ClassType
 .Name <: Expr
 .Name.
     id: Str
     ctx: ExprContext
+
 .Load: ClassType
 .Load <: ExprContext
 .Store: ClassType
@@ -172,6 +195,10 @@
 
 .Attribute: ClassType
 .Attribute <: Expr
+.Attribute.
+    value: Expr
+    attr: Str
+    ctx: ExprContext
 
 .NamedExpr: ClassType
 .NamedExpr <: Expr
@@ -220,6 +247,9 @@
 
 .Lambda: ClassType
 .Lambda <: Expr
+.Lambda.
+    args: Arguments
+    body: Expr
 
 .Comprehension = 'comprehension': ClassType
 .Comprehension <: AST
@@ -257,22 +287,45 @@
     keywords: [Keyword; _]
     body: [Stmt; _]
     decorator_list: [Expr; _]
+
 .Return: ClassType
 .Return <: Stmt
+.Return.
+    value: Expr or NoneType
+
 .Delete: ClassType
 .Delete <: Stmt
+.Delete.
+    targets: [Expr; _]
+
 .Assign: ClassType
 .Assign <: Stmt
 .Assign.
     targets: [Expr; _]
     value: Expr
     type_comment: Str or NoneType
+
 .TypeAlias: ClassType
 .TypeAlias <: Stmt
+.TypeAlias.
+    name: Str
+    type_params: [TypeParam; _]
+
 .AugAssign: ClassType
 .AugAssign <: Stmt
+.AugAssign.
+    target: Expr
+    op: Operator
+    value: Expr
+
 .AnnAssign: ClassType
 .AnnAssign <: Stmt
+.AnnAssign.
+    target: Expr
+    annotation: Expr
+    value: Expr or NoneType
+    simple: Int
+
 .For: ClassType
 .For <: Stmt
 .For.
@@ -280,20 +333,24 @@
     iter: Expr
     body: [Stmt; _]
     orelse: [Stmt; _]
+
 .AsyncFor: ClassType
 .AsyncFor <: Stmt
+
 .While: ClassType
 .While <: Stmt
 .While.
     test: Expr
     body: [Stmt; _]
     orelse: [Stmt; _]
+
 .If: ClassType
 .If <: Stmt
 .If.
     test: Expr
     body: [Stmt; _]
     orelse: [Stmt; _]
+
 .With: ClassType
 .With <: Stmt
 .With.
@@ -338,6 +395,10 @@
 
 .Assert: ClassType
 .Assert <: Stmt
+.Assert.
+    test: Expr
+    msg: Expr or NoneType
+
 .Import: ClassType
 .Import <: Stmt
 .Import.
@@ -365,20 +426,42 @@
 .Pattern <: AST
 .MatchValue: ClassType
 .MatchValue <: Pattern
+.MatchValue.
+    value: Expr
 .MatchSingleton: ClassType
 .MatchSingleton <: Pattern
+.MatchSingleton.
+    value: Obj
 .MatchSequence: ClassType
 .MatchSequence <: Pattern
+.MatchSequence.
+    patterns: [Pattern; _]
 .MatchMapping: ClassType
 .MatchMapping <: Pattern
+.MatchMapping.
+    keys: [Expr; _]
+    patterns: [Pattern; _]
+    rest: Str
 .MatchClass: ClassType
 .MatchClass <: Pattern
+.MatchClass.
+    cls: Expr
+    patterns: [Pattern; _]
+    kwd_attrs: [Str; _]
+    kwd_patterns: [Pattern; _]
 .MatchStar: ClassType
 .MatchStar <: Pattern
+.MatchStar.
+    name: Str or NoneType
 .MatchAs: ClassType
 .MatchAs <: Pattern
+.MatchAs.
+    name: Str or NoneType
+    pattern: Pattern or NoneType
 .MatchOr: ClassType
 .MatchOr <: Pattern
+.MatchOr.
+    patterns: [Pattern; _]
 
 .ExceptHandler: ClassType
 .ExceptHandler <: AST
@@ -405,6 +488,28 @@
 .TypeIgnore.
     lineno: Int
     tag: Str
+
+.TypeParam = 'type_param': ClassType
+.TypeParam <: AST
+
+.TypeVar: ClassType
+.TypeVar <: TypeParam
+.TypeVar.
+    name: Str
+    bound: Expr or NoneType
+    default_value: Expr or NoneType
+
+.ParamSpec: ClassType
+.ParamSpec <: TypeParam
+.ParamSpec.
+    name: Str
+    default_value: Expr or NoneType
+
+.TypeVarTuple: ClassType
+.TypeVarTuple <: TypeParam
+.TypeVarTuple.
+    name: Str
+    default_value: Expr or NoneType
 
 .Arguments = 'arguments': ClassType
 .Arguments <: AST
