@@ -1,0 +1,63 @@
+{StrEnum;} = pyimport "enum"
+
+.SymbolTableType: ClassType
+.SymbolTableType <: StrEnum
+.SymbolTableType.
+    MODULE: {"module"}
+    FUNCTION: {"function"}
+    CLASS: {"class"}
+    ANNOTATION: {"annotation"}
+    TYPE_ALIAS: {"type_alias"}
+    TYPE_PARAMETER: {"type_parameter"}
+    TYPE_VARIABLE: {"type_variable"}
+
+.SymbolTable: ClassType
+.SymbolTable.
+    get_type: (self: SymbolTable) -> SymbolTableType
+    get_id: (self: SymbolTable) -> Int
+    get_name: (self: SymbolTable) -> Str
+    get_lineno: (self: SymbolTable) -> Nat
+    is_optimized: (self: SymbolTable) -> Bool
+    is_nested: (self: SymbolTable) -> Bool
+    has_children: (self: SymbolTable) -> Bool
+    get_identifiers: (self: SymbolTable) -> DictKeys Str
+    lookup: (self: SymbolTable, name: Str) -> Symbol
+    get_symbols: (self: SymbolTable) -> [Symbol; _]
+    get_children: (self: SymbolTable) -> [SymbolTable; _]
+
+.Function: ClassType
+.Function <: SymbolTable
+.Function.
+    get_parameters: (self: Function) -> [Str; _]
+    get_locals: (self: Function) -> [Str; _]
+    get_globals: (self: Function) -> [Str; _]
+    get_nonlocals: (self: Function) -> [Str; _]
+    get_frees: (self: Function) -> [Str; _]
+
+.Class: ClassType
+.Class <: SymbolTable
+.Class.
+    get_methods: (self: Class) -> [Str; _]
+
+.Symbol: ClassType
+.Symbol.
+    get_name: (self: Symbol) -> Str
+    is_referenced: (self: Symbol) -> Bool
+    is_imported: (self: Symbol) -> Bool
+    is_parameter: (self: Symbol) -> Bool
+    is_global: (self: Symbol) -> Bool
+    is_nonlocal: (self: Symbol) -> Bool
+    is_declared_global: (self: Symbol) -> Bool
+    is_local: (self: Symbol) -> Bool
+    is_annotated: (self: Symbol) -> Bool
+    is_free: (self: Symbol) -> Bool
+    is_assigned: (self: Symbol) -> Bool
+    is_namespace: (self: Symbol) -> Bool
+    get_namespaces: (self: Symbol) -> [Str; _]
+    get_namespace: (self: Symbol) -> Str
+
+.symtable: (
+    code: Str or Code,
+    filename: Str,
+    compile_type: Str,
+) -> SymbolTable
