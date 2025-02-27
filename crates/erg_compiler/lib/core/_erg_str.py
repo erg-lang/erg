@@ -83,7 +83,7 @@ class StrMut(MutType):  # Inherits Str
 
     def try_new(s: str):
         if isinstance(s, str):
-            self = StrMut()
+            self = StrMut("")
             self.value = s
             return self
         else:
