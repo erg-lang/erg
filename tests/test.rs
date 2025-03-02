@@ -183,12 +183,7 @@ fn exec_fib() -> Result<(), ()> {
 
 #[test]
 fn exec_helloworld() -> Result<(), ()> {
-    // HACK: When running the test with Windows, the exit code is 1 (the cause is unknown)
-    if cfg!(windows) && env_python_version().unwrap().minor >= Some(8) {
-        expect_end_with("examples/helloworld.er", 0, 1)
-    } else {
-        expect_success("examples/helloworld.er", 0)
-    }
+    expect_success("examples/helloworld.er", 0)
 }
 
 #[test]
