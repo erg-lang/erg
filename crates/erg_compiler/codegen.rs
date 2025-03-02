@@ -3984,34 +3984,21 @@ impl PyCodeGenerator {
     }
 
     fn load_sys_encoding(&mut self) {
-        self.emit_global_import_items(
-            Identifier::static_public("sys"),
-            vec![(
-                Identifier::static_public("stdout"),
-                Some(Identifier::private("stdout")),
-            )],
-        );
-        self.emit_load_name_instr(Identifier::private("stdout"));
-        self.emit_load_method_instr(Identifier::static_public("reconfigure"), BoundAttr);
-        let tk_encoding = Token::new_fake(TokenKind::StrLit, "encoding", 0, 0, 0);
-        let tk_utf8 = Token::new_fake(TokenKind::StrLit, "utf-8", 0, 0, 0);
+        self.load_reconfigure();
+        let tk_utf8 = Token::new(TokenKind::StrLit, "utf-8", 0, 0);
         let expr_utf8 = Expr::Literal(Literal::new(ValueObj::Str("utf-8".into()), tk_utf8));
-        let kwarg = KwArg::new(tk_encoding, expr_utf8);
-        let mut args = Args::new(vec![], None, vec![kwarg], None, None);
-        let argc = args.len();
-        let mut kws = Vec::with_capacity(args.kw_len());
-        while let Some(arg) = args.try_remove_kw(0) {
-            kws.push(ValueObj::Str(arg.keyword.content));
-            self.emit_expr(arg.expr);
-        }
-
-        self.emit_call_kw_instr(argc, kws);
-        let kwsc = if self.py_version.minor >= Some(11) {
-            0
-        } else {
-            1
-        };
-        self.stack_dec_n((1 + argc + kwsc) - 1);
+        let tk_encoding = Token::new(TokenKind::StrLit, "encoding", 0, 0);
+        let args = Args::new(
+            vec![],
+            None,
+            vec![KwArg::new(tk_encoding, expr_utf8)],
+            None,
+            None,
+        );
+        self.emit_load_name_instr(Identifier::private("#stdout"));
+        self.emit_load_method_instr(Identifier::static_public("reconfigure"), BoundAttr);
+        self.emit_args_311(args, AccessKind::BoundAttr);
+        self.emit_pop_top();
     }
 
     fn load_record_type(&mut self) {
@@ -4037,6 +4024,16 @@ impl PyCodeGenerator {
                     Some(Identifier::private("#abstractmethod")),
                 ),
             ],
+        );
+    }
+
+    fn load_reconfigure(&mut self) {
+        self.emit_global_import_items(
+            Identifier::static_public("sys"),
+            vec![(
+                Identifier::static_public("stdout"),
+                Some(Identifier::private("#stdout")),
+            )],
         );
     }
 
