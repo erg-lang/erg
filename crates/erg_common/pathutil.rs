@@ -287,7 +287,7 @@ pub fn mod_name(path: &Path) -> Str {
                 .next()
                 .unwrap()
                 .split('/')
-                .last()
+                .next_back()
                 .unwrap();
             let sub = path
                 .split("/src/")

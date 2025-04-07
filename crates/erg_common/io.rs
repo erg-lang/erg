@@ -394,7 +394,7 @@ impl Input {
         dir.set_extension("er"); // {path/to}.er
         let path = dir.canonicalize().or_else(|_| {
             dir.pop(); // {path}
-            dir.push(path.iter().last().unwrap_or_default()); // {path/to}
+            dir.push(path.iter().next_back().unwrap_or_default()); // {path/to}
             dir.push("__init__.er"); // -> {path/to}/__init__.er
             dir.canonicalize()
         })?;

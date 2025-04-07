@@ -107,7 +107,7 @@ impl<'a> HIRVisitor<'a> {
             .uri
             .path()
             .split('/')
-            .last()
+            .next_back()
             .unwrap_or_default()
             .split('.')
             .next()

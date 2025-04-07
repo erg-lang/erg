@@ -255,7 +255,10 @@ fn module_item(name: &str, mistype: bool, insert: Option<u32>) -> CompletionItem
     // => `datetime = pyimport "datetime"`
     if let Some(line) = insert {
         let prefix = if mistype { "py" } else { "" };
-        let import = format!("{} = {prefix}", name.split('/').last().unwrap_or("module"));
+        let import = format!(
+            "{} = {prefix}",
+            name.split('/').next_back().unwrap_or("module")
+        );
         item.additional_text_edits = Some(vec![TextEdit {
             range: Range::new(Position::new(line - 1, 0), Position::new(line - 1, 0)),
             new_text: import,

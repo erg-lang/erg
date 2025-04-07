@@ -1402,7 +1402,8 @@ impl ValueObj {
                     }
                     if content.len() >= 3 && content.get(content.len() - 3..) == Some("\"\"\"") {
                         content = Str::rc(&content[..content.len() - 3]);
-                    } else if content.len() >= 1 && content.get(content.len() - 1..) == Some("\"") {
+                    } else if !content.is_empty() && content.get(content.len() - 1..) == Some("\"")
+                    {
                         content = Str::rc(&content[..content.len() - 1]);
                     }
                     Some(Self::Str(content))

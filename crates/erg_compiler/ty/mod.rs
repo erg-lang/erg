@@ -1728,7 +1728,7 @@ impl LimitedDisplay for Type {
                         name.trim_matches('\"')
                             .trim_end_matches('/')
                             .split('/')
-                            .last()
+                            .next_back()
                             .unwrap()
                     )?;
                     return Ok(());

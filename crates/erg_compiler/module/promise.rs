@@ -242,7 +242,7 @@ impl SharedPromises {
         for promise in self.promises.borrow().values() {
             match promise {
                 Promise::Running { .. } => running += 1,
-                Promise::Joined { .. } => finished += 1,
+                Promise::Joined => finished += 1,
             }
             total += 1;
         }
