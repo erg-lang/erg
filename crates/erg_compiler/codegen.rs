@@ -40,8 +40,8 @@ use crate::hir::GlobSignature;
 use crate::hir::ListWithLength;
 use crate::hir::{
     Accessor, Args, BinOp, Block, Call, ClassDef, Def, DefBody, Dict, Expr, GuardClause,
-    Identifier, Lambda, List, Literal, NonDefaultParamSignature, Params, PatchDef, PosArg, ReDef,
-    Record, Set, Signature, SubrSignature, Tuple, UnaryOp, VarSignature, HIR,
+    Identifier, KwArg, Lambda, List, Literal, NonDefaultParamSignature, Params, PatchDef, PosArg,
+    ReDef, Record, Set, Signature, SubrSignature, Tuple, UnaryOp, VarSignature, HIR,
 };
 use crate::ty::codeobj::{CodeObj, CodeObjFlags, MakeFunctionFlags};
 use crate::ty::value::{GenTypeObj, ValueObj};
@@ -3976,6 +3976,31 @@ impl PyCodeGenerator {
         self.emit_import_all_instr(erg_std_mod);
     }
 
+    fn load_encoding_utf8(&mut self) {
+        let no_std = self.cfg.no_std;
+        self.cfg.no_std = true;
+        self.load_sys_encoding();
+        self.cfg.no_std = no_std;
+    }
+
+    fn load_sys_encoding(&mut self) {
+        self.load_reconfigure();
+        let tk_utf8 = Token::new(TokenKind::StrLit, "utf-8", 0, 0);
+        let expr_utf8 = Expr::Literal(Literal::new(ValueObj::Str("utf-8".into()), tk_utf8));
+        let tk_encoding = Token::new(TokenKind::StrLit, "encoding", 0, 0);
+        let args = Args::new(
+            vec![],
+            None,
+            vec![KwArg::new(tk_encoding, expr_utf8)],
+            None,
+            None,
+        );
+        self.emit_load_name_instr(Identifier::private("#stdout"));
+        self.emit_load_method_instr(Identifier::static_public("reconfigure"), BoundAttr);
+        self.emit_args_311(args, AccessKind::BoundAttr);
+        self.emit_pop_top();
+    }
+
     fn load_record_type(&mut self) {
         self.emit_global_import_items(
             Identifier::static_public("collections"),
@@ -3999,6 +4024,16 @@ impl PyCodeGenerator {
                     Some(Identifier::private("#abstractmethod")),
                 ),
             ],
+        );
+    }
+
+    fn load_reconfigure(&mut self) {
+        self.emit_global_import_items(
+            Identifier::static_public("sys"),
+            vec![(
+                Identifier::static_public("stdout"),
+                Some(Identifier::private("#stdout")),
+            )],
         );
     }
 
@@ -4061,6 +4096,9 @@ impl PyCodeGenerator {
         }
         if !self.cfg.no_std && !self.prelude_loaded {
             self.load_prelude();
+        }
+        if !self.cfg.no_std && !self.cfg.input.is_repl() {
+            self.load_encoding_utf8();
         }
         for chunk in hir.module.into_iter() {
             self.emit_chunk(chunk);
