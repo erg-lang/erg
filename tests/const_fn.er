@@ -1,0 +1,7 @@
+# Fib: |N: Nat| {N} -> {Fib N}
+Fib 0 = 0
+Fib 1 = 1
+Fib N: Nat = Fib(N-1) + Fib(N-2)
+
+Fib10 = Fib 10
+Fib10: {55}
