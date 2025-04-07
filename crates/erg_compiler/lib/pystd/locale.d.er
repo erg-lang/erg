@@ -1,0 +1,5 @@
+.Error: ClassType
+.Error <: Exception
+
+.setlocale!: (category: Int, locale := Str or Iterable(Str)) => NoneType
+.localeconv: () -> {Str: Int or List(Obj) or Str}

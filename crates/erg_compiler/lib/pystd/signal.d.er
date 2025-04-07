@@ -1,0 +1,46 @@
+{IntEnum;} = pyimport "enum"
+
+.SIG_DFL: .Signals
+.SIG_IGN: .Signals
+.SIGALRM: .Signals
+.SIGBREAK: .Signals
+.SIGBUS: .Signals
+.SIGCHLD: .Signals
+.SIGCLD: .Signals
+.SIGCONT: .Signals
+.SIGFPE: .Signals
+.SIGHUP: .Signals
+.SIGILL: .Signals
+.SIGINT: .Signals
+.SIGKILL: .Signals
+.SIGPIPE: .Signals
+.SIGSEGV: .Signals
+.SIGSTKFLT: .Signals
+.SIGTERM: .Signals
+.SIGUSR1: .Signals
+.SIGUSR2: .Signals
+.SIGWINCH: .Signals
+.CTRL_C_EVENT: .Signals
+.CTRL_BREAK_EVENT: .Signals
+.NSIG: .Signals
+.ITIMER_REAL: .Signals
+.ITIMER_VIRTUAL: .Signals
+.ITIMER_PROF: .Signals
+.SIG_BLOCK: .Signals
+.SIG_UNBLOCK: .Signals
+.SIG_SETMASK: .Signals
+
+.Signals: ClassType
+.Signals <: IntEnum
+
+.Handlers: ClassType
+.Handlers <: IntEnum
+
+.Sigmasks: ClassType
+.Sigmasks <: IntEnum
+
+.alarm!: (time: Int) => Int
+.getsignal: (signal: .Signals) -> Obj
+.strsignal: (signal: .Signals) -> Str
+.pause!: () => NoneType
+.signal!: (signal: .Signals, handler: GenericCallable) => .Handlers

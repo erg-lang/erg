@@ -1,0 +1,26 @@
+.Trace!: ClassType
+.Trace!.
+    __call__: (
+        count := Nat,
+        trace := Nat,
+        countfuncs := Nat,
+        countcallers := Nat,
+        ignoremods := Iterable(Str),
+        ignoredirs := Iterable(Str),
+        infile := Str,
+        outfile := Str,
+        timing := Bool,
+    ) -> Trace!
+    run!: (self: RefMut(Trace!), cmd: Str) => NoneType
+    results: (self: Ref(Trace!)) -> CoverageResults!
+
+.CoverageResults!: ClassType
+.CoverageResults!.
+    update!: (self: RefMut(CoverageResults!), other: CoverageResults!) => NoneType
+    write_results!: (
+        self: Ref(CoverageResults!),
+        show_missing := Bool,
+        summary := Bool,
+        coverdir := Str,
+        ignore_missing_files := Bool,
+    ) => NoneType

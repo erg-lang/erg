@@ -1,0 +1,5 @@
+.ReferenceType: (T: Type) -> ClassType
+.ReferenceType(T).
+    __call__: (self: .ReferenceType(T)) -> T
+
+.ref: |T|(obj: T) -> ReferenceType T
