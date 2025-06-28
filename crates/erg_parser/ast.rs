@@ -2162,19 +2162,19 @@ impl NestedDisplay for Call {
                 if i != 0 {
                     write!(f, ", ")?;
                 }
-                write!(f, "{}", arg)?;
+                write!(f, "{arg}")?;
             }
             if let Some(rest) = self.args.var_args.as_ref() {
                 if !self.args.pos_args().is_empty() {
                     write!(f, ", ")?;
                 }
-                write!(f, "*{}", rest)?;
+                write!(f, "*{rest}")?;
             }
             for (i, kw_arg) in self.args.kw_args().iter().enumerate() {
                 if i != 0 || !self.args.pos_args().is_empty() || self.args.var_args.is_some() {
                     write!(f, ", ")?;
                 }
-                write!(f, "{}", kw_arg)?;
+                write!(f, "{kw_arg}")?;
             }
             write!(f, ")")
         } else {
@@ -3194,7 +3194,7 @@ impl NestedDisplay for ConstApp {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, level: usize) -> std::fmt::Result {
         writeln!(f, "{}", self.obj)?;
         if let Some(attr_name) = &self.attr_name {
-            writeln!(f, "{}", attr_name)?;
+            writeln!(f, "{attr_name}")?;
         }
         writeln!(f, "(")?;
         self.args.fmt_nest(f, level + 1)?;
@@ -4446,11 +4446,11 @@ impl fmt::Display for VarName {
 #[pymethods]
 impl VarName {
     pub fn __repr__(&self) -> String {
-        format!("VarName({})", self)
+        format!("VarName({self})")
     }
 
     pub fn __str__(&self) -> String {
-        format!("VarName({})", self)
+        format!("VarName({self})")
     }
 
     #[staticmethod]
@@ -4715,11 +4715,11 @@ impl From<Identifier> for Expr {
 #[pymethods]
 impl Identifier {
     pub fn __repr__(&self) -> String {
-        format!("Identifier({})", self)
+        format!("Identifier({self})")
     }
 
     pub fn __str__(&self) -> String {
-        format!("Identifier({})", self)
+        format!("Identifier({self})")
     }
 
     pub fn is_const(&self) -> bool {
@@ -5245,11 +5245,11 @@ impl VarSignature {
     }
 
     pub fn __repr__(&self) -> String {
-        format!("VarSignature({})", self)
+        format!("VarSignature({self})")
     }
 
     pub fn __str__(&self) -> String {
-        format!("VarSignature({})", self)
+        format!("VarSignature({self})")
     }
 }
 
@@ -5704,8 +5704,8 @@ pub enum GuardClause {
 impl NestedDisplay for GuardClause {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
         match self {
-            Self::Condition(cond) => write!(f, "{}", cond),
-            Self::Bind(def) => write!(f, "{}", def),
+            Self::Condition(cond) => write!(f, "{cond}"),
+            Self::Bind(def) => write!(f, "{def}"),
         }
     }
 }

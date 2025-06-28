@@ -454,7 +454,7 @@ impl PackageManagerRunner {
         {
             Ok(out) => ExitStatus::new(out.status.code().unwrap_or(0), 0, 0),
             Err(err) => {
-                eprintln!("Error: {}", err);
+                eprintln!("Error: {err}");
                 ExitStatus::ERR1
             }
         }

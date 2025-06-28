@@ -642,14 +642,14 @@ impl CodeObj {
                 write!(instrs, "{arg} ({})", self.cellvars[arg]).unwrap();
             }
             Opcode308::JUMP_ABSOLUTE => {
-                write!(instrs, "{arg} (to {})", arg).unwrap();
+                write!(instrs, "{arg} (to {arg})").unwrap();
             }
             Opcode308::JUMP_FORWARD => {
                 write!(instrs, "{arg} (to {})", idx + arg + 2).unwrap();
             }
             // REVIEW: *2?
             Opcode308::POP_JUMP_IF_FALSE | Opcode308::POP_JUMP_IF_TRUE => {
-                write!(instrs, "{arg} (to {})", arg).unwrap();
+                write!(instrs, "{arg} (to {arg})").unwrap();
             }
             Opcode308::BINARY_ADD
             | Opcode308::BINARY_SUBTRACT
@@ -690,14 +690,14 @@ impl CodeObj {
                 write!(instrs, "{arg} ({})", self.cellvars[arg]).unwrap();
             }
             Opcode309::JUMP_ABSOLUTE => {
-                write!(instrs, "{arg} (to {})", arg).unwrap();
+                write!(instrs, "{arg} (to {arg})").unwrap();
             }
             Opcode309::JUMP_FORWARD => {
                 write!(instrs, "{arg} (to {})", idx + arg + 2).unwrap();
             }
             // REVIEW: *2?
             Opcode309::POP_JUMP_IF_FALSE | Opcode309::POP_JUMP_IF_TRUE => {
-                write!(instrs, "{arg} (to {})", arg).unwrap();
+                write!(instrs, "{arg} (to {arg})").unwrap();
             }
             Opcode309::BINARY_ADD
             | Opcode309::BINARY_SUBTRACT

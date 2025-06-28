@@ -183,12 +183,12 @@ pub fn try_v_enum(s: Set<ValueObj>) -> Result<Type, Set<ValueObj>> {
 }
 
 pub fn v_enum(s: Set<ValueObj>) -> Type {
-    try_v_enum(s).unwrap_or_else(|set| panic!("not homogeneous: {}", set))
+    try_v_enum(s).unwrap_or_else(|set| panic!("not homogeneous: {set}"))
 }
 
 pub fn t_enum(s: Set<Type>) -> Type {
     try_v_enum(s.into_iter().map(ValueObj::builtin_type).collect())
-        .unwrap_or_else(|set| panic!("not homogeneous: {}", set))
+        .unwrap_or_else(|set| panic!("not homogeneous: {set}"))
 }
 
 pub fn t_singleton(t: Type) -> Type {
