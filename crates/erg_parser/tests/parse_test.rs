@@ -86,7 +86,7 @@ fn parse_invalid_class_definition() -> Result<(), ()> {
 
 #[test]
 fn parse_missing_paren() -> Result<(), ()> {
-    expect_failure("tests/missing_paren.er", 0, 1)
+    expect_failure("tests/unmatched_paren.er", 0, 1)
 }
 
 #[test]
