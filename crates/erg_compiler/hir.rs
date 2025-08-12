@@ -2158,7 +2158,7 @@ impl Params {
         Self::new(vec![], Some(Box::new(sig)), vec![], None, vec![], None)
     }
 
-    pub const fn ref_deconstruct(&self) -> RefRawParams {
+    pub const fn ref_deconstruct(&self) -> RefRawParams<'_> {
         (
             &self.non_defaults,
             &self.var_params,

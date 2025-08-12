@@ -255,7 +255,10 @@ impl SharedModuleCache {
         self.0.borrow().cache.len()
     }
 
-    pub fn get<Q: Eq + Hash + ?Sized>(&self, path: &Q) -> Option<MappedRwLockReadGuard<ModuleEntry>>
+    pub fn get<Q: Eq + Hash + ?Sized>(
+        &self,
+        path: &Q,
+    ) -> Option<MappedRwLockReadGuard<'_, ModuleEntry>>
     where
         NormalizedPathBuf: Borrow<Q>,
     {
@@ -265,7 +268,7 @@ impl SharedModuleCache {
     pub fn get_mut<Q: Eq + Hash + ?Sized>(
         &self,
         path: &Q,
-    ) -> Option<MappedRwLockWriteGuard<ModuleEntry>>
+    ) -> Option<MappedRwLockWriteGuard<'_, ModuleEntry>>
     where
         NormalizedPathBuf: Borrow<Q>,
     {
@@ -275,7 +278,7 @@ impl SharedModuleCache {
     pub fn ref_ctx<Q: Eq + Hash + ?Sized>(
         &self,
         path: &Q,
-    ) -> Option<MappedRwLockReadGuard<ModuleContext>>
+    ) -> Option<MappedRwLockReadGuard<'_, ModuleContext>>
     where
         NormalizedPathBuf: Borrow<Q>,
     {
@@ -387,7 +390,7 @@ impl SharedModuleCache {
         self.0.borrow_mut().rename_path(path, new.into());
     }
 
-    pub fn ref_inner(&self) -> MappedRwLockReadGuard<Dict<NormalizedPathBuf, ModuleEntry>> {
+    pub fn ref_inner(&self) -> MappedRwLockReadGuard<'_, Dict<NormalizedPathBuf, ModuleEntry>> {
         RwLockReadGuard::map(self.0.borrow(), |mc| &mc.cache)
     }
 

@@ -115,7 +115,7 @@ impl SharedTraitImpls {
     pub fn get<Q: Eq + Hash + ?Sized>(
         &self,
         path: &Q,
-    ) -> Option<MappedRwLockReadGuard<Set<TraitImpl>>>
+    ) -> Option<MappedRwLockReadGuard<'_, Set<TraitImpl>>>
     where
         Str: Borrow<Q>,
     {
@@ -125,7 +125,7 @@ impl SharedTraitImpls {
     pub fn get_mut<Q: Eq + Hash + ?Sized>(
         &self,
         path: &Q,
-    ) -> Option<MappedRwLockWriteGuard<Set<TraitImpl>>>
+    ) -> Option<MappedRwLockWriteGuard<'_, Set<TraitImpl>>>
     where
         Str: Borrow<Q>,
     {
@@ -158,7 +158,7 @@ impl SharedTraitImpls {
         self.0.borrow_mut().rename_path(old, new);
     }
 
-    pub fn ref_inner(&self) -> MappedRwLockReadGuard<Dict<Str, Set<TraitImpl>>> {
+    pub fn ref_inner(&self) -> MappedRwLockReadGuard<'_, Dict<Str, Set<TraitImpl>>> {
         RwLockReadGuard::map(self.0.borrow(), |tis| &tis.cache)
     }
 

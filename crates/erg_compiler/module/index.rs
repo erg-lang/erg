@@ -13,15 +13,15 @@ use crate::varinfo::{AbsLocation, VarInfo};
 pub struct Members<'a>(MappedRwLockReadGuard<'a, Dict<AbsLocation, ModuleIndexValue>>);
 
 impl Members<'_> {
-    pub fn iter(&self) -> Iter<AbsLocation, ModuleIndexValue> {
+    pub fn iter(&self) -> Iter<'_, AbsLocation, ModuleIndexValue> {
         self.0.iter()
     }
 
-    pub fn keys(&self) -> Keys<AbsLocation, ModuleIndexValue> {
+    pub fn keys(&self) -> Keys<'_, AbsLocation, ModuleIndexValue> {
         self.0.keys()
     }
 
-    pub fn values(&self) -> Values<AbsLocation, ModuleIndexValue> {
+    pub fn values(&self) -> Values<'_, AbsLocation, ModuleIndexValue> {
         self.0.values()
     }
 }
@@ -170,11 +170,11 @@ impl SharedModuleIndex {
     pub fn get_refs(
         &self,
         referee: &AbsLocation,
-    ) -> Option<MappedRwLockReadGuard<ModuleIndexValue>> {
+    ) -> Option<MappedRwLockReadGuard<'_, ModuleIndexValue>> {
         RwLockReadGuard::try_map(self.0.borrow(), |index| index.get_refs(referee)).ok()
     }
 
-    pub fn members(&self) -> Members {
+    pub fn members(&self) -> Members<'_> {
         Members(RwLockReadGuard::map(self.0.borrow(), |mi| &mi.members))
     }
 

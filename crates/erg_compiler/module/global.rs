@@ -141,7 +141,10 @@ impl SharedCompilerResource {
         }
     }
 
-    pub fn get_module(&self, path: &std::path::Path) -> Option<MappedRwLockReadGuard<ModuleEntry>> {
+    pub fn get_module(
+        &self,
+        path: &std::path::Path,
+    ) -> Option<MappedRwLockReadGuard<'_, ModuleEntry>> {
         if path.to_string_lossy().ends_with(".d.er") {
             self.py_mod_cache.get(path)
         } else {

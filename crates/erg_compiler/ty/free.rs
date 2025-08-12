@@ -1104,7 +1104,7 @@ impl<T: Clone + Send + Sync + 'static> Free<T> {
     }
 
     #[track_caller]
-    pub fn get_linked_ref(&self) -> Option<Ref<T>> {
+    pub fn get_linked_ref(&self) -> Option<Ref<'_, T>> {
         Ref::filter_map(self.borrow(), |f| match f {
             FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => Some(t),
             FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => None,
@@ -1113,7 +1113,7 @@ impl<T: Clone + Send + Sync + 'static> Free<T> {
     }
 
     #[track_caller]
-    pub fn get_linked_refmut(&self) -> Option<RefMut<T>> {
+    pub fn get_linked_refmut(&self) -> Option<RefMut<'_, T>> {
         RefMut::filter_map(self.borrow_mut(), |f| match f {
             FreeKind::Linked(t) | FreeKind::UndoableLinked { t, .. } => Some(t),
             FreeKind::Unbound { .. } | FreeKind::NamedUnbound { .. } => None,
@@ -1122,7 +1122,7 @@ impl<T: Clone + Send + Sync + 'static> Free<T> {
     }
 
     #[track_caller]
-    pub fn get_previous(&self) -> Option<Ref<Box<FreeKind<T>>>> {
+    pub fn get_previous(&self) -> Option<Ref<'_, Box<FreeKind<T>>>> {
         Ref::filter_map(self.borrow(), |f| match f {
             FreeKind::UndoableLinked { previous, .. } => Some(previous),
             _ => None,
@@ -1130,7 +1130,7 @@ impl<T: Clone + Send + Sync + 'static> Free<T> {
         .ok()
     }
 
-    pub fn get_undoable_root(&self) -> Option<Ref<FreeKind<T>>> {
+    pub fn get_undoable_root(&self) -> Option<Ref<'_, FreeKind<T>>> {
         let mut prev = Ref::map(self.get_previous()?, |f| f.as_ref());
         loop {
             match Ref::filter_map(prev, |f| f.get_previous()) {

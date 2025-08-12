@@ -1066,7 +1066,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     pub(crate) fn get_mod_ctx(
         &self,
         uri: &NormalizedUrl,
-    ) -> Option<MappedRwLockReadGuard<ModuleContext>> {
+    ) -> Option<MappedRwLockReadGuard<'_, ModuleContext>> {
         let path = uri.to_file_path().ok()?;
         let ent = self.shared.get_module(&path)?;
         Some(MappedRwLockReadGuard::map(ent, |ent| &ent.module))
@@ -1111,7 +1111,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         self.restore_entry(uri, entry);
     }
 
-    pub(crate) fn get_visitor(&self, uri: &NormalizedUrl) -> Option<HIRVisitor> {
+    pub(crate) fn get_visitor(&self, uri: &NormalizedUrl) -> Option<HIRVisitor<'_>> {
         let path = uri.to_file_path().ok()?;
         let Some(ent) = self.shared.get_module(&path) else {
             _log!(self, "module not found: {uri}");
@@ -1122,7 +1122,11 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         Some(HIRVisitor::new(hir, &self.file_cache, uri.clone()))
     }
 
-    pub(crate) fn get_searcher(&self, uri: &NormalizedUrl, kind: ExprKind) -> Option<HIRVisitor> {
+    pub(crate) fn get_searcher(
+        &self,
+        uri: &NormalizedUrl,
+        kind: ExprKind,
+    ) -> Option<HIRVisitor<'_>> {
         let path = uri.to_file_path().ok()?;
         let ent = self.shared.get_module(&path)?;
         ent.hir.as_ref()?;
@@ -1294,7 +1298,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         self.shared.insert_module(path.into(), entry);
     }
 
-    pub fn get_hir(&self, uri: &NormalizedUrl) -> Option<MappedRwLockReadGuard<HIR>> {
+    pub fn get_hir(&self, uri: &NormalizedUrl) -> Option<MappedRwLockReadGuard<'_, HIR>> {
         let path = uri.to_file_path().ok()?;
         let ent = self.shared.get_module(&path)?;
         MappedRwLockReadGuard::try_map(ent, |ent| ent.hir.as_ref()).ok()
@@ -1310,7 +1314,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         self.shared.insert_module(path.into(), entry);
     }
 
-    pub fn get_ast(&self, uri: &NormalizedUrl) -> Option<MappedRwLockReadGuard<Module>> {
+    pub fn get_ast(&self, uri: &NormalizedUrl) -> Option<MappedRwLockReadGuard<'_, Module>> {
         let path = uri.to_file_path().ok()?;
         let ent = self.shared.get_module(&path)?;
         MappedRwLockReadGuard::try_map(ent, |ent| ent.ast.as_ref()).ok()

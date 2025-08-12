@@ -462,7 +462,7 @@ impl CompletionCache {
         Self { cache }
     }
 
-    pub fn get(&self, namespace: &str) -> Option<MappedRwLockReadGuard<Vec<CompletionItem>>> {
+    pub fn get(&self, namespace: &str) -> Option<MappedRwLockReadGuard<'_, Vec<CompletionItem>>> {
         RwLockReadGuard::try_map(self.cache.borrow(), |cache| cache.get(namespace)).ok()
     }
 

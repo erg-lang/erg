@@ -320,7 +320,7 @@ impl SharedModuleGraph {
     pub fn get_node(
         &self,
         path: &NormalizedPathBuf,
-    ) -> Option<MappedRwLockReadGuard<Node<NormalizedPathBuf, ()>>> {
+    ) -> Option<MappedRwLockReadGuard<'_, Node<NormalizedPathBuf, ()>>> {
         RwLockReadGuard::try_map(self.0.borrow(), |graph| graph.get_node(path)).ok()
     }
 
@@ -359,7 +359,7 @@ impl SharedModuleGraph {
         self.0.borrow_mut().inc_ref(referrer, depends_on)
     }
 
-    pub fn ref_inner(&self) -> RwLockReadGuard<ModuleGraph> {
+    pub fn ref_inner(&self) -> RwLockReadGuard<'_, ModuleGraph> {
         self.0.borrow()
     }
 

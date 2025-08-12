@@ -172,17 +172,17 @@ impl<K, V> Dict<K, V> {
     }
 
     #[inline]
-    pub fn keys(&self) -> Keys<K, V> {
+    pub fn keys(&self) -> Keys<'_, K, V> {
         self.dict.keys()
     }
 
     #[inline]
-    pub fn values(&self) -> Values<K, V> {
+    pub fn values(&self) -> Values<'_, K, V> {
         self.dict.values()
     }
 
     #[inline]
-    pub fn values_mut(&mut self) -> ValuesMut<K, V> {
+    pub fn values_mut(&mut self) -> ValuesMut<'_, K, V> {
         self.dict.values_mut()
     }
 
@@ -197,12 +197,12 @@ impl<K, V> Dict<K, V> {
     }
 
     #[inline]
-    pub fn iter(&self) -> Iter<K, V> {
+    pub fn iter(&self) -> Iter<'_, K, V> {
         self.dict.iter()
     }
 
     #[inline]
-    pub fn iter_mut(&mut self) -> IterMut<K, V> {
+    pub fn iter_mut(&mut self) -> IterMut<'_, K, V> {
         self.dict.iter_mut()
     }
 
@@ -395,7 +395,7 @@ impl<K: Hash + Eq, V> Dict<K, V> {
         self
     }
 
-    pub fn entry(&mut self, k: K) -> Entry<K, V> {
+    pub fn entry(&mut self, k: K) -> Entry<'_, K, V> {
         self.dict.entry(k)
     }
 }

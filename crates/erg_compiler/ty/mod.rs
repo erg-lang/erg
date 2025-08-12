@@ -4201,7 +4201,7 @@ impl Type {
         }
     }
 
-    pub fn tyvar_mut_return_t(&mut self) -> Option<RefMut<Type>> {
+    pub fn tyvar_mut_return_t(&mut self) -> Option<RefMut<'_, Type>> {
         match self {
             Self::FreeVar(fv) => {
                 RefMut::filter_map(fv.borrow_mut(), |fv| fv.linked_mut()?.mut_return_t()).ok()
