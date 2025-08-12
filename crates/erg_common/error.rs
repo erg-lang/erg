@@ -308,18 +308,21 @@ impl FromPyObject<'_> for Location {
 }
 
 #[cfg(feature = "pylib")]
-impl IntoPy<PyObject> for Location {
-    fn into_py(self, py: Python<'_>) -> PyObject {
+impl<'py> IntoPyObject<'py> for Location {
+    type Target = pyo3::types::PyTuple;
+    type Output = Bound<'py, Self::Target>;
+    type Error = pyo3::PyErr;
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
         match self {
-            Self::Line(l) => (l, py.None(), l, py.None()).into_py(py),
-            Self::LineRange(lb, le) => (lb, py.None(), le, py.None()).into_py(py),
+            Self::Line(l) => (l, py.None(), l, py.None()).into_pyobject(py),
+            Self::LineRange(lb, le) => (lb, py.None(), le, py.None()).into_pyobject(py),
             Self::Range {
                 ln_begin,
                 col_begin,
                 ln_end,
                 col_end,
-            } => (ln_begin, col_begin, ln_end, col_end).into_py(py),
-            Self::Unknown => (py.None(), py.None(), py.None(), py.None()).into_py(py),
+            } => (ln_begin, col_begin, ln_end, col_end).into_pyobject(py),
+            Self::Unknown => (py.None(), py.None(), py.None(), py.None()).into_pyobject(py),
         }
     }
 }

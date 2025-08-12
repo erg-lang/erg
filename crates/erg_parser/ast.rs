@@ -32,10 +32,15 @@ use pyo3::prelude::*;
 macro_rules! impl_into_py_for_enum {
     ($Enum: ident; $($Variant: ident $(,)?)*) => {
         #[cfg(feature = "pylib")]
-        impl IntoPy<PyObject> for $Enum {
-            fn into_py(self, py: Python<'_>) -> PyObject {
+        impl<'py> IntoPyObject<'py> for $Enum {
+            type Target = pyo3::PyAny;
+            type Output = pyo3::Bound<'py, Self::Target>;
+            type Error = pyo3::PyErr;
+            fn into_pyobject(self, py: pyo3::Python<'py>) -> Result<Self::Output, Self::Error> {
+                use pyo3::IntoPyObjectExt;
+
                 match self {
-                    $(Self::$Variant(v) => v.into_py(py),)*
+                    $(Self::$Variant(v) => Ok(v.into_py_any(py)?.into_bound(py)),)*
                 }
             }
         }
@@ -46,7 +51,7 @@ macro_rules! impl_from_py_for_enum {
     ($Ty: ty; $($Variant: ident ($inner: ident) $(,)*)*) => {
         #[cfg(feature = "pylib")]
         impl FromPyObject<'_> for $Ty {
-            fn extract(ob: &PyAny) -> PyResult<Self> {
+            fn extract_bound(ob: &pyo3::Bound<'_, PyAny>) -> PyResult<Self> {
                 $(if let Ok(extracted) = ob.extract::<$inner>() {
                     return Ok(Self::$Variant(extracted));
                 } else)* {
@@ -60,7 +65,7 @@ macro_rules! impl_from_py_for_enum {
     ($Ty: ty; $($Variant: ident $(,)*)*) => {
         #[cfg(feature = "pylib")]
         impl FromPyObject<'_> for $Ty {
-            fn extract(ob: &PyAny) -> PyResult<Self> {
+            fn extract_bound(ob: &pyo3::Bound<'_, PyAny>) -> PyResult<Self> {
                 $(if let Ok(extracted) = ob.extract::<$Variant>() {
                     return Ok(Self::$Variant(extracted));
                 } else)* {
@@ -791,18 +796,23 @@ pub enum TypeAppArgsKind {
 }
 
 #[cfg(feature = "pylib")]
-impl IntoPy<PyObject> for TypeAppArgsKind {
-    fn into_py(self, py: Python<'_>) -> PyObject {
+impl<'py> IntoPyObject<'py> for TypeAppArgsKind {
+    type Target = PyAny;
+    type Output = Bound<'py, Self::Target>;
+    type Error = PyErr;
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        use pyo3::IntoPyObjectExt;
+
         match self {
-            Self::SubtypeOf(ty) => ty.into_py(py),
-            Self::Args(args) => args.into_py(py),
+            Self::SubtypeOf(ty) => Ok(ty.into_py_any(py)?.into_bound(py)),
+            Self::Args(args) => Ok(args.into_py_any(py)?.into_bound(py)),
         }
     }
 }
 
 #[cfg(feature = "pylib")]
 impl FromPyObject<'_> for TypeAppArgsKind {
-    fn extract(ob: &PyAny) -> PyResult<Self> {
+    fn extract_bound(ob: &Bound<'_, PyAny>) -> PyResult<Self> {
         if let Ok(ty) = ob.extract::<TypeSpecWithOp>() {
             Ok(Self::SubtypeOf(Box::new(ty)))
         } else if let Ok(args) = ob.extract::<Args>() {
@@ -4146,9 +4156,12 @@ pub enum TypeSpec {
 
 // TODO:
 #[cfg(feature = "pylib")]
-impl IntoPy<PyObject> for TypeSpec {
-    fn into_py(self, py: Python<'_>) -> PyObject {
-        pyo3::types::PyNone::get_bound(py).to_object(py)
+impl<'py> IntoPyObject<'py> for TypeSpec {
+    type Target = pyo3::types::PyNone;
+    type Output = Borrowed<'py, 'py, Self::Target>;
+    type Error = std::convert::Infallible;
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        pyo3::types::PyNone::get(py).into_pyobject(py)
     }
 }
 
@@ -4620,14 +4633,19 @@ impl Hash for VisModifierSpec {
 }
 
 #[cfg(feature = "pylib")]
-impl IntoPy<PyObject> for VisModifierSpec {
-    fn into_py(self, py: Python<'_>) -> PyObject {
+impl<'py> IntoPyObject<'py> for VisModifierSpec {
+    type Target = PyAny;
+    type Output = Bound<'py, PyAny>;
+    type Error = PyErr;
+
+    fn into_pyobject(self, py: Python<'py>) -> PyResult<Self::Output> {
+        use pyo3::IntoPyObjectExt;
+
         match self {
-            Self::Private => py.None(),
-            Self::Auto => py.None(),
-            Self::Public(token) => token.into_py(py),
-            Self::ExplicitPrivate(token) => token.into_py(py),
-            Self::Restricted(rest) => rest.into_py(py),
+            Self::Private | Self::Auto => py.None().into_bound_py_any(py),
+            Self::Public(token) => token.into_bound_py_any(py),
+            Self::ExplicitPrivate(token) => token.into_bound_py_any(py),
+            Self::Restricted(rest) => rest.into_bound_py_any(py),
         }
     }
 }

@@ -11,7 +11,7 @@ use crate::{debug_fmt_iter, fmt_iter, get_hash};
 #[cfg(feature = "pylib")]
 use pyo3::prelude::PyAnyMethods;
 #[cfg(feature = "pylib")]
-use pyo3::{FromPyObject, IntoPy, PyAny, PyObject, Python};
+use pyo3::{Bound, FromPyObject, IntoPyObject, PyAny, Python};
 
 #[macro_export]
 macro_rules! set {
@@ -29,9 +29,12 @@ pub struct Set<T> {
 }
 
 #[cfg(feature = "pylib")]
-impl<T: Hash + Eq + IntoPy<PyObject>> IntoPy<PyObject> for Set<T> {
-    fn into_py(self, py: Python<'_>) -> PyObject {
-        self.elems.into_py(py)
+impl<'py, T: Hash + Eq + IntoPyObject<'py>> IntoPyObject<'py> for Set<T> {
+    type Target = pyo3::types::PySet;
+    type Output = Bound<'py, Self::Target>;
+    type Error = pyo3::PyErr;
+    fn into_pyobject(self, py: Python<'py>) -> Result<Self::Output, Self::Error> {
+        self.elems.into_pyobject(py)
     }
 }
 

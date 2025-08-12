@@ -11,7 +11,7 @@ The overall structure is described in detail in [architecture.md(English)](../..
 ```python
 import erg_compiler
 
-module = erg_compiler.exec_module(".i = 1")
+module = erg_compiler.exec(".i = 1")
 # foo.er:
 # .bar = 1
 foo = erg_compiler.__import__("foo")
@@ -37,6 +37,7 @@ assert j == 1
 ### Debug install (using venv)
 
 ```python
+# cd crates/erg_compiler
 python -m venv .venv
 source .venv/bin/activate
 maturin develop --features pylib_compiler
@@ -45,6 +46,7 @@ maturin develop --features pylib_compiler
 ### Release install
 
 ```python
+# cd crates/erg_compiler
 maturin build -i python --release --features pylib_compiler
 pip install <output wheel>
 ```

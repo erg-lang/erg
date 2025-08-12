@@ -6,7 +6,7 @@ use std::ops::{Add, Deref};
 #[cfg(feature = "pylib")]
 use pyo3::prelude::PyAnyMethods;
 #[cfg(feature = "pylib")]
-use pyo3::{FromPyObject, IntoPy, PyAny, PyObject, Python};
+use pyo3::{FromPyObject, IntoPyObject, PyAny};
 
 pub type ArcStr = std::sync::Arc<str>;
 
@@ -28,9 +28,12 @@ impl FromPyObject<'_> for Str {
 }
 
 #[cfg(feature = "pylib")]
-impl IntoPy<PyObject> for Str {
-    fn into_py(self, py: Python<'_>) -> PyObject {
-        (&self[..]).into_py(py)
+impl<'py> IntoPyObject<'py> for Str {
+    type Target = pyo3::types::PyString;
+    type Output = pyo3::Bound<'py, Self::Target>;
+    type Error = std::convert::Infallible;
+    fn into_pyobject(self, py: pyo3::Python<'py>) -> Result<Self::Output, Self::Error> {
+        (&self[..]).into_pyobject(py)
     }
 }
 

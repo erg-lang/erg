@@ -91,11 +91,11 @@ impl _Compiler {
             .map(|art| art.object)
             .map_err(|iart| iart.errors)?;
         let bytes = code.into_bytes(py.version().parse().unwrap());
-        let dict = [("bytes", PyBytes::new_bound(py, &bytes))].into_py_dict_bound(py);
-        py.run_bound("import marshal", None, None).unwrap();
-        let code = py
-            .eval_bound("marshal.loads(bytes)", None, Some(&dict))
+        let dict = [("bytes", PyBytes::new(py, &bytes))]
+            .into_py_dict(py)
             .unwrap();
+        py.run(c"import marshal", None, None).unwrap();
+        let code = py.eval(c"marshal.loads(bytes)", None, Some(&dict)).unwrap();
         Ok(code.into())
     }
 
@@ -131,22 +131,24 @@ impl _Compiler {
             .map(|art| art.object)
             .map_err(|iart| iart.errors)?;
         let bytes = code.into_bytes(py.version().parse().unwrap());
-        let dict = [("bytes", PyBytes::new_bound(py, &bytes))].into_py_dict_bound(py);
-        py.run_bound("import marshal", None, None).unwrap();
+        let dict = [("bytes", PyBytes::new(py, &bytes))]
+            .into_py_dict(py)
+            .unwrap();
+        py.run(c"import marshal", None, None).unwrap();
         Ok(py
-            .eval_bound("marshal.loads(bytes)", None, Some(&dict))
+            .eval(c"marshal.loads(bytes)", None, Some(&dict))
             .unwrap()
             .into())
     }
 }
 
-/// compile_with_dependencies(code: str, mode: str, pkgs: list[Package]) -> code
+/// compile_with_dependencies(code: str, mode: str, pkgs: list[Package], path: Option[str] = None) -> code
 /// --
 ///
 /// compile an Erg code as a module at runtime with dependencies
 #[cfg(feature = "pylib")]
 #[pyfunction]
-#[pyo3(name = "compile_with_dependencies")]
+#[pyo3(name = "compile_with_dependencies", signature = (code, mode, pkgs, path = None))]
 fn _compile_with_dependencies(
     py: Python<'_>,
     code: String,
@@ -158,13 +160,13 @@ fn _compile_with_dependencies(
     compiler._compile(py, code, mode)
 }
 
-/// compile(code: str, mode: str) -> code
+/// compile(code: str, mode: str, path: Option[str] = None) -> code
 /// --
 ///
 /// compile an Erg code as a module at runtime
 #[cfg(feature = "pylib")]
 #[pyfunction]
-#[pyo3(name = "compile")]
+#[pyo3(name = "compile", signature = (code, mode, path = None))]
 fn _compile(
     py: Python<'_>,
     code: String,
@@ -174,13 +176,13 @@ fn _compile(
     _compile_with_dependencies(py, code, mode, vec![], path)
 }
 
-/// compile_ast_with_dependencies(ast: erg_parser.AST, mode: str, pkgs: list[Package]) -> code
+/// compile_ast_with_dependencies(ast: erg_parser.AST, mode: str, pkgs: list[Package], path: Option[str] = None) -> code
 /// --
 ///
 /// compile an Erg AST as a module at runtime with dependencies
 #[cfg(feature = "pylib")]
 #[pyfunction]
-#[pyo3(name = "compile_ast_with_dependencies")]
+#[pyo3(name = "compile_ast_with_dependencies", signature = (ast, mode, pkgs, path = None))]
 fn _compile_ast_with_dependencies(
     py: Python<'_>,
     ast: erg_parser::ast::AST,
@@ -192,13 +194,13 @@ fn _compile_ast_with_dependencies(
     compiler._compile_ast(py, ast, mode)
 }
 
-/// compile_ast(ast: erg_parser.AST, mode: str) -> code
+/// compile_ast(ast: erg_parser.AST, mode: str, path: Option[str] = None) -> code
 /// --
 ///
 /// compile an Erg AST as a module at runtime
 #[cfg(feature = "pylib")]
 #[pyfunction]
-#[pyo3(name = "compile_ast")]
+#[pyo3(name = "compile_ast", signature = (ast, mode, path = None))]
 fn _compile_ast(
     py: Python<'_>,
     ast: erg_parser::ast::AST,
@@ -235,14 +237,14 @@ fn _compile_file(py: Python<'_>, path: String) -> Result<PyObject, error::Compil
     _compile_file_with_dependencies(py, path, vec![])
 }
 
-/// exec_with_dependencies(code: str, pkgs: list[Package]) -> module
+/// exec_with_dependencies(code: str, pkgs: list[Package], path: Option[str] = None) -> module
 /// --
 ///
 /// compile and execute an Erg code as a module at runtime with dependencies
 ///
 #[cfg(feature = "pylib")]
 #[pyfunction]
-#[pyo3(name = "exec_with_dependencies")]
+#[pyo3(name = "exec_with_dependencies", signature = (code, pkgs, path = None))]
 fn _exec_with_dependencies(
     py: Python<'_>,
     code: String,
@@ -250,19 +252,21 @@ fn _exec_with_dependencies(
     path: Option<String>,
 ) -> Result<PyObject, error::CompileErrors> {
     let code = _compile_with_dependencies(py, code, "exec", pkgs, path)?;
-    let module = pyo3::types::PyModule::new_bound(py, "<erg>").unwrap();
-    let dic = [("code", code), ("dict", PyObject::from(module.dict()))].into_py_dict_bound(py);
-    py.run_bound("exec(code, dict)", None, Some(&dic)).unwrap();
+    let module = pyo3::types::PyModule::new(py, "<erg>").unwrap();
+    let dic = [("code", code), ("dict", PyObject::from(module.dict()))]
+        .into_py_dict(py)
+        .unwrap();
+    py.run(c"exec(code, dict)", None, Some(&dic)).unwrap();
     Ok(module.into())
 }
 
-/// exec(code: str) -> module
+/// exec(code: str, path: Option[str] = None) -> module
 /// --
 ///
 /// compile and execute an Erg code as a module at runtime
 #[cfg(feature = "pylib")]
 #[pyfunction]
-#[pyo3(name = "exec")]
+#[pyo3(name = "exec", signature = (code, path = None))]
 fn _exec(
     py: Python<'_>,
     code: String,
@@ -312,19 +316,21 @@ fn _exec_ast_with_dependencies(
     path: Option<String>,
 ) -> Result<PyObject, error::CompileErrors> {
     let code = _compile_ast_with_dependencies(py, ast, "exec", pkgs, path)?;
-    let module = pyo3::types::PyModule::new_bound(py, "<erg>").unwrap();
-    let dic = [("code", code), ("dict", PyObject::from(module.dict()))].into_py_dict_bound(py);
-    py.run_bound("exec(code, dict)", None, Some(&dic)).unwrap();
+    let module = pyo3::types::PyModule::new(py, "<erg>").unwrap();
+    let dic = [("code", code), ("dict", PyObject::from(module.dict()))]
+        .into_py_dict(py)
+        .unwrap();
+    py.run(c"exec(code, dict)", None, Some(&dic)).unwrap();
     Ok(module.into())
 }
 
-/// exec_ast(ast: erg_parser.AST) -> module
+/// exec_ast(ast: erg_parser.AST, path: Option[str] = None) -> module
 /// --
 ///
 /// compile and execute an Erg AST as a module at runtime
 #[cfg(feature = "pylib")]
 #[pyfunction]
-#[pyo3(name = "exec_ast")]
+#[pyo3(name = "exec_ast", signature = (ast, path = None))]
 fn _exec_ast(
     py: Python<'_>,
     ast: erg_parser::ast::AST,
@@ -366,12 +372,12 @@ fn erg_compiler(py: Python<'_>, m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(_import, m)?)?;
 
     use crate::erg_parser::erg_parser;
-    let parser = PyModule::new_bound(py, "erg_parser")?;
+    let parser = PyModule::new(py, "erg_parser")?;
     erg_parser(py, &parser)?;
     m.add_submodule(&parser)?;
 
-    py.run_bound(
-        "\
+    py.run(
+        c"\
 import sys
 sys.modules['erg_compiler.erg_parser'] = erg_parser
 sys.modules['erg_compiler.erg_parser.ast'] = erg_parser.ast
