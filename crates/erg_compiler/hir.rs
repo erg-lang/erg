@@ -1982,8 +1982,8 @@ pub enum GuardClause {
 impl NestedDisplay for GuardClause {
     fn fmt_nest(&self, f: &mut std::fmt::Formatter<'_>, _level: usize) -> std::fmt::Result {
         match self {
-            GuardClause::Condition(cond) => write!(f, "{}", cond),
-            GuardClause::Bind(bind) => write!(f, "{}", bind),
+            GuardClause::Condition(cond) => write!(f, "{cond}"),
+            GuardClause::Bind(bind) => write!(f, "{bind}"),
         }
     }
 }

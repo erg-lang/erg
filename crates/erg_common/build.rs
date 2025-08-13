@@ -27,6 +27,6 @@ fn main() -> std::io::Result<()> {
     } else {
         true
     };
-    println!("cargo:rustc-env=CASE_SENSITIVE={}", case_sensitive);
+    println!("cargo:rustc-env=CASE_SENSITIVE={case_sensitive}");
     Ok(())
 }
