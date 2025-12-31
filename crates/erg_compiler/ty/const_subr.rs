@@ -1,10 +1,10 @@
 use std::fmt;
 
+use erg_common::Str;
 use erg_common::consts::DEBUG_MODE;
 use erg_common::dict::Dict;
 #[allow(unused_imports)]
 use erg_common::log;
-use erg_common::Str;
 
 use erg_parser::ast::{Block, ConstBlock, Params};
 
@@ -304,7 +304,7 @@ impl ConstSubr {
                             subr_t
                         };
                         return Some(subr_t);
-                }
+                    }
                 None
             }
             ConstSubr::Builtin(builtin) => builtin.as_type.clone(),

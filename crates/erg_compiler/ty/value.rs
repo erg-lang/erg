@@ -16,21 +16,21 @@ use erg_common::python_util::PythonVersion;
 use erg_common::serialize::*;
 use erg_common::set::Set;
 use erg_common::traits::LimitedDisplay;
-use erg_common::{dict, fmt_iter, log, switch_lang};
 use erg_common::{ArcArray, Str};
+use erg_common::{dict, fmt_iter, log, switch_lang};
 use erg_parser::ast::{ConstArgs, ConstExpr};
 
-use crate::context::eval::type_from_token_kind;
 use crate::context::Context;
+use crate::context::eval::type_from_token_kind;
 
 use self::value_set::inner_class;
 
-use super::codeobj::{tuple_into_bytes, CodeObj};
+use super::codeobj::{CodeObj, tuple_into_bytes};
 use super::constructors::{dict_t, list_t, refinement, set_t, tuple_t, unsized_list_t};
 use super::free::{Constraint, FreeTyVar, HasLevel};
 use super::typaram::{OpKind, TyParam};
-use super::{ConstSubr, Field, HasType, Predicate, SharedFrees, Type};
 use super::{CONTAINER_OMIT_THRESHOLD, GENERIC_LEVEL, STR_OMIT_THRESHOLD};
+use super::{ConstSubr, Field, HasType, Predicate, SharedFrees, Type};
 
 pub struct EvalValueError {
     pub core: Box<ErrorCore>,
@@ -1585,11 +1585,7 @@ impl ValueObj {
             */
             (_s, _o) => {
                 if let Some(ValueObj::Bool(b)) = _s.clone().try_eq(_o.clone()) {
-                    if b {
-                        Some(Ordering::Equal)
-                    } else {
-                        None
-                    }
+                    if b { Some(Ordering::Equal) } else { None }
                 } else {
                     None
                 }

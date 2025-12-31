@@ -4,9 +4,9 @@ use erg_common::consts::PYTHON_MODE;
 use erg_common::error::Location;
 use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::traits::{Locational, Runnable, Stream};
-use erg_common::{fn_name, log, set, Str, Triple};
+use erg_common::{Str, Triple, fn_name, log, set};
 
-use erg_parser::ast::{self, AscriptionKind, DefId, Identifier, TypeAppArgsKind, VarName, AST};
+use erg_parser::ast::{self, AST, AscriptionKind, DefId, Identifier, TypeAppArgsKind, VarName};
 use erg_parser::build_ast::ASTBuildable;
 use erg_parser::desugar::Desugarer;
 

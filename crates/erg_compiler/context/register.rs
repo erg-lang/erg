@@ -11,7 +11,7 @@ use erg_common::python_util::BUILTIN_PYTHON_MODS;
 use erg_common::set::Set;
 use erg_common::traits::{Locational, Stream, StructuralEq};
 use erg_common::triple::Triple;
-use erg_common::{get_hash, log, set, unique_in_place, Str};
+use erg_common::{Str, get_hash, log, set, unique_in_place};
 
 use ast::{
     ConstIdentifier, Decorator, DefId, Identifier, OperationKind, PolyTypeSpec, PreDeclTypeSpec,
@@ -31,10 +31,10 @@ use crate::ty::{
 };
 
 use crate::context::{ClassDefType, Context, ContextKind, DefaultInfo, RegistrationMode};
-use crate::error::{concat_result, readable_name, Failable};
 use crate::error::{
     CompileError, CompileErrors, CompileResult, TyCheckError, TyCheckErrors, TyCheckResult,
 };
+use crate::error::{Failable, concat_result, readable_name};
 use crate::hir::Literal;
 use crate::varinfo::{AbsLocation, AliasInfo, Mutability, VarInfo, VarKind};
 use crate::{feature_error, hir, unreachable_error};
@@ -266,11 +266,7 @@ impl Context {
             )))
         } else {
             self.decls.insert(sig.ident.name.clone(), vi);
-            if errs.is_empty() {
-                Ok(())
-            } else {
-                Err(errs)
-            }
+            if errs.is_empty() { Ok(()) } else { Err(errs) }
         }
     }
 
@@ -464,11 +460,7 @@ impl Context {
                 );
                 sig.vi = vi.clone();
                 self.params.push((Some(VarName::from_static("_")), vi));
-                if errs.is_empty() {
-                    Ok(())
-                } else {
-                    Err(errs)
-                }
+                if errs.is_empty() { Ok(()) } else { Err(errs) }
             }
             ast::ParamPattern::VarName(name) => {
                 if self
@@ -520,11 +512,7 @@ impl Context {
                     self.index().register(name.inspect().clone(), &vi);
                     sig.vi = vi.clone();
                     self.params.push((Some(name.clone()), vi));
-                    if errs.is_empty() {
-                        Ok(())
-                    } else {
-                        Err(errs)
-                    }
+                    if errs.is_empty() { Ok(()) } else { Err(errs) }
                 }
             }
             ast::ParamPattern::Ref(name) => {
@@ -573,11 +561,7 @@ impl Context {
                     );
                     sig.vi = vi.clone();
                     self.params.push((Some(name.clone()), vi));
-                    if errs.is_empty() {
-                        Ok(())
-                    } else {
-                        Err(errs)
-                    }
+                    if errs.is_empty() { Ok(()) } else { Err(errs) }
                 }
             }
             ast::ParamPattern::RefMut(name) => {
@@ -626,11 +610,7 @@ impl Context {
                     );
                     sig.vi = vi.clone();
                     self.params.push((Some(name.clone()), vi));
-                    if errs.is_empty() {
-                        Ok(())
-                    } else {
-                        Err(errs)
-                    }
+                    if errs.is_empty() { Ok(()) } else { Err(errs) }
                 }
             }
             other => {
@@ -772,12 +752,7 @@ impl Context {
                     errs.extend(es);
                 }
         }
-        }
-        if errs.is_empty() {
-            Ok(())
-        } else {
-            Err(errs)
-        }
+        if errs.is_empty() { Ok(()) } else { Err(errs) }
     }
 
     fn unify_params_t(
@@ -858,11 +833,7 @@ impl Context {
             );
             errs.extend(es);
         }
-        if errs.is_empty() {
-            Ok(())
-        } else {
-            Err(errs)
-        }
+        if errs.is_empty() { Ok(()) } else { Err(errs) }
     }
 
     /// ## Errors
@@ -1067,7 +1038,7 @@ impl Context {
                                         ),
                                         None,
                                     )),
-                                ))
+                                ));
                             }
                         };
                         let class = match self.instantiate_typespec_full(
@@ -1620,11 +1591,7 @@ impl Context {
                 }
             }
         }
-        if errs.is_empty() {
-            Ok(())
-        } else {
-            Err(errs)
-        }
+        if errs.is_empty() { Ok(()) } else { Err(errs) }
     }
 
     /// e.g. .new
@@ -2398,11 +2365,7 @@ impl Context {
                 ));
             }
         }
-        if errs.is_empty() {
-            Ok(())
-        } else {
-            Err(errs)
-        }
+        if errs.is_empty() { Ok(()) } else { Err(errs) }
     }
 
     fn gen_class_new_method(
