@@ -2050,6 +2050,13 @@ impl Parser {
                     debug_exit_info!(self);
                     return Err(());
                 }
+                Some(t) if t.is(RParen) => {
+                    let err = ParseError::parenthesize_error(line!() as usize, t.loc(), ")");
+                    self.errs.push(err);
+                    self.next_expr();
+                    debug_exit_info!(self);
+                    return Err(());
+                }
                 _ => {
                     if stack.len() <= 1 {
                         break;

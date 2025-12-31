@@ -175,6 +175,23 @@ impl LexError {
         ))
     }
 
+    pub fn parenthesize_error(errno: usize, loc: Location, got: &str) -> Self {
+        let msg = switch_lang!(
+            "japanese" => "不適切な閉じ括弧があります",
+            "simplified_chinese" => "存在不匹配的右括号",
+            "traditional_chinese" => "存在不匹配的右括號",
+            "english" => "unmatched closing parenthesis found",
+        );
+        let got = StyledStr::new(got, Some(ERR), Some(ATTR));
+        let hint = switch_lang!(
+            "japanese" => format!("この{}は対応する開き括弧がないため、削除するか開き括弧を追加してください", got),
+            "simplified_chinese" => format!("{}缺少对应的左括号，请删除或添加左括号", got),
+            "traditional_chinese" => format!("{}缺少對應的左括號，請刪除或添加左括號", got),
+            "english" => format!("{} has no matching opening parenthesis - either remove it or add an opening parenthesis", got),
+        );
+        Self::syntax_error(errno, loc, msg, Some(hint))
+    }
+
     pub fn expect_next_line_error(errno: usize, loc: Location, caused: &str) -> Self {
         Self::new(ErrorCore::new(
             vec![SubMessage::ambiguous_new(
