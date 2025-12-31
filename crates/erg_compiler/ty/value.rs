@@ -574,6 +574,7 @@ impl TypeObj {
     }
 }
 
+#[allow(clippy::derive_ord_xor_partial_ord)]
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub struct Float(f64);
 
@@ -584,7 +585,6 @@ impl fmt::Display for Float {
 }
 
 impl Eq for Float {}
-#[allow(clippy::derive_ord_xor_partial_ord)]
 impl Ord for Float {
     fn cmp(&self, other: &Self) -> Ordering {
         self.0.partial_cmp(&other.0).unwrap()

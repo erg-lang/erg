@@ -2083,11 +2083,11 @@ impl BinOp {
     }
 
     pub fn set_lhs(&mut self, lhs: Expr) {
-        self.args[0] = Box::new(lhs);
+        *self.args[0] = lhs;
     }
 
     pub fn set_rhs(&mut self, rhs: Expr) {
-        self.args[1] = Box::new(rhs);
+        *self.args[1] = rhs;
     }
 }
 

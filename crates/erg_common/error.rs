@@ -376,8 +376,8 @@ impl Ord for Location {
     }
 }
 
+#[allow(clippy::non_canonical_partial_ord_impl)]
 impl PartialOrd for Location {
-    #[allow(clippy::non_canonical_partial_ord_impl)]
     fn partial_cmp(&self, other: &Location) -> Option<Ordering> {
         if self.is_unknown() || other.is_unknown() {
             None
