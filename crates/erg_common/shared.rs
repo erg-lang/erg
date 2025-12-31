@@ -269,7 +269,7 @@ impl<T: ?Sized> Shared<T> {
     /// # Safety
     /// don't call this except you need to handle cyclic references.
     pub unsafe fn force_unlock_write(&self) {
-        self.data.force_unlock_write();
+        unsafe { self.data.force_unlock_write() };
     }
 }
 
