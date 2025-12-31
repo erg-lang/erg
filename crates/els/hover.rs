@@ -168,15 +168,14 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 }
                 // not found or not symbol, etc.
                 None => {
-                    if let Some(visitor) = self.get_visitor(&uri) {
-                        if let Some(typ) = visitor.get_min_expr(pos) {
+                    if let Some(visitor) = self.get_visitor(&uri)
+                        && let Some(typ) = visitor.get_min_expr(pos) {
                             let typ = MarkedString::from_language_code(
                                 ERG_LANG.into(),
                                 format!("{}: {typ}", token.content),
                             );
                             contents.push(typ);
                         }
-                    }
                 }
             }
             if let Some(visitor) = self.get_visitor(&uri) {
@@ -243,8 +242,8 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 }) else {
                     continue;
                 };
-                if let Some((_, vi)) = module.context.get_type_info(&inner_t) {
-                    if let Some(url) = vi
+                if let Some((_, vi)) = module.context.get_type_info(&inner_t)
+                    && let Some(url) = vi
                         .def_loc
                         .module
                         .as_ref()
@@ -256,7 +255,6 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                             vi.def_loc.loc.ln_begin().unwrap_or(1)
                         );
                     }
-                }
             }
         }
         if !defs.is_empty() {

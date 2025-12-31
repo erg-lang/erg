@@ -26,8 +26,8 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let Some(visitor) = self.get_visitor(uri) else {
             return res;
         };
-        if let Some(tok) = self.file_cache.get_symbol(uri, pos) {
-            if let Some(vi) = visitor.get_info(&tok) {
+        if let Some(tok) = self.file_cache.get_symbol(uri, pos)
+            && let Some(vi) = visitor.get_info(&tok) {
                 if let Some(range) = loc_to_range(vi.def_loc.loc) {
                     res.push(DocumentHighlight {
                         range,
@@ -41,7 +41,6 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     });
                 }
             }
-        }
         res
     }
 }

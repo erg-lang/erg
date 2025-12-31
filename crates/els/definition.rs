@@ -43,8 +43,7 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 // `{x;} = import "foo"` => jump to `x` of `foo.er`
                 if vi.def_loc.module == Some(util::uri_to_path(uri).into())
                     && vi.def_loc.loc == token.loc()
-                {
-                    if let Some(def) = self.get_min::<Def>(uri, pos) {
+                    && let Some(def) = self.get_min::<Def>(uri, pos) {
                         if def.def_kind().is_import() {
                             if let Some(mod_uri) =
                                 vi.t.module_path()
@@ -101,7 +100,6 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                             }
                         }
                     }
-                }
                 match (vi.def_loc.module, util::loc_to_range(vi.def_loc.loc)) {
                     (Some(path), Some(range)) => {
                         let def_uri = Url::from_file_path(path).unwrap();

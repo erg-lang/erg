@@ -77,11 +77,10 @@ impl<L: Locational> Unifier<'_, '_, '_, L> {
             if &sup == maybe_super {
                 return Ok(());
             }
-        } else if let Some(sub) = maybe_super.get_sub() {
-            if &sub == maybe_sub {
+        } else if let Some(sub) = maybe_super.get_sub()
+            && &sub == maybe_sub {
                 return Ok(());
             }
-        }
         match (maybe_sub, maybe_super) {
             (FreeVar(fv), _) if fv.is_linked() => self.occur(&fv.unwrap_linked(), maybe_super),
             (_, FreeVar(fv)) if fv.is_linked() => self.occur(maybe_sub, &fv.unwrap_linked()),
@@ -120,11 +119,10 @@ impl<L: Locational> Unifier<'_, '_, '_, L> {
                 {
                     self.occur(lhs, rhs)?;
                 }
-                if let Some(lhs) = lhs.var_params.as_ref() {
-                    if let Some(rhs) = rhs.var_params.as_ref() {
+                if let Some(lhs) = lhs.var_params.as_ref()
+                    && let Some(rhs) = rhs.var_params.as_ref() {
                         self.occur(lhs.typ(), rhs.typ())?;
                     }
-                }
                 for (lhs, rhs) in lhs
                     .non_default_params
                     .iter()
@@ -291,11 +289,10 @@ impl<L: Locational> Unifier<'_, '_, '_, L> {
                 {
                     self.occur_inner(lhs, rhs)?;
                 }
-                if let Some(lhs) = lhs.var_params.as_ref() {
-                    if let Some(rhs) = rhs.var_params.as_ref() {
+                if let Some(lhs) = lhs.var_params.as_ref()
+                    && let Some(rhs) = rhs.var_params.as_ref() {
                         self.occur_inner(lhs.typ(), rhs.typ())?;
                     }
-                }
                 for (lhs, rhs) in lhs
                     .non_default_params
                     .iter()
@@ -983,11 +980,9 @@ impl<L: Locational> Unifier<'_, '_, '_, L> {
             | (Predicate::Value(ValueObj::Bool(b)), call @ Predicate::Call { .. }) => {
                 if let Ok(Predicate::Value(ValueObj::Bool(evaled))) =
                     self.ctx.eval_pred(call.clone())
-                {
-                    if &evaled == b {
+                    && &evaled == b {
                         return Ok(());
                     }
-                }
                 Err(TyCheckErrors::from(TyCheckError::pred_unification_error(
                     self.ctx.cfg.input.clone(),
                     line!() as usize,
@@ -1406,11 +1401,10 @@ impl<L: Locational> Unifier<'_, '_, '_, L> {
                 // * sub_unify(Bool,  ?T(<: Bool or Y)): (?T == Bool)
                 // * sub_unify(Float, ?T(<: Structural{ .imag = ?U })) ==> ?U == Float
                 // * sub_unify(K(Int, 1), ?T(:> K(?A, ?N))) ==> ?A(:> Int), ?N == 1
-                if let Type::Refinement(refine) = maybe_sub {
-                    if refine.t.addr_eq(maybe_super) {
+                if let Type::Refinement(refine) = maybe_sub
+                    && refine.t.addr_eq(maybe_super) {
                         return Ok(());
                     }
-                }
                 if let Some((sub, mut supe)) = super_fv.get_subsup() {
                     if !supe.is_recursive() {
                         self.sub_unify(maybe_sub, &supe)?;
@@ -1885,11 +1879,9 @@ impl<L: Locational> Unifier<'_, '_, '_, L> {
                     .eval_proj_call(*lhs.clone(), attr_name.clone(), args.clone(), self.loc)
                     .ok()
                     .and_then(|tp| self.ctx.convert_tp_into_type(tp).ok())
-                {
-                    if maybe_super != &evaled {
+                    && maybe_super != &evaled {
                         self.sub_unify(maybe_sub, &evaled)?;
                     }
-                }
             }
             (
                 ProjCall {
@@ -1904,11 +1896,9 @@ impl<L: Locational> Unifier<'_, '_, '_, L> {
                     .eval_proj_call(*lhs.clone(), attr_name.clone(), args.clone(), self.loc)
                     .ok()
                     .and_then(|tp| self.ctx.convert_tp_into_type(tp).ok())
-                {
-                    if maybe_sub != &evaled {
+                    && maybe_sub != &evaled {
                         self.sub_unify(&evaled, maybe_super)?;
                     }
-                }
             }
             // TODO: Judgment for any number of preds
             (Refinement(sub), Refinement(supe)) => {
@@ -2283,14 +2273,12 @@ impl Context {
             _ => super_self,
         };
         let sub_self = sub_self.derefine();
-        if self.subtype_of(super_self, &sub_self) {
-            if let Some(return_t) = subr.return_t() {
-                if return_t.has_no_unbound_var() && !return_t.contains_type(&sub_self) {
+        if self.subtype_of(super_self, &sub_self)
+            && let Some(return_t) = subr.return_t()
+                && return_t.has_no_unbound_var() && !return_t.contains_type(&sub_self) {
                     // callee.ref_t() == self_t
                     let _ = unifier.sub_unify(super_self, &sub_self);
                 }
-            }
-        }
         Ok(())
     }
 

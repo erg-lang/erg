@@ -662,8 +662,8 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 }
                 _ => None,
             });
-        if PYTHON_MODE {
-            if let Some(receiver_t) = &receiver_t {
+        if PYTHON_MODE
+            && let Some(receiver_t) = &receiver_t {
                 for (field, ty) in mod_ctx.context.fields(receiver_t) {
                     let mut item =
                         CompletionItem::new_simple(field.symbol.to_string(), ty.to_string());
@@ -681,7 +681,6 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                     result.push(item);
                 }
             }
-        }
         if let Some(receiver_t) = &receiver_t {
             result.extend(self.magic_completion_items(
                 &comp_kind,

@@ -1944,11 +1944,10 @@ impl TyParam {
         match self {
             TyParam::FreeVar(fv) if fv.is_linked() => f(fv.unwrap_linked()),
             TyParam::FreeVar(fv) if fv.get_type().is_some() => {
-                if let Some(id) = fv.unbound_id() {
-                    if let Some(tp) = tvs.get_tp(id) {
+                if let Some(id) = fv.unbound_id()
+                    && let Some(tp) = tvs.get_tp(id) {
                         return tp;
                     }
-                }
                 let typ = fv.get_type().unwrap();
                 let new_typ = typ.clone().map_tp(f, tvs);
                 if typ != new_typ {
@@ -2019,11 +2018,10 @@ impl TyParam {
         match self {
             TyParam::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().map_t(f, tvs),
             TyParam::FreeVar(fv) if fv.get_type().is_some() => {
-                if let Some(id) = fv.unbound_id() {
-                    if let Some(tp) = tvs.get_tp(id) {
+                if let Some(id) = fv.unbound_id()
+                    && let Some(tp) = tvs.get_tp(id) {
                         return tp;
                     }
-                }
                 let typ = fv.get_type().unwrap();
                 let new_typ = f(typ.clone());
                 if typ != new_typ {

@@ -149,11 +149,10 @@ impl<ASTBuilder: ASTBuildable> GenericASTLowerer<ASTBuilder> {
                         warns.extend(ws);
                     }
                 }
-                if let Some(var_args) = &call.args.var_args {
-                    if let Err(ws) = self.block_use_check(&var_args.expr) {
+                if let Some(var_args) = &call.args.var_args
+                    && let Err(ws) = self.block_use_check(&var_args.expr) {
                         warns.extend(ws);
                     }
-                }
                 for arg in call.args.kw_args.iter() {
                     if let Err(ws) = self.block_use_check(&arg.expr) {
                         warns.extend(ws);

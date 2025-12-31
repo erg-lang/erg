@@ -406,14 +406,13 @@ impl Context {
             if let Err(es) = self.sub_unify(spec_t, &self_t, name, Some(name.inspect())) {
                 errs.extend(es);
             }
-            if let Some(sig_t) = sig_t {
-                if sig_t.return_t.has_no_unbound_var() && !sig_t.return_t.contains_type(spec_t) {
+            if let Some(sig_t) = sig_t
+                && sig_t.return_t.has_no_unbound_var() && !sig_t.return_t.contains_type(spec_t) {
                     // spec_t == self_t
                     if let Err(es) = self.sub_unify(&self_t, spec_t, name, Some(name.inspect())) {
                         errs.extend(es);
                     }
                 }
-            }
         } else {
             log!(err "self_t is None");
         }
@@ -745,13 +744,12 @@ impl Context {
                     errs.extend(es);
                 }
             }
-            if let Some(var_params) = &mut params.var_params {
-                if let Err(es) =
+            if let Some(var_params) = &mut params.var_params
+                && let Err(es) =
                     self.assign_param(var_params, None, None, tmp_tv_cache, ParamKind::VarParams)
                 {
                     errs.extend(es);
                 }
-            }
             for default in params.defaults.iter_mut() {
                 if let Err(es) = self.assign_param(
                     &mut default.sig,
@@ -763,8 +761,8 @@ impl Context {
                     errs.extend(es);
                 }
             }
-            if let Some(kw_var_params) = &mut params.kw_var_params {
-                if let Err(es) = self.assign_param(
+            if let Some(kw_var_params) = &mut params.kw_var_params
+                && let Err(es) = self.assign_param(
                     kw_var_params,
                     None,
                     None,
@@ -773,7 +771,7 @@ impl Context {
                 ) {
                     errs.extend(es);
                 }
-            }
+        }
         }
         if errs.is_empty() {
             Ok(())
@@ -1280,11 +1278,10 @@ impl Context {
                     if let Err(errs) = self.register_def(def) {
                         total_errs.extend(errs);
                     }
-                    if def.def_kind().is_import() {
-                        if let Err(errs) = self.pre_import(def) {
+                    if def.def_kind().is_import()
+                        && let Err(errs) = self.pre_import(def) {
                             total_errs.extend(errs);
                         }
-                    }
                 }
                 ast::Expr::ClassDef(class_def) => {
                     if let Err(errs) = self.register_def(&class_def.def) {
@@ -1303,12 +1300,11 @@ impl Context {
                                 }
                             };
                         // assume the class has implemented the trait, regardless of whether the implementation is correct
-                        if let Some((trait_, trait_loc)) = &impl_trait {
-                            if let Err(errs) = self.register_trait_impl(&class, trait_, *trait_loc)
+                        if let Some((trait_, trait_loc)) = &impl_trait
+                            && let Err(errs) = self.register_trait_impl(&class, trait_, *trait_loc)
                             {
                                 total_errs.extend(errs);
                             }
-                        }
                         let kind =
                             ContextKind::MethodDefs(impl_trait.as_ref().map(|(t, _)| t.clone()));
                         self.grow(&class.local_name(), kind, vis.clone(), None);
@@ -1320,13 +1316,12 @@ impl Context {
                                     }
                                 }
                                 ClassAttr::Decl(decl) => {
-                                    if let Some(ident) = decl.expr.as_ident() {
-                                        if let Err((_, errs)) =
+                                    if let Some(ident) = decl.expr.as_ident()
+                                        && let Err((_, errs)) =
                                             self.declare_var(ident, &decl.t_spec)
                                         {
                                             total_errs.extend(errs);
                                         }
-                                    }
                                 }
                                 _ => {}
                             }
@@ -1360,11 +1355,10 @@ impl Context {
                     if !self.kind.is_module() {
                         continue;
                     }
-                    if let Some(ident) = tasc.expr.as_ident() {
-                        if let Err((_, errs)) = self.declare_var(ident, &tasc.t_spec) {
+                    if let Some(ident) = tasc.expr.as_ident()
+                        && let Err((_, errs)) = self.declare_var(ident, &tasc.t_spec) {
                             total_errs.extend(errs);
                         }
-                    }
                 }
                 ast::Expr::Call(call) if PYTHON_MODE => {
                     if let Err(errs) = self.register_control_defs(call) {
@@ -1615,13 +1609,12 @@ impl Context {
                         }
                     }
                     self.pop();
-                    if let Some(ident) = sig.ident() {
-                        if let Err(es) =
+                    if let Some(ident) = sig.ident()
+                        && let Err(es) =
                             self.register_gen_const(ident, obj, call, def.def_kind().is_other())
                         {
                             errs.extend(es);
                         }
-                    }
                 } else if let Err((_, es)) = self.pre_define_var(sig, id) {
                     errs.extend(es);
                 }
@@ -2158,7 +2151,7 @@ impl Context {
                                 if let Err(es) = self.register_instance_attrs(&mut ctx, rec, call) {
                                     errs.extend(es);
                                 }
-                            }
+                                }
                             let param_t = if let Some(Type::Record(rec)) = param_t {
                                 let mut rec = rec.clone();
                                 rec.remove_entries(&invalid_fields);
@@ -2277,7 +2270,7 @@ impl Context {
                 }
                 if errs.is_empty() {
                     Ok(())
-                } else {
+            } else {
                     Err(errs)
                 }
             } else {
@@ -2333,9 +2326,9 @@ impl Context {
                 })
                 .unwrap_or_default();
             let varname = VarName::from_str(field.symbol.clone());
-            if let Some(sup_ctx) = sup_ctx {
-                if let Some(sup_vi) = sup_ctx.decls.get(&varname) {
-                    if !self.subtype_of(sub_t, &sup_vi.t) {
+            if let Some(sup_ctx) = sup_ctx
+                && let Some(sup_vi) = sup_ctx.decls.get(&varname)
+                    && !self.subtype_of(sub_t, &sup_vi.t) {
                         invalid_fields.insert(field.clone());
                         errs.push(CompileError::type_mismatch_error(
                             self.cfg.input.clone(),
@@ -2350,8 +2343,6 @@ impl Context {
                             None,
                         ));
                     }
-                }
-            }
         }
         if errs.is_empty() {
             Ok(())
@@ -2758,8 +2749,8 @@ impl Context {
         } else {
             path.parent()
         };
-        if let Some(parent) = parent {
-            if DirKind::from(parent).is_erg_module() {
+        if let Some(parent) = parent
+            && DirKind::from(parent).is_erg_module() {
                 let parent = parent.join("__init__.er");
                 let parent_module = if let Some(parent) = self.get_mod_with_path(&parent) {
                     Some(parent)
@@ -2793,7 +2784,6 @@ impl Context {
                     }
                 }
             }
-        }
         Ok(())
     }
 
@@ -2901,15 +2891,14 @@ impl Context {
                     return Some(*guard.to.clone());
                 }
                 // { r.x in Int } =>  { r in Structural { .x = Int } }
-                else if let ast::Expr::Accessor(ast::Accessor::Attr(attr)) = target {
-                    if attr.obj.as_ref() == expr {
+                else if let ast::Expr::Accessor(ast::Accessor::Attr(attr)) = target
+                    && attr.obj.as_ref() == expr {
                         let mut rec = Dict::new();
                         let vis = self.instantiate_vis_modifier(&attr.ident.vis).ok()?;
                         let field = Field::new(vis, attr.ident.inspect().clone());
                         rec.insert(field, *guard.to.clone());
                         return Some(Type::Record(rec).structuralize());
                     }
-                }
             }
         }
         None
@@ -3159,27 +3148,23 @@ impl Context {
     ) -> bool {
         let mut res = false;
         for param in params.non_defaults.iter() {
-            if let Some(expr) = param.t_spec.as_ref().map(|ts| &ts.t_spec_as_expr) {
-                if self.inc_ref_expr(expr, namespace, tmp_tv_cache) {
+            if let Some(expr) = param.t_spec.as_ref().map(|ts| &ts.t_spec_as_expr)
+                && self.inc_ref_expr(expr, namespace, tmp_tv_cache) {
                     res = true;
                 }
-            }
         }
         if let Some(expr) = params
             .var_params
             .as_ref()
             .and_then(|p| p.t_spec.as_ref().map(|ts| &ts.t_spec_as_expr))
-        {
-            if self.inc_ref_expr(expr, namespace, tmp_tv_cache) {
+            && self.inc_ref_expr(expr, namespace, tmp_tv_cache) {
                 res = true;
             }
-        }
         for param in params.defaults.iter() {
-            if let Some(expr) = param.sig.t_spec.as_ref().map(|ts| &ts.t_spec_as_expr) {
-                if self.inc_ref_expr(expr, namespace, tmp_tv_cache) {
+            if let Some(expr) = param.sig.t_spec.as_ref().map(|ts| &ts.t_spec_as_expr)
+                && self.inc_ref_expr(expr, namespace, tmp_tv_cache) {
                     res = true;
                 }
-            }
             if self.inc_ref_expr(&param.default_val, namespace, tmp_tv_cache) {
                 res = true;
             }
@@ -3188,11 +3173,9 @@ impl Context {
             .kw_var_params
             .as_ref()
             .and_then(|p| p.t_spec.as_ref().map(|ts| &ts.t_spec_as_expr))
-        {
-            if self.inc_ref_expr(expr, namespace, tmp_tv_cache) {
+            && self.inc_ref_expr(expr, namespace, tmp_tv_cache) {
                 res = true;
             }
-        }
         res
     }
 
@@ -3217,11 +3200,10 @@ impl Context {
                         res = true;
                     }
                 }
-                if let Some(arg) = call.args.var_args() {
-                    if self.inc_ref_expr(&arg.expr, namespace, tmp_tv_cache) {
+                if let Some(arg) = call.args.var_args()
+                    && self.inc_ref_expr(&arg.expr, namespace, tmp_tv_cache) {
                         res = true;
                     }
-                }
                 for arg in call.args.kw_args() {
                     if self.inc_ref_expr(&arg.expr, namespace, tmp_tv_cache) {
                         res = true;
@@ -3294,7 +3276,7 @@ impl Context {
                     if self.inc_ref_expr(guard, namespace, tmp_tv_cache) {
                         res = true;
                     }
-                }
+                    }
                 res
             }
             ast::Expr::Dict(ast::Dict::Normal(dict)) => {
@@ -3316,11 +3298,10 @@ impl Context {
                         res = true;
                     }
                 }
-                if let Some(guard) = &comp.guard {
-                    if self.inc_ref_expr(guard, namespace, tmp_tv_cache) {
+                if let Some(guard) = &comp.guard
+                    && self.inc_ref_expr(guard, namespace, tmp_tv_cache) {
                         res = true;
                     }
-                }
                 res
             }
             ast::Expr::TypeAscription(ascription) => {

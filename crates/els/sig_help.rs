@@ -85,11 +85,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     ) -> Option<(Token, Expr)> {
         let token = self.file_cache.get_token_relatively(uri, pos, offset)?;
         crate::_log!(self, "token: {token}");
-        if let Some(visitor) = self.get_visitor(uri) {
-            if let Some(expr) = visitor.get_min_expr(loc_to_pos(token.loc())?) {
+        if let Some(visitor) = self.get_visitor(uri)
+            && let Some(expr) = visitor.get_min_expr(loc_to_pos(token.loc())?) {
                 return Some((token, expr.clone()));
             }
-        }
         None
     }
 

@@ -642,8 +642,8 @@ impl Context {
                     .map_err(|errs| (Type::Failure, errs)),
             },
             ast::PreDeclTypeSpec::Attr { namespace, t } => {
-                if let Ok(receiver) = Parser::validate_const_expr(namespace.as_ref().clone()) {
-                    if let Ok(receiver_t) = self.instantiate_const_expr_as_type(
+                if let Ok(receiver) = Parser::validate_const_expr(namespace.as_ref().clone())
+                    && let Ok(receiver_t) = self.instantiate_const_expr_as_type(
                         &receiver,
                         None,
                         tmp_tv_cache,
@@ -653,7 +653,6 @@ impl Context {
                             .eval_proj(receiver_t, t.inspect().clone(), self.level, predecl)
                             .map_err(|errs| (Type::Failure, errs));
                     }
-                }
                 let ctxs = self
                     .get_singular_ctxs(namespace.as_ref(), self)
                     .map_err(|errs| (Type::Failure, errs.into()))?;
@@ -757,8 +756,8 @@ impl Context {
                     }
                     return self.check_mono_type(typ, ident);
                 }
-                if let Some(outer) = &self.outer {
-                    if let Ok(t) = outer.instantiate_mono_t(
+                if let Some(outer) = &self.outer
+                    && let Ok(t) = outer.instantiate_mono_t(
                         ident,
                         opt_decl_pt,
                         tmp_tv_cache,
@@ -766,7 +765,6 @@ impl Context {
                     ) {
                         return Ok(t);
                     }
-                }
                 if let Some(ctx) = self.get_type_ctx(ident.inspect()) {
                     if let Some((_, vi)) = self.get_var_info(ident.inspect()) {
                         self.inc_ref(ident.inspect(), vi, ident, self);
@@ -1053,8 +1051,8 @@ impl Context {
                         .and_then(|v| ctx_of_type.convert_value_into_type(v.clone()).ok())
                         .and_then(|typ| ctx_of_type.get_nominal_type_ctx(&typ))
                 }) else {
-                    if let Some(outer) = &self.outer {
-                        if let Ok(t) = outer.instantiate_local_poly_t(
+                    if let Some(outer) = &self.outer
+                        && let Ok(t) = outer.instantiate_local_poly_t(
                             name,
                             args,
                             outer,
@@ -1064,7 +1062,6 @@ impl Context {
                         ) {
                             return Ok(t);
                         }
-                    }
                     if let Some(decl_t) = opt_decl_t {
                         return Ok(decl_t.typ().clone());
                     }
@@ -1347,12 +1344,11 @@ impl Context {
             tmp_tv_cache.push_or_init_tyvar(&name.name, &tyvar, self)?;
             return Ok(TyParam::t(tyvar));
         }
-        if name.is_const() {
-            if let Some((_, vi)) = self.get_var_info(name.inspect()) {
+        if name.is_const()
+            && let Some((_, vi)) = self.get_var_info(name.inspect()) {
                 self.inc_ref(name.inspect(), vi, name, self);
                 return Ok(TyParam::mono(name.inspect()));
             }
-        }
         Err(TyCheckErrors::from(TyCheckError::no_var_error(
             self.cfg.input.clone(),
             line!() as usize,
@@ -1521,11 +1517,10 @@ impl Context {
                     tmp_tv_cache,
                     not_found_is_qvar,
                 )?;
-                if length.is_erased() {
-                    if let Ok(elem_t) = self.instantiate_tp_as_type(elem, lis) {
+                if length.is_erased()
+                    && let Ok(elem_t) = self.instantiate_tp_as_type(elem, lis) {
                         return Ok(TyParam::t(unknown_len_list_t(elem_t)));
                     }
-                }
                 type_feature_error!(
                     self,
                     lis.loc(),

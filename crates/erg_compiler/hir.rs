@@ -1710,11 +1710,10 @@ impl Block {
     pub fn remove_def(&mut self, name: &str) -> Option<Def> {
         let mut i = 0;
         while i < self.0.len() {
-            if let Expr::Def(def) = &self.0[i] {
-                if def.sig.ident().inspect() == name {
+            if let Expr::Def(def) = &self.0[i]
+                && def.sig.ident().inspect() == name {
                     return Def::try_from(self.0.remove(i)).ok();
                 }
-            }
             i += 1;
         }
         None

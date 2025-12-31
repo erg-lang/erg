@@ -165,10 +165,10 @@ impl Linter {
     }
 
     fn lint_tautology(&mut self, expr: &Expr) {
-        if let Expr::BinOp(binop) = expr {
-            if binop.op.kind == TokenKind::GreEq
+        if let Expr::BinOp(binop) = expr
+            && (binop.op.kind == TokenKind::GreEq
                 || binop.op.kind == TokenKind::LessEq
-                || binop.op.kind == TokenKind::DblEq
+                || binop.op.kind == TokenKind::DblEq)
             {
                 let lhs = binop.lhs.as_ref();
                 let rhs = binop.rhs.as_ref();
@@ -182,7 +182,6 @@ impl Linter {
                     ));
                 }
             }
-        }
         self.check_recursively(&Self::lint_tautology, expr);
     }
 
@@ -249,8 +248,7 @@ impl Linter {
                 t: Type::Record(record),
                 ..
             }) = obj.base_or_sup()
-            {
-                if record.len() >= MAX_INSTANCE_ATTRIBUTES {
+                && record.len() >= MAX_INSTANCE_ATTRIBUTES {
                     self.warns.push(too_many_instance_attributes(
                         self.input(),
                         line!() as usize,
@@ -258,7 +256,6 @@ impl Linter {
                         expr.loc(),
                     ));
                 }
-            }
         } else {
             self.check_recursively(&Self::lint_too_many_instance_attributes, expr);
         }

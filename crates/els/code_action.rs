@@ -194,12 +194,11 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     fn send_normal_action(&self, params: &CodeActionParams) -> ELSResult<Vec<CodeAction>> {
         let mut actions = vec![];
         let uri = NormalizedUrl::new(params.text_document.uri.clone());
-        if let Some(token) = self.file_cache.get_token(&uri, params.range.start) {
-            if token.is(TokenKind::Symbol) && !token.is_const() && !token.content.is_snake_case() {
+        if let Some(token) = self.file_cache.get_token(&uri, params.range.start)
+            && token.is(TokenKind::Symbol) && !token.is_const() && !token.content.is_snake_case() {
                 let action = self.gen_change_case_action(token, &uri, params.clone());
                 actions.extend(action);
             }
-        }
         actions.extend(self.send_quick_fix(params)?);
         actions.extend(self.gen_extract_action(params));
         actions.extend(self.gen_inline_action(params));

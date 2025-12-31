@@ -453,26 +453,23 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
                         errs.extend(err);
                     }
                 }
-                if let Some(var) = call.args.var_args.as_mut() {
-                    if let Err(err) = self.check_import(&mut var.expr, cfg) {
+                if let Some(var) = call.args.var_args.as_mut()
+                    && let Err(err) = self.check_import(&mut var.expr, cfg) {
                         errs.extend(err);
                     }
-                }
                 for kw in call.args.kw_args.iter_mut() {
                     if let Err(err) = self.check_import(&mut kw.expr, cfg) {
                         errs.extend(err);
                     }
                 }
-                if let Some(kw_var) = call.args.kw_var_args.as_mut() {
-                    if let Err(err) = self.check_import(&mut kw_var.expr, cfg) {
+                if let Some(kw_var) = call.args.kw_var_args.as_mut()
+                    && let Err(err) = self.check_import(&mut kw_var.expr, cfg) {
                         errs.extend(err);
                     }
-                }
-                if call.additional_operation().is_some_and(|op| op.is_import()) {
-                    if let Err(err) = self.register(expr, cfg) {
+                if call.additional_operation().is_some_and(|op| op.is_import())
+                    && let Err(err) = self.register(expr, cfg) {
                         errs.extend(err);
                     }
-                }
             }
             Expr::Def(def) => {
                 for expr in def.body.block.iter_mut() {
@@ -636,8 +633,7 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
                     .stderr(err)
                     .spawn()
                     .and_then(|mut child| child.wait())
-                {
-                    if let Some(path) = self
+                    && let Some(path) = self
                         .cfg
                         .input
                         .resolve_decl_path(Path::new(&__name__[..]), &self.cfg)
@@ -652,7 +648,6 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
                             return Ok(path);
                         }
                     }
-                }
             }
         }
         Err(())
@@ -726,8 +721,8 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
             None
         };
         let root_import_path = root_path.and_then(|path| cfg.input.resolve_path(path, cfg));
-        if let Some(root_import_path) = root_import_path.map(NormalizedPathBuf::from) {
-            if project_entry_dir_of(&root_import_path) != project_entry_dir_of(&from_path) {
+        if let Some(root_import_path) = root_import_path.map(NormalizedPathBuf::from)
+            && project_entry_dir_of(&root_import_path) != project_entry_dir_of(&from_path) {
                 let root_import_cfg = cfg.inherit(root_import_path.to_path_buf());
                 self.shared.graph.add_node_if_none(&root_import_path);
                 let _ = self
@@ -746,7 +741,6 @@ impl<ASTBuilder: ASTBuildable, HIRBuilder: Buildable>
                     debug_assert!(prev.is_none());
                 }
             }
-        }
         // root -> a -> b -> a
         // b: submodule
         if let Err(_err) = self.shared.graph.inc_ref(&from_path, import_path.clone()) {

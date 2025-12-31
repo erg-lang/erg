@@ -282,11 +282,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 if let Some(&feature) = args.next() {
                     disabled_features.push(DefaultFeatures::from(feature));
                 }
-            } else if arg == "--enable" {
-                if let Some(&feature) = args.next() {
+            } else if arg == "--enable"
+                && let Some(&feature) = args.next() {
                     opt_features.push(OptionalFeatures::from(feature));
                 }
-            }
         }
         let external_items = !disabled_features.contains(&DefaultFeatures::DeepCompletion);
         Self {

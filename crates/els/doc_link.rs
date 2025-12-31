@@ -177,11 +177,10 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                         tooltip: Some(format!("module {word}")),
                         data: None,
                     });
-                } else if let Some((_, vi)) = mod_ctx.context.get_type_info(&typ) {
-                    if let Some(doc) = self.gen_doc_link_from_vi(word, range, vi) {
+                } else if let Some((_, vi)) = mod_ctx.context.get_type_info(&typ)
+                    && let Some(doc) = self.gen_doc_link_from_vi(word, range, vi) {
                         res.push(doc);
                     }
-                }
                 col += word.len() as u32 + 1;
             }
             line += 1;

@@ -105,16 +105,14 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         };
         // Typ = 'typ': ClassType
         // => 'typ': {<type Typ>}
-        if let hir::Expr::TypeAsc(hir::TypeAscription { expr, .. }) = &chunk {
-            if let hir::Expr::Accessor(acc) = expr.as_ref() {
-                if let Some(name) = acc.local_name() {
+        if let hir::Expr::TypeAsc(hir::TypeAscription { expr, .. }) = &chunk
+            && let hir::Expr::Accessor(acc) = expr.as_ref()
+                && let Some(name) = acc.local_name() {
                     let name = VarName::from_str(Str::rc(name));
                     if let Some(vi) = self.module.context.get_mut_current_scope_var(&name) {
                         vi.t = t.clone();
                     }
                 }
-            }
-        }
         ident.vi.t = t;
         ident.vi.py_name = py_name;
         ident.vi.def_loc = self.module.context.absolutize(ident.raw.name.loc());

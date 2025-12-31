@@ -966,33 +966,27 @@ impl SubrType {
     pub fn replace_params(mut self, target_and_to: Vec<(Str, Str)>) -> Self {
         for (target, to) in target_and_to {
             for nd in self.non_default_params.iter_mut() {
-                if let Some(name) = nd.name_mut() {
-                    if name == target {
+                if let Some(name) = nd.name_mut()
+                    && name == target {
                         *name = to.clone();
                     }
-                }
             }
-            if let Some(var) = self.var_params.as_mut() {
-                if let Some(name) = var.name_mut() {
-                    if name == target {
+            if let Some(var) = self.var_params.as_mut()
+                && let Some(name) = var.name_mut()
+                    && name == target {
                         *name = to.clone();
                     }
-                }
-            }
             for d in self.default_params.iter_mut() {
-                if let Some(name) = d.name_mut() {
-                    if name == target {
+                if let Some(name) = d.name_mut()
+                    && name == target {
                         *name = to.clone();
                     }
-                }
             }
-            if let Some(kw_var) = self.kw_var_params.as_mut() {
-                if let Some(name) = kw_var.name_mut() {
-                    if name == target {
+            if let Some(kw_var) = self.kw_var_params.as_mut()
+                && let Some(name) = kw_var.name_mut()
+                    && name == target {
                         *name = to.clone();
                     }
-                }
-            }
             *self.return_t = self.return_t.replace_param(&target, &to);
         }
         self
@@ -4556,11 +4550,10 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().map(f, tvs),
             Self::FreeVar(fv) => {
-                if let Some(id) = fv.unbound_id() {
-                    if let Some(tv) = tvs.get_tv(id) {
+                if let Some(id) = fv.unbound_id()
+                    && let Some(tv) = tvs.get_tv(id) {
                         return tv;
                     }
-                }
                 if let Some((sub, sup)) = fv.get_subsup() {
                     fv.dummy_link();
                     let new_sub = f(sub.clone());
@@ -4669,11 +4662,10 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked()._replace_tp(target, to, tvs),
             Self::FreeVar(fv) => {
-                if let Some(id) = fv.unbound_id() {
-                    if let Some(tv) = tvs.get_tv(id) {
+                if let Some(id) = fv.unbound_id()
+                    && let Some(tv) = tvs.get_tv(id) {
                         return tv;
                     }
-                }
                 if let Some((sub, sup)) = fv.get_subsup() {
                     fv.dummy_link();
                     let new_sub = sub.clone()._replace_tp(target, to, tvs);
@@ -4787,11 +4779,10 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().map_tp(f, tvs),
             Self::FreeVar(fv) => {
-                if let Some(id) = fv.unbound_id() {
-                    if let Some(tv) = tvs.get_tv(id) {
+                if let Some(id) = fv.unbound_id()
+                    && let Some(tv) = tvs.get_tv(id) {
                         return tv;
                     }
-                }
                 if let Some((sub, sup)) = fv.get_subsup() {
                     fv.dummy_link();
                     let new_sub = sub.clone().map_tp(f, tvs);
@@ -4893,11 +4884,10 @@ impl Type {
         match self {
             Self::FreeVar(fv) if fv.is_linked() => fv.unwrap_linked().try_map_tp(f, tvs),
             Self::FreeVar(fv) => {
-                if let Some(id) = fv.unbound_id() {
-                    if let Some(tv) = tvs.get_tv(id) {
+                if let Some(id) = fv.unbound_id()
+                    && let Some(tv) = tvs.get_tv(id) {
                         return Ok(tv);
                     }
-                }
                 if let Some((sub, sup)) = fv.get_subsup() {
                     fv.dummy_link();
                     let new_sub = sub.clone().try_map_tp(f, tvs)?;

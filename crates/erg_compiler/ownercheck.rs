@@ -115,21 +115,19 @@ impl OwnershipChecker {
                             self.define_param(name);
                         }
                     }
-                    if let Some(var) = var_params {
-                        if let ParamPattern::VarName(name) = &var.raw.pat {
+                    if let Some(var) = var_params
+                        && let ParamPattern::VarName(name) = &var.raw.pat {
                             self.define_param(name);
                         }
-                    }
                     for param in d_params {
                         if let ParamPattern::VarName(name) = &param.sig.raw.pat {
                             self.define_param(name);
                         }
                     }
-                    if let Some(kw_var) = kw_var {
-                        if let ParamPattern::VarName(name) = &kw_var.raw.pat {
+                    if let Some(kw_var) = kw_var
+                        && let ParamPattern::VarName(name) = &kw_var.raw.pat {
                             self.define_param(name);
                         }
-                    }
                 }
                 self.check_block(&def.body.block);
                 self.path_stack.pop();
