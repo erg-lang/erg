@@ -40,8 +40,8 @@ use crate::hir::GlobSignature;
 use crate::hir::ListWithLength;
 use crate::hir::{
     Accessor, Args, BinOp, Block, Call, ClassDef, Def, DefBody, Dict, Expr, GuardClause,
-    Identifier, KwArg, Lambda, List, Literal, NonDefaultParamSignature, Params, PatchDef, PosArg,
-    ReDef, Record, Set, Signature, SubrSignature, Tuple, UnaryOp, VarSignature, HIR,
+    Identifier, Lambda, List, Literal, NonDefaultParamSignature, Params, PatchDef, PosArg, ReDef,
+    Record, Set, Signature, SubrSignature, Tuple, UnaryOp, VarSignature, HIR,
 };
 use crate::ty::codeobj::{CodeObj, CodeObjFlags, MakeFunctionFlags};
 use crate::ty::value::{GenTypeObj, ValueObj};
@@ -3985,19 +3985,22 @@ impl PyCodeGenerator {
 
     fn load_sys_encoding(&mut self) {
         self.load_reconfigure();
-        let tk_utf8 = Token::new(TokenKind::StrLit, "utf-8", 0, 0);
-        let expr_utf8 = Expr::Literal(Literal::new(ValueObj::Str("utf-8".into()), tk_utf8));
-        let tk_encoding = Token::new(TokenKind::StrLit, "encoding", 0, 0);
-        let args = Args::new(
-            vec![],
-            None,
-            vec![KwArg::new(tk_encoding, expr_utf8)],
-            None,
-            None,
-        );
         self.emit_load_name_instr(Identifier::private("#stdout"));
         self.emit_load_method_instr(Identifier::static_public("reconfigure"), BoundAttr);
-        self.emit_args_311(args, AccessKind::BoundAttr);
+        self.emit_load_const("utf-8");
+        let kws = vec![ValueObj::Str("encoding".into())];
+        if self.py_version.minor >= Some(11) {
+            let idx = self.register_const(kws);
+            self.write_instr(Opcode311::KW_NAMES);
+            self.write_arg(idx);
+            self.emit_precall_and_call(1);
+            self.stack_dec();
+        } else {
+            self.emit_load_const(kws);
+            self.write_instr(Opcode310::CALL_FUNCTION_KW);
+            self.write_arg(1);
+            self.stack_dec_n(2);
+        }
         self.emit_pop_top();
     }
 
