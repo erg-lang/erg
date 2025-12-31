@@ -13,8 +13,8 @@ use erg_common::traits::{BlockKind, ExitStatus, New, Runnable};
 use erg_compiler::hir::Expr;
 use erg_compiler::ty::HasType;
 
-use erg_compiler::error::{CompileError, CompileErrors};
 use erg_compiler::Compiler;
+use erg_compiler::error::{CompileError, CompileErrors};
 use erg_parser::ParserRunner;
 
 pub type EvalError = CompileError;
@@ -442,7 +442,9 @@ impl PackageManagerRunner {
 
     pub fn run(cfg: ErgConfig) -> ExitStatus {
         if Command::new("poise").arg("--version").output().is_err() {
-            eprintln!("Error: poise is not installed. Please install using ergup or manually from the repository (https://github.com/erg-lang/poise).");
+            eprintln!(
+                "Error: poise is not installed. Please install using ergup or manually from the repository (https://github.com/erg-lang/poise)."
+            );
             return ExitStatus::ERR1;
         }
         match Command::new("poise")

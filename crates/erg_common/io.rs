@@ -650,13 +650,13 @@ impl Input {
         // -> lib/external/pandas.d
         // root: lib/external/pandas.d, path: contextlib
         // -> NO
-        if let Some((root, first)) = self.project_root().zip(path.components().next()) {
-            if root.ends_with(first) || remove_postfix(root.clone(), ".d").ends_with(first) {
-                let path_buf = path.iter().skip(1).collect::<PathBuf>();
-                if let Ok(resolved) = self.resolve_local_decl(root.clone(), &path_buf) {
-                    VFS.cache_path(self.clone(), path.to_path_buf(), Some(resolved.clone()));
-                    return Some(resolved);
-                }
+        if let Some((root, first)) = self.project_root().zip(path.components().next())
+            && (root.ends_with(first) || remove_postfix(root.clone(), ".d").ends_with(first))
+        {
+            let path_buf = path.iter().skip(1).collect::<PathBuf>();
+            if let Ok(resolved) = self.resolve_local_decl(root.clone(), &path_buf) {
+                VFS.cache_path(self.clone(), path.to_path_buf(), Some(resolved.clone()));
+                return Some(resolved);
             }
         }
         if let Some(resolved) = Self::resolve_std_decl_path(erg_pystd_path(), path) {
@@ -674,13 +674,13 @@ impl Input {
                 return Some(resolved);
             }
         }
-        if PYTHON_MODE {
-            if let Ok(resolved) = self.resolve_py(path) {
-                if cfg.respect_pyi && resolved.with_extension("pyi").exists() {
-                    return Some(resolved.with_extension("pyi"));
-                }
-                return Some(resolved);
+        if PYTHON_MODE
+            && let Ok(resolved) = self.resolve_py(path)
+        {
+            if cfg.respect_pyi && resolved.with_extension("pyi").exists() {
+                return Some(resolved.with_extension("pyi"));
             }
+            return Some(resolved);
         }
         VFS.cache_path(self.clone(), path.to_path_buf(), None);
         None

@@ -1150,8 +1150,8 @@ pub struct ListComprehension {
 impl NestedDisplay for ListComprehension {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         let mut generators = String::new();
-        for (name, gen) in self.generators.iter() {
-            write!(generators, "{name} <- {gen}; ")?;
+        for (name, generator) in self.generators.iter() {
+            write!(generators, "{name} <- {generator}; ")?;
         }
         write!(
             f,
@@ -1172,8 +1172,8 @@ impl Traversable for ListComprehension {
         if let Some(layout) = &self.layout {
             f(layout);
         }
-        for (_, gen) in &self.generators {
-            f(gen);
+        for (_, generator) in &self.generators {
+            f(generator);
         }
         if let Some(guard) = &self.guard {
             f(guard);
@@ -1385,8 +1385,8 @@ pub struct DictComprehension {
 impl NestedDisplay for DictComprehension {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         let mut generators = String::new();
-        for (name, gen) in self.generators.iter() {
-            write!(generators, "{name} <- {gen}; ")?;
+        for (name, generator) in self.generators.iter() {
+            write!(generators, "{name} <- {generator}; ")?;
         }
         write!(
             f,
@@ -1404,8 +1404,8 @@ impl Traversable for DictComprehension {
     type Target = Expr;
     fn traverse(&self, f: &mut impl FnMut(&Self::Target)) {
         self.kv.traverse(f);
-        for (_, gen) in &self.generators {
-            f(gen);
+        for (_, generator) in &self.generators {
+            f(generator);
         }
         if let Some(guard) = &self.guard {
             f(guard);
@@ -1949,8 +1949,8 @@ pub struct SetComprehension {
 impl NestedDisplay for SetComprehension {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         let mut generators = String::new();
-        for (name, gen) in self.generators.iter() {
-            write!(generators, "{name} <- {gen}; ")?;
+        for (name, generator) in self.generators.iter() {
+            write!(generators, "{name} <- {generator}; ")?;
         }
         write!(
             f,
@@ -1970,8 +1970,8 @@ impl Traversable for SetComprehension {
         if let Some(layout) = &self.layout {
             f(layout);
         }
-        for (_, gen) in &self.generators {
-            f(gen);
+        for (_, generator) in &self.generators {
+            f(generator);
         }
         if let Some(guard) = &self.guard {
             f(guard);
@@ -2083,11 +2083,11 @@ impl BinOp {
     }
 
     pub fn set_lhs(&mut self, lhs: Expr) {
-        self.args[0] = Box::new(lhs);
+        *self.args[0] = lhs;
     }
 
     pub fn set_rhs(&mut self, rhs: Expr) {
-        self.args[1] = Box::new(rhs);
+        *self.args[1] = rhs;
     }
 }
 
@@ -2142,7 +2142,7 @@ impl UnaryOp {
     }
 
     pub fn set_value(&mut self, value: Expr) {
-        self.args[0] = Box::new(value);
+        *self.args[0] = value;
     }
 }
 
@@ -2242,7 +2242,7 @@ impl Call {
 
     #[setter]
     pub fn set_obj(&mut self, obj: Expr) {
-        self.obj = Box::new(obj);
+        *self.obj = obj;
     }
 
     #[getter]
@@ -2755,8 +2755,8 @@ pub struct ConstSetComprehension {
 impl NestedDisplay for ConstSetComprehension {
     fn fmt_nest(&self, f: &mut fmt::Formatter<'_>, _level: usize) -> fmt::Result {
         let mut generators = String::new();
-        for (name, gen) in self.generators.iter() {
-            write!(generators, "{name} <- {gen}, ")?;
+        for (name, generator) in self.generators.iter() {
+            write!(generators, "{name} <- {generator}, ")?;
         }
         write!(
             f,
@@ -2799,7 +2799,7 @@ impl ConstSetComprehension {
             self.layout.map(|ex| ex.downgrade()),
             self.generators
                 .into_iter()
-                .map(|(name, gen)| (name, gen.downgrade()))
+                .map(|(name, generator)| (name, generator.downgrade()))
                 .collect(),
             self.guard.map(|ex| ex.downgrade()),
         )

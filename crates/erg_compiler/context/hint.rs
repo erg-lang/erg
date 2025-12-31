@@ -97,18 +97,16 @@ impl Context {
                 }
             }
             (Type::Quantified(expt), Type::Subr(fnd)) => {
-                if let Type::Subr(expt) = expt.as_ref() {
-                    if let Some(hint) = self.get_subr_type_mismatch_hint(expt, fnd) {
+                if let Type::Subr(expt) = expt.as_ref()
+                    && let Some(hint) = self.get_subr_type_mismatch_hint(expt, fnd) {
                         return Some(hint);
                     }
-                }
             }
             (Type::Quantified(expt), Type::Quantified(fnd)) => {
-                if let (Type::Subr(expt), Type::Subr(fnd)) = (expt.as_ref(), fnd.as_ref()) {
-                    if let Some(hint) = self.get_subr_type_mismatch_hint(expt, fnd) {
+                if let (Type::Subr(expt), Type::Subr(fnd)) = (expt.as_ref(), fnd.as_ref())
+                    && let Some(hint) = self.get_subr_type_mismatch_hint(expt, fnd) {
                         return Some(hint);
                     }
-                }
             }
             (Type::Record(expt), Type::Record(fnd)) => {
                 if let Some(hint) = self.get_record_type_mismatch_hint(expt, fnd) {
@@ -214,14 +212,13 @@ impl Context {
         if missing.is_empty() {
             let mut mismatched = "".to_string();
             for (field, expected) in expected.iter() {
-                if let Some(found) = found.get(field) {
-                    if !self.supertype_of(expected, found) {
+                if let Some(found) = found.get(field)
+                    && !self.supertype_of(expected, found) {
                         if !mismatched.is_empty() {
                             mismatched.push_str(", ");
                         }
                         mismatched.push_str(&format!("{field}: {expected} but found {found}"));
                     }
-                }
             }
             if mismatched.is_empty() {
                 None

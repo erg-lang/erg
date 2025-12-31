@@ -21,13 +21,11 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
     }
 
     fn show_refs_inner(&self, uri: &NormalizedUrl, pos: Position) -> Vec<lsp_types::Location> {
-        if let Some(tok) = self.file_cache.get_symbol(uri, pos) {
-            if let Some(visitor) = self.get_visitor(uri) {
-                if let Some(vi) = visitor.get_info(&tok) {
+        if let Some(tok) = self.file_cache.get_symbol(uri, pos)
+            && let Some(visitor) = self.get_visitor(uri)
+                && let Some(vi) = visitor.get_info(&tok) {
                     return self.get_refs_from_abs_loc(&vi.def_loc);
                 }
-            }
-        }
         vec![]
     }
 

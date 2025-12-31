@@ -649,8 +649,8 @@ impl PyCodeGenerator {
     }
 
     fn local_search(&self, name: &str, acc_kind: AccessKind) -> Option<Name> {
-        if self.py_version.minor < Some(11) {
-            if let Some(idx) = self
+        if self.py_version.minor < Some(11)
+            && let Some(idx) = self
                 .cur_block_codeobj()
                 .cellvars
                 .iter()
@@ -658,7 +658,6 @@ impl PyCodeGenerator {
             {
                 return Some(Name::deref(idx));
             }
-        }
         match acc_kind {
             AccessKind::Name => {
                 if let Some(idx) = self
@@ -3266,8 +3265,8 @@ impl PyCodeGenerator {
 
     /// Emits independent code blocks (e.g., linked other modules)
     fn emit_code(&mut self, code: Block) {
-        let mut gen = self.inherit();
-        let code = gen.emit_block(code, vec![], None, vec![], 0, vec![], 0);
+        let mut codegen = self.inherit();
+        let code = codegen.emit_block(code, vec![], None, vec![], 0, vec![], 0);
         self.emit_load_const(code);
     }
 

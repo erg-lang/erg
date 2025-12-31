@@ -350,11 +350,10 @@ impl<'a> HIRVisitor<'a> {
                 return Some(expr);
             }
         }
-        if let Some(var) = &args.var_args {
-            if let Some(expr) = self.get_expr(&var.expr, pos) {
+        if let Some(var) = &args.var_args
+            && let Some(expr) = self.get_expr(&var.expr, pos) {
                 return Some(expr);
             }
-        }
         for arg in args.kw_args.iter() {
             if let Some(expr) = self.get_expr(&arg.expr, pos) {
                 return Some(expr);
@@ -628,11 +627,10 @@ impl HIRVisitor<'_> {
     }
 
     fn get_call_info(&self, call: &Call, token: &Token) -> Option<VarInfo> {
-        if let Some(attr) = &call.attr_name {
-            if let Some(t) = self.return_var_info_if_same(attr, attr.raw.name.token(), token) {
+        if let Some(attr) = &call.attr_name
+            && let Some(t) = self.return_var_info_if_same(attr, attr.raw.name.token(), token) {
                 return Some(t);
             }
-        }
         self.get_expr_info(&call.obj, token)
             .or_else(|| self.get_args_info(&call.args, token))
     }
@@ -643,11 +641,10 @@ impl HIRVisitor<'_> {
                 return Some(vi);
             }
         }
-        if let Some(var) = &args.var_args {
-            if let Some(vi) = self.get_expr_info(&var.expr, token) {
+        if let Some(var) = &args.var_args
+            && let Some(vi) = self.get_expr_info(&var.expr, token) {
                 return Some(vi);
             }
-        }
         for arg in args.kw_args.iter() {
             if let Some(vi) = self.get_expr_info(&arg.expr, token) {
                 return Some(vi);
@@ -715,11 +712,10 @@ impl HIRVisitor<'_> {
             }
         }
         for guard in params.guards.iter() {
-            if let GuardClause::Bind(bind) = guard {
-                if let Some(vi) = self.get_def_info(bind, token) {
+            if let GuardClause::Bind(bind) = guard
+                && let Some(vi) = self.get_def_info(bind, token) {
                     return Some(vi);
                 }
-            }
         }
         None
     }
@@ -869,21 +865,19 @@ impl HIRVisitor<'_> {
                         return Some(parent);
                     }
                 }
-                if let Some(var) = &call.args.var_args {
-                    if let Some(parent) = self.get_parent_expr(&var.expr, expr_loc) {
+                if let Some(var) = &call.args.var_args
+                    && let Some(parent) = self.get_parent_expr(&var.expr, expr_loc) {
                         return Some(parent);
                     }
-                }
                 for arg in call.args.kw_args.iter() {
                     if let Some(parent) = self.get_parent_expr(&arg.expr, expr_loc) {
                         return Some(parent);
                     }
                 }
-                if let Some(kw_var) = &call.args.kw_var {
-                    if let Some(parent) = self.get_parent_expr(&kw_var.expr, expr_loc) {
+                if let Some(kw_var) = &call.args.kw_var
+                    && let Some(parent) = self.get_parent_expr(&kw_var.expr, expr_loc) {
                         return Some(parent);
                     }
-                }
                 None
             }
             Expr::Def(def) => {

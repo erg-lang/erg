@@ -298,9 +298,7 @@ macro_rules! switch_unreachable {
 
 #[macro_export]
 macro_rules! assume_unreachable {
-    () => {{
-        unsafe { std::hint::unreachable_unchecked() }
-    }};
+    () => {{ unsafe { std::hint::unreachable_unchecked() } }};
 }
 
 /// indicates the current invoked function.
@@ -337,7 +335,7 @@ macro_rules! fn_name {
 macro_rules! caused_by {
     () => {{
         let fn_name = $crate::fn_name!();
-        &format!("{fn_name} at line {}", line!())
+        format!("{fn_name} at line {}", line!())
     }};
 }
 
@@ -355,16 +353,12 @@ macro_rules! addr {
 /// do not use for reference types
 #[macro_export]
 macro_rules! addr_eq {
-    ($l: expr, $r: expr $(,)*) => {{
-        &$l as *const _ == &$r as *const _
-    }};
+    ($l: expr, $r: expr $(,)*) => {{ &$l as *const _ == &$r as *const _ }};
 }
 
 #[macro_export]
 macro_rules! ref_addr_eq {
-    ($l: expr, $r: expr $(,)*) => {{
-        $l as *const _ == $r as *const _
-    }};
+    ($l: expr, $r: expr $(,)*) => {{ $l as *const _ == $r as *const _ }};
 }
 
 #[macro_export]
@@ -436,7 +430,7 @@ macro_rules! debug_enum_assert {
 macro_rules! debug_info {
     ($output:ident) => {{
         #[allow(unused_imports)]
-        use $crate::style::{colors::DEBUG, RESET};
+        use $crate::style::{RESET, colors::DEBUG};
         write!(
             $output,
             "[{}DEBUG{}] {}:{:04}: ",
@@ -449,7 +443,7 @@ macro_rules! debug_info {
     }};
     () => {{
         #[allow(unused_imports)]
-        use $crate::style::{colors::DEBUG, RESET};
+        use $crate::style::{RESET, colors::DEBUG};
         print!("[{}DEBUG{}] {}:{:04}: ", DEBUG, RESET, file!(), line!());
     }};
 }

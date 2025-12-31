@@ -1590,12 +1590,11 @@ impl Context {
             for ((tp, arg), arg_t) in ctx.typ.typarams().iter().zip(args.pos_args()).zip(arg_ts) {
                 let tp = self.detach_tp(tp.clone(), &mut tv_ctx);
                 if let Some(ident) = &arg.expr.as_ident() {
-                    if self.subtype_of(arg_t, &Type::Type) {
-                        if let Ok(tv) = self.convert_tp_into_type(tp.clone()) {
+                    if self.subtype_of(arg_t, &Type::Type)
+                        && let Ok(tv) = self.convert_tp_into_type(tp.clone()) {
                             let _ = tv_ctx.push_or_init_tyvar(&ident.name, &tv, self);
                             continue;
                         }
-                    }
                     let _ = tv_ctx.push_or_init_typaram(&ident.name, &tp, self);
                 }
             }

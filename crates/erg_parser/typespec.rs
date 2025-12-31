@@ -69,8 +69,8 @@ impl Parser {
                         .map(|ex| Self::validate_const_expr(*ex))
                         .transpose()?;
                     let mut generators = vec![];
-                    for (name, gen) in set.generators.into_iter() {
-                        let pred = Self::validate_const_expr(gen)?;
+                    for (name, generator) in set.generators.into_iter() {
+                        let pred = Self::validate_const_expr(generator)?;
                         generators.push((name, pred));
                     }
                     let guard = set

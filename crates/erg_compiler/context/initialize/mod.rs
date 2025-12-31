@@ -785,13 +785,11 @@ impl Context {
         vis: Visibility,
         py_name: Option<&'static str>,
     ) {
-        if DEBUG_MODE {
-            if let Type::Subr(subr) = &t {
-                if subr.has_qvar() {
+        if DEBUG_MODE
+            && let Type::Subr(subr) = &t
+                && subr.has_qvar() {
                     panic!("not quantified subr: {subr}");
                 }
-            }
-        }
         let name = if PYTHON_MODE {
             if let Some(py_name) = py_name {
                 VarName::from_static(py_name)
@@ -831,13 +829,11 @@ impl Context {
         py_name: Option<&'static str>,
         loc: AbsLocation,
     ) {
-        if cfg!(feature = "debug") {
-            if let Type::Subr(subr) = &t {
-                if subr.has_qvar() {
+        if cfg!(feature = "debug")
+            && let Type::Subr(subr) = &t
+                && subr.has_qvar() {
                     panic!("not quantified subr: {subr}");
                 }
-            }
-        }
         let vi = VarInfo::new(
             t,
             muty,
@@ -942,17 +938,14 @@ impl Context {
         if self.rec_get_const_obj(name).is_some() {
             panic!("already registered: {} {name}", self.name);
         } else {
-            if DEBUG_MODE {
-                if let ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr {
+            if DEBUG_MODE
+                && let ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr {
                     sig_t: Type::Subr(subr),
                     ..
                 })) = &obj
-                {
-                    if subr.has_qvar() {
+                    && subr.has_qvar() {
                         panic!("not quantified subr: {subr}");
                     }
-                }
-            }
             let t = t.unwrap_or_else(|| v_enum(set! {obj.clone()}));
             // TODO: not all value objects are comparable
             let vi = VarInfo::new(
@@ -982,17 +975,14 @@ impl Context {
         if self.rec_get_const_obj(name).is_some() {
             panic!("already registered: {} {name}", self.name);
         } else {
-            if DEBUG_MODE {
-                if let ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr {
+            if DEBUG_MODE
+                && let ValueObj::Subr(ConstSubr::Builtin(BuiltinConstSubr {
                     sig_t: Type::Subr(subr),
                     ..
                 })) = &obj
-                {
-                    if subr.has_qvar() {
+                    && subr.has_qvar() {
                         panic!("not quantified subr: {subr}");
                     }
-                }
-            }
             let t = t.unwrap_or_else(|| v_enum(set! {obj.clone()}));
             let loc = lineno
                 .map(|lineno| Location::range(lineno, 0, lineno, name.len() as u32))

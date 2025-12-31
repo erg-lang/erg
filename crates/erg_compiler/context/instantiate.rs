@@ -721,11 +721,11 @@ impl Context {
                     builtin.sig_t = t;
                     Ok(ValueObj::Subr(ConstSubr::Builtin(builtin)))
                 }
-                ConstSubr::Gen(mut gen) => {
-                    let t = mem::take(&mut gen.sig_t);
+                ConstSubr::Gen(mut generator) => {
+                    let t = mem::take(&mut generator.sig_t);
                     let t = self.instantiate_t_inner(t, tmp_tv_cache, loc)?;
-                    gen.sig_t = t;
-                    Ok(ValueObj::Subr(ConstSubr::Gen(gen)))
+                    generator.sig_t = t;
+                    Ok(ValueObj::Subr(ConstSubr::Gen(generator)))
                 }
                 ConstSubr::User(mut user) => {
                     let t = mem::take(&mut user.sig_t);

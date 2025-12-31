@@ -211,7 +211,7 @@ impl Desugarer {
                     let generators = lis
                         .generators
                         .into_iter()
-                        .map(|(ident, gen)| (ident, desugar(gen)))
+                        .map(|(ident, generator)| (ident, desugar(generator)))
                         .collect();
                     let guard = lis.guard.map(|ex| desugar(*ex));
                     let lis =
@@ -251,8 +251,8 @@ impl Desugarer {
                 astSet::Comprehension(set) => {
                     let elem = set.layout.map(|ex| desugar(*ex));
                     let mut new_generators = vec![];
-                    for (ident, gen) in set.generators.into_iter() {
-                        new_generators.push((ident, desugar(gen)));
+                    for (ident, generator) in set.generators.into_iter() {
+                        new_generators.push((ident, desugar(generator)));
                     }
                     let new_guard = set.guard.map(|ex| desugar(*ex));
                     let set = SetComprehension::new(
@@ -283,8 +283,8 @@ impl Desugarer {
                     let key = desugar(dic.kv.key);
                     let value = desugar(dic.kv.value);
                     let mut new_generators = vec![];
-                    for (ident, gen) in dic.generators.into_iter() {
-                        new_generators.push((ident, desugar(gen)));
+                    for (ident, generator) in dic.generators.into_iter() {
+                        new_generators.push((ident, desugar(generator)));
                     }
                     let new_guard = dic.guard.map(|ex| desugar(*ex));
                     let dic = DictComprehension::new(

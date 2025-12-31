@@ -54,8 +54,8 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                 let Some(pos) = loc_to_pos(referrer_loc.loc) else {
                     continue;
                 };
-                if let Some(def) = self.get_min::<Def>(&uri, pos) {
-                    if def.sig.is_subr() {
+                if let Some(def) = self.get_min::<Def>(&uri, pos)
+                    && def.sig.is_subr() {
                         let Some(from) =
                             hierarchy_item(def.sig.inspect().to_string(), &def.sig.ident().vi)
                         else {
@@ -67,7 +67,6 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                         };
                         res.push(call);
                     }
-                }
             }
         }
         Ok(Some(res))
@@ -196,14 +195,13 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         let mut res = vec![];
         let uri = NormalizedUrl::new(params.text_document_position_params.text_document.uri);
         let pos = params.text_document_position_params.position;
-        if let Some(token) = self.file_cache.get_symbol(&uri, pos) {
-            if let Some(vi) = self.get_definition(&uri, &token)? {
+        if let Some(token) = self.file_cache.get_symbol(&uri, pos)
+            && let Some(vi) = self.get_definition(&uri, &token)? {
                 let Some(item) = hierarchy_item(token.content.to_string(), &vi) else {
                     return Ok(None);
                 };
                 res.push(item);
             }
-        }
         Ok(Some(res))
     }
 }

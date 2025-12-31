@@ -4,9 +4,9 @@ use erg_common::consts::PYTHON_MODE;
 use erg_common::error::Location;
 use erg_common::pathutil::NormalizedPathBuf;
 use erg_common::traits::{Locational, Runnable, Stream};
-use erg_common::{fn_name, log, set, Str, Triple};
+use erg_common::{Str, Triple, fn_name, log, set};
 
-use erg_parser::ast::{self, AscriptionKind, DefId, Identifier, TypeAppArgsKind, VarName, AST};
+use erg_parser::ast::{self, AST, AscriptionKind, DefId, Identifier, TypeAppArgsKind, VarName};
 use erg_parser::build_ast::ASTBuildable;
 use erg_parser::desugar::Desugarer;
 
@@ -105,16 +105,14 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
         };
         // Typ = 'typ': ClassType
         // => 'typ': {<type Typ>}
-        if let hir::Expr::TypeAsc(hir::TypeAscription { expr, .. }) = &chunk {
-            if let hir::Expr::Accessor(acc) = expr.as_ref() {
-                if let Some(name) = acc.local_name() {
+        if let hir::Expr::TypeAsc(hir::TypeAscription { expr, .. }) = &chunk
+            && let hir::Expr::Accessor(acc) = expr.as_ref()
+                && let Some(name) = acc.local_name() {
                     let name = VarName::from_str(Str::rc(name));
                     if let Some(vi) = self.module.context.get_mut_current_scope_var(&name) {
                         vi.t = t.clone();
                     }
                 }
-            }
-        }
         ident.vi.t = t;
         ident.vi.py_name = py_name;
         ident.vi.def_loc = self.module.context.absolutize(ident.raw.name.loc());
@@ -1011,10 +1009,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             None,
             Some(py_name),
         )?;
-        if let Some(gen) = ty_obj {
+        if let Some(generator) = ty_obj {
             self.module
                 .context
-                .register_gen_type(&new_ident, gen, None)?;
+                .register_gen_type(&new_ident, generator, None)?;
         }
         Ok(())
     }

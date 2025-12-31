@@ -187,12 +187,11 @@ impl<C: BuildRunnable, P: Parsable> InlayHintGenerator<'_, C, P> {
                 let hint = self.type_anot(ln, col, return_t, subr.params.parens.is_none());
                 result.push(hint);
             }
-            if subr.params.parens.is_none() {
-                if let Some((ln, col)) = subr.params.ln_begin().zip(subr.params.col_begin()) {
+            if subr.params.parens.is_none()
+                && let Some((ln, col)) = subr.params.ln_begin().zip(subr.params.col_begin()) {
                     let hint = self.anot(ln, col, "(".to_string());
                     result.push(hint);
                 }
-            }
         }
         result
     }
@@ -200,12 +199,11 @@ impl<C: BuildRunnable, P: Parsable> InlayHintGenerator<'_, C, P> {
     fn get_var_def_hint(&self, def: &Def) -> Vec<InlayHint> {
         let mut result = self.get_block_hint(&def.body.block);
         // don't show hints for compiler internal variables
-        if def.sig.t_spec().is_none() && !def.sig.ident().inspect().starts_with(['%']) {
-            if let Some((ln, col)) = def.sig.ln_begin().zip(def.sig.col_end()) {
+        if def.sig.t_spec().is_none() && !def.sig.ident().inspect().starts_with(['%'])
+            && let Some((ln, col)) = def.sig.ln_begin().zip(def.sig.col_end()) {
                 let hint = self.type_anot(ln, col, def.sig.ident().ref_t(), false);
                 result.push(hint);
             }
-        }
         result
     }
 
@@ -213,12 +211,11 @@ impl<C: BuildRunnable, P: Parsable> InlayHintGenerator<'_, C, P> {
         let mut result = vec![];
         result.extend(self.get_block_hint(&lambda.body));
         result.extend(self.get_param_hint(&lambda.params));
-        if lambda.params.parens.is_none() {
-            if let Some((ln, col)) = lambda.params.ln_begin().zip(lambda.params.col_begin()) {
+        if lambda.params.parens.is_none()
+            && let Some((ln, col)) = lambda.params.ln_begin().zip(lambda.params.col_begin()) {
                 let hint = self.anot(ln, col, "(".to_string());
                 result.push(hint);
             }
-        }
         if let Some(((ln, col), return_t)) = lambda
             .params
             .ln_end()
@@ -306,13 +303,13 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         self.send_log(format!("inlay hint request: {params:?}"))?;
         let uri = NormalizedUrl::new(params.text_document.uri);
         let mut result = vec![];
-        let gen = InlayHintGenerator {
+        let hint_gen = InlayHintGenerator {
             _server: self,
             uri: uri.clone().raw().to_string().into(),
         };
         if let Some(hir) = self.get_hir(&uri) {
             for chunk in hir.module.iter() {
-                result.extend(gen.get_expr_hint(chunk));
+                result.extend(hint_gen.get_expr_hint(chunk));
             }
         }
         Ok(Some(result))

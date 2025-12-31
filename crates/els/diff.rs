@@ -127,11 +127,9 @@ impl HIRDiff {
                 if let ast::Expr::Def(def)
                 | ast::Expr::ClassDef(ast::ClassDef { def, .. })
                 | ast::Expr::PatchDef(ast::PatchDef { def, .. }) = &expr
-                {
-                    if let Some(name) = def.sig.name_as_str() {
+                    && let Some(name) = def.sig.name_as_str() {
                         lowerer.unregister(name);
                     }
-                }
                 let expr = match lowerer.lower_and_resolve_chunk(expr, None) {
                     Ok(expr) => expr,
                     Err((opt_expr, _err)) => opt_expr?,

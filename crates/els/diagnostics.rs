@@ -419,14 +419,13 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
                             file_vers.insert(uri.clone(), latest_ver);
                             continue;
                         };
-                        if latest_ver != ver {
-                            if let Ok(code) = _self.file_cache.get_entire_code(&uri) {
+                        if latest_ver != ver
+                            && let Ok(code) = _self.file_cache.get_entire_code(&uri) {
                                 let mut checked = Set::new();
                                 let _ = _self.check_file(uri.clone(), code, &mut checked);
                                 _self.send_empty_diagnostics(checked).unwrap();
                                 file_vers.insert(uri, latest_ver);
                             }
-                        }
                     }
                     sleep(Duration::from_millis(500));
                 }

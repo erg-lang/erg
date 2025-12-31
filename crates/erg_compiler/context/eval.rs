@@ -588,13 +588,11 @@ impl Context {
                     if let Ok(attr) = self.eval_attr(obj.clone(), &attr.ident) {
                         return Err((attr, err));
                     }
-                    if let Expr::Accessor(acc) = attr.obj.as_ref() {
-                        if let Some(mod_ctx) = self.get_mod_ctx_from_acc(acc) {
-                            if let Ok(obj) = mod_ctx.eval_const_ident(&attr.ident) {
+                    if let Expr::Accessor(acc) = attr.obj.as_ref()
+                        && let Some(mod_ctx) = self.get_mod_ctx_from_acc(acc)
+                            && let Ok(obj) = mod_ctx.eval_const_ident(&attr.ident) {
                                 return Ok(obj);
                             }
-                        }
-                    }
                     Err((obj, err))
                 }
             },
@@ -653,8 +651,8 @@ impl Context {
         if let Some(val) = obj.try_get_attr(&field) {
             return Ok(val);
         }
-        if let ValueObj::Type(t) = &obj {
-            if let Some(sups) = self.get_nominal_super_type_ctxs(t.typ()) {
+        if let ValueObj::Type(t) = &obj
+            && let Some(sups) = self.get_nominal_super_type_ctxs(t.typ()) {
                 for ctx in sups {
                     if let Some(val) = ctx.consts.get(ident.inspect()) {
                         return Ok(val.clone());
@@ -666,7 +664,6 @@ impl Context {
                     }
                 }
             }
-        }
         Err(EvalError::no_attr_error(
             self.cfg.input.clone(),
             line!() as usize,
@@ -943,7 +940,7 @@ impl Context {
                     )),
                 )
             }),
-            ConstSubr::Gen(gen) => gen.call(args, self).map_err(|mut e| {
+            ConstSubr::Gen(generator) => generator.call(args, self).map_err(|mut e| {
                 if e.core.loc.is_unknown() {
                     e.core.loc = loc.loc();
                 }
@@ -2388,15 +2385,14 @@ impl Context {
                         }
                     };
                 }
-                if let Some(ValueObj::Subr(subr)) = self.rec_get_const_obj(&name) {
-                    if let Ok(args) = self.convert_args(None, subr, params.clone(), t_loc) {
+                if let Some(ValueObj::Subr(subr)) = self.rec_get_const_obj(&name)
+                    && let Ok(args) = self.convert_args(None, subr, params.clone(), t_loc) {
                         let ret = self.call(subr.clone(), args, t_loc);
                         if let Some(t) = ret.ok().and_then(|tp| self.convert_tp_into_type(tp).ok())
                         {
                             return Ok(t);
                         }
                     }
-                }
                 let t = poly(name, params);
                 if errs.is_empty() {
                     Ok(t)
@@ -2618,8 +2614,8 @@ impl Context {
                 }
             }
         }
-        if let Some((sub, sup)) = lhs.as_free().and_then(|fv| fv.get_subsup()) {
-            if self.is_trait(&sup) && !self.trait_impl_exists(&sub, &sup) {
+        if let Some((sub, sup)) = lhs.as_free().and_then(|fv| fv.get_subsup())
+            && self.is_trait(&sup) && !self.trait_impl_exists(&sub, &sup) {
                 // link to `Never..Obj` to prevent double errors from being reported
                 lhs.destructive_link(&bounded(Never, Type::Obj));
                 let sub = if cfg!(feature = "debug") {
@@ -2642,7 +2638,6 @@ impl Context {
                     self.get_simple_type_mismatch_hint(&sup, &sub),
                 )));
             }
-        }
         // if the target can't be found in the supertype, the type will be dereferenced.
         // In many cases, it is still better to determine the type variable than if the target is not found.
         let coerced = self.coerce(lhs.clone(), t_loc)?;
@@ -2676,11 +2671,10 @@ impl Context {
         if let Some(ctx) = lhs.qual_name().and_then(|name| {
             self.get_same_name_context(&name)
                 .or_else(|| self.get_mod(&name))
-        }) {
-            if let Some(value) = ctx.rec_get_const_obj(&rhs) {
+        })
+            && let Some(value) = ctx.rec_get_const_obj(&rhs) {
                 return Ok(TyParam::value(value.clone()));
             }
-        }
         let ty_ctxs = match self
             .get_tp_t(&lhs)
             .ok()
@@ -3856,9 +3850,9 @@ impl Context {
                 }
             }
         }
-        if let TyParam::FreeVar(fv) = &lhs {
-            if let Some((sub, sup)) = fv.get_subsup() {
-                if self.is_trait(&sup) && !self.trait_impl_exists(&sub, &sup) {
+        if let TyParam::FreeVar(fv) = &lhs
+            && let Some((sub, sup)) = fv.get_subsup()
+                && self.is_trait(&sup) && !self.trait_impl_exists(&sub, &sup) {
                     // to prevent double error reporting
                     lhs.destructive_link(&TyParam::t(Never));
                     let sub = if cfg!(feature = "debug") {
@@ -3881,8 +3875,6 @@ impl Context {
                         self.get_simple_type_mismatch_hint(&sup, &sub),
                     )));
                 }
-            }
-        }
         // if the target can't be found in the supertype, the type will be dereferenced.
         // In many cases, it is still better to determine the type variable than if the target is not found.
         let coerced = self.coerce_tp(lhs.clone(), t_loc)?;
@@ -3933,9 +3925,9 @@ impl Context {
                 }
             }
         }
-        if let TyParam::FreeVar(fv) = &lhs {
-            if let Some((sub, sup)) = fv.get_subsup() {
-                if self.is_trait(&sup) && !self.trait_impl_exists(&sub, &sup) {
+        if let TyParam::FreeVar(fv) = &lhs
+            && let Some((sub, sup)) = fv.get_subsup()
+                && self.is_trait(&sup) && !self.trait_impl_exists(&sub, &sup) {
                     // to prevent double error reporting
                     lhs.destructive_link(&TyParam::t(Never));
                     let sub = if cfg!(feature = "debug") {
@@ -3958,8 +3950,6 @@ impl Context {
                         self.get_simple_type_mismatch_hint(&sup, &sub),
                     )));
                 }
-            }
-        }
         // if the target can't be found in the supertype, the type will be dereferenced.
         // In many cases, it is still better to determine the type variable than if the target is not found.
         let coerced = self.coerce_tp(lhs.clone(), t_loc)?;
@@ -4286,15 +4276,13 @@ impl Context {
                 })
                 .or_else(|| {
                     let namespace = p.namespace();
-                    if let Some(namespace) = self.get_namespace(&namespace) {
-                        if namespace.name != self.name {
-                            if let Some(typ) = p.local_name().and_then(|name| {
+                    if let Some(namespace) = self.get_namespace(&namespace)
+                        && namespace.name != self.name
+                            && let Some(typ) = p.local_name().and_then(|name| {
                                 namespace.get_tp_t(&TyParam::app(name, args.clone())).ok()
                             }) {
                                 return Some(typ);
                             }
-                        }
-                    }
                     None
                 })
                 .ok_or_else(|| {

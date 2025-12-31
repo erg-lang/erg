@@ -16,21 +16,21 @@ use erg_common::python_util::PythonVersion;
 use erg_common::serialize::*;
 use erg_common::set::Set;
 use erg_common::traits::LimitedDisplay;
-use erg_common::{dict, fmt_iter, log, switch_lang};
 use erg_common::{ArcArray, Str};
+use erg_common::{dict, fmt_iter, log, switch_lang};
 use erg_parser::ast::{ConstArgs, ConstExpr};
 
-use crate::context::eval::type_from_token_kind;
 use crate::context::Context;
+use crate::context::eval::type_from_token_kind;
 
 use self::value_set::inner_class;
 
-use super::codeobj::{tuple_into_bytes, CodeObj};
+use super::codeobj::{CodeObj, tuple_into_bytes};
 use super::constructors::{dict_t, list_t, refinement, set_t, tuple_t, unsized_list_t};
 use super::free::{Constraint, FreeTyVar, HasLevel};
 use super::typaram::{OpKind, TyParam};
-use super::{ConstSubr, Field, HasType, Predicate, SharedFrees, Type};
 use super::{CONTAINER_OMIT_THRESHOLD, GENERIC_LEVEL, STR_OMIT_THRESHOLD};
+use super::{ConstSubr, Field, HasType, Predicate, SharedFrees, Type};
 
 pub struct EvalValueError {
     pub core: Box<ErrorCore>,
@@ -476,7 +476,7 @@ impl TypeObj {
     pub const fn is_inited(&self) -> bool {
         match self {
             Self::Builtin { .. } => true,
-            Self::Generated(gen) => gen.is_inited(),
+            Self::Generated(generator) => generator.is_inited(),
         }
     }
 
@@ -574,6 +574,7 @@ impl TypeObj {
     }
 }
 
+#[allow(clippy::derive_ord_xor_partial_ord)]
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub struct Float(f64);
 
@@ -584,7 +585,6 @@ impl fmt::Display for Float {
 }
 
 impl Eq for Float {}
-#[allow(clippy::derive_ord_xor_partial_ord)]
 impl Ord for Float {
     fn cmp(&self, other: &Self) -> Ordering {
         self.0.partial_cmp(&other.0).unwrap()
@@ -1208,7 +1208,7 @@ impl<'a> TryFrom<&'a ValueObj> for &'a Type {
         match val {
             ValueObj::Type(t) => match t {
                 TypeObj::Builtin { t, .. } => Ok(t),
-                TypeObj::Generated(gen) => Ok(gen.typ()),
+                TypeObj::Generated(generator) => Ok(generator.typ()),
             },
             _ => Err(()),
         }
@@ -1259,8 +1259,8 @@ impl ValueObj {
         })
     }
 
-    pub const fn gen_t(gen: GenTypeObj) -> Self {
-        ValueObj::Type(TypeObj::Generated(gen))
+    pub const fn gen_t(generator: GenTypeObj) -> Self {
+        ValueObj::Type(TypeObj::Generated(generator))
     }
 
     /// closed range (..)
@@ -1585,11 +1585,7 @@ impl ValueObj {
             */
             (_s, _o) => {
                 if let Some(ValueObj::Bool(b)) = _s.clone().try_eq(_o.clone()) {
-                    if b {
-                        Some(Ordering::Equal)
-                    } else {
-                        None
-                    }
+                    if b { Some(Ordering::Equal) } else { None }
                 } else {
                     None
                 }
@@ -1873,7 +1869,7 @@ impl ValueObj {
                     log!(err "TODO: {builtin}{attr}");
                     None
                 }
-                TypeObj::Generated(gen) => match gen.typ() {
+                TypeObj::Generated(generator) => match generator.typ() {
                     Type::Record(rec) => {
                         let t = rec.get(attr)?;
                         Some(ValueObj::builtin_type(t.clone()))

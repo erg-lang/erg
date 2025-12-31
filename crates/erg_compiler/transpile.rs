@@ -369,8 +369,8 @@ impl Transpiler {
     fn lower(&mut self, hir: HIR) -> CompileResult<TranspiledFile> {
         match self.cfg.transpile_target {
             Some(TranspileTarget::Json) => {
-                let mut gen = JsonGenerator::new(self.cfg.copy());
-                Ok(TranspiledFile::Json(gen.transpile(hir)?))
+                let mut json_gen = JsonGenerator::new(self.cfg.copy());
+                Ok(TranspiledFile::Json(json_gen.transpile(hir)?))
             }
             _ => Ok(TranspiledFile::PyScript(
                 self.script_generator.transpile(hir),

@@ -265,13 +265,12 @@ impl Context {
 
     fn _find_compatible_glue_patch(&self, sup: &Type, sub: &Type) -> Option<&Context> {
         for patch in self.all_patches().into_iter() {
-            if let ContextKind::GluePatch(tr_impl) = &patch.kind {
-                if self.subtype_of(sub, &tr_impl.sub_type)
+            if let ContextKind::GluePatch(tr_impl) = &patch.kind
+                && self.subtype_of(sub, &tr_impl.sub_type)
                     && self.subtype_of(&tr_impl.sup_trait, sup)
                 {
                     return Some(patch);
                 }
-            }
         }
         None
     }
@@ -541,11 +540,10 @@ impl Context {
                     args.clone(),
                     self.level,
                     &(),
-                ) {
-                    if lhs != &evaled {
+                )
+                    && lhs != &evaled {
                         return self.supertype_of(&evaled, rhs);
                     }
-                }
                 // REVIEW: is this OK?
                 if lhs.has_unbound_var() {
                     return true;
@@ -566,11 +564,10 @@ impl Context {
                     args.clone(),
                     self.level,
                     &(),
-                ) {
-                    if &evaled != rhs {
+                )
+                    && &evaled != rhs {
                         return self.supertype_of(lhs, &evaled);
                     }
-                }
                 if rhs.has_unbound_var() {
                     return true;
                 }
@@ -816,11 +813,10 @@ impl Context {
             (Refinement(l), r) => {
                 if let Some(r) = r.to_singleton() {
                     return self.structural_supertype_of(lhs, &Type::Refinement(r));
-                } else if let Some(l) = self.refinement_to_poly(l) {
-                    if &l != lhs {
+                } else if let Some(l) = self.refinement_to_poly(l)
+                    && &l != lhs {
                         return self.supertype_of(&l, r);
                     }
-                }
                 if l.pred.mentions(&l.var) {
                     match l.pred.can_be_false() {
                         Some(true) => {
@@ -1189,11 +1185,9 @@ impl Context {
                 }
                 if let Some((sup_var, sub_var)) =
                     sup_l.var_params.as_ref().zip(sub_l.var_params.as_ref())
-                {
-                    if !self.subtype_of(sup_var.typ(), sub_var.typ()) {
+                    && !self.subtype_of(sup_var.typ(), sub_var.typ()) {
                         return false;
                     }
-                }
                 for (sup_d, sub_d) in sup_l.d_params.iter().zip(sub_l.d_params.iter()) {
                     if !self.subtype_of(sup_d.typ(), sub_d.typ()) {
                         return false;
@@ -1203,11 +1197,9 @@ impl Context {
                     .kw_var_params
                     .as_ref()
                     .zip(sub_l.kw_var_params.as_ref())
-                {
-                    if !self.subtype_of(sup_kw_var.typ(), sub_kw_var.typ()) {
+                    && !self.subtype_of(sup_kw_var.typ(), sub_kw_var.typ()) {
                         return false;
                     }
-                }
                 true
             }
             (TyParam::FreeVar(fv), _) if fv.is_unbound() => {
@@ -1270,21 +1262,17 @@ impl Context {
             (TyParam::ProjCall { obj, attr, args }, _) => {
                 if let Ok(evaled) =
                     self.eval_proj_call(obj.as_ref().clone(), attr.clone(), args.clone(), &())
-                {
-                    if sup_p != &evaled {
+                    && sup_p != &evaled {
                         return self.supertype_of_tp(&evaled, sub_p, variance);
                     }
-                }
                 false
             }
             (_, TyParam::ProjCall { obj, attr, args }) => {
                 if let Ok(evaled) =
                     self.eval_proj_call(obj.as_ref().clone(), attr.clone(), args.clone(), &())
-                {
-                    if sub_p != &evaled {
+                    && sub_p != &evaled {
                         return self.supertype_of_tp(sup_p, &evaled, variance);
                     }
-                }
                 false
             }
             _ => {

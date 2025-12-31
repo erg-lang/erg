@@ -869,15 +869,15 @@ pub trait Runnable: Sized + Default + New {
                     match bk {
                         BlockKind::None if vm.now == BlockKind::AtMark => {
                             if let Some(eq) = line.find('=') {
-                                if let Some(class) = line.find("Class") {
-                                    if eq < class {
-                                        vm.push_code(indent.as_str());
-                                        instance.input().insert_whitespace(indent.as_str());
-                                        vm.push_code(line);
-                                        vm.push_code("\n");
-                                        vm.push_block_kind(bk);
-                                        continue;
-                                    }
+                                if let Some(class) = line.find("Class")
+                                    && eq < class
+                                {
+                                    vm.push_code(indent.as_str());
+                                    instance.input().insert_whitespace(indent.as_str());
+                                    vm.push_code(line);
+                                    vm.push_code("\n");
+                                    vm.push_block_kind(bk);
+                                    continue;
                                 }
                                 vm.push_code(indent.as_str());
                                 instance.input().insert_whitespace(indent.as_str());

@@ -232,8 +232,8 @@ impl<'c> SideEffectChecker<'c> {
                 ));
             }
         }
-        if let Some(var_arg) = params.var_params.as_deref() {
-            if var_arg.vi.t.is_procedure() && !var_arg.inspect().unwrap().ends_with('!') {
+        if let Some(var_arg) = params.var_params.as_deref()
+            && var_arg.vi.t.is_procedure() && !var_arg.inspect().unwrap().ends_with('!') {
                 self.errs.push(EffectError::proc_assign_error(
                     self.cfg.input.clone(),
                     line!() as usize,
@@ -241,7 +241,6 @@ impl<'c> SideEffectChecker<'c> {
                     self.full_path(),
                 ));
             }
-        }
         for d_param in params.defaults.iter() {
             if d_param.sig.vi.t.is_procedure() && !d_param.inspect().unwrap().ends_with('!') {
                 self.errs.push(EffectError::proc_assign_error(
@@ -500,10 +499,9 @@ impl<'c> SideEffectChecker<'c> {
             && call
                 .signature_t()
                 .is_some_and(|sig| sig.param_ts().iter().all(|p| !p.contains_type(gen_t)))
-        {
-            if let Some(typ_ctx) = self.ctx.get_nominal_type_ctx(gen_t) {
-                if typ_ctx.get_method_kv("__init__!").is_some()
-                    || typ_ctx.get_method_kv("__del__!").is_some()
+            && let Some(typ_ctx) = self.ctx.get_nominal_type_ctx(gen_t)
+                && (typ_ctx.get_method_kv("__init__!").is_some()
+                    || typ_ctx.get_method_kv("__del__!").is_some())
                 {
                     self.errs.push(EffectError::constructor_destructor_error(
                         self.cfg.input.clone(),
@@ -512,8 +510,6 @@ impl<'c> SideEffectChecker<'c> {
                         self.full_path(),
                     ));
                 }
-            }
-        }
     }
 
     pub(crate) fn is_impure(expr: &Expr) -> bool {

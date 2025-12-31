@@ -110,11 +110,11 @@ pub(crate) fn inheritable_func(mut args: ValueArgs, _ctx: &Context) -> EvalValue
         .remove_left_or_key("Class")
         .ok_or_else(|| not_passed("Class"))?;
     match class {
-        ValueObj::Type(TypeObj::Generated(mut gen)) => {
-            if let Some(typ) = gen.impls_mut() {
+        ValueObj::Type(TypeObj::Generated(mut gen_type)) => {
+            if let Some(typ) = gen_type.impls_mut() {
                 match typ.as_mut().map(|x| x.as_mut()) {
-                    Some(TypeObj::Generated(gen)) => {
-                        *gen.typ_mut() = and(mem::take(gen.typ_mut()), mono("InheritableType"));
+                    Some(TypeObj::Generated(inner_gen)) => {
+                        *inner_gen.typ_mut() = and(mem::take(inner_gen.typ_mut()), mono("InheritableType"));
                     }
                     Some(TypeObj::Builtin { t, .. }) => {
                         *t = and(mem::take(t), mono("InheritableType"));
@@ -124,7 +124,7 @@ pub(crate) fn inheritable_func(mut args: ValueArgs, _ctx: &Context) -> EvalValue
                     }
                 }
             }
-            Ok(ValueObj::Type(TypeObj::Generated(gen)).into())
+            Ok(ValueObj::Type(TypeObj::Generated(gen_type)).into())
         }
         other => feature_error!(
             EvalValueError,

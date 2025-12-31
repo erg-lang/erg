@@ -274,12 +274,11 @@ impl FileCache {
     pub(crate) fn update(&self, uri: &NormalizedUrl, code: String, ver: Option<i32>) {
         let lock = self.files.borrow_mut();
         let entry = lock.get(uri);
-        if let Some(entry) = entry {
-            if ver.is_some_and(|ver| ver <= entry.ver) {
+        if let Some(entry) = entry
+            && ver.is_some_and(|ver| ver <= entry.ver) {
                 // crate::_log!(self, "171: double update detected: {ver:?}, {}, code:\n{}", entry.ver, entry.code);
                 return;
             }
-        }
         let token_stream = match Lexer::from_str(code.clone()).lex() {
             Ok(ts) => Some(ts),
             Err((ts, es)) => {
