@@ -329,12 +329,12 @@ impl Parser {
         }
     }
 
-    fn unexpected_none(&self, errno: u32, caused_by: &str) -> ParseError {
+    fn unexpected_none(&self, errno: u32, caused_by: String) -> ParseError {
         log!(err "error caused by: {caused_by}");
         ParseError::invalid_none_match(0, Location::Unknown, file!(), errno)
     }
 
-    fn skip_and_throw_syntax_err(&mut self, errno: u32, caused_by: &str) -> ParseError {
+    fn skip_and_throw_syntax_err(&mut self, errno: u32, caused_by: String) -> ParseError {
         let loc = self.peek().map(|t| t.loc()).unwrap_or_default();
         log!(err "error caused by: {caused_by}");
         self.next_expr();
@@ -343,7 +343,7 @@ impl Parser {
 
     fn skip_and_throw_invalid_unclosed_err(
         &mut self,
-        caused_by: &str,
+        caused_by: String,
         line: u32,
         closer: &str,
         ty: &str,
@@ -356,7 +356,7 @@ impl Parser {
 
     fn skip_and_throw_invalid_seq_err(
         &mut self,
-        caused_by: &str,
+        caused_by: String,
         errno: usize,
         expected: &[impl std::fmt::Display],
         found: TokenKind,
@@ -369,7 +369,7 @@ impl Parser {
 
     fn skip_and_throw_invalid_chunk_err(
         &mut self,
-        caused_by: &str,
+        caused_by: String,
         line: u32,
         loc: Location,
     ) -> ParseError {
@@ -382,7 +382,7 @@ impl Parser {
         &mut self,
         errno: usize,
         loc: Location,
-        caused_by: &str,
+        caused_by: String,
     ) -> ParseError {
         log!(err "error caused by: {caused_by}");
         self.next_expr();
