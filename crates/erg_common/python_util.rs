@@ -636,20 +636,20 @@ pub fn _opt_which_python() -> Result<String, String> {
     if let Some(path) = which_python_from_toml() {
         return Ok(path);
     }
-    if let Some(path) = get_poetry_virtualenv_path() {
-        return Ok(format!("{path}/bin/python"));
-    } else if let Some(path) = get_uv_python_venv_path() {
-        return Ok(path);
-    }
-
-    let path = if cfg!(windows) {
+    let venv_path = if cfg!(windows) {
         r".venv\Scripts\python.exe"
     } else {
         ".venv/bin/python"
     };
-    if Path::new(&path).is_file() {
-        let path = canonicalize(path).unwrap();
+    if Path::new(&venv_path).is_file() {
+        let path = canonicalize(venv_path).unwrap();
         return Ok(path.to_string_lossy().to_string());
+    }
+    if let Some(path) = get_poetry_virtualenv_path() {
+        return Ok(format!("{path}/bin/python"));
+    }
+    if let Some(path) = get_uv_python_venv_path() {
+        return Ok(path);
     }
     let out = if cfg!(windows) {
         Command::new("cmd")
