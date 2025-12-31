@@ -940,7 +940,7 @@ impl Context {
                     )),
                 )
             }),
-            ConstSubr::Gen(gen) => gen.call(args, self).map_err(|mut e| {
+            ConstSubr::Gen(generator) => generator.call(args, self).map_err(|mut e| {
                 if e.core.loc.is_unknown() {
                     e.core.loc = loc.loc();
                 }

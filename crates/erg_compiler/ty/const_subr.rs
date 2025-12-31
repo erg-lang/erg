@@ -264,7 +264,7 @@ impl ConstSubr {
         match self {
             ConstSubr::User(user) => &user.sig_t,
             ConstSubr::Builtin(builtin) => &builtin.sig_t,
-            ConstSubr::Gen(gen) => &gen.sig_t,
+            ConstSubr::Gen(generator) => &generator.sig_t,
         }
     }
 
@@ -285,8 +285,8 @@ impl ConstSubr {
                         return None;
                     }
                 };
-                if let Type::Refinement(refine) = subr.return_t.as_ref() {
-                    if let Predicate::Equal { rhs, .. } = refine.pred.as_ref() {
+                if let Type::Refinement(refine) = subr.return_t.as_ref()
+                    && let Predicate::Equal { rhs, .. } = refine.pred.as_ref() {
                         let return_t = ctx.convert_tp_into_type(rhs.clone()).ok()?;
                         let var_params = subr.var_params.as_ref().map(|t| t.as_ref());
                         let kw_var_params = subr.kw_var_params.as_ref().map(|t| t.as_ref());
@@ -304,12 +304,11 @@ impl ConstSubr {
                             subr_t
                         };
                         return Some(subr_t);
-                    }
                 }
                 None
             }
             ConstSubr::Builtin(builtin) => builtin.as_type.clone(),
-            ConstSubr::Gen(gen) => gen.as_type.clone(),
+            ConstSubr::Gen(generator) => generator.as_type.clone(),
         }
     }
 

@@ -303,13 +303,13 @@ impl<Checker: BuildRunnable, Parser: Parsable> Server<Checker, Parser> {
         self.send_log(format!("inlay hint request: {params:?}"))?;
         let uri = NormalizedUrl::new(params.text_document.uri);
         let mut result = vec![];
-        let gen = InlayHintGenerator {
+        let hint_gen = InlayHintGenerator {
             _server: self,
             uri: uri.clone().raw().to_string().into(),
         };
         if let Some(hir) = self.get_hir(&uri) {
             for chunk in hir.module.iter() {
-                result.extend(gen.get_expr_hint(chunk));
+                result.extend(hint_gen.get_expr_hint(chunk));
             }
         }
         Ok(Some(result))

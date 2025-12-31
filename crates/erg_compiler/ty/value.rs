@@ -476,7 +476,7 @@ impl TypeObj {
     pub const fn is_inited(&self) -> bool {
         match self {
             Self::Builtin { .. } => true,
-            Self::Generated(gen) => gen.is_inited(),
+            Self::Generated(generator) => generator.is_inited(),
         }
     }
 
@@ -1208,7 +1208,7 @@ impl<'a> TryFrom<&'a ValueObj> for &'a Type {
         match val {
             ValueObj::Type(t) => match t {
                 TypeObj::Builtin { t, .. } => Ok(t),
-                TypeObj::Generated(gen) => Ok(gen.typ()),
+                TypeObj::Generated(generator) => Ok(generator.typ()),
             },
             _ => Err(()),
         }
@@ -1259,8 +1259,8 @@ impl ValueObj {
         })
     }
 
-    pub const fn gen_t(gen: GenTypeObj) -> Self {
-        ValueObj::Type(TypeObj::Generated(gen))
+    pub const fn gen_t(generator: GenTypeObj) -> Self {
+        ValueObj::Type(TypeObj::Generated(generator))
     }
 
     /// closed range (..)
@@ -1873,7 +1873,7 @@ impl ValueObj {
                     log!(err "TODO: {builtin}{attr}");
                     None
                 }
-                TypeObj::Generated(gen) => match gen.typ() {
+                TypeObj::Generated(generator) => match generator.typ() {
                     Type::Record(rec) => {
                         let t = rec.get(attr)?;
                         Some(ValueObj::builtin_type(t.clone()))

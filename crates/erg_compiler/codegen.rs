@@ -3265,8 +3265,8 @@ impl PyCodeGenerator {
 
     /// Emits independent code blocks (e.g., linked other modules)
     fn emit_code(&mut self, code: Block) {
-        let mut gen = self.inherit();
-        let code = gen.emit_block(code, vec![], None, vec![], 0, vec![], 0);
+        let mut codegen = self.inherit();
+        let code = codegen.emit_block(code, vec![], None, vec![], 0, vec![], 0);
         self.emit_load_const(code);
     }
 

@@ -4174,10 +4174,10 @@ impl Context {
 
     fn _get_gen_t_require_attr_t<'a>(
         &'a self,
-        gen: &'a GenTypeObj,
+        gen_type: &'a GenTypeObj,
         attr: &str,
     ) -> Option<&'a Type> {
-        match gen.base_or_sup().map(|req_sup| req_sup.typ()) {
+        match gen_type.base_or_sup().map(|req_sup| req_sup.typ()) {
             Some(Type::Record(rec)) => {
                 if let Some(t) = rec.get(attr) {
                     return Some(t);
@@ -4192,12 +4192,10 @@ impl Context {
             }
             None => {}
         }
-        if let Some(additional) = gen.additional() {
-            if let Type::Record(gen) = additional.typ() {
-                if let Some(t) = gen.get(attr) {
+        if let Some(additional) = gen_type.additional()
+            && let Type::Record(rec) = additional.typ()
+                && let Some(t) = rec.get(attr) {
                     return Some(t);
-                }
-            }
                 }
         None
     }

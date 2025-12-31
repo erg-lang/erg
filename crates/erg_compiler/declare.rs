@@ -1009,10 +1009,10 @@ impl<A: ASTBuildable> GenericASTLowerer<A> {
             None,
             Some(py_name),
         )?;
-        if let Some(gen) = ty_obj {
+        if let Some(generator) = ty_obj {
             self.module
                 .context
-                .register_gen_type(&new_ident, gen, None)?;
+                .register_gen_type(&new_ident, generator, None)?;
         }
         Ok(())
     }

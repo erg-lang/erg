@@ -1896,11 +1896,11 @@ impl Context {
         } else {
             match obj {
                 ValueObj::Type(t) => match t {
-                    TypeObj::Generated(gen) if alias => {
-                        let meta_t = gen.meta_type();
-                        self.register_type_alias(ident, gen.into_typ(), meta_t)
+                    TypeObj::Generated(generator) if alias => {
+                        let meta_t = generator.meta_type();
+                        self.register_type_alias(ident, generator.into_typ(), meta_t)
                     }
-                    TypeObj::Generated(gen) => self.register_gen_type(ident, gen, call),
+                    TypeObj::Generated(generator) => self.register_gen_type(ident, generator, call),
                     TypeObj::Builtin { t, meta_t } => self.register_type_alias(ident, t, meta_t),
                 },
                 // TODO: not all value objects are comparable
@@ -1928,25 +1928,25 @@ impl Context {
     pub(crate) fn register_gen_type(
         &mut self,
         ident: &Identifier,
-        gen: GenTypeObj,
+        generator: GenTypeObj,
         call: Option<&ast::Call>,
     ) -> CompileResult<()> {
-        match gen {
+        match generator {
             GenTypeObj::Class(_) => {
-                if gen.typ().is_monomorphic() {
-                    // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
+                if generator.typ().is_monomorphic() {
+                    // let super_traits = generator.impls.iter().map(|to| to.typ().clone()).collect();
                     let mut ctx = Self::mono_class(
-                        gen.typ().qual_name(),
+                        generator.typ().qual_name(),
                         self.cfg.clone(),
                         self.shared.clone(),
                         2,
                         self.level,
                     );
-                    let res = self.gen_class_new_method(&gen, call, &mut ctx);
-                    let res2 = self.register_gen_mono_type(ident, gen, ctx, Const);
+                    let res = self.gen_class_new_method(&generator, call, &mut ctx);
+                    let res2 = self.register_gen_mono_type(ident, generator, ctx, Const);
                     concat_result(res, res2)
                 } else {
-                    let params = gen
+                    let params = generator
                         .typ()
                         .typarams()
                         .into_iter()
@@ -1956,23 +1956,23 @@ impl Context {
                         })
                         .collect();
                     let mut ctx = Self::poly_class(
-                        gen.typ().qual_name(),
+                        generator.typ().qual_name(),
                         params,
                         self.cfg.clone(),
                         self.shared.clone(),
                         2,
                         self.level,
                     );
-                    let res = self.gen_class_new_method(&gen, call, &mut ctx);
-                    let res2 = self.register_gen_poly_type(ident, gen, ctx, Const);
+                    let res = self.gen_class_new_method(&generator, call, &mut ctx);
+                    let res2 = self.register_gen_poly_type(ident, generator, ctx, Const);
                     concat_result(res, res2)
                 }
             }
-            GenTypeObj::Subclass(_) => self.register_gen_subclass(ident, gen, call),
+            GenTypeObj::Subclass(_) => self.register_gen_subclass(ident, generator, call),
             GenTypeObj::Trait(_) => {
-                if gen.typ().is_monomorphic() {
+                if generator.typ().is_monomorphic() {
                     let mut ctx = Self::mono_trait(
-                        gen.typ().qual_name(),
+                        generator.typ().qual_name(),
                         self.cfg.clone(),
                         self.shared.clone(),
                         2,
@@ -1981,13 +1981,13 @@ impl Context {
                     let res = if let Some(TypeObj::Builtin {
                         t: Type::Record(req),
                         ..
-                    }) = gen.base_or_sup()
+                    }) = generator.base_or_sup()
                     {
                         self.register_instance_attrs(&mut ctx, req, call)
                     } else {
                         Ok(())
                     };
-                    let res2 = self.register_gen_mono_type(ident, gen, ctx, Const);
+                    let res2 = self.register_gen_mono_type(ident, generator, ctx, Const);
                     concat_result(res, res2)
                 } else {
                     feature_error!(
@@ -2000,11 +2000,13 @@ impl Context {
                 }
             }
             GenTypeObj::Subtrait(_) => {
-                if gen.typ().is_monomorphic() {
-                    let super_classes = gen.base_or_sup().map_or(vec![], |t| vec![t.typ().clone()]);
-                    // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
+                if generator.typ().is_monomorphic() {
+                    let super_classes = generator
+                        .base_or_sup()
+                        .map_or(vec![], |t| vec![t.typ().clone()]);
+                    // let super_traits = generator.impls.iter().map(|to| to.typ().clone()).collect();
                     let mut ctx = Self::mono_trait(
-                        gen.typ().qual_name(),
+                        generator.typ().qual_name(),
                         self.cfg.clone(),
                         self.shared.clone(),
                         2,
@@ -2013,7 +2015,7 @@ impl Context {
                     let additional = if let Some(TypeObj::Builtin {
                         t: Type::Record(additional),
                         ..
-                    }) = gen.additional()
+                    }) = generator.additional()
                     {
                         Some(additional)
                     } else {
@@ -2031,7 +2033,7 @@ impl Context {
                             log!(err "{sup} not found");
                         }
                     }
-                    let res2 = self.register_gen_mono_type(ident, gen, ctx, Const);
+                    let res2 = self.register_gen_mono_type(ident, generator, ctx, Const);
                     concat_result(res, res2)
                 } else {
                     feature_error!(
@@ -2044,19 +2046,19 @@ impl Context {
                 }
             }
             GenTypeObj::Patch(_) => {
-                if gen.typ().is_monomorphic() {
-                    let Some(TypeObj::Builtin { t: base, .. }) = gen.base_or_sup() else {
-                        todo!("{gen}")
+                if generator.typ().is_monomorphic() {
+                    let Some(TypeObj::Builtin { t: base, .. }) = generator.base_or_sup() else {
+                        todo!("{generator}")
                     };
                     let ctx = Self::mono_patch(
-                        gen.typ().qual_name(),
+                        generator.typ().qual_name(),
                         base.clone(),
                         self.cfg.clone(),
                         self.shared.clone(),
                         2,
                         self.level,
                     );
-                    self.register_gen_mono_patch(ident, gen, ctx, Const)
+                    self.register_gen_mono_patch(ident, generator, ctx, Const)
                 } else {
                     feature_error!(
                         CompileErrors,
@@ -2080,15 +2082,17 @@ impl Context {
     fn register_gen_subclass(
         &mut self,
         ident: &Identifier,
-        gen: GenTypeObj,
+        generator: GenTypeObj,
         call: Option<&ast::Call>,
     ) -> CompileResult<()> {
         let mut errs = CompileErrors::empty();
-        if gen.typ().is_monomorphic() {
-            let super_classes = gen.base_or_sup().map_or(vec![], |t| vec![t.typ().clone()]);
-            // let super_traits = gen.impls.iter().map(|to| to.typ().clone()).collect();
+        if generator.typ().is_monomorphic() {
+            let super_classes = generator
+                .base_or_sup()
+                .map_or(vec![], |t| vec![t.typ().clone()]);
+            // let super_traits = generator.impls.iter().map(|to| to.typ().clone()).collect();
             let mut ctx = Self::mono_class(
-                gen.typ().qual_name(),
+                generator.typ().qual_name(),
                 self.cfg.clone(),
                 self.shared.clone(),
                 2,
@@ -2117,7 +2121,7 @@ impl Context {
             }
             let mut methods =
                 Self::methods(None, self.cfg.clone(), self.shared.clone(), 2, self.level);
-            if let Some(sup) = gen.base_or_sup() {
+            if let Some(sup) = generator.base_or_sup() {
                 let param_t = match sup {
                     TypeObj::Builtin { t, .. } => Some(t),
                     TypeObj::Generated(t) => t.base_or_sup().map(|t| t.typ()),
@@ -2125,7 +2129,7 @@ impl Context {
                 let invalid_fields = if let Some(TypeObj::Builtin {
                     t: Type::Record(rec),
                     ..
-                }) = gen.additional()
+                }) = generator.additional()
                 {
                     if let Err((fields, es)) =
                         self.check_subtype_instance_attrs(sup.typ(), rec, call)
@@ -2142,15 +2146,13 @@ impl Context {
                 // => `Self.Requirement := {x = Int; y = Int}`
                 let call_t = {
                     let (nd_params, var_params, d_params, kw_var_params) =
-                        if let Some(additional) = gen.additional() {
+                        if let Some(additional) = generator.additional() {
                             if let TypeObj::Builtin {
                                 t: Type::Record(rec),
                                 ..
                             } = additional
-                            {
-                                if let Err(es) = self.register_instance_attrs(&mut ctx, rec, call) {
+                                && let Err(es) = self.register_instance_attrs(&mut ctx, rec, call) {
                                     errs.extend(es);
-                                }
                                 }
                             let param_t = if let Some(Type::Record(rec)) = param_t {
                                 let mut rec = rec.clone();
@@ -2184,12 +2186,12 @@ impl Context {
                         var_params,
                         d_params,
                         kw_var_params,
-                        gen.typ().clone(),
+                        generator.typ().clone(),
                     )
                 };
                 let new_t = {
                     let (nd_params, var_params, d_params, kw_var_params) = if let Some(additional) =
-                        gen.additional()
+                        generator.additional()
                     {
                         let param_t = if let Some(Type::Record(rec)) = param_t {
                             let mut rec = rec.clone();
@@ -2226,7 +2228,7 @@ impl Context {
                         var_params,
                         d_params,
                         kw_var_params,
-                        gen.typ().clone(),
+                        generator.typ().clone(),
                     )
                 };
                 if PYTHON_MODE {
@@ -2262,19 +2264,15 @@ impl Context {
                 }
                 ctx.methods_list.push(MethodContext::new(
                     DefId(0),
-                    ClassDefType::Simple(gen.typ().clone()),
+                    ClassDefType::Simple(generator.typ().clone()),
                     methods,
                 ));
-                if let Err(es) = self.register_gen_mono_type(ident, gen, ctx, Const) {
+                if let Err(es) = self.register_gen_mono_type(ident, generator, ctx, Const) {
                     errs.extend(es);
                 }
-                if errs.is_empty() {
-                    Ok(())
+                if errs.is_empty() { Ok(()) } else { Err(errs) }
             } else {
-                    Err(errs)
-                }
-            } else {
-                let class_name = gen
+                let class_name = generator
                     .base_or_sup()
                     .map(|t| t.typ().local_name())
                     .unwrap_or(Str::from("?"));
@@ -2409,12 +2407,12 @@ impl Context {
 
     fn gen_class_new_method(
         &self,
-        gen: &GenTypeObj,
+        generator: &GenTypeObj,
         call: Option<&ast::Call>,
         ctx: &mut Context,
     ) -> CompileResult<()> {
         let mut methods = Self::methods(None, self.cfg.clone(), self.shared.clone(), 2, self.level);
-        let new_t = if let Some(base) = gen.base_or_sup() {
+        let new_t = if let Some(base) = generator.base_or_sup() {
             match base {
                 TypeObj::Builtin {
                     t: Type::Record(rec),
@@ -2432,9 +2430,9 @@ impl Context {
                     )?;
                 }
             }
-            func1(base.typ().clone(), gen.typ().clone())
+            func1(base.typ().clone(), generator.typ().clone())
         } else {
-            func0(gen.typ().clone())
+            func0(generator.typ().clone())
         };
         if ERG_MODE {
             methods.register_fixed_auto_impl(
@@ -2463,7 +2461,7 @@ impl Context {
         }
         ctx.methods_list.push(MethodContext::new(
             DefId(0),
-            ClassDefType::Simple(gen.typ().clone()),
+            ClassDefType::Simple(generator.typ().clone()),
             methods,
         ));
         Ok(())
@@ -2513,7 +2511,7 @@ impl Context {
     fn register_gen_mono_type(
         &mut self,
         ident: &Identifier,
-        gen: GenTypeObj,
+        generator: GenTypeObj,
         ctx: Self,
         muty: Mutability,
     ) -> CompileResult<()> {
@@ -2531,8 +2529,8 @@ impl Context {
                 ident.inspect(),
             )))
         } else {
-            let t = gen.typ().clone();
-            let val = ValueObj::Type(TypeObj::Generated(gen));
+            let t = generator.typ().clone();
+            let val = ValueObj::Type(TypeObj::Generated(generator));
             let meta_t = v_enum(set! { val.clone() });
             let name = &ident.name;
             let id = DefId(get_hash(&(&self.name, &name)));
@@ -2559,7 +2557,7 @@ impl Context {
     fn register_gen_poly_type(
         &mut self,
         ident: &Identifier,
-        gen: GenTypeObj,
+        generator: GenTypeObj,
         ctx: Self,
         muty: Mutability,
     ) -> CompileResult<()> {
@@ -2576,8 +2574,8 @@ impl Context {
                 ident.inspect(),
             )))
         } else {
-            let t = gen.typ().clone();
-            let val = ValueObj::Type(TypeObj::Generated(gen));
+            let t = generator.typ().clone();
+            let val = ValueObj::Type(TypeObj::Generated(generator));
             let params = t
                 .typarams()
                 .into_iter()
@@ -2614,7 +2612,7 @@ impl Context {
     fn register_gen_mono_patch(
         &mut self,
         ident: &Identifier,
-        gen: GenTypeObj,
+        generator: GenTypeObj,
         ctx: Self,
         muty: Mutability,
     ) -> CompileResult<()> {
@@ -2637,8 +2635,8 @@ impl Context {
                 ident.inspect(),
             )))
         } else {
-            let t = gen.typ().clone();
-            let meta_t = gen.meta_type();
+            let t = generator.typ().clone();
+            let meta_t = generator.meta_type();
             let name = &ident.name;
             let id = DefId(get_hash(&(&self.name, &name)));
             self.decls.insert(
@@ -2655,7 +2653,7 @@ impl Context {
                 ),
             );
             self.consts
-                .insert(name.clone(), ValueObj::Type(TypeObj::Generated(gen)));
+                .insert(name.clone(), ValueObj::Type(TypeObj::Generated(generator)));
             self.register_methods(&t, &ctx);
             self.patches.insert(name.clone(), ctx);
             Ok(())
@@ -3267,15 +3265,14 @@ impl Context {
             }
             ast::Expr::Set(ast::Set::Comprehension(comp)) => {
                 let mut res = false;
-                for (_, gen) in comp.generators.iter() {
-                    if self.inc_ref_expr(gen, namespace, tmp_tv_cache) {
+                for (_, generator) in comp.generators.iter() {
+                    if self.inc_ref_expr(generator, namespace, tmp_tv_cache) {
                         res = true;
                     }
                 }
-                if let Some(guard) = &comp.guard {
-                    if self.inc_ref_expr(guard, namespace, tmp_tv_cache) {
+                if let Some(guard) = &comp.guard
+                    && self.inc_ref_expr(guard, namespace, tmp_tv_cache) {
                         res = true;
-                    }
                     }
                 res
             }
@@ -3293,8 +3290,8 @@ impl Context {
             }
             ast::Expr::Dict(ast::Dict::Comprehension(comp)) => {
                 let mut res = false;
-                for (_, gen) in comp.generators.iter() {
-                    if self.inc_ref_expr(gen, namespace, tmp_tv_cache) {
+                for (_, generator) in comp.generators.iter() {
+                    if self.inc_ref_expr(generator, namespace, tmp_tv_cache) {
                         res = true;
                     }
                 }
