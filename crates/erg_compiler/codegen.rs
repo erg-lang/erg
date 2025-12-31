@@ -3976,6 +3976,34 @@ impl PyCodeGenerator {
         self.emit_import_all_instr(erg_std_mod);
     }
 
+    fn load_encoding_utf8(&mut self) {
+        let no_std = self.cfg.no_std;
+        self.cfg.no_std = true;
+        self.load_sys_encoding();
+        self.cfg.no_std = no_std;
+    }
+
+    fn load_sys_encoding(&mut self) {
+        self.load_reconfigure();
+        self.emit_load_name_instr(Identifier::private("#stdout"));
+        self.emit_load_method_instr(Identifier::static_public("reconfigure"), BoundAttr);
+        self.emit_load_const("utf-8");
+        let kws = vec![ValueObj::Str("encoding".into())];
+        if self.py_version.minor >= Some(11) {
+            let idx = self.register_const(kws);
+            self.write_instr(Opcode311::KW_NAMES);
+            self.write_arg(idx);
+            self.emit_precall_and_call(1);
+            self.stack_dec();
+        } else {
+            self.emit_load_const(kws);
+            self.write_instr(Opcode310::CALL_FUNCTION_KW);
+            self.write_arg(1);
+            self.stack_dec_n(2);
+        }
+        self.emit_pop_top();
+    }
+
     fn load_record_type(&mut self) {
         self.emit_global_import_items(
             Identifier::static_public("collections"),
@@ -3999,6 +4027,16 @@ impl PyCodeGenerator {
                     Some(Identifier::private("#abstractmethod")),
                 ),
             ],
+        );
+    }
+
+    fn load_reconfigure(&mut self) {
+        self.emit_global_import_items(
+            Identifier::static_public("sys"),
+            vec![(
+                Identifier::static_public("stdout"),
+                Some(Identifier::private("#stdout")),
+            )],
         );
     }
 
@@ -4061,6 +4099,9 @@ impl PyCodeGenerator {
         }
         if !self.cfg.no_std && !self.prelude_loaded {
             self.load_prelude();
+        }
+        if !self.cfg.no_std && !self.cfg.input.is_repl() {
+            self.load_encoding_utf8();
         }
         for chunk in hir.module.into_iter() {
             self.emit_chunk(chunk);
